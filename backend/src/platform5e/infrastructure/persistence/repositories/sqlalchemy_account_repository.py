@@ -27,6 +27,7 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_re
     GenerationORM,
     TeacherGenerationORM,
 )
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
 
 
 # Cursos y documentos guardados antes del contrato en inglés (octubre de 2026) traen claves en español.
@@ -136,6 +137,7 @@ TABLES_TO_REGISTER = (
     DocumentORM,
     ChunkORM,
     TeacherResourceORM,
+    MediaAssetORM,
     DownloadORM,
 )
 
@@ -251,7 +253,17 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     @translate_persistence_errors
     def delete_course(self, teacher_id: str, course_id: str, unit_ids: list[str]) -> None:
         with SessionLocal() as session:
-            for table in (ChunkORM, DocumentORM, TeacherResourceORM, DownloadORM):
+            resource_ids = select(TeacherResourceORM.id).where(
+                TeacherResourceORM.teacher_id == teacher_id,
+                TeacherResourceORM.unit_id.in_(unit_ids),
+            )
+            session.execute(
+                delete(MediaAssetORM).where(
+                    MediaAssetORM.teacher_id == teacher_id,
+                    MediaAssetORM.resource_id.in_(resource_ids),
+                )
+            )
+            for table in (ChunkORM, DocumentORM, TeacherResourceORM):
                 session.execute(
                     delete(table).where(
                         table.teacher_id == teacher_id, table.unit_id.in_(unit_ids)
