@@ -19,6 +19,8 @@ BOOTSTRAP_TEACHER_EMAIL     opcional; cuenta inicial configurada en el servidor
 BOOTSTRAP_TEACHER_PASSWORD  opcional; su contraseña
 DEMO_CATALOG                solo pruebas: cuenta y curso de ejemplo
 DATABASE_URL                conexión a PostgreSQL (Neon) o SQLite
+GENERATION_MAX_WORKERS      hilos que ejecutan pedidos de generación por proceso (por defecto 2)
+GENERATION_REQUEST_DEADLINE_SECONDS  tiempo máximo de un pedido de generación (por defecto 900)
 """
 
 from __future__ import annotations
@@ -53,3 +55,27 @@ def read_flag(name: str, default: bool, environment: Mapping[str, str] | None = 
     """true/false sin distinguir mayúsculas; cualquier otro valor deja el valor por defecto."""
     value = read_setting(name, "", environment).strip().lower()
     return {"true": True, "false": False}.get(value, default)
+
+
+DEFAULT_GENERATION_MAX_WORKERS: int = 2
+DEFAULT_GENERATION_REQUEST_DEADLINE_SECONDS: int = 900
+
+
+def read_positive_int(name: str, default: int, environment: Mapping[str, str] | None = None) -> int:
+    """Entero mayor que cero; un valor vacío, no numérico o menor que 1 deja el valor por defecto."""
+    value = read_setting(name, "", environment).strip()
+    try:
+        number = int(value)
+    except ValueError:
+        return default
+    return number if number > 0 else default
+
+
+def generation_max_workers(environment: Mapping[str, str] | None = None) -> int:
+    return read_positive_int("GENERATION_MAX_WORKERS", DEFAULT_GENERATION_MAX_WORKERS, environment)
+
+
+def generation_request_deadline_seconds(environment: Mapping[str, str] | None = None) -> int:
+    return read_positive_int(
+        "GENERATION_REQUEST_DEADLINE_SECONDS", DEFAULT_GENERATION_REQUEST_DEADLINE_SECONDS, environment
+    )

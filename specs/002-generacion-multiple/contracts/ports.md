@@ -110,8 +110,9 @@ get_regeneration(teacher_id: str, request_id: str) -> RegenerationStatus
 
 ```python
 class GenerationRequestRepositoryPort(Protocol):
-    def create(self, request: GenerationRequest, steps: list[GenerationStep]) -> GenerationRequest:
-        """Lanza IdempotencyKeyTaken(existing) si (teacher_id, idempotency_key) ya existe."""
+    def create(self, request: GenerationRequest) -> GenerationRequest:
+        """Guarda el pedido con sus pasos (request.steps) en una sola transacción.
+        Lanza IdempotencyKeyTaken(existing) si (teacher_id, idempotency_key) ya existe."""
     def find_by_key(self, teacher_id: str, idempotency_key: str) -> GenerationRequest | None: ...
     def get(self, teacher_id: str, request_id: str) -> GenerationRequest | None:
         """Filtra por docente. Un pedido ajeno devuelve None."""
@@ -122,10 +123,14 @@ class GenerationRequestRepositoryPort(Protocol):
     def save_evidence(self, request_id: str, retrieval: EvidenceRetrieval, retrieved_at: str) -> None: ...
     def update_step(self, request_id: str, step: GenerationStep) -> None: ...
     def heartbeat(self, request_id: str) -> None: ...
-    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> None: ...
+    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> None:
+        """Cierra el pedido y sus pasos sin terminar. Un pedido ya terminado no cambia."""
     def mark_interrupted(self, stale_before: datetime) -> int:
         """Pasa a interrupted los pedidos queued o running con el latido vencido. Devuelve cuántos cambió."""
 ```
+
+- `GenerationRequest` ya incluye sus pasos (`steps`), así que `create` no los recibe aparte.
+- `finish` cierra también los pasos que quedaron en `pending` o `running`: pasan a `interrupted` si el pedido se cierra como `interrupted`, y a `failed` en los demás casos, con el mismo `failure` como motivo. Así un pedido terminado nunca tiene pasos en curso. Los pasos ya terminados y sus recursos no cambian.
 
 ### GenerationJobRunnerPort
 
