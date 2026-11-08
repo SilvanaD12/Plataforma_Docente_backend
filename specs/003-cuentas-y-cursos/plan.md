@@ -16,7 +16,7 @@
 
 - **Sesión.** `POST /api/v1/accounts`, `POST /api/v1/sessions` y `GET` o `DELETE /api/v1/sessions/current`. El cliente envía `Authorization: Bearer …` en las llamadas privadas.
 - **Cursos.** `GET` y `POST /api/v1/courses`, `PUT` y `DELETE /api/v1/courses/{courseId}`. El cliente reenvía los IDs de unidades y resultados existentes que conserva al editar. El servidor asigna los IDs de los elementos nuevos.
-- **Unidad.** `/courses/:courseId/units/:unitId` resuelve `course` y `unit` y los comparte con las rutas hijas. Material y Generación acordarán con Cuentas la firma y los errores del puerto de pertenencia. El backend comprueba la identidad y la pertenencia antes de operar.
+- **Unidad.** `/courses/:courseId/units/:unitId` muestra el resumen y comparte `course` y `unit` con las rutas hijas `material`, `generation`, `review` y `export`. Cada responsable implementa la página de su módulo en `src/features/`. Material y Generación acordarán con Cuentas la firma y los errores del puerto de pertenencia. El backend comprueba la identidad y la pertenencia antes de operar.
 - **Borrado.** El adaptador actual elimina también registros de descarga. Coordinar con REV-01 una persistencia por docente que conserve esos registros tras borrar el curso. Verificar la limpieza de documentos, fragmentos y vectores con MAT-01, y de recursos, verificación y multimedia con GEN-01 y REV-01. Habilitar el borrado en la interfaz después de verificar ese contrato.
 
 ## Verificación y orden de entrega
