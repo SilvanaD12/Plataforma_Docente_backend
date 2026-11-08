@@ -159,3 +159,53 @@ def test_generate_again_needs_a_pending_media_resource_and_an_active_service(cha
     with pytest.raises(AccountConfigurationError) as error:
         RegenerateResourceMediaUseCase(service, resources, generator, media).execute("ana", "u1", "r1")
     assert error.value.code == code
+
+
+# --------------------------------------------------------------------------- REV-01 · bloque e) (REV-C8 · REV-R8)
+
+IMAGE_STRUCTURE = {
+    "prompt": "Ilustración didáctica de un segmento TCP que confirma la entrega de los datos.",
+    "alt": "Ilustración sobre la entrega de datos",
+    "caption": "El protocolo TCP confirma la entrega de los datos.",
+}
+
+
+def image_resource() -> dict[str, Any]:
+    return {
+        "id": "img1", "unitId": "u1", "type": "imagen_ilustrativa", "stage": "explore", "format": "image",
+        "status": "pendiente", "title": "Imagen", "body": "Observa la imagen.", "options": None,
+        "createdAt": "2026-10-18T10:00", "structure": dict(IMAGE_STRUCTURE),
+        "media": {"status": "ready", "id": "media-img", "mimeType": "image/png", "fileName": "img1.png"},
+        "citations": [{"claim": "El protocolo TCP confirma la entrega de los datos.", "fragmentIds": ["frag-img"]}],
+        "evidence": [{"id": "frag-img", "text": "El protocolo TCP confirma la entrega de los datos al receptor.",
+                      "location": "página 1", "documentId": "d1", "documentName": "redes.pdf"}],
+    }
+
+
+def edit_image(**structure_changes: str) -> dict[str, Any]:
+    resources = Resources([image_resource()])
+    service = ResourceReviewService(Teachers(), resources)
+    version = service.get_resource("ana", "u1", "img1").get("version", 1)
+    return service.update_resource("ana", "u1", "img1", {
+        "title": "Imagen", "body": "Observa la imagen.", "status": "pendiente", "expectedVersion": version,
+        "structure": {**IMAGE_STRUCTURE, **structure_changes},
+    })
+
+
+@pytest.mark.parametrize("field", ["alt", "caption"])
+def test_changing_only_the_alt_text_or_the_caption_keeps_the_generated_image(field):
+    """REV-C8: si cambian solo `alt` o `caption`, el archivo se conserva."""
+    edited = edit_image(**{field: "Texto corregido por el docente para la imagen."})
+    assert edited["media"]["status"] == "ready" and edited["media"]["id"] == "media-img"
+    assert edited["structure"][field] == "Texto corregido por el docente para la imagen."
+
+
+def test_changing_the_prompt_drops_the_generated_image():
+    """REV-C8: si cambia el `prompt` normalizado, el archivo deja de usarse y se muestra la descripción."""
+    edited = edit_image(prompt="Ilustración de un datagrama UDP que viaja sin confirmación de entrega.")
+    assert edited["media"]["status"] == "fallback" and "Cambiaste la descripción" in edited["media"]["note"]
+
+
+def test_a_prompt_that_only_differs_in_spaces_keeps_the_generated_image():
+    edited = edit_image(prompt="  " + IMAGE_STRUCTURE["prompt"].replace(" ", "   ") + "  ")
+    assert edited["media"]["status"] == "ready"

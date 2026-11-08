@@ -17,6 +17,7 @@ from platform5e.application.services.media.media_attachment import EDITED_NOTES,
 from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION
 from platform5e.domain.generation.resource_formats import needs_structure, normalize_structure, structure_problems
 from platform5e.domain.review.content_fingerprint import content_fingerprint
+from platform5e.domain.review.media_change import media_source_changed
 from platform5e.application.services.review.legacy_verification import upgrade_resource_verification
 from platform5e.domain.review.resource_verification import (
     INSUFFICIENT,
@@ -213,9 +214,10 @@ class ResourceReviewService:
                     "INVALID_STRUCTURE", "Completa todos los elementos de la actividad antes de guardar.", 422
                 )
             media = existing.get("media") or {}
-            if media.get("status") == "ready" and structure != existing.get("structure"):
-                # El archivo se generó con el guion o la descripción anterior: deja de usarse para que la revisión,
-                # la aprobación y el SCORM no mezclen el texto nuevo con el audio o la imagen viejos.
+            if media.get("status") == "ready" and media_source_changed(existing["type"], existing.get("structure"), structure):
+                # REV-C8: el archivo se generó con el guion o la descripción anterior y deja de usarse, para que la
+                # revisión y el SCORM no mezclen el texto nuevo con el audio o la imagen viejos. Si cambian solo `alt`
+                # o `caption`, el archivo se conserva. El bloqueo de aprobación espera la decisión del equipo (D9).
                 updated_resource["media"] = fallback_media(existing["format"], EDITED_NOTES[existing["format"]])
             updated_resource["structure"] = structure
 

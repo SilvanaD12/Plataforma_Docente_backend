@@ -194,7 +194,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Guardar en el registro `courseId`, `courseName`, `unitName` y `unitNumber`.
 - [x] T039 [BE] [US3] Agregar `get_downloads_by_teacher(teacher_id)` en `backend/src/platform5e/application/ports/outbound/resource_repository_port.py` y en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_resource_repository.py`, ordenado del más reciente al más antiguo.
 - [ ] T040 [BE] [US3] **Hecho en parte (2026-11-08):** `get_teacher_downloads` agregado (completa curso y unidad en registros antiguos si la unidad existe); quitar `get_download_record` y `register_download` va con T041. En `backend/src/platform5e/application/services/review/resource_review_service.py`, agregar `get_teacher_downloads(teacher_id)`, con un límite de `MAX_DOWNLOADS_HISTORY` y sin exigir acceso a la unidad, y quitar `get_download_record` y `register_download`.
-- [ ] T041 [BE] [US3] Ajustar `backend/src/platform5e/infrastructure/http/routers/downloads.py` y `backend/src/platform5e/infrastructure/http/schemas/downloads.py`:
+- [ ] T041 [BE] [US3] **Hecho en parte (2026-11-08):** `GET /api/v1/downloads` (router `create_teacher_downloads_router`, límite de 50) y los campos de curso y unidad en `DownloadResponse`, con su e2e de aislamiento en `test_exports_api.py`; el retiro de las dos rutas antiguas espera la respuesta de Silvana. Ajustar `backend/src/platform5e/infrastructure/http/routers/downloads.py` y `backend/src/platform5e/infrastructure/http/schemas/downloads.py`:
   - Agregar `GET /api/v1/downloads`.
   - Retirar `GET /units/{unit_id}/downloads/{download_id}` y `POST /units/{unit_id}/downloads`, y quitar `DownloadInput`.
   - `DownloadResponse` gana `course_id`, `course_name`, `unit_name` y `unit_number`, que pueden ser `null` en registros anteriores.
@@ -207,7 +207,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
 > - **Sergio:** aprobar la migración para Neon y elegir la opción A (perezosa) o B (script) de D7 (mensaje 2).
 > - **Equipo:** decidir qué pasa con el bloqueo multimedia si la generación de imágenes y voz está apagada (mensaje 5).
 
-- [ ] T044 [P] [BE] [US3] Ajustar `backend/tests/unit/test_edited_media.py`:
+- [ ] T044 [P] [BE] [US3] **Hecho en parte (2026-11-08):** pruebas de `alt` y `caption` (conservan el archivo) y de `prompt` (lo invalida) agregadas; las del bloqueo de aprobación esperan D9. Ajustar `backend/tests/unit/test_edited_media.py`:
   - Cambiar el `script` deja el respaldo con `media.invalidated = true` y **bloquea** la aprobación. Esto cambia la prueba actual `test_editing_the_script_drops_the_old_audio_everywhere`, según H10.
   - Cambiar el `prompt` de una imagen hace lo mismo.
   - Cambiar solo `alt` o `caption` conserva el archivo `ready`.
@@ -221,8 +221,8 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Umbral guardado o `DEFAULT_THRESHOLD`.
   - La actualización **no incrementa `version`**.
   - Si hubo un guardado concurrente, la actualización se descarta sin error.
-- [ ] T046 [BE] [US3] Crear `backend/src/platform5e/domain/review/media_change.py` con `media_source_changed(resource_type, old_structure, new_structure) -> bool`. Compara `prompt` para la imagen y `script` para el audio, normalizados con `normalize_structure` (D9).
-- [ ] T047 [BE] [US3] En `backend/src/platform5e/application/services/review/resource_review_service.py`:
+- [x] T046 [BE] [US3] Crear `backend/src/platform5e/domain/review/media_change.py` con `media_source_changed(resource_type, old_structure, new_structure) -> bool`. Compara `prompt` para la imagen y `script` para el audio, normalizados con `normalize_structure` (D9).
+- [ ] T047 [BE] [US3] **Hecho en parte (2026-11-08):** la comparación usa `media_source_changed` (solo `prompt` o `script`). Falta, según D9: `invalidated = true` y el bloqueo de aprobación. En `backend/src/platform5e/application/services/review/resource_review_service.py`:
   - Reemplazar la comparación de toda la estructura (hoy en la línea 148) por `media_source_changed`.
   - Al invalidar, dejar `fallback_media(..., EDITED_NOTES[...])` con `invalidated = true`.
   - En `validate_approval_blockers`, bloquear mientras `invalidated` esté presente.
