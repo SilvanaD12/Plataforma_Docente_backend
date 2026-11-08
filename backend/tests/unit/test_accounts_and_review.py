@@ -500,6 +500,38 @@ def test_two_saves_from_the_same_version_conflict():
     assert error.value.code == "VERSION_CONFLICT"
 
 
+
+def test_approving_from_an_outdated_version_is_a_conflict_before_checking_the_approval():
+    """REV-C14: aprobar desde la versión 1 cuando ya existe la 2 responde VERSION_CONFLICT, no APPROVAL_BLOCKED.
+
+    El contenido enviado no tiene respaldo (bloquearía la aprobación), pero la versión se compara antes de evaluarla.
+    """
+    resource = make_verified_explanation()
+    service, repo = make_versioned_service(resource)
+    service.update_resource("ana", "u1", "rx", save_changes(resource, title="Primera pestaña"))
+    before = copy.deepcopy(repo.get_resource_by_id("ana", "rx"))
+    with pytest.raises(AccountConfigurationError) as error:
+        service.update_resource(
+            "ana", "u1", "rx", save_changes(resource, body=UNSUPPORTED_TEXT, status="aprobado", expectedVersion=1)
+        )
+    assert error.value.code == "VERSION_CONFLICT" and error.value.status_code == 409
+    assert repo.get_resource_by_id("ana", "rx") == before
+
+
+def test_a_save_that_loses_the_race_after_reading_is_still_a_conflict():
+    """REV-C14: si otra pestaña guarda entre la lectura y la escritura, el UPDATE condicional rechaza el guardado."""
+    resource = make_verified_explanation()
+    service, repo = make_versioned_service(resource)
+    stale = copy.deepcopy(repo.get_resource_by_id("ana", "rx"))
+    service.update_resource("ana", "u1", "rx", save_changes(resource, title="Otra pestaña"))
+    saved = copy.deepcopy(repo.get_resource_by_id("ana", "rx"))
+    repo.get_resource_by_id = lambda teacher_id, resource_id: copy.deepcopy(stale)  # la lectura llegó antes
+    with pytest.raises(AccountConfigurationError) as error:
+        service.update_resource("ana", "u1", "rx", save_changes(resource, title="Esta pestaña"))
+    assert error.value.code == "VERSION_CONFLICT"
+    assert repo.resources[("ana", "rx")] == saved
+
+
 def test_save_without_changing_the_fingerprint_keeps_the_verification():
     """REV-C2: un cambio de formato o de título no vuelve a verificar; la versión sí avanza."""
     resource = make_verified_explanation()

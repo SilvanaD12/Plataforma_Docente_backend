@@ -238,6 +238,19 @@ def test_saves_check_the_version_and_the_stored_evidence(server: str):
         assert api.put(url, headers=other, json=_edit(resource, 3)).status_code == 404
 
 
+
+def test_approving_from_an_outdated_version_is_a_version_conflict(server: str):
+    """REV-C14 por HTTP: aprobar desde la versión 1 cuando existe la 2 es VERSION_CONFLICT, no APPROVAL_BLOCKED."""
+    with httpx.Client(base_url=server, timeout=30) as api:
+        h, unit, document, resource = _unit_with_an_explanation(api, "rev01-aprobar@correo.pe")
+        url = f"/api/v1/units/{unit['id']}/resources/{resource['id']}"
+        assert api.put(url, headers=h, json=_edit(resource, 1, title="Otra pestaña")).status_code == 200
+
+        stale = api.put(url, headers=h, json=_edit(resource, 1, body=UNSUPPORTED_BODY, status="aprobado"))
+        assert stale.status_code == 409 and stale.json()["error"]["code"] == "VERSION_CONFLICT", stale.text
+        current = api.get(f"/api/v1/units/{unit['id']}/resources", headers=h).json()[0]
+        assert current["version"] == 2 and current["status"] == "pendiente" and current["body"] == resource["body"]
+
 def test_approval_needs_a_current_verification_and_retry_only_applies_to_pending(server: str):
     """REV-C3 y REV-C11 por HTTP: bloqueo con motivo, verificación al leer y reintento solo para pendientes."""
     with httpx.Client(base_url=server, timeout=30) as api:
