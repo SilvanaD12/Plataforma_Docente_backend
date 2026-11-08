@@ -325,3 +325,41 @@ def test_an_old_resource_without_verification_is_checked_when_read(server: str, 
 
         # La segunda lectura no vuelve a verificar: devuelve el mismo resultado guardado.
         assert api.get(f"/api/v1/units/{unit['id']}/resources", headers=h).json()[0]["verification"] == listed["verification"]
+
+
+def test_regenerating_a_resource_from_review(server: str):
+    """REV-C12 y REV-C13 por HTTP (decisión provisional D10): éxito, sin duplicados al repetir, fallo y aislamiento."""
+    with httpx.Client(base_url=server, timeout=60) as api:
+        h, unit, document, resource = _unit_with_an_explanation(api, "regenerar@correo.pe")
+        base = f"/api/v1/units/{unit['id']}/resources"
+
+        regenerated = api.post(f"{base}/{resource['id']}/regenerations", headers=h, json={"expectedVersion": 1})
+        assert regenerated.status_code == 200, regenerated.text
+        body = regenerated.json()
+        assert body["previousResourceId"] == resource["id"] and body["previousDiscarded"] is True
+        assert body["status"] == "succeeded" and len(body["newResourceIds"]) == 1
+        [new_id] = body["newResourceIds"]
+
+        by_id = {r["id"]: r for r in api.get(base, headers=h).json()}
+        assert by_id[resource["id"]]["status"] == "descartado" and by_id[resource["id"]]["discardReason"] == "regenerado"
+        new = by_id[new_id]
+        assert new["status"] == "pendiente" and new["regeneratedFrom"] == {"resourceId": resource["id"], "version": 1}
+        assert new["verification"]["status"] == "current"
+
+        # Pedirla otra vez desde la misma versión no genera otro recurso.
+        again = api.post(f"{base}/{resource['id']}/regenerations", headers=h, json={"expectedVersion": 1})
+        assert again.status_code == 200 and again.json() == body
+        assert len(api.get(base, headers=h).json()) == 2
+
+        # Sin material procesado la regeneración falla: el recurso queda igual y se informa el motivo (REV-C13).
+        assert api.delete(f"/api/v1/documents/{document['id']}", headers=h).status_code == 204
+        failed = api.post(f"{base}/{new_id}/regenerations", headers=h, json={"expectedVersion": new["version"]})
+        assert failed.status_code == 502 and failed.json()["error"]["code"] == "REGENERATION_FAILED"
+        assert failed.json()["error"]["message"]
+        after = {r["id"]: r for r in api.get(base, headers=h).json()}[new_id]
+        assert after["status"] == "pendiente" and after["version"] == new["version"] and after["body"] == new["body"]
+        assert len(api.get(base, headers=h).json()) == 2
+
+        # Otra cuenta no puede regenerar en la unidad ajena.
+        other = {"Authorization": "Bearer " + api.post("/api/v1/accounts", json={**ACCOUNT, "email": "otra-f@correo.pe"}).json()["token"]}
+        assert api.post(f"{base}/{new_id}/regenerations", headers=other, json={"expectedVersion": new["version"]}).status_code == 404

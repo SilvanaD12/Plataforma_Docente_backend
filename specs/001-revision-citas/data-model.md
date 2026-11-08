@@ -93,8 +93,11 @@ Estado de revisión (status)        Verificación (verification.status)
 | `save_resources(...)` | Se conserva para Generación, que crea recursos con `version = 1`. |
 | `get_downloads(teacher_id, unit_id)` | Se conserva para el filtro por unidad. |
 
-## Puerto de regeneración (`ResourceRegenerationPort`), pendiente de acuerdo con Yan
+## Puerto de regeneración (`ResourceRegenerationPort`), decisión provisional D10 sin confirmación de Yan
 
 | Operación | Entrada | Salida |
 |---|---|---|
-| `request_regeneration` | `teacher_id` y el recurso, con `id`, `version` y `params` | `RegenerationOutcome(ok: bool, new_resource_ids: list[str], reason: str \| None)` |
+| `request_regeneration` | `teacher_id`, `resource_id`, `resource_version` y `params` (con `unitId`) | `RegenerationStatus(request_id, status, new_resource_ids, reason)`; `status`: `pending`, `running`, `succeeded` o `failed` |
+| `get_regeneration` | `teacher_id` y `request_id` | `RegenerationStatus` o `None` si no existe o es de otro docente |
+
+En el recurso anterior, Revisión guarda `regeneration: {fromVersion, requestId, status, newResourceIds, previousDiscarded}`. En cada recurso nuevo guarda `regeneratedFrom: {resourceId, version}`.

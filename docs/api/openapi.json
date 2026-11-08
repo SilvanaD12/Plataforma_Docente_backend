@@ -1579,6 +1579,123 @@
         }
       }
     },
+    "/api/v1/units/{unit_id}/resources/{resource_id}/regenerations": {
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Regenerate a resource from review",
+        "description": "REV-C12 and REV-C13 (provisional decision D10, not yet confirmed by Generation): asks Generation for a new\nresource with the stored parameters and the current evidence of the material. The request is synchronous.\n\nOn success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the\nprevious one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it\nwas edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version\nreturns the same result without generating again. On failure the previous resource is unchanged (502\nREGENERATION_FAILED with the reason). An outdated `expectedVersion` returns 409 VERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource of your unit with its current version. Expected 200.",
+        "operationId": "regenerate_resource_api_v1_units__unit_id__resources__resource_id__regenerations_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegenerationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegenerationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "REGENERATION_FAILED: the previous resource is unchanged; `message` gives the reason.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "REGENERATION_UNAVAILABLE.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/units/{unit_id}/resources/{resource_id}/media": {
       "get": {
         "tags": [
@@ -3501,6 +3618,85 @@
         ],
         "title": "ProfileResponse"
       },
+      "RegeneratedFrom": {
+        "properties": {
+          "resourceId": {
+            "type": "string",
+            "title": "Resourceid"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "description": "Version of the previous resource when the regeneration was requested."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "resourceId",
+          "version"
+        ],
+        "title": "RegeneratedFrom"
+      },
+      "RegenerationInput": {
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "description": "Version you read. The previous resource is discarded only if it is still at it.",
+            "examples": [
+              1
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expectedVersion"
+        ],
+        "title": "RegenerationInput",
+        "description": "REV-C12: regenerar un recurso desde Revisión."
+      },
+      "RegenerationResponse": {
+        "properties": {
+          "previousResourceId": {
+            "type": "string",
+            "title": "Previousresourceid"
+          },
+          "previousDiscarded": {
+            "type": "boolean",
+            "title": "Previousdiscarded",
+            "description": "True when the previous resource went to discarded with reason `regenerado`; false when it was edited meanwhile and both stay in review."
+          },
+          "newResourceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Newresourceids",
+            "description": "Resources created by Generation, waiting for review."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "running"
+            ],
+            "title": "Status",
+            "description": "`succeeded`, or `running` when the same request is still in progress."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "previousResourceId",
+          "previousDiscarded",
+          "newResourceIds",
+          "status"
+        ],
+        "title": "RegenerationResponse"
+      },
       "RegistrationRequest": {
         "properties": {
           "name": {
@@ -4027,6 +4223,17 @@
               }
             ],
             "description": "Last check against the stored evidence copy (REV-01). None until it is checked."
+          },
+          "regeneratedFrom": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegeneratedFrom"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a regenerated resource: the resource and version it replaces (REV-C12)."
           },
           "reviewReset": {
             "anyOf": [

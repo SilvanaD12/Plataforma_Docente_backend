@@ -19,6 +19,7 @@ from platform5e.application.services.generation.generation_service import Genera
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
+from platform5e.infrastructure.generation.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.application.use_cases.media.get_resource_media import GetResourceMediaUseCase
 from platform5e.application.use_cases.media.regenerate_resource_media import RegenerateResourceMediaUseCase
@@ -149,7 +150,6 @@ def create_application() -> FastAPI:
         open_resource_port=open_source,
         embedding_service=embedding_service,
     )
-    review_service = ResourceReviewService(account_repository, resource_repository)
     generation_service = GenerationService(
         repository=generation_repository,
         teacher_repository=account_repository,
@@ -161,6 +161,10 @@ def create_application() -> FastAPI:
         evidence_retriever=evidence_retriever,
         media_generator=media_generator,
         media_repository=media_repository,
+    )
+    # REV-01 (D10, provisional): Revisión pide la regeneración por su puerto; el adaptador delega en Generación.
+    review_service = ResourceReviewService(
+        account_repository, resource_repository, GenerationRegenerationAdapter(generation_service)
     )
     export_use_case = ExportUnitResourcesUseCase(
         account_repository,

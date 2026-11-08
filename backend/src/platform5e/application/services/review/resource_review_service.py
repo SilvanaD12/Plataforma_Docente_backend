@@ -9,7 +9,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from platform5e.application.ports.outbound.resource_regeneration_port import ResourceRegenerationPort
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
+from platform5e.domain.review.errors import RegenerationFailedError
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
 from platform5e.application.services.media.media_attachment import EDITED_NOTES, fallback_media
@@ -98,6 +100,15 @@ def approval_blockers(resource_data: dict[str, Any]) -> list[str]:
     return validate_approval_blockers(resource_data) + verification_blockers(resource_data)
 
 
+def _regeneration_response(resource_id: str, record: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "previousResourceId": resource_id,
+        "previousDiscarded": bool(record.get("previousDiscarded")),
+        "newResourceIds": list(record.get("newResourceIds") or []),
+        "status": record.get("status"),
+    }
+
+
 class ResourceReviewService:
     """Servicio de aplicación para la gestión del ciclo de vida de revisión y descargas."""
 
@@ -105,9 +116,11 @@ class ResourceReviewService:
         self,
         teacher_repository: TeacherRepositoryPort,
         review_repository: ResourceReviewRepositoryPort,
+        regeneration: ResourceRegenerationPort | None = None,
     ) -> None:
         self._teacher_repository = teacher_repository
         self._review_repository = review_repository
+        self._regeneration = regeneration
 
     def _verify_unit_access(self, teacher_id: str, unit_id: str) -> None:
         """Comprueba que la unidad académica pertenezca al docente en sesión."""
@@ -362,6 +375,80 @@ class ResourceReviewService:
                 record = {**record, **units[record["unitId"]]}
             records.append(record)
         return sorted(records, key=lambda d: d.get("createdAt", ""), reverse=True)[:MAX_DOWNLOADS_HISTORY]
+
+    def regenerate_resource(
+        self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int
+    ) -> dict[str, Any]:
+        """REV-C12 y REV-C13: pide a Generación un recurso nuevo y descarta el anterior solo si sigue en la versión
+        registrada. Decisión provisional D10 (sin confirmación de Generación).
+
+        - Antes de pedirlo, registra en el anterior `regeneration` con la versión de partida. Pedirlo otra vez desde la
+          misma versión devuelve el mismo resultado sin generar de nuevo (salvo que el pedido anterior haya fallado).
+        - Si termina bien, los recursos nuevos guardan `regeneratedFrom` y se verifican al leerlos, como los antiguos.
+          El anterior pasa a `descartado` con `discardReason = "regenerado"` con un guardado condicional: si el
+          docente lo editó mientras tanto, no se toca y los dos quedan en Revisión.
+        - Si falla, el anterior queda como estaba (su contenido y su versión) y se informa el motivo.
+        """
+        existing = self._get_resource_or_fail(teacher_id, unit_id, resource_id)
+        if self._regeneration is None:
+            raise AccountConfigurationError(
+                "REGENERATION_UNAVAILABLE", "La regeneración no está disponible en el servidor.", 503
+            )
+        record = existing.get("regeneration") or {}
+        if record.get("fromVersion") == expected_version and record.get("status") in ("running", "succeeded"):
+            return _regeneration_response(resource_id, record)
+        if existing.get("version", 1) != expected_version:
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de regenerarlo.", 409
+            )
+
+        record = {"fromVersion": expected_version, "requestId": None, "status": "running", "newResourceIds": []}
+        if not self._review_repository.save_resource_if_version(
+            teacher_id, unit_id, {**existing, "regeneration": record}, expected_version, increment=False
+        ):
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de regenerarlo.", 409
+            )
+
+        params = {**(existing.get("params") or {}), "unitId": unit_id}
+        outcome = self._regeneration.request_regeneration(teacher_id, resource_id, expected_version, params)
+        record = {**record, "requestId": outcome.request_id, "status": outcome.status,
+                  "newResourceIds": list(outcome.new_resource_ids)}
+
+        if outcome.status != "succeeded":
+            reason = outcome.reason or "La regeneración no terminó bien."
+            self._record_regeneration(teacher_id, unit_id, resource_id, {**record, "status": "failed", "reason": reason})
+            raise RegenerationFailedError(reason)
+
+        for new_id in outcome.new_resource_ids:
+            new = self._review_repository.get_resource_by_id(teacher_id, new_id)
+            if new is not None:
+                self._review_repository.save_resource_if_version(
+                    teacher_id, unit_id,
+                    {**new, "regeneratedFrom": {"resourceId": resource_id, "version": expected_version}},
+                    new.get("version", 1), increment=False,
+                )
+
+        latest = self._review_repository.get_resource_by_id(teacher_id, resource_id) or existing
+        now = datetime.now(timezone.utc).isoformat()
+        discarded = {**latest, "status": "descartado", "discardReason": "regenerado", "decidedAt": now,
+                     "updatedAt": now, "regeneration": {**record, "previousDiscarded": True}}
+        if latest.get("version", 1) == expected_version and self._review_repository.save_resource_if_version(
+            teacher_id, unit_id, discarded, expected_version
+        ):
+            return _regeneration_response(resource_id, discarded["regeneration"])
+
+        record = {**record, "previousDiscarded": False}
+        self._record_regeneration(teacher_id, unit_id, resource_id, record)
+        return _regeneration_response(resource_id, record)
+
+    def _record_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, record: dict[str, Any]) -> None:
+        """Guarda el estado del pedido en el recurso anterior sin cambiar su versión ni su contenido."""
+        latest = self._review_repository.get_resource_by_id(teacher_id, resource_id)
+        if latest is not None:
+            self._review_repository.save_resource_if_version(
+                teacher_id, unit_id, {**latest, "regeneration": record}, latest.get("version", 1), increment=False
+            )
 
     def clear_downloads_history(self, teacher_id: str, unit_id: str) -> None:
         """Elimina el registro histórico de descargas de una unidad."""

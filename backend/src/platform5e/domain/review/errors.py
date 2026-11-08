@@ -16,3 +16,10 @@ class ExportNotEligibleError(AccountConfigurationError):
     def __init__(self, message: str, details: list[dict[str, Any]]) -> None:
         super().__init__("NO_APPROVED_RESOURCES", message, 422)
         self.details: list[dict[str, Any]] = details
+
+
+class RegenerationFailedError(AccountConfigurationError):
+    """REV-C13: la regeneración no terminó bien; el recurso anterior queda como estaba. El mensaje es el motivo."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__("REGENERATION_FAILED", reason, 502)

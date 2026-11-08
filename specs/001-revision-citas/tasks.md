@@ -199,7 +199,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Retirar `GET /units/{unit_id}/downloads/{download_id}` y `POST /units/{unit_id}/downloads`, y quitar `DownloadInput`.
   - `DownloadResponse` gana `course_id`, `course_name`, `unit_name` y `unit_number`, que pueden ser `null` en registros anteriores.
 - [ ] T042 [BE] [US3] **CC-01:** en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_account_repository.py`, quitar `DownloadORM` del bucle de `delete_course` (H5). Lo hace Silvana, o Juan con su aprobación en el PR. No tocar el borrado de `media_assets`, que también es de CC-01.
-- [ ] T043 [BE] [US3] Cierre del bloque d): documentar los `details` del 422 en `backend/src/platform5e/infrastructure/http/routers/exports.py`, correr las pruebas y `scripts/export_openapi.py`, y hacer el **commit d)**.
+- [x] T043 [BE] [US3] Cierre del bloque d): documentar los `details` del 422 en `backend/src/platform5e/infrastructure/http/routers/exports.py`, correr las pruebas y `scripts/export_openapi.py`, y hacer el **commit d)**.
 
 ### Bloque e) multimedia por `prompt` o `script` y recursos antiguos (REV-C8 · REV-R8, R11)
 
@@ -241,15 +241,16 @@ el pedido conserva ambos y un fallo deja el anterior igual.
 
 > **Dependencia con Yan, antes de T052.** Acordar el contrato de GEN-R6: si el pedido es síncrono o en segundo plano, el nombre del puerto, el estado consultable y qué pasa si el recurso se edita durante el pedido (mensaje 1, D10). Sin ese acuerdo, esta fase no empieza.
 
-- [ ] T051 [P] [BE] [US2] Crear `backend/tests/unit/test_resource_regeneration.py` con un doble de `ResourceRegenerationPort`:
+- [x] T051 [P] [BE] [US2] **Hecho con la decisión provisional de D10 (2026-11-08), sin confirmación de Generación.** Crear `backend/tests/unit/test_resource_regeneration.py` con un doble de `ResourceRegenerationPort`:
   - Éxito con la versión intacta: el anterior queda `descartado` con `discardReason = "regenerado"` y el nuevo queda en revisión con huella y verificación (REV-C12).
   - Edición durante el pedido: ambos quedan en Revisión (REV-C12).
   - Fallo: el anterior no cambia y se devuelve el motivo (REV-C13).
   - La cuenta B recibe 404.
-- [ ] T052 [BE] [US2] Crear `backend/src/platform5e/application/ports/outbound/resource_regeneration_port.py` con `request_regeneration(teacher_id, resource) -> RegenerationOutcome(ok, new_resource_ids, reason)`, según el acuerdo con Yan.
-- [ ] T053 [BE] [US2] Crear el adaptador en `backend/src/platform5e/infrastructure/generation/generation_regeneration_adapter.py`, que delega en Generación con `params` y la evidencia vigente, e inyectarlo en `backend/src/platform5e/main.py`. Revisión no importa el servicio de Generación; `tests/architecture` lo comprueba.
-- [ ] T054 [BE] [US2] Agregar `regenerate_resource(teacher_id, unit_id, resource_id, expected_version)` en `backend/src/platform5e/application/services/review/resource_review_service.py`, y `POST /api/v1/units/{unit_id}/resources/{resource_id}/regenerations` con `RegenerationResponse` en `backend/src/platform5e/infrastructure/http/routers/resources.py` y en `schemas/resources.py`. Errores: 409 `VERSION_CONFLICT` y 502 `REGENERATION_FAILED`.
+- [x] T052 [BE] [US2] Crear `backend/src/platform5e/application/ports/outbound/resource_regeneration_port.py` con `request_regeneration(teacher_id, resource) -> RegenerationOutcome(ok, new_resource_ids, reason)`, según el acuerdo con Yan.
+- [x] T053 [BE] [US2] Crear el adaptador en `backend/src/platform5e/infrastructure/generation/generation_regeneration_adapter.py`, que delega en Generación con `params` y la evidencia vigente, e inyectarlo en `backend/src/platform5e/main.py`. Revisión no importa el servicio de Generación; `tests/architecture` lo comprueba.
+- [x] T054 [BE] [US2] Agregar `regenerate_resource(teacher_id, unit_id, resource_id, expected_version)` en `backend/src/platform5e/application/services/review/resource_review_service.py`, y `POST /api/v1/units/{unit_id}/resources/{resource_id}/regenerations` con `RegenerationResponse` en `backend/src/platform5e/infrastructure/http/routers/resources.py` y en `schemas/resources.py`. Errores: 409 `VERSION_CONFLICT` y 502 `REGENERATION_FAILED`.
 - [ ] T055 [BE] [US2] Cierre del bloque f):
+  - **Hecho (2026-11-08):** la e2e de regeneración con el servidor real (`test_regenerating_a_resource_from_review`: éxito, sin duplicados, fallo sin material y cuenta B con 404), `openapi.json` regenerado y D10 registrada como provisional. Falta el **PR 2**.
   - **Pendiente del análisis (M3, constitución V):** cuando exista el contrato con Yan, agregar a `backend/tests/e2e/test_accounts_and_review_api.py` una prueba e2e de regeneración con el servidor real. Debe cubrir un éxito que descarta el anterior, un fallo que lo conserva y la cuenta B con 404 (REV-C12, C13).
   - Correr las pruebas y `scripts/export_openapi.py`, y hacer el **commit f)** y el **PR 2** del backend, enlazado con el PR FE-2 (T059).
 

@@ -44,7 +44,7 @@ paths:
         '409': { description: 'VERSION_CONFLICT, VERIFICATION_NOT_PENDING or REGENERATION_REQUIRED (incomplete evidence copy)' }
   /api/v1/units/{unit_id}/resources/{resource_id}/regenerations:
     post:
-      summary: Regenerate a resource (pending agreement with Generation, GEN-R6)
+      summary: Regenerate a resource (provisional decision D10, not yet confirmed by Generation)
       description: >
         Asks Generation for a new resource with the stored parameters and the current evidence of the material.
         On success the previous one is discarded with reason `regenerado` only if it is still at `expectedVersion`;
@@ -139,11 +139,12 @@ components:
         reviewReset: { type: boolean, description: 'Only in the PUT response: an approved resource went back to review.' }
     RegenerationResponse:
       type: object
-      required: [previousResourceId, previousDiscarded, newResourceIds]
+      required: [previousResourceId, previousDiscarded, newResourceIds, status]
       properties:
         previousResourceId: { type: string }
         previousDiscarded: { type: boolean, description: false when the previous one was edited meanwhile. }
         newResourceIds: { type: array, items: { type: string } }
+        status: { type: string, enum: [succeeded, running], description: 'running only when the same request is still in progress.' }
     DownloadResponse:
       description: Existing fields plus the course and unit at export time.
       type: object

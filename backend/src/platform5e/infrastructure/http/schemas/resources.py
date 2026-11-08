@@ -131,6 +131,11 @@ class VerificationResult(ApiResponse):
     summary: dict[str, Any] = Field(default_factory=dict, description="What was checked, kept or removed.")
 
 
+class RegeneratedFrom(ApiResponse):
+    resource_id: str
+    version: int = Field(description="Version of the previous resource when the regeneration was requested.")
+
+
 class ResourceResponse(ApiResponse):
     id: str
     unit_id: str
@@ -165,6 +170,9 @@ class ResourceResponse(ApiResponse):
     verification: VerificationResult | None = Field(
         default=None, description="Last check against the stored evidence copy (REV-01). None until it is checked."
     )
+    regenerated_from: RegeneratedFrom | None = Field(
+        default=None, description="For a regenerated resource: the resource and version it replaces (REV-C12)."
+    )
     review_reset: bool | None = Field(
         default=None,
         description="Only in the save response: true when an approved resource changed its content and went back to review.",
@@ -182,6 +190,21 @@ class ResourceResponse(ApiResponse):
             "citations": [citation.model_dump(by_alias=True) for citation in self.citations],
             "verification": self.verification.model_dump(by_alias=True) if self.verification else None,
         })
+
+
+class RegenerationInput(ApiRequest):
+    """REV-C12: regenerar un recurso desde Revisión."""
+
+    expected_version: int = Field(ge=1, description="Version you read. The previous resource is discarded only if it is still at it.", examples=[1])
+
+
+class RegenerationResponse(ApiResponse):
+    previous_resource_id: str
+    previous_discarded: bool = Field(
+        description="True when the previous resource went to discarded with reason `regenerado`; false when it was edited meanwhile and both stay in review."
+    )
+    new_resource_ids: list[str] = Field(description="Resources created by Generation, waiting for review.")
+    status: Literal["succeeded", "running"] = Field(description="`succeeded`, or `running` when the same request is still in progress.")
 
 
 class VerificationRetryInput(ApiRequest):

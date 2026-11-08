@@ -13,8 +13,10 @@ from platform5e.application.services.review.resource_review_service import Resou
 from platform5e.application.use_cases.media.get_resource_media import GetResourceMediaUseCase
 from platform5e.application.use_cases.media.regenerate_resource_media import RegenerateResourceMediaUseCase
 from platform5e.infrastructure.http.dependencies import current_teacher_dependency
-from platform5e.infrastructure.http.schemas.common import error_responses
+from platform5e.infrastructure.http.schemas.common import ErrorResponse, error_responses
 from platform5e.infrastructure.http.schemas.resources import (
+    RegenerationInput,
+    RegenerationResponse,
     ResourceResponse,
     ReviewedResourceInput,
     UnitSummaryResponse,
@@ -125,6 +127,34 @@ def create_resources_router(
 
         Use a resource whose verification is pending and send its current version. Expected 200."""
         return review_service.retry_verification(teacher_id, unit_id, resource_id, body.expected_version)
+
+    @router.post(
+        "/units/{unit_id}/resources/{resource_id}/regenerations",
+        response_model=RegenerationResponse,
+        summary="Regenerate a resource from review",
+        responses={**error_responses(401, 404, 409, 422), 502: {"model": ErrorResponse, "description": "REGENERATION_FAILED: the previous resource is unchanged; `message` gives the reason."}, 503: {"model": ErrorResponse, "description": "REGENERATION_UNAVAILABLE."}},
+    )
+    def regenerate_resource(
+        unit_id: str, resource_id: str, body: RegenerationInput, teacher_id: str = Depends(current_teacher)
+    ) -> dict[str, Any]:
+        """REV-C12 and REV-C13 (provisional decision D10, not yet confirmed by Generation): asks Generation for a new
+        resource with the stored parameters and the current evidence of the material. The request is synchronous.
+
+        On success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the
+        previous one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it
+        was edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version
+        returns the same result without generating again. On failure the previous resource is unchanged (502
+        REGENERATION_FAILED with the reason). An outdated `expectedVersion` returns 409 VERSION_CONFLICT.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X POST "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"expectedVersion":1}'
+        ```
+
+        Use a resource of your unit with its current version. Expected 200."""
+        return review_service.regenerate_resource(teacher_id, unit_id, resource_id, body.expected_version)
 
     @router.get(
         "/units/{unit_id}/resources/{resource_id}/media",
