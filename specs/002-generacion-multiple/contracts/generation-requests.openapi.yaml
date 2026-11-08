@@ -118,7 +118,7 @@ components:
     Stage: { type: string, enum: [engage, explore, explain, elaborate, evaluate] }
     ResourceType:
       type: string
-      description: Values of `domain/generation/resource_catalog.py` (same enum as `GET /catalog/resource-types`).
+      description: Values of `domain/generation/resource_catalog.py` (same enum as `GET /resource-types`).
       enum: [pregunta_detonante, sondeo_diagnostico, audio_detonante, reto_prediccion, guia_exploracion,
              caso_indagacion, imagen_ilustrativa, diagrama_proceso, exploracion_guiada, explicacion, glosario,
              mapa_conceptual, infografia, podcast_resumen, ejercicio_aplicacion, caso_aplicado, emparejamiento,
