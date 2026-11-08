@@ -1,0 +1,105 @@
+{
+  "description": "10 casos para la evaluación RAG: los 8 tipos de recurso y las 5 etapas 5E sobre el corpus de protocolos.",
+  "cases": [
+    {
+      "id": "c01",
+      "stage": "engage",
+      "resourceType": "pregunta_detonante",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Pregunta detonante sobre por qué las videollamadas se cortan menos con un protocolo que no confirma la entrega."
+    },
+    {
+      "id": "c02",
+      "stage": "engage",
+      "resourceType": "sondeo_diagnostico",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Sondeo de ideas previas sobre la diferencia entre TCP y UDP."
+    },
+    {
+      "id": "c03",
+      "stage": "explore",
+      "resourceType": "guia_exploracion",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Guía para que el estudiante explore cómo TCP confirma y retransmite los segmentos perdidos."
+    },
+    {
+      "id": "c04",
+      "stage": "explore",
+      "resourceType": "caso_indagacion",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Caso de una empresa que elige el protocolo de transporte para transmitir en vivo."
+    },
+    {
+      "id": "c05",
+      "stage": "explain",
+      "resourceType": "explicacion",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Explicación de las diferencias entre TCP y UDP y cuándo conviene cada uno."
+    },
+    {
+      "id": "c06",
+      "stage": "explain",
+      "resourceType": "glosario",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Glosario con los términos clave de los protocolos de transporte y de red."
+    },
+    {
+      "id": "c07",
+      "stage": "elaborate",
+      "resourceType": "ejercicio_aplicacion",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Ejercicio para decidir qué protocolo usar en un juego en línea y en una transferencia de archivos."
+    },
+    {
+      "id": "c08",
+      "stage": "evaluate",
+      "resourceType": "item_opcion_multiple",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Ítem sobre qué protocolo garantiza una entrega confiable de los datos."
+    },
+    {
+      "id": "c09",
+      "stage": "evaluate",
+      "resourceType": "item_opcion_multiple",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Ítem sobre qué dispositivo decide el camino de cada paquete hasta su destino."
+    },
+    {
+      "id": "c10",
+      "stage": "explain",
+      "resourceType": "explicacion",
+      "quantity": 1,
+      "difficulty": "intermedia",
+      "optionCount": 4,
+      "topK": 8,
+      "instructions": "Explicación de la función del protocolo IP en el direccionamiento y el enrutamiento."
+    }
+  ]
+}

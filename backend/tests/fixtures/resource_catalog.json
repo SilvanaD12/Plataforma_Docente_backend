@@ -1,0 +1,275 @@
+[
+  {
+    "id": "pregunta_detonante",
+    "name": "Pregunta detonante",
+    "singular": "Pregunta detonante",
+    "count": [
+      "pregunta detonante",
+      "preguntas detonantes"
+    ],
+    "stage": "engage",
+    "group": "Para iniciar la clase",
+    "format": "text",
+    "hasOptions": false
+  },
+  {
+    "id": "sondeo_diagnostico",
+    "name": "Sondeo de ideas previas",
+    "singular": "Sondeo de ideas previas",
+    "count": [
+      "sondeo",
+      "sondeos"
+    ],
+    "stage": "engage",
+    "group": "Para iniciar la clase",
+    "format": "text",
+    "hasOptions": false
+  },
+  {
+    "id": "audio_detonante",
+    "name": "Cápsula de audio detonante",
+    "singular": "Cápsula de audio",
+    "count": [
+      "audio",
+      "audios"
+    ],
+    "stage": "engage",
+    "group": "Para iniciar la clase",
+    "format": "audio",
+    "hasOptions": false
+  },
+  {
+    "id": "reto_prediccion",
+    "name": "Reto de predicción",
+    "singular": "Reto de predicción",
+    "count": [
+      "reto de predicción",
+      "retos de predicción"
+    ],
+    "stage": "engage",
+    "group": "Para iniciar la clase",
+    "format": "interactive",
+    "hasOptions": false
+  },
+  {
+    "id": "guia_exploracion",
+    "name": "Guía de exploración",
+    "singular": "Guía de exploración",
+    "count": [
+      "guía",
+      "guías"
+    ],
+    "stage": "explore",
+    "group": "Para explorar",
+    "format": "text",
+    "hasOptions": false
+  },
+  {
+    "id": "caso_indagacion",
+    "name": "Caso con preguntas",
+    "singular": "Caso con preguntas",
+    "count": [
+      "caso",
+      "casos"
+    ],
+    "stage": "explore",
+    "group": "Para explorar",
+    "format": "text",
+    "hasOptions": false
+  },
+  {
+    "id": "imagen_ilustrativa",
+    "name": "Imagen ilustrativa",
+    "singular": "Imagen ilustrativa",
+    "count": [
+      "imagen",
+      "imágenes"
+    ],
+    "stage": "explore",
+    "group": "Para explorar",
+    "format": "image",
+    "hasOptions": false
+  },
+  {
+    "id": "diagrama_proceso",
+    "name": "Diagrama de proceso",
+    "singular": "Diagrama de proceso",
+    "count": [
+      "diagrama",
+      "diagramas"
+    ],
+    "stage": "explore",
+    "group": "Para explorar",
+    "format": "visual",
+    "hasOptions": false
+  },
+  {
+    "id": "exploracion_guiada",
+    "name": "Exploración guiada",
+    "singular": "Exploración guiada",
+    "count": [
+      "exploración guiada",
+      "exploraciones guiadas"
+    ],
+    "stage": "explore",
+    "group": "Para explorar",
+    "format": "interactive",
+    "hasOptions": false
+  },
+  {
+    "id": "explicacion",
+    "name": "Explicación del tema",
+    "singular": "Explicación del tema",
+    "count": [
+      "explicación",
+      "explicaciones"
+    ],
+    "stage": "explain",
+    "group": "Para explicar",
+    "format": "text",
+    "hasOptions": false
+  },
+  {
+    "id": "glosario",
+    "name": "Glosario",
+    "singular": "Glosario",
+    "count": [
+      "glosario",
+      "glosarios"
+    ],
+    "stage": "explain",
+    "group": "Para explicar",
+    "format": "text",
+    "hasOptions": false
+  },
+  {
+    "id": "mapa_conceptual",
+    "name": "Mapa conceptual",
+    "singular": "Mapa conceptual",
+    "count": [
+      "mapa conceptual",
+      "mapas conceptuales"
+    ],
+    "stage": "explain",
+    "group": "Para explicar",
+    "format": "visual",
+    "hasOptions": false
+  },
+  {
+    "id": "infografia",
+    "name": "Infografía",
+    "singular": "Infografía",
+    "count": [
+      "infografía",
+      "infografías"
+    ],
+    "stage": "explain",
+    "group": "Para explicar",
+    "format": "visual",
+    "hasOptions": false
+  },
+  {
+    "id": "podcast_resumen",
+    "name": "Resumen en pódcast",
+    "singular": "Resumen en pódcast",
+    "count": [
+      "pódcast",
+      "pódcasts"
+    ],
+    "stage": "explain",
+    "group": "Para explicar",
+    "format": "audio",
+    "hasOptions": false
+  },
+  {
+    "id": "ejercicio_aplicacion",
+    "name": "Ejercicio de aplicación",
+    "singular": "Ejercicio de aplicación",
+    "count": [
+      "ejercicio",
+      "ejercicios"
+    ],
+    "stage": "elaborate",
+    "group": "Para aplicar",
+    "format": "text",
+    "hasOptions": false
+  },
+  {
+    "id": "caso_aplicado",
+    "name": "Caso aplicado",
+    "singular": "Caso aplicado",
+    "count": [
+      "caso aplicado",
+      "casos aplicados"
+    ],
+    "stage": "elaborate",
+    "group": "Para aplicar",
+    "format": "interactive",
+    "hasOptions": false
+  },
+  {
+    "id": "emparejamiento",
+    "name": "Relacionar conceptos",
+    "singular": "Actividad de relacionar",
+    "count": [
+      "actividad de relacionar",
+      "actividades de relacionar"
+    ],
+    "stage": "elaborate",
+    "group": "Para aplicar",
+    "format": "interactive",
+    "hasOptions": false
+  },
+  {
+    "id": "ordenar_pasos",
+    "name": "Ordenar pasos",
+    "singular": "Actividad de ordenar",
+    "count": [
+      "actividad de ordenar",
+      "actividades de ordenar"
+    ],
+    "stage": "elaborate",
+    "group": "Para aplicar",
+    "format": "interactive",
+    "hasOptions": false
+  },
+  {
+    "id": "item_opcion_multiple",
+    "name": "Preguntas de opción múltiple",
+    "singular": "Pregunta de opción múltiple",
+    "count": [
+      "pregunta",
+      "preguntas"
+    ],
+    "stage": "evaluate",
+    "group": "Para evaluar",
+    "format": "text",
+    "hasOptions": true
+  },
+  {
+    "id": "verdadero_falso",
+    "name": "Verdadero o falso",
+    "singular": "Verdadero o falso",
+    "count": [
+      "verdadero o falso",
+      "verdadero o falso"
+    ],
+    "stage": "evaluate",
+    "group": "Para evaluar",
+    "format": "interactive",
+    "hasOptions": false
+  },
+  {
+    "id": "completar_espacios",
+    "name": "Completar espacios",
+    "singular": "Completar espacios",
+    "count": [
+      "completar espacios",
+      "completar espacios"
+    ],
+    "stage": "evaluate",
+    "group": "Para evaluar",
+    "format": "interactive",
+    "hasOptions": false
+  }
+]

@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "EvaluationCriterionModel": {
+      "description": "Criterio o dimensión para valorar la resolución del problema.",
+      "properties": {
+        "dimension": {
+          "description": "Dimensión técnica o analítica evaluada (ej. Eficiencia, Modularidad).",
+          "minLength": 3,
+          "title": "Dimension",
+          "type": "string"
+        },
+        "description": {
+          "description": "Expectativa concreta de desempeño para superar satisfactoriamente el rubro.",
+          "minLength": 5,
+          "title": "Description",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dimension",
+        "description"
+      ],
+      "title": "EvaluationCriterionModel",
+      "type": "object"
+    },
+    "FragmentCitationModel": {
+      "description": "Representa una referencia explícita a un fragmento del material de estudio.",
+      "properties": {
+        "fragment_id": {
+          "description": "Identificador persistente del fragmento en la base de datos (ej. f-u2-01).",
+          "title": "Fragment Id",
+          "type": "string"
+        },
+        "document_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Identificador único o nombre del documento maestro de origen.",
+          "title": "Document Id"
+        },
+        "location": {
+          "description": "Número de página o diapositiva donde se ubica el texto original.",
+          "minimum": 1,
+          "title": "Location",
+          "type": "integer"
+        },
+        "quoted_text": {
+          "description": "Extracto literal del fragmento que valida la afirmación generada.",
+          "minLength": 10,
+          "title": "Quoted Text",
+          "type": "string"
+        },
+        "similarity_score": {
+          "description": "Coeficiente de similitud semántica coseno entre el texto generado y el fragmento.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Similarity Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fragment_id",
+        "location",
+        "quoted_text",
+        "similarity_score"
+      ],
+      "title": "FragmentCitationModel",
+      "type": "object"
+    }
+  },
+  "description": "Recurso de transferencia y profundización cognitiva.",
+  "properties": {
+    "id": {
+      "description": "Identificador persistente del recurso didáctico (ej. rec-elab-01).",
+      "title": "Id",
+      "type": "string"
+    },
+    "stage_5e": {
+      "const": "elaborate",
+      "default": "elaborate",
+      "description": "Etapa instruccional fija correspondiente al modelo 5E.",
+      "title": "Stage 5E",
+      "type": "string"
+    },
+    "resource_type": {
+      "const": "caso_transferencia",
+      "default": "caso_transferencia",
+      "description": "Clasificación estructural del recurso generado.",
+      "title": "Resource Type",
+      "type": "string"
+    },
+    "title": {
+      "description": "Título descriptivo del desafío de aplicación.",
+      "minLength": 5,
+      "title": "Title",
+      "type": "string"
+    },
+    "new_context": {
+      "description": "Descripción del escenario o sistema donde se sitúa el nuevo problema.",
+      "minLength": 20,
+      "title": "New Context",
+      "type": "string"
+    },
+    "proposed_challenge": {
+      "description": "Formulación explícita del problema o requerimiento complejo a resolver.",
+      "minLength": 10,
+      "title": "Proposed Challenge",
+      "type": "string"
+    },
+    "evaluation_criteria": {
+      "description": "Pautas o rúbricas para guiar y verificar la calidad de la solución.",
+      "items": {
+        "$ref": "#/$defs/EvaluationCriterionModel"
+      },
+      "minItems": 2,
+      "title": "Evaluation Criteria",
+      "type": "array"
+    },
+    "citations": {
+      "description": "Referencias documentales que fundamentan los conceptos base aplicados.",
+      "items": {
+        "$ref": "#/$defs/FragmentCitationModel"
+      },
+      "minItems": 1,
+      "title": "Citations",
+      "type": "array"
+    },
+    "status": {
+      "default": "pendiente",
+      "description": "Estado del recurso dentro del flujo de revisión docente.",
+      "enum": [
+        "pendiente",
+        "aprobado",
+        "descartado"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "new_context",
+    "proposed_challenge",
+    "evaluation_criteria",
+    "citations"
+  ],
+  "title": "ResourceElaborateItemModel",
+  "type": "object"
+}

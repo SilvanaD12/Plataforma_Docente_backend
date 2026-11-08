@@ -1,0 +1,249 @@
+{
+  "$defs": {
+    "CitationBlockModel": {
+      "description": "Estructura de trazabilidad agregada para el cuerpo del ítem.",
+      "properties": {
+        "claim": {
+          "description": "Aserción pedagógica o técnica formulada en el contenido del ítem.",
+          "minLength": 5,
+          "title": "Claim",
+          "type": "string"
+        },
+        "fragment_ids": {
+          "description": "Colección de IDs de fragmentos asociados directamente a la afirmación.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Fragment Ids",
+          "type": "array"
+        },
+        "detailed_evidence": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/FragmentCitationModel"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Desglose exhaustivo de citas con texto literal, página y similitud.",
+          "title": "Detailed Evidence"
+        }
+      },
+      "required": [
+        "claim",
+        "fragment_ids"
+      ],
+      "title": "CitationBlockModel",
+      "type": "object"
+    },
+    "FragmentCitationModel": {
+      "description": "Representa una referencia explícita a un fragmento del material de estudio.",
+      "properties": {
+        "fragment_id": {
+          "description": "Identificador persistente del fragmento en la base de datos (ej. f-u2-01).",
+          "title": "Fragment Id",
+          "type": "string"
+        },
+        "document_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Identificador único o nombre del documento maestro de origen.",
+          "title": "Document Id"
+        },
+        "location": {
+          "description": "Número de página o diapositiva donde se ubica el texto original.",
+          "minimum": 1,
+          "title": "Location",
+          "type": "integer"
+        },
+        "quoted_text": {
+          "description": "Extracto literal del fragmento que valida la afirmación generada.",
+          "minLength": 10,
+          "title": "Quoted Text",
+          "type": "string"
+        },
+        "similarity_score": {
+          "description": "Coeficiente de similitud semántica coseno entre el texto generado y el fragmento.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Similarity Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fragment_id",
+        "location",
+        "quoted_text",
+        "similarity_score"
+      ],
+      "title": "FragmentCitationModel",
+      "type": "object"
+    },
+    "ItemOptionModel": {
+      "description": "Representa una opción de respuesta (clave correcta o distractor funcional).",
+      "properties": {
+        "id": {
+          "description": "Identificador correlativo de la alternativa dentro del ítem.",
+          "enum": [
+            "a",
+            "b",
+            "c",
+            "d",
+            "e"
+          ],
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "description": "Contenido textual de la alternativa de respuesta.",
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "is_correct": {
+          "description": "Determina si la opción corresponde a la clave válida de la pregunta.",
+          "title": "Is Correct",
+          "type": "boolean"
+        },
+        "feedback": {
+          "description": "Explicación formativa que orienta al estudiante sobre el acierto o el error.",
+          "minLength": 5,
+          "title": "Feedback",
+          "type": "string"
+        },
+        "source_fragment_ids": {
+          "description": "Lista de identificadores de fragmentos documentales que respaldan la alternativa.",
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Fragment Ids",
+          "type": "array"
+        },
+        "reliability_warning": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Mensaje del motor de anclaje si el distractor requiere revisión por proximidad léxica.",
+          "title": "Reliability Warning"
+        },
+        "key_similarity": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Similitud semántica calculada frente a la clave para asegurar plausibilidad sin equivalencia.",
+          "title": "Key Similarity"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "is_correct",
+        "feedback",
+        "source_fragment_ids"
+      ],
+      "title": "ItemOptionModel",
+      "type": "object"
+    }
+  },
+  "description": "Recurso de evaluación formativa de opción múltiple.",
+  "properties": {
+    "id": {
+      "description": "Identificador persistente del recurso en la base de datos (ej. rec-eval-01).",
+      "title": "Id",
+      "type": "string"
+    },
+    "stage_5e": {
+      "const": "evaluate",
+      "default": "evaluate",
+      "description": "Etapa fija correspondiente al modelo instruccional 5E.",
+      "title": "Stage 5E",
+      "type": "string"
+    },
+    "resource_type": {
+      "const": "item_opcion_multiple",
+      "default": "item_opcion_multiple",
+      "description": "Tipología estructural del recurso didáctico generado.",
+      "title": "Resource Type",
+      "type": "string"
+    },
+    "title": {
+      "description": "Encabezado descriptivo del ítem según el tema evaluado.",
+      "minLength": 5,
+      "title": "Title",
+      "type": "string"
+    },
+    "prompt": {
+      "description": "Cuerpo de la pregunta, caso o problema planteado al estudiante.",
+      "minLength": 10,
+      "title": "Prompt",
+      "type": "string"
+    },
+    "options": {
+      "description": "Conjunto de opciones que contiene una clave y entre 2 y 4 distractores funcionales.",
+      "items": {
+        "$ref": "#/$defs/ItemOptionModel"
+      },
+      "maxItems": 5,
+      "minItems": 3,
+      "title": "Options",
+      "type": "array"
+    },
+    "citations": {
+      "description": "Bloques obligatorios de citas que verifican la fidelidad semántica con el material.",
+      "items": {
+        "$ref": "#/$defs/CitationBlockModel"
+      },
+      "minItems": 1,
+      "title": "Citations",
+      "type": "array"
+    },
+    "status": {
+      "default": "pendiente",
+      "description": "Estado del recurso en el flujo de decisión del docente.",
+      "enum": [
+        "pendiente",
+        "aprobado",
+        "descartado"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "prompt",
+    "options",
+    "citations"
+  ],
+  "title": "ResourceEvaluateItemModel",
+  "type": "object"
+}

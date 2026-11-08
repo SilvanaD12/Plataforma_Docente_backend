@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "FragmentCitationModel": {
+      "description": "Representa una referencia explícita a un fragmento del material de estudio.",
+      "properties": {
+        "fragment_id": {
+          "description": "Identificador persistente del fragmento en la base de datos (ej. f-u2-01).",
+          "title": "Fragment Id",
+          "type": "string"
+        },
+        "document_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Identificador único o nombre del documento maestro de origen.",
+          "title": "Document Id"
+        },
+        "location": {
+          "description": "Número de página o diapositiva donde se ubica el texto original.",
+          "minimum": 1,
+          "title": "Location",
+          "type": "integer"
+        },
+        "quoted_text": {
+          "description": "Extracto literal del fragmento que valida la afirmación generada.",
+          "minLength": 10,
+          "title": "Quoted Text",
+          "type": "string"
+        },
+        "similarity_score": {
+          "description": "Coeficiente de similitud semántica coseno entre el texto generado y el fragmento.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Similarity Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fragment_id",
+        "location",
+        "quoted_text",
+        "similarity_score"
+      ],
+      "title": "FragmentCitationModel",
+      "type": "object"
+    }
+  },
+  "description": "Recurso didáctico de conflicto cognitivo y activación previa.",
+  "properties": {
+    "id": {
+      "description": "Identificador único del recurso didáctico (ej. rec-engage-01).",
+      "title": "Id",
+      "type": "string"
+    },
+    "stage_5e": {
+      "const": "engage",
+      "default": "engage",
+      "description": "Etapa fija correspondiente al modelo instruccional 5E.",
+      "title": "Stage 5E",
+      "type": "string"
+    },
+    "resource_type": {
+      "const": "pregunta_detonante",
+      "default": "pregunta_detonante",
+      "description": "Clasificación del tipo de recurso pedagógico producido.",
+      "title": "Resource Type",
+      "type": "string"
+    },
+    "title": {
+      "description": "Título de la actividad introductoria.",
+      "minLength": 5,
+      "title": "Title",
+      "type": "string"
+    },
+    "context_situation": {
+      "description": "Descripción de un escenario real o dilema técnico que conecta con el tema.",
+      "minLength": 15,
+      "title": "Context Situation",
+      "type": "string"
+    },
+    "trigger_question": {
+      "description": "Interrogante abierta diseñada para suscitar el debate en el aula.",
+      "minLength": 10,
+      "title": "Trigger Question",
+      "type": "string"
+    },
+    "misconceptions": {
+      "description": "Errores conceptuales frecuentes asociados al tema documentados en el corpus.",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Misconceptions",
+      "type": "array"
+    },
+    "teacher_guide": {
+      "description": "Orientaciones pedagógicas para que el profesor dirija la discusión grupal.",
+      "minLength": 10,
+      "title": "Teacher Guide",
+      "type": "string"
+    },
+    "citations": {
+      "description": "Referencias documentales que fundamentan el contexto y los conceptos erróneos.",
+      "items": {
+        "$ref": "#/$defs/FragmentCitationModel"
+      },
+      "minItems": 1,
+      "title": "Citations",
+      "type": "array"
+    },
+    "status": {
+      "default": "pendiente",
+      "description": "Estado de revisión del recurso antes de ser integrado a la secuencia.",
+      "enum": [
+        "pendiente",
+        "aprobado",
+        "descartado"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "context_situation",
+    "trigger_question",
+    "misconceptions",
+    "teacher_guide",
+    "citations"
+  ],
+  "title": "ResourceEngageItemModel",
+  "type": "object"
+}

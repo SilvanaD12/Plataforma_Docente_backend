@@ -1,0 +1,49 @@
+# Dependencias y compilaciones
+node_modules/
+frontend/node_modules/
+frontend/dist/
+dist/
+
+# Registros y temporales
+*.log
+npm-debug.log*
+.vite/
+coverage/
+
+# Entorno local (nunca subir claves)
+.env
+.env.*
+!.env.example
+
+# Editores y sistema operativo
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Archivos temporales de Office (se crean al abrir los documentos)
+~$*
+
+# Pruebas (TA-001)
+frontend/test-results/
+frontend/playwright-report/
+backend/reportes/
+backend/salida_demo/
+backend/*.db
+backend/media-check/
+backend/.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# Cobertura (TA-008)
+frontend/coverage/
+backend/.coverage
+backend/htmlcov/
+
+# Salida incremental de TypeScript (se regenera con cada build)
+*.tsbuildinfo
+backend/reports/
+backend/evaluation/.venv/
