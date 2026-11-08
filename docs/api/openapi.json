@@ -2023,6 +2023,47 @@
         }
       }
     },
+    "/api/v1/downloads": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "List my downloads",
+        "description": "Downloads of the signed-in teacher, newest first, limited to the last 50 (there is no paging yet). Each\nrecord keeps the date, format, file name, course and unit, also after the course is deleted. Only the record\nis kept, not the exported file. Records saved before REV-01 may come without course and unit names.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/downloads\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_teacher_downloads_api_v1_downloads_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DownloadResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Teacher Downloads Api V1 Downloads Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
     "/api/v1/units/{unit_id}/exports": {
       "post": {
         "tags": [
@@ -2666,6 +2707,54 @@
           "createdAt": {
             "type": "string",
             "title": "Createdat"
+          },
+          "courseId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Courseid",
+            "description": "Course at export time (REV-R9)."
+          },
+          "courseName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coursename",
+            "description": "Course name at export time. Kept after the course is deleted; null in older records."
+          },
+          "unitName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unitname",
+            "description": "Unit title at export time; null in older records."
+          },
+          "unitNumber": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unitnumber",
+            "description": "Unit number at export time; null in older records."
           }
         },
         "additionalProperties": true,

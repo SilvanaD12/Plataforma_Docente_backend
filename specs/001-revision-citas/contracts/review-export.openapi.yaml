@@ -78,7 +78,10 @@ paths:
   /api/v1/downloads:
     get:
       summary: List my downloads
-      description: Download history of the signed-in teacher, newest first. It is kept after a course is deleted.
+      description: >
+        Download history of the signed-in teacher, newest first. It is kept after a course is deleted.
+        Limited to the last 50 records (MAX_DOWNLOADS_HISTORY, the same limit as the unit history). There is no
+        paging or limit parameter yet: older records stay stored but are not listed.
       responses:
         '200':
           description: History

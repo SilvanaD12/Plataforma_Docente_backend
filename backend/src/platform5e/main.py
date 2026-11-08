@@ -42,7 +42,10 @@ from platform5e.infrastructure.http.error_handlers import (
 from platform5e.infrastructure.http.routers.accounts import create_accounts_router
 from platform5e.infrastructure.http.routers.courses import create_courses_router
 from platform5e.infrastructure.http.routers.documents import create_documents_router
-from platform5e.infrastructure.http.routers.downloads import create_downloads_router
+from platform5e.infrastructure.http.routers.downloads import (
+    create_downloads_router,
+    create_teacher_downloads_router,
+)
 from platform5e.infrastructure.http.routers.exports import create_exports_router
 from platform5e.infrastructure.http.routers.generations import create_generations_router
 from platform5e.infrastructure.http.routers.health import create_health_router
@@ -191,6 +194,7 @@ def create_application() -> FastAPI:
         create_resources_router(review_service, account_service, media_use_case, regenerate_media_use_case)
     )
     app.include_router(create_downloads_router(review_service, account_service, export_use_case))
+    app.include_router(create_teacher_downloads_router(review_service, account_service))
     app.include_router(create_exports_router(export_use_case, account_service))
     app.include_router(create_health_router())
     return app

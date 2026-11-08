@@ -26,6 +26,12 @@ class DownloadResponse(ApiResponse):
     file_name: str
     resource_count: int
     created_at: str
+    course_id: str | None = Field(default=None, description="Course at export time (REV-R9).")
+    course_name: str | None = Field(
+        default=None, description="Course name at export time. Kept after the course is deleted; null in older records."
+    )
+    unit_name: str | None = Field(default=None, description="Unit title at export time; null in older records.")
+    unit_number: int | None = Field(default=None, description="Unit number at export time; null in older records.")
 
 
 class ExportRequest(ApiRequest):

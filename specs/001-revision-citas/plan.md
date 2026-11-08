@@ -178,7 +178,7 @@ src/
 | PUT con `reviewReset: true` | Aviso de que el recurso volvió a revisión y necesita una nueva aprobación | REV-C1 |
 | Aprobación bloqueada | Los `approvalBlockers` del servidor, sin reglas duplicadas en el cliente | REV-C3, C8 |
 | 422 `NO_APPROVED_RESOURCES` | El motivo, con cuántos recursos quedaron fuera por cada causa | REV-C7 |
-| Historial | Fecha, formato, archivo, curso y unidad desde `GET /api/v1/downloads`; «Curso eliminado» si falta el nombre | REV-C9 |
+| Historial | Fecha, formato, archivo, curso y unidad desde `GET /api/v1/downloads`, con las **50 descargas más recientes**; «Curso eliminado» si falta el nombre | REV-C9 |
 
 **Comprobación.** Desde la raíz del frontend: `npm ci`, `npm run lint`, `npm test` y `npm run build`, con el
 backend local en el puerto 8000 y `VITE_API_URL` vacío.
@@ -208,6 +208,13 @@ que no lo envía recibe 422. Por eso:
 1. El PR 1 del backend se integra en `main` coordinado con el PR FE-1, que envía `expectedVersion`. Los dos se enlazan entre sí y se revisan juntos.
 2. El despliegue en Render del commit que contiene el PR 1 se hace cuando el PR FE-1 esté listo para publicarse en Vercel. Hasta entonces, Render sigue en el commit anterior.
 3. Silvana recibe el aviso antes de integrar (mensaje 3 de [research.md](research.md#mensajes-para-el-grupo-antes-de-los-bloques-que-los-necesitan)).
+
+## Límites que no fija la ficha
+
+- **Historial de descargas: 50 registros.** `GET /api/v1/downloads` y `GET /units/{unit_id}/downloads` devuelven las
+  50 descargas más recientes (`MAX_DOWNLOADS_HISTORY`, que ya existía para el historial por unidad). Los registros más
+  antiguos se conservan en la base, pero no se listan. Hoy no hay forma de pedir más. Si el equipo lo necesita, la
+  opción simple es un parámetro `?limit=` con un máximo (por ejemplo, 200) o paginar con `?before=<createdAt>`.
 
 ## Seguimiento de complejidad
 

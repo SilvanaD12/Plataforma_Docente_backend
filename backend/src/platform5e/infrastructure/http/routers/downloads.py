@@ -17,6 +17,29 @@ from platform5e.infrastructure.http.schemas.common import error_responses
 from platform5e.infrastructure.http.schemas.downloads import DownloadInput, DownloadResponse
 
 
+def create_teacher_downloads_router(review_service: ResourceReviewService, account_service: AccountService) -> APIRouter:
+    """REV-01 · Historial de descargas del docente, que se conserva al borrar el curso (REV-R9)."""
+    router = APIRouter(prefix="/api/v1/downloads", tags=["downloads"])
+    current_teacher = current_teacher_dependency(account_service)
+
+    @router.get("", response_model=list[DownloadResponse], summary="List my downloads", responses=error_responses(401))
+    def list_teacher_downloads(teacher_id: str = Depends(current_teacher)) -> list[dict[str, Any]]:
+        """Downloads of the signed-in teacher, newest first, limited to the last 50 (there is no paging yet). Each
+        record keeps the date, format, file name, course and unit, also after the course is deleted. Only the record
+        is kept, not the exported file. Records saved before REV-01 may come without course and unit names.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+
+        ```bash
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/downloads" -H "Authorization: Bearer $TOKEN"
+        ```
+
+        Expected 200. See the response schema below for the returned fields."""
+        return review_service.get_teacher_downloads(teacher_id)
+
+    return router
+
+
 def create_downloads_router(
     review_service: ResourceReviewService,
     account_service: AccountService,
