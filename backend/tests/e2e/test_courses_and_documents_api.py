@@ -107,6 +107,38 @@ def test_login_catalog_file_and_history_persist_with_a_new_session(server: str):
         assert api.get("/api/v1/documents/" + document["id"] + "/file", headers=h2).status_code == 404
 
 
+def test_teacher_cannot_access_or_modify_another_teachers_course(server: str):
+    with httpx.Client(base_url=server) as api:
+        owner = login(api)
+        created = api.post("/api/v1/courses", headers=owner, json=COURSE)
+        assert created.status_code == 201, created.text
+        course = created.json()
+
+        registration = api.post(
+            "/api/v1/accounts",
+            json={"name": "Otra docente", "email": "otra-docente@example.com", "password": "Clave-segura-2026"},
+        )
+        assert registration.status_code == 201, registration.text
+        other = {"Authorization": "Bearer " + registration.json()["token"]}
+
+        visible_courses = api.get("/api/v1/courses", headers=other)
+        assert visible_courses.status_code == 200, visible_courses.text
+        assert all(visible["id"] != course["id"] for visible in visible_courses.json())
+
+        course_url = f"/api/v1/courses/{course['id']}"
+        update = {
+            **COURSE,
+            "name": "Edición no autorizada",
+            "units": [{**COURSE["units"][0], "id": course["units"][0]["id"]}],
+        }
+        assert api.put(course_url, headers=other, json=update).status_code == 404
+        assert api.delete(course_url, headers=other).status_code == 404
+
+        owner_courses = api.get("/api/v1/courses", headers=owner)
+        assert owner_courses.status_code == 200, owner_courses.text
+        assert course in owner_courses.json()
+
+
 @pytest.mark.parametrize(
     "route",
     ["/api/v1/courses", "/api/v1/documents", "/api/v1/generations", "/api/v1/sessions/current"],
