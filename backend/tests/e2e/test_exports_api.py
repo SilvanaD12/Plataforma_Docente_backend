@@ -102,3 +102,24 @@ def test_the_teacher_history_keeps_course_and_unit_and_is_isolated(server):
                                                          'password': 'clave-segura-1'}).json()['token']
         assert api.get('/api/v1/downloads', headers={'Authorization': f'Bearer {other_token}'}).json() == []
         assert api.get('/api/v1/downloads').status_code == 401
+
+
+def test_the_history_survives_the_deletion_of_the_course(server):
+    """REV-C9 y T036: al borrar el curso, el docente sigue viendo la descarga con la fecha, el formato, el archivo,
+    el curso y la unidad. Se conserva solo el registro, no el archivo."""
+    with httpx.Client(base_url=server, timeout=60) as api:
+        h, unit, _ = _approved_item(api, 'borrado@correo.pe')
+        assert api.post(f"/api/v1/units/{unit['id']}/exports", headers=h, json={'format': 'moodle_xml'}).status_code == 200
+        [before] = api.get('/api/v1/downloads', headers=h).json()
+
+        assert api.delete(f"/api/v1/courses/{unit['courseId']}", headers=h).status_code == 204
+        assert api.get('/api/v1/courses', headers=h).json() == []
+        assert api.get(f"/api/v1/units/{unit['id']}/downloads", headers=h).status_code == 404  # la unidad ya no existe
+
+        [after] = api.get('/api/v1/downloads', headers=h).json()
+        assert after == before
+        assert {k: after[k] for k in ('format', 'fileName', 'courseName', 'unitName', 'unitNumber')} == {
+            'format': 'moodle_xml', 'fileName': 'red-301-unidad-1-moodle.xml', 'courseName': 'Redes',
+            'unitName': 'Transporte', 'unitNumber': 1,
+        }
+        assert after['createdAt'] and after['courseId'] == unit['courseId']

@@ -159,7 +159,7 @@ sin una verificación vigente.
 - [x] T030 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/components/VerificationBadge.tsx`, que muestra el estado en español y `reason`, el botón «Reintentar comprobación» si `retryAvailable` o el aviso «Regenera el recurso» si no. Incluir su prueba `VerificationBadge.test.tsx` (REV-C3, C11).
 - [x] T031 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/components/ResourceEditor.tsx`. Edita título, cuerpo, opciones y estructura, guarda con la `version` leída y muestra los `approvalBlockers` del servidor sin repetir reglas. Ante un 409 `VERSION_CONFLICT`, pide recargar sin perder lo escrito hasta que el docente confirme (REV-C14). Con `reviewReset`, avisa que el recurso volvió a revisión (REV-C1).
 - [x] T032 [FE] [US1] Reemplazar el marcador de `Plataforma_Docente_frontend/src/features/review/pages/ReviewPage.tsx` (hoy `UnitModulePlaceholder`), conservando el nombre `ReviewPage` y su exportación. Lee `const { course, unit } = useOutletContext<UnitContext>()`, lista los recursos de `unit.id` con carga, vacío y error, y usa `ResourceEditor` y `VerificationBadge`.
-- [ ] T033 [FE] [US1] Cierre de FE-1: con el backend local del PR 1, correr `npm run lint`, `npm test` y `npm run build`, revisar la pestaña en el navegador y abrir el **PR FE-1** enlazado al PR 1 del backend, con capturas.
+- [x] T033 [FE] [US1] Cierre de FE-1: **Hecho (2026-11-08):** recorrido en el navegador correcto (pasos 1 a 8) y PR FE-1 abierto como [#4 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/4), enlazado al [PR #6 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/6); se integran juntos. con el backend local del PR 1, correr `npm run lint`, `npm test` y `npm run build`, revisar la pestaña en el navegador y abrir el **PR FE-1** enlazado al PR 1 del backend, con capturas.
 
 ## Fase 4 · Historia 3: exportar solo lo verificado y consultar lo descargado (prioridad 3)
 
@@ -181,7 +181,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - El registro guarda `courseId`, `courseName`, `unitName` y `unitNumber`, y se crea una sola vez por exportación (REV-C9).
   - Cambiar `VERIFICATION_RULE_VERSION` no saca de la exportación a un recurso vigente (REV-C10).
 - [x] T035 [P] [BE] [US3] **Hecho (2026-11-08), con el retiro de rutas aprobado por Silvana y Juan.** Antes, en parte: 5 pruebas del historial por docente agregadas; quitar las de redescarga queda para T041. Ajustar `backend/tests/unit/test_download_history.py`: quitar las pruebas de `get_download_record` (redescarga) y agregar el historial por docente, incluido después de borrar el curso. Debe mostrar fecha, formato, archivo, curso y unidad, y no mostrar registros de otro docente (REV-C9).
-- [ ] T036 [P] [BE] [US3] Ampliar `backend/tests/e2e/test_exports_api.py` con:
+- [x] T036 [P] [BE] [US3] **Hecho (2026-11-08):** la conservación tras el borrado se probó después de integrar el PR #8 de CC-01 (`test_the_history_survives_the_deletion_of_the_course`). Ampliar `backend/tests/e2e/test_exports_api.py` con:
   - Exportar SCORM, Moodle XML y documento de unidad con un recurso aprobado vigente y otro no vigente, abrir cada archivo y comprobar que solo trae el vigente (REV-C7 · REV-R7).
   - Sin elegibles: 422 con `details`.
   - Después de `DELETE /api/v1/courses/{id}`, `GET /api/v1/downloads` sigue mostrando el registro con curso y unidad (REV-C9).
