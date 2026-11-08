@@ -33,7 +33,8 @@ def test_exports_approved_resources_as_scorm_and_moodle_xml(server):
         options = [{'id': o['id'], 'text': o['text'], 'feedback': o['feedback'],
                      'decision': 'pendiente' if o['isCorrect'] else 'aceptado'} for o in resource['options']]
         approved = api.put(f"/api/v1/units/{unit['id']}/resources/{resource['id']}", headers=h,
-                           json={'title': resource['title'], 'body': resource['body'], 'status': 'aprobado', 'options': options})
+                           json={'title': resource['title'], 'body': resource['body'], 'status': 'aprobado', 'options': options,
+                                 'expectedVersion': resource['version']})
         assert resource['approvalBlockers'] == ['Decide los 3 distractores pendientes para poder aprobar.']
         assert approved.status_code == 200
         assert approved.json()['approvalBlockers'] == []

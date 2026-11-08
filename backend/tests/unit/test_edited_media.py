@@ -44,6 +44,12 @@ class Resources:
         for resource in resources:
             self.by_id[resource["id"]] = resource
 
+    def save_resource_if_version(self, teacher_id, unit_id, resource, expected_version, increment=True):
+        if self.by_id.get(resource["id"], {}).get("version", 1) != expected_version:
+            return False
+        self.by_id[resource["id"]] = {**resource, "version": expected_version + 1 if increment else expected_version}
+        return True
+
     def save_download(self, teacher_id, unit_id, record):
         self.downloads.append(record)
 
@@ -88,7 +94,9 @@ def setup():
 
 
 def review(service, **changes):
-    return service.update_resource("ana", "u1", "r1", {"title": "Resumen", "body": "Escucha el resumen.", "status": "pendiente", **changes})
+    version = service.get_resource("ana", "u1", "r1").get("version", 1)
+    return service.update_resource("ana", "u1", "r1", {"title": "Resumen", "body": "Escucha el resumen.", "status": "pendiente",
+                                                       "expectedVersion": version, **changes})
 
 
 def scorm(resources, media):

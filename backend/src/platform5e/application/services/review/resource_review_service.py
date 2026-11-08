@@ -14,7 +14,10 @@ from platform5e.application.ports.outbound.resource_repository_port import Resou
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
 from platform5e.application.services.media.media_attachment import EDITED_NOTES, fallback_media
+from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION
 from platform5e.domain.generation.resource_formats import needs_structure, normalize_structure, structure_problems
+from platform5e.domain.review.content_fingerprint import content_fingerprint
+from platform5e.domain.review.resource_verification import assess_edited_distractors, stored_threshold, verify_resource
 
 MIN_ACCEPTED_DISTRACTORS: int = 2
 ALLOWED_REVIEW_STATUSES: set[str] = {"pendiente", "aprobado", "descartado"}
@@ -189,11 +192,42 @@ class ResourceReviewService:
                     }
                 )
             updated_resource["options"] = updated_options
+            # REV-C4: un distractor cuyo texto cambió se evalúa de nuevo contra la copia histórica.
+            edited_ids = {
+                o["id"] for o in options if not o.get("isCorrect") and options_by_id[o["id"]]["text"] != o.get("text")
+            }
+            warnings = assess_edited_distractors(updated_resource, edited_ids)
+            updated_resource["options"] = [
+                {**o, "reliabilityWarning": warnings[o["id"]]} if o["id"] in warnings else o for o in updated_options
+            ]
+
+        # REV-C1, C2 y C5: se verifica de nuevo solo si cambió el contenido verificable o si el resultado guardado es de
+        # otra versión. Un recurso aprobado cuyo contenido cambió vuelve a revisión y necesita otra aprobación manual.
+        fingerprint = content_fingerprint(updated_resource)
+        review_reset = existing.get("status") == "aprobado" and fingerprint != content_fingerprint(existing)
+        if review_reset:
+            status = "pendiente"
 
         if status == "aprobado":
             blockers = validate_approval_blockers(updated_resource)
             if blockers:
                 raise AccountConfigurationError("APPROVAL_BLOCKED", blockers[0], 409)
+
+        expected_version = changes.get("expectedVersion")
+        if not isinstance(expected_version, int) or isinstance(expected_version, bool):
+            raise AccountConfigurationError(
+                "VERSION_REQUIRED", "Indica la versión del recurso de la que parte el guardado.", 422
+            )
+        new_version = expected_version + 1
+        updated_resource["version"] = new_version
+
+        stored = existing.get("verification")
+        if isinstance(stored, dict) and stored.get("fingerprint") == fingerprint:
+            updated_resource["verification"] = stored
+        else:
+            updated_resource["verification"] = verify_resource(
+                updated_resource, stored_threshold(existing), VERIFICATION_RULE_VERSION
+            )
 
         current_time = datetime.now(timezone.utc).isoformat()
         if status != existing.get("status"):
@@ -203,8 +237,11 @@ class ResourceReviewService:
         updated_resource["discardReason"] = discard_reason if status == "descartado" else None
         updated_resource["updatedAt"] = current_time
 
-        self._review_repository.save_resources(teacher_id, unit_id, [updated_resource])
-        return updated_resource
+        if not self._review_repository.save_resource_if_version(teacher_id, unit_id, updated_resource, expected_version):
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de guardar.", 409
+            )
+        return {**updated_resource, "reviewReset": review_reset}
 
     def delete_resource(self, teacher_id: str, unit_id: str, resource_id: str) -> None:
         """Elimina un recurso del repositorio."""

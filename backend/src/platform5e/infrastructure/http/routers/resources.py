@@ -80,14 +80,20 @@ def create_resources_router(
         """Saves edits and decisions. `aprobado` needs a key, no pending distractors and at least two accepted
         (409 APPROVAL_BLOCKED otherwise): the same rule the review screen shows.
 
+        Send `expectedVersion` with the `version` you read. If the resource changed meanwhile (another tab), the save
+        is rejected with 409 VERSION_CONFLICT and nothing changes: reload the resource. When the verifiable content
+        changes, it is checked again against the stored evidence copy, without external services, and the result
+        comes in `verification`. An approved resource whose content changed goes back to `pendiente`
+        (`reviewReset: true`) and needs a new approval.
+
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
 
         ```bash
-        curl --fail-with-body -i -X PUT "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"title":"Glosario de transporte","body":"TCP confirma la recepción de datos.","status":"pendiente","edited":true}'
+        curl --fail-with-body -i -X PUT "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"expectedVersion":1,"title":"Glosario de transporte","body":"TCP confirma la recepción de datos.","status":"pendiente","edited":true}'
         ```
 
-        Use a resource in your unit; copy its actual title and content before saving. This example saves an edit as pendiente, not an approval. Expected 200."""
+        Use a resource in your unit; copy its actual title, content and version before saving. This example saves an edit as pendiente, not an approval. Expected 200."""
         return review_service.update_resource(
             teacher_id, unit_id, resource_id, body.model_dump(by_alias=True, exclude_unset=True)
         )

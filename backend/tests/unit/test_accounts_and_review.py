@@ -186,6 +186,18 @@ class MockReviewRepository(ResourceReviewRepositoryPort):
         for r in resources:
             self.resources[(teacher_id, r["id"])] = r
 
+    def save_resource_if_version(
+        self, teacher_id: str, unit_id: str, resource: dict[str, Any], expected_version: int, increment: bool = True
+    ) -> bool:
+        current = self.resources.get((teacher_id, resource["id"]))
+        if current is None or current.get("version", 1) != expected_version:
+            return False
+        self.resources[(teacher_id, resource["id"])] = {
+            **resource,
+            "version": expected_version + 1 if increment else expected_version,
+        }
+        return True
+
     def delete_resource(self, teacher_id: str, resource_id: str) -> None:
         self.resources.pop((teacher_id, resource_id), None)
 
@@ -243,6 +255,7 @@ def make_changes_dict(resource: dict[str, Any], decisions: dict[str, str] | None
         "discardReason": None,
         "edited": False,
         "options": options,
+        "expectedVersion": resource.get("version", 1),
         **others,
     }
 
@@ -378,4 +391,177 @@ def test_summary_counts_approved_and_pending_per_unit():
         {"courseId": "c1", "unitId": "u1", "approved": 1, "pending": 1},
         {"courseId": "c1", "unitId": "u2", "approved": 0, "pending": 0},
     ]
+
+
+# --------------------------------------------------------------------------- REV-01 · guardar con versión y verificar
+
+import copy  # noqa: E402
+
+from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION  # noqa: E402
+from platform5e.domain.review.content_fingerprint import content_fingerprint  # noqa: E402
+from platform5e.domain.review.resource_verification import verify_resource  # noqa: E402
+
+FRAGMENT_TCP = "frag-tcp"
+FRAGMENT_UDP = "frag-udp"
+EVIDENCE_TCP = (
+    "Los dos protocolos principales de esta capa en Internet son TCP y UDP. El protocolo TCP está orientado a la "
+    "conexión y garantiza la entrega ordenada de los datos."
+)
+EVIDENCE_UDP = "UDP tiene menor latencia que TCP porque no espera confirmaciones ni retransmite datos."
+UNSUPPORTED_TEXT = "Los satélites geoestacionarios orbitan sobre el ecuador terrestre a gran altura."
+
+
+def make_verified_explanation(rid: str = "rx", **overrides: Any) -> dict[str, Any]:
+    resource = {
+        "id": rid,
+        "unitId": "u1",
+        "type": "explicacion",
+        "format": "text",
+        "title": "TCP y UDP",
+        "body": "Los dos protocolos principales de esta capa en Internet son TCP y UDP.\n\n"
+        "UDP tiene menor latencia que TCP porque no espera confirmaciones ni retransmite datos.",
+        "bodyHtml": None,
+        "structure": None,
+        "options": None,
+        "citations": [
+            {"claim": "Los dos protocolos principales de esta capa en Internet son TCP y UDP.", "fragmentIds": [FRAGMENT_TCP]},
+            {"claim": "UDP tiene menor latencia que TCP porque no espera confirmaciones ni retransmite datos.",
+             "fragmentIds": [FRAGMENT_UDP]},
+        ],
+        "evidence": [
+            {"id": FRAGMENT_TCP, "text": EVIDENCE_TCP, "location": "sección 1", "documentId": "d1", "documentName": "m.txt"},
+            {"id": FRAGMENT_UDP, "text": EVIDENCE_UDP, "location": "sección 1", "documentId": "d1", "documentName": "m.txt"},
+        ],
+        "grounding": {"threshold": 0.6},
+        "status": "pendiente",
+        "edited": False,
+        "discardReason": None,
+        "createdAt": "2026-11-08T10:00:00",
+        "decidedAt": None,
+        "version": 1,
+    }
+    resource.update(overrides)
+    resource["verification"] = verify_resource(resource, threshold=0.6, rule_version=VERIFICATION_RULE_VERSION)
+    return resource
+
+
+def make_versioned_service(*resources: dict[str, Any]) -> tuple[ResourceReviewService, MockReviewRepository]:
+    repo = MockReviewRepository()
+    repo.save_resources("ana", "u1", [copy.deepcopy(r) for r in resources])
+    return ResourceReviewService(MockTeacherConfigRepository(), repo), repo
+
+
+def save_changes(resource: dict[str, Any], **others: Any) -> dict[str, Any]:
+    return {
+        "title": resource["title"],
+        "body": resource["body"],
+        "status": resource["status"],
+        "discardReason": None,
+        "edited": False,
+        "expectedVersion": resource.get("version", 1),
+        **others,
+    }
+
+
+def test_saving_requires_the_version_it_starts_from():
+    """REV-R12: cada guardado indica la versión de contenido de la que parte."""
+    resource = make_verified_explanation()
+    service, _ = make_versioned_service(resource)
+    changes = save_changes(resource)
+    del changes["expectedVersion"]
+    with pytest.raises(AccountConfigurationError) as error:
+        service.update_resource("ana", "u1", "rx", changes)
+    assert error.value.code == "VERSION_REQUIRED" and error.value.status_code == 422
+
+
+def test_saving_from_an_outdated_version_is_a_conflict_and_changes_nothing():
+    """REV-C14: un guardado que parte de una versión anterior se rechaza sin tocar el recurso ni su verificación."""
+    resource = make_verified_explanation(version=4)
+    service, repo = make_versioned_service(resource)
+    before = copy.deepcopy(repo.get_resource_by_id("ana", "rx"))
+    with pytest.raises(AccountConfigurationError) as error:
+        service.update_resource("ana", "u1", "rx", save_changes(resource, body=UNSUPPORTED_TEXT, expectedVersion=3))
+    assert error.value.code == "VERSION_CONFLICT" and error.value.status_code == 409
+    assert repo.get_resource_by_id("ana", "rx") == before
+
+
+def test_two_saves_from_the_same_version_conflict():
+    """REV-C14: dos pestañas parten de la misma versión; la segunda debe recargar."""
+    resource = make_verified_explanation()
+    service, _ = make_versioned_service(resource)
+    first = service.update_resource("ana", "u1", "rx", save_changes(resource, title="Primera pestaña"))
+    assert first["version"] == 2
+    with pytest.raises(AccountConfigurationError) as error:
+        service.update_resource("ana", "u1", "rx", save_changes(resource, title="Segunda pestaña"))
+    assert error.value.code == "VERSION_CONFLICT"
+
+
+def test_save_without_changing_the_fingerprint_keeps_the_verification():
+    """REV-C2: un cambio de formato o de título no vuelve a verificar; la versión sí avanza."""
+    resource = make_verified_explanation()
+    service, repo = make_versioned_service(resource)
+    saved = service.update_resource(
+        "ana", "u1", "rx",
+        save_changes(resource, title="Otro título", bodyHtml="<p><strong>Los dos protocolos</strong>…</p>", edited=True),
+    )
+    assert saved["verification"] == resource["verification"]  # mismo resultado, sin recalcular
+    assert saved["version"] == 2 and saved["reviewReset"] is False
+    stored = repo.get_resource_by_id("ana", "rx")
+    assert stored["evidence"] == resource["evidence"] and "reviewReset" not in stored
+
+
+def test_content_change_is_verified_again_against_the_stored_copy():
+    """REV-C1: el cambio de una afirmación respaldada se comprueba al guardar y el resultado queda para esa versión."""
+    resource = make_verified_explanation()
+    service, repo = make_versioned_service(resource)
+    saved = service.update_resource(
+        "ana", "u1", "rx", save_changes(resource, body=f"{UNSUPPORTED_TEXT}\n\n{UNSUPPORTED_TEXT} Otra vez.")
+    )
+    verification = saved["verification"]
+    assert verification["status"] == "insufficient" and verification["reason"]
+    assert verification["fingerprint"] == content_fingerprint(saved) != resource["verification"]["fingerprint"]
+    assert verification["verifiedVersion"] == 2 == saved["version"] and verification["evidenceThreshold"] == 0.6
+    assert repo.get_resource_by_id("ana", "rx")["verification"] == verification
+    assert repo.get_resource_by_id("ana", "rx")["evidence"] == resource["evidence"]  # la copia histórica no cambia
+
+
+def test_editing_an_approved_resource_sends_it_back_to_review():
+    """REV-C1: un recurso aprobado que cambia su contenido respaldado requiere una nueva aprobación manual."""
+    resource = make_verified_explanation(status="aprobado", decidedAt="2026-11-08T11:00:00")
+    service, repo = make_versioned_service(resource)
+    new_body = "Los dos protocolos principales de esta capa en Internet son TCP y UDP."
+    saved = service.update_resource("ana", "u1", "rx", save_changes(resource, body=new_body, status="aprobado"))
+    assert saved["status"] == "pendiente" and saved["reviewReset"] is True and saved["decidedAt"] is None
+    assert saved["verification"]["status"] == "current"
+    assert repo.get_resource_by_id("ana", "rx")["status"] == "pendiente"
+
+    approved_again = service.update_resource("ana", "u1", "rx", save_changes(saved, status="aprobado"))
+    assert approved_again["status"] == "aprobado" and approved_again["reviewReset"] is False
+
+
+def test_a_result_for_another_fingerprint_is_recomputed_when_saving():
+    """REV-C5: un resultado guardado para otra versión del contenido no se reutiliza."""
+    resource = make_verified_explanation()
+    resource["verification"] = {**resource["verification"], "fingerprint": "sha256:" + "0" * 64}
+    service, _ = make_versioned_service(resource)
+    saved = service.update_resource("ana", "u1", "rx", save_changes(resource))
+    assert saved["verification"]["fingerprint"] == content_fingerprint(saved)
+    assert saved["verification"]["status"] == "current"
+
+
+def test_resource_without_a_stored_version_starts_at_version_one():
+    """Los recursos guardados antes de REV-01 no tienen `version`: cuentan como versión 1."""
+    resource = make_verified_explanation()
+    del resource["version"]
+    service, _ = make_versioned_service(resource)
+    saved = service.update_resource("ana", "u1", "rx", save_changes(resource, expectedVersion=1))
+    assert saved["version"] == 2
+
+
+def test_saving_never_touches_the_stored_evidence_copy():
+    """REV-C6: la copia histórica no depende del índice del material; reprocesarlo no la cambia."""
+    resource = make_verified_explanation()
+    service, repo = make_versioned_service(resource)
+    service.update_resource("ana", "u1", "rx", save_changes(resource, body=UNSUPPORTED_TEXT))
+    assert repo.get_resource_by_id("ana", "rx")["evidence"] == resource["evidence"]
     assert service.get_summary("otro") == []

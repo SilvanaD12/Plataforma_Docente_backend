@@ -57,7 +57,7 @@ Bloquea a todas las historias. Casos REV-C2, C4, C5 · REV-R1, R2.
   - JSON canónico y SHA-256.
   - Sin importar `application` ni `infrastructure`.
 - [x] T005 [P] [BE] Agregar `VERIFICATION_RULE_VERSION: int = 1` en `backend/src/platform5e/domain/generation/grounding.py`, con un comentario que diga cuándo se incrementa. No cambiar ninguna otra regla del archivo, porque es compartido con Generación.
-- [ ] T006 [BE] Cierre del bloque a): correr las pruebas, comprobar que `test_grounding.py` y `test_distractor_reliability.py` siguen pasando sin cambios, anotar los resultados y hacer el **commit a)**. Ruta: `backend/tests/`.
+- [x] T006 [BE] Cierre del bloque a): correr las pruebas, comprobar que `test_grounding.py` y `test_distractor_reliability.py` siguen pasando sin cambios, anotar los resultados y hacer el **commit a)**. Ruta: `backend/tests/`.
 
 ## Fase 3 · Historia 1: editar sin perder el control del respaldo (prioridad 1)
 
@@ -73,7 +73,7 @@ sin una verificación vigente.
 
 > **Dependencia con Yan, antes de empezar.** Enviar el mensaje 1 de [research.md](research.md#mensajes-para-el-grupo-antes-de-los-bloques-que-los-necesitan). Generación debe guardar `verification`, `version = 1` y `evidence[].retrievedAt` al crear. Mientras no lo haga, los recursos nuevos se cubren con T048.
 
-- [ ] T007 [P] [BE] [US1] Crear `backend/tests/unit/test_resource_verification.py` para `verify_resource`. Casos:
+- [x] T007 [P] [BE] [US1] Crear `backend/tests/unit/test_resource_verification.py` para `verify_resource`. Casos:
   - Copia completa y afirmaciones respaldadas: `current`.
   - Afirmación sin respaldo: `insufficient` con `reason` (REV-C1).
   - Copia ausente, o un fragmento referenciado sin texto: `pending` con `retryAvailable = false` y motivo de regenerar (REV-R6).
@@ -83,40 +83,40 @@ sin una verificación vigente.
   - Excepción interna: `pending` con `retryAvailable = true`.
   - Umbral tomado de `verification.evidenceThreshold`, luego `grounding.threshold`, luego `params.evidenceThreshold` y por último `DEFAULT_THRESHOLD`.
   - `evidence[].retrievedAt = null` no invalida la copia.
-- [ ] T008 [P] [BE] [US1] Ampliar `backend/tests/unit/test_accounts_and_review.py` con:
+- [x] T008 [P] [BE] [US1] Ampliar `backend/tests/unit/test_accounts_and_review.py` con:
   - PUT sin cambio de huella: conserva `verification` y sube `version` (REV-C2).
   - Cambio de contenido: guarda una verificación nueva con la huella nueva (REV-C1).
   - Recurso `aprobado` con contenido editado: queda `pendiente` con `reviewReset = true` aunque pida `aprobado` (REV-C1).
   - `expectedVersion` distinto del vigente: 409 `VERSION_CONFLICT`, sin modificar ni el recurso ni su verificación (REV-C14).
   - Verificación con otra huella: no habilita aprobar (REV-C5).
   - Reprocesar el documento de la unidad: `evidence`, `verification` y `version` del recurso quedan iguales y la verificación sigue `current` (REV-C6).
-- [ ] T009 [P] [BE] [US1] Ampliar `backend/tests/e2e/test_accounts_and_review_api.py` con un servidor real:
+- [x] T009 [P] [BE] [US1] Ampliar `backend/tests/e2e/test_accounts_and_review_api.py` con un servidor real:
   - Dos PUT con el mismo `expectedVersion`: el segundo responde 409 (REV-C14).
   - Editar una afirmación sin respaldo: `verification.status = insufficient` (REV-C1).
   - `POST /api/v1/documents/{id}/process` y luego `GET …/resources`: `evidence` y `verification` iguales (REV-C6).
   - La cuenta B recibe 404 en el PUT sobre la unidad de A.
-- [ ] T010 [BE] [US1] Crear `backend/src/platform5e/domain/review/resource_verification.py` con `verify_resource(resource, threshold, rule_version) -> dict`, según D4. Debe:
+- [x] T010 [BE] [US1] Crear `backend/src/platform5e/domain/review/resource_verification.py` con `verify_resource(resource, threshold, rule_version) -> dict`, según D4. Debe:
   - Usar solo `resource["evidence"]` y las funciones de `grounding.py` y `distractor_reliability.py`, sin cambiar sus reglas.
   - Devolver `status` (`current`, `insufficient` o `pending`), `reason` («Obligatorio si `status` ≠ `current`»), `fingerprint`, `verifiedVersion`, `evidenceThreshold`, `ruleVersion`, `checkedAt`, `retryAvailable` («`true` solo si `status = pending` y la copia histórica está completa») y `summary`.
 - [ ] T011 [P] [BE] [US1] Crear `backend/database/migrations/20261108000001_resource_version.sql` con `-- migrate:up`, que ejecuta `ALTER TABLE ep002_recursos ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;`, y `-- migrate:down`, que la quita. Probarla en la base desechable de CI con PostgreSQL. **Aviso a Sergio** para Neon (mensaje 2).
-- [ ] T012 [BE] [US1] Agregar `version = Column(Integer, nullable=False, default=1)` a `TeacherResourceORM` en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_account_repository.py`. **El archivo es de CC-01:** solo se agrega la columna, y se avisa a Silvana en el PR.
-- [ ] T013 [BE] [US1] Agregar `save_resource_if_version(teacher_id, unit_id, resource, expected_version, increment=True) -> bool` en `backend/src/platform5e/application/ports/outbound/resource_repository_port.py`. Devuelve `False` si la versión ya no es la vigente.
-- [ ] T014 [BE] [US1] Implementar en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_resource_repository.py`:
+- [x] T012 [BE] [US1] Agregar `version = Column(Integer, nullable=False, default=1)` a `TeacherResourceORM` en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_account_repository.py`. **El archivo es de CC-01:** solo se agrega la columna, y se avisa a Silvana en el PR.
+- [x] T013 [BE] [US1] Agregar `save_resource_if_version(teacher_id, unit_id, resource, expected_version, increment=True) -> bool` en `backend/src/platform5e/application/ports/outbound/resource_repository_port.py`. Devuelve `False` si la versión ya no es la vigente.
+- [x] T014 [BE] [US1] Implementar en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_resource_repository.py`:
   - `save_resource_if_version` con `UPDATE … WHERE id AND docente AND version = :expected`, que suma 1 a `version` solo si `increment` es verdadero y copia `version` al JSON.
   - En SQLite, agregar la columna si falta, comprobándolo con `inspect` (H12).
   - Hacer que `save_resources` deje `version = 1` en los recursos nuevos.
-- [ ] T015 [BE] [US1] Ajustar `update_resource` en `backend/src/platform5e/application/services/review/resource_review_service.py`:
+- [x] T015 [BE] [US1] Ajustar `update_resource` en `backend/src/platform5e/application/services/review/resource_review_service.py`:
   - Exigir `expectedVersion`.
   - Comparar la huella nueva con `verification.fingerprint`. Si cambió, llamar `verify_resource` con el umbral guardado y `VERIFICATION_RULE_VERSION`; si no, conservar la verificación.
   - Si un recurso `aprobado` cambió su huella, dejarlo `pendiente` con `reviewReset = true`.
   - Guardar con `save_resource_if_version`. Si devuelve `False`, responder `AccountConfigurationError("VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de guardar.", 409)`.
-- [ ] T016 [P] [BE] [US1] Ajustar `backend/src/platform5e/infrastructure/http/schemas/resources.py`:
+- [x] T016 [P] [BE] [US1] Ajustar `backend/src/platform5e/infrastructure/http/schemas/resources.py`:
   - `ReviewedResourceInput.expected_version: int = Field(ge=1)`, obligatorio.
   - Nuevo esquema `VerificationResult`, con `status` como `Literal["current", "insufficient", "pending"]`.
   - `ResourceResponse` gana `version`, `verification` y `review_reset`.
   - `EvidenceResponse` gana `retrieved_at: str | None` («`null` = desconocida»).
   - Además, en `backend/src/platform5e/infrastructure/http/schemas/citation.py`, corregir la descripción de `similarity_score`: es una coincidencia de palabras, no similitud coseno (H13).
-- [ ] T017 [BE] [US1] Actualizar el PUT en `backend/src/platform5e/infrastructure/http/routers/resources.py`: la docstring con `expectedVersion`, el ejemplo cURL y el 409 `VERSION_CONFLICT`.
+- [x] T017 [BE] [US1] Actualizar el PUT en `backend/src/platform5e/infrastructure/http/routers/resources.py`: la docstring con `expectedVersion`, el ejemplo cURL y el 409 `VERSION_CONFLICT`.
 - [ ] T018 [BE] [US1] Cierre del bloque b): correr las pruebas, ejecutar `scripts/export_openapi.py`, revisar el diff de `docs/api/openapi.json`, anotar los resultados y hacer el **commit b)**.
 
 ### Bloque c) bloqueos, estado con motivo y reintento (REV-C3, C10, C11 · REV-R5)

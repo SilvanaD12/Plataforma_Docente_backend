@@ -31,6 +31,9 @@ class EvidenceResponse(ApiResponse):
     document_name: str
     source_url: str | None = None
     license: str | None = None
+    retrieved_at: str | None = Field(
+        default=None, description="When the chunk was retrieved (ISO 8601). `null` means unknown, as in migrated resources."
+    )
 
 
 class ResourceOptionResponse(ApiResponse):
@@ -103,6 +106,24 @@ class ResourceGrounding(ApiResponse):
     )
 
 
+class VerificationResult(ApiResponse):
+    """REV-01: result of checking the current content against the stored evidence copy (REV-R4, REV-R5)."""
+
+    status: Literal["current", "insufficient", "pending"] = Field(
+        description="Shown as vigente, insuficiente or pendiente. Only `current` with the current fingerprint counts."
+    )
+    reason: str | None = Field(default=None, description="Why it is not current, in Spanish. Set unless `current`.")
+    fingerprint: str = Field(description="Fingerprint of the verified content: `sha256:<hex>`.")
+    verified_version: int = Field(description="Resource version whose content was verified.")
+    evidence_threshold: float = Field(ge=0, le=1, description="Threshold of the original request, reused on every check.")
+    rule_version: int = Field(ge=1, description="VERIFICATION_RULE_VERSION used for this check.")
+    checked_at: str = Field(description="When it was checked (ISO 8601).")
+    retry_available: bool = Field(
+        description="True only for `pending` with a complete evidence copy: «Reintentar comprobación» is offered."
+    )
+    summary: dict[str, Any] = Field(default_factory=dict, description="What was checked, kept or removed.")
+
+
 class ResourceResponse(ApiResponse):
     id: str
     unit_id: str
@@ -133,6 +154,14 @@ class ResourceResponse(ApiResponse):
     grounding: ResourceGrounding | None = Field(
         default=None, description="Grounding check of its claims against the retrieved evidence (HU-016)."
     )
+    version: int = Field(default=1, ge=1, description="Current version. Send it back as `expectedVersion` when saving.")
+    verification: VerificationResult | None = Field(
+        default=None, description="Last check against the stored evidence copy (REV-01). None until it is checked."
+    )
+    review_reset: bool | None = Field(
+        default=None,
+        description="Only in the save response: true when an approved resource changed its content and went back to review.",
+    )
 
     @computed_field(description="Reasons that block approval, computed by the same rule that validates approval.")
     @property
@@ -156,8 +185,12 @@ class ReviewedOptionInput(ApiRequest):
 
 
 class ReviewedResourceInput(ApiRequest):
-    """The teacher's review. Approval is blocked while distractors are pending (409 APPROVAL_BLOCKED)."""
+    """The teacher's review. Approval is blocked while distractors are pending (409 APPROVAL_BLOCKED). A save that
+    starts from an outdated version is rejected (409 VERSION_CONFLICT)."""
 
+    expected_version: int = Field(
+        ge=1, description="Version the edit starts from (the `version` you read). Required (REV-R12).", examples=[1]
+    )
     title: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=8000)
     body_html: str | None = Field(
