@@ -1,0 +1,35 @@
+name: Backend CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install backend
+        run: python -m pip install -e ".[dev]"
+      - name: Unit architecture and integration tests
+        run: >-
+          python -m pytest tests/unit tests/architecture tests/integration -q
+          --cov=platform5e.domain --cov=platform5e.application --cov-fail-under=80
+      - name: End-to-end tests over HTTP with SQLite
+        run: python -m pytest tests/e2e -q
