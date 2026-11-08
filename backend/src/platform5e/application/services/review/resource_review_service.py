@@ -212,9 +212,14 @@ class ResourceReviewService:
             "body": changes["body"],
             "edited": bool(changes.get("edited")),
         }
-        if "bodyHtml" in changes:
+        incoming_html = changes.get("bodyHtml")
+        if changes["body"] != existing.get("body") and incoming_html in (None, existing.get("bodyHtml")):
+            # El cuerpo cambió y no llegó un HTML nuevo: el guardado es del texto anterior. Se borra para que la
+            # revisión y los exportadores (SCORM, documento) usen el cuerpo vigente.
+            updated_resource["bodyHtml"] = None
+        elif "bodyHtml" in changes:
             # Ya llega limpio (sin scripts ni atributos peligrosos) desde el adaptador HTTP.
-            updated_resource["bodyHtml"] = changes["bodyHtml"] or None
+            updated_resource["bodyHtml"] = incoming_html or None
         if changes.get("structure") is not None:
             if not needs_structure(existing.get("type", "")):
                 raise AccountConfigurationError(

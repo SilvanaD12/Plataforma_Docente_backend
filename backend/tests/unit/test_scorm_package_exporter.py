@@ -100,3 +100,22 @@ def test_scorm_api_records_the_session_time():
     _, archive = package([QUESTION])
     assert "cmi.core.session_time" in archive.read("shared/scorm.js").decode()
     assert "window.scorm5e.time(seconds)" in archive.read("shared/quiz.js").decode()
+
+
+
+def page_text(resources):
+    _, archive = package(resources)
+    return "".join(archive.read(name).decode("utf-8") for name in archive.namelist() if name.endswith(".html"))
+
+
+def test_without_formatted_html_the_page_uses_the_current_body():
+    """Revisión de Silvana (PR #6): sin bodyHtml (se borró al cambiar el cuerpo), SCORM muestra el cuerpo vigente."""
+    edited = {**TRIGGER, "body": "Texto nuevo del docente.", "bodyHtml": None}
+    text = page_text([edited])
+    assert "Texto nuevo del docente." in text and "Piensa en tu última videollamada." not in text
+
+
+def test_with_formatted_html_the_page_uses_it_instead_of_the_body():
+    formatted = {**TRIGGER, "body": "Texto plano.", "bodyHtml": "<p><strong>Texto con formato.</strong></p>"}
+    text = page_text([formatted])
+    assert "<strong>Texto con formato.</strong>" in text and "Texto plano." not in text

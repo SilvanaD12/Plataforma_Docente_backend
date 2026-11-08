@@ -546,6 +546,41 @@ def test_save_without_changing_the_fingerprint_keeps_the_verification():
     assert stored["evidence"] == resource["evidence"] and "reviewReset" not in stored
 
 
+
+FORMATTED = "<p><strong>Los dos protocolos</strong> principales son TCP y UDP.</p>"
+NEW_BODY = "Los dos protocolos principales de esta capa en Internet son TCP y UDP."
+
+
+@pytest.mark.parametrize(
+    "body_html_change",
+    [pytest.param({}, id="sin-bodyHtml"), pytest.param({"bodyHtml": FORMATTED}, id="bodyHtml-viejo")],
+)
+def test_changing_the_body_without_new_formatting_clears_the_stored_html(body_html_change):
+    """Revisión de Silvana (PR #6): si cambia el cuerpo y no llega un bodyHtml nuevo, el HTML guardado se borra para
+    que la revisión y los exportadores usen el cuerpo nuevo y no el texto anterior."""
+    resource = make_verified_explanation(bodyHtml=FORMATTED)
+    service, repo = make_versioned_service(resource)
+    saved = service.update_resource("ana", "u1", "rx", save_changes(resource, body=NEW_BODY, edited=True, **body_html_change))
+    assert saved["bodyHtml"] is None
+    assert repo.get_resource_by_id("ana", "rx")["bodyHtml"] is None and repo.get_resource_by_id("ana", "rx")["body"] == NEW_BODY
+
+
+def test_changing_the_body_with_new_formatting_keeps_the_new_html():
+    resource = make_verified_explanation(bodyHtml=FORMATTED)
+    service, repo = make_versioned_service(resource)
+    new_html = "<p><em>Los dos protocolos</em> principales de esta capa en Internet son TCP y UDP.</p>"
+    service.update_resource("ana", "u1", "rx", save_changes(resource, body=NEW_BODY, bodyHtml=new_html, edited=True))
+    assert repo.get_resource_by_id("ana", "rx")["bodyHtml"] == new_html
+
+
+def test_keeping_the_body_keeps_the_stored_html():
+    """Un cambio de título sin bodyHtml conserva el formato guardado."""
+    resource = make_verified_explanation(bodyHtml=FORMATTED)
+    service, repo = make_versioned_service(resource)
+    service.update_resource("ana", "u1", "rx", save_changes(resource, title="Otro título", edited=True))
+    assert repo.get_resource_by_id("ana", "rx")["bodyHtml"] == FORMATTED
+
+
 def test_content_change_is_verified_again_against_the_stored_copy():
     """REV-C1: el cambio de una afirmación respaldada se comprueba al guardar y el resultado queda para esa versión."""
     resource = make_verified_explanation()
