@@ -44,7 +44,15 @@ def create_exports_router(use_case: ExportUnitResourcesUseCase, account_service:
         curl --fail-with-body -X POST "$BASE_URL/api/v1/units/${UNIT_ID}/exports" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"format":"scorm_zip","resourceIds":[]}' -D respuesta-headers.txt --output unidad-scorm.zip
         ```
 
-        Expected 200 when the unit has approved resources. An empty resourceIds selects every approved resource compatible with scorm_zip."""
+        Expected 200 when the unit has eligible resources. An empty resourceIds selects every eligible resource compatible with scorm_zip.
+
+        REV-01: the three formats use the same filter. A resource is exported only if it is approved, has a current
+        verification for its present content and no invalidated media, and the format supports it. Resources without a
+        stored verification are checked first. If none is eligible, the answer is 422 NO_APPROVED_RESOURCES and no
+        file is made; `details` gives how many resources were left out for each reason, for example
+        `[{"reason": "verification_pending", "count": 2}]`. Reasons: `not_approved`, `verification_missing`,
+        `verification_outdated`, `verification_insufficient`, `verification_pending`, `media_invalidated`,
+        `unsupported_format`. Each export records one download with the course and the unit."""
         exported = use_case.execute(teacher_id, unit_id, body.format, body.resource_ids)
         return Response(
             exported.content,

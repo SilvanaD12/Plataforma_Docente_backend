@@ -193,7 +193,7 @@ def create_application() -> FastAPI:
     app.include_router(
         create_resources_router(review_service, account_service, media_use_case, regenerate_media_use_case)
     )
-    app.include_router(create_downloads_router(review_service, account_service, export_use_case))
+    app.include_router(create_downloads_router(review_service, account_service))
     app.include_router(create_teacher_downloads_router(review_service, account_service))
     app.include_router(create_exports_router(export_use_case, account_service))
     app.include_router(create_health_router())

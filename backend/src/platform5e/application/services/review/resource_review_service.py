@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
 
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
@@ -39,7 +38,6 @@ ALLOWED_DISCARD_REASONS: set[str] = {
     "otro",
     "regenerado",
 }
-ALLOWED_EXPORT_FORMATS: set[str] = {"moodle_xml", "scorm_zip", "documento"}
 MAX_DOWNLOADS_HISTORY: int = 50
 
 
@@ -364,36 +362,6 @@ class ResourceReviewService:
                 record = {**record, **units[record["unitId"]]}
             records.append(record)
         return sorted(records, key=lambda d: d.get("createdAt", ""), reverse=True)[:MAX_DOWNLOADS_HISTORY]
-
-    def get_download_record(self, teacher_id: str, unit_id: str, download_id: str) -> dict[str, Any]:
-        """Obtiene un registro individual de descarga del historial de la unidad."""
-        self._verify_unit_access(teacher_id, unit_id)
-        records = self._review_repository.get_downloads(teacher_id, unit_id)
-        record = next((d for d in records if d.get("id") == download_id), None)
-        if record is None:
-            raise AccountConfigurationError("DOWNLOAD_NOT_FOUND", "La descarga solicitada no existe.", 404)
-        return record
-
-    def register_download(
-        self, teacher_id: str, unit_id: str, payload: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Registra un evento de exportación en el historial de descargas."""
-        self._verify_unit_access(teacher_id, unit_id)
-        if payload["format"] not in ALLOWED_EXPORT_FORMATS:
-            raise AccountConfigurationError(
-                "INVALID_FORMAT", "El formato de descarga no es válido.", 422
-            )
-
-        download_record: dict[str, Any] = {
-            "id": f"descarga-{uuid4()}",
-            "unitId": unit_id,
-            "format": payload["format"],
-            "fileName": payload["fileName"],
-            "resourceCount": payload["resourceCount"],
-            "createdAt": datetime.now(timezone.utc).isoformat(),
-        }
-        self._review_repository.save_download(teacher_id, unit_id, download_record)
-        return download_record
 
     def clear_downloads_history(self, teacher_id: str, unit_id: str) -> None:
         """Elimina el registro histórico de descargas de una unidad."""

@@ -11,14 +11,6 @@ from platform5e.infrastructure.http.schemas.common import ApiRequest, ApiRespons
 DownloadFormat = Literal["moodle_xml", "scorm_zip", "documento"]
 
 
-class DownloadInput(ApiRequest):
-    """Download history entry; exports are built and registered by the backend."""
-
-    format: DownloadFormat
-    file_name: str = Field(min_length=1, max_length=200, examples=["red-301-unidad-1-documento.html"])
-    resource_count: int = Field(ge=0, le=500)
-
-
 class DownloadResponse(ApiResponse):
     id: str
     unit_id: str

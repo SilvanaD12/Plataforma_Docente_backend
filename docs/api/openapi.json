@@ -1747,7 +1747,7 @@
           "downloads"
         ],
         "summary": "List the downloads of a unit",
-        "description": "The last 50 downloads, newest first.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "description": "The last 50 downloads of the unit, newest first (there is no paging yet). Exports record themselves once\nper file; GET /api/v1/downloads lists the whole history of the teacher, also after a course is deleted.\n\nREV-01 removed `POST /units/{unit_id}/downloads` (it duplicated the record that every export already saves)\nand `GET /units/{unit_id}/downloads/{download_id}` (re-downloading is out of scope and that route exported the\ncurrent state, not the original file).\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
         "operationId": "list_downloads_api_v1_units__unit_id__downloads_get",
         "security": [
           {
@@ -1806,82 +1806,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "downloads"
-        ],
-        "summary": "Record a download",
-        "description": "Records a file built in the browser (the unit document). Exports built by the backend record themselves.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"documento\",\"fileName\":\"red-301-unidad-1-documento.html\",\"resourceCount\":1}'\n```\n\nReplace unidad-1 through UNIT_ID. This registers browser-built document metadata; it does not generate a package. Expected 201.",
-        "operationId": "register_download_api_v1_units__unit_id__downloads_post",
-        "security": [
-          {
-            "TeacherSession": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "unit_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Unit Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DownloadInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DownloadResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, invalid or expired session token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The entity does not exist or does not belong to the teacher.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid parameters (type, range or unknown field).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -1948,81 +1872,6 @@
         }
       }
     },
-    "/api/v1/units/{unit_id}/downloads/{download_id}": {
-      "get": {
-        "tags": [
-          "downloads"
-        ],
-        "summary": "Re-download an exported package",
-        "description": "Re-downloads an exported package recorded in the unit's download history (HU-010 C02).\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads/${DOWNLOAD_ID}\" -H \"Authorization: Bearer $TOKEN\" -D respuesta-headers.txt --output paquete.zip\n```\n\nExpected 200 for an existing history entry and resources compatible with its format. The returned MIME type determines the file extension.",
-        "operationId": "redownload_package_api_v1_units__unit_id__downloads__download_id__get",
-        "security": [
-          {
-            "TeacherSession": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "unit_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "download_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Download Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The re-downloaded file; its name comes in Content-Disposition.",
-            "content": {
-              "application/zip": {},
-              "application/xml": {},
-              "text/html": {}
-            }
-          },
-          "401": {
-            "description": "Missing, invalid or expired session token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The entity does not exist or does not belong to the teacher.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid parameters (type, range or unknown field).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/downloads": {
       "get": {
         "tags": [
@@ -2070,7 +1919,7 @@
           "exports"
         ],
         "summary": "Export the approved resources of a unit",
-        "description": "Builds the file in the backend from the approved resources (fixed templates, never written by the AI),\nrecords the download in the unit history and returns the file.\n\n- `scorm_zip`: SCORM 1.2 package for Chamilo, one page per resource in 5E order; questions are graded.\n- `moodle_xml`: Moodle question bank with the multiple-choice items.\n- `documento`: printable HTML document of the approved unit resources, with evidence.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/exports\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"scorm_zip\",\"resourceIds\":[]}' -D respuesta-headers.txt --output unidad-scorm.zip\n```\n\nExpected 200 when the unit has approved resources. An empty resourceIds selects every approved resource compatible with scorm_zip.",
+        "description": "Builds the file in the backend from the approved resources (fixed templates, never written by the AI),\nrecords the download in the unit history and returns the file.\n\n- `scorm_zip`: SCORM 1.2 package for Chamilo, one page per resource in 5E order; questions are graded.\n- `moodle_xml`: Moodle question bank with the multiple-choice items.\n- `documento`: printable HTML document of the approved unit resources, with evidence.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/exports\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"scorm_zip\",\"resourceIds\":[]}' -D respuesta-headers.txt --output unidad-scorm.zip\n```\n\nExpected 200 when the unit has eligible resources. An empty resourceIds selects every eligible resource compatible with scorm_zip.\n\nREV-01: the three formats use the same filter. A resource is exported only if it is approved, has a current\nverification for its present content and no invalidated media, and the format supports it. Resources without a\nstored verification are checked first. If none is eligible, the answer is 422 NO_APPROVED_RESOURCES and no\nfile is made; `details` gives how many resources were left out for each reason, for example\n`[{\"reason\": \"verification_pending\", \"count\": 2}]`. Reasons: `not_approved`, `verification_missing`,\n`verification_outdated`, `verification_insufficient`, `verification_pending`, `media_invalidated`,\n`unsupported_format`. Each export records one download with the course and the unit.",
         "operationId": "export_unit_api_v1_units__unit_id__exports_post",
         "security": [
           {
@@ -2644,43 +2493,6 @@
           "registeredAt"
         ],
         "title": "DocumentResponse"
-      },
-      "DownloadInput": {
-        "properties": {
-          "format": {
-            "type": "string",
-            "enum": [
-              "moodle_xml",
-              "scorm_zip",
-              "documento"
-            ],
-            "title": "Format"
-          },
-          "fileName": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Filename",
-            "examples": [
-              "red-301-unidad-1-documento.html"
-            ]
-          },
-          "resourceCount": {
-            "type": "integer",
-            "maximum": 500.0,
-            "minimum": 0.0,
-            "title": "Resourcecount"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "format",
-          "fileName",
-          "resourceCount"
-        ],
-        "title": "DownloadInput",
-        "description": "Download history entry; exports are built and registered by the backend."
       },
       "DownloadResponse": {
         "properties": {

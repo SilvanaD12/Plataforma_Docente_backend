@@ -131,23 +131,13 @@ def test_new_account_reviews_downloads_and_deletes_its_course(server: str):
         assert api.get(base + "/resources", headers=other).status_code == 404
         assert api.get(base + "/resources").status_code == 401
 
-        download = api.post(
-            base + "/downloads",
-            headers=h,
-            json={"format": "moodle_xml", "fileName": "red-301-unidad-1-moodle.xml", "resourceCount": 1},
-        )
-        assert download.status_code == 201
+        # REV-01: el registro lo crea la exportación (el POST manual de descargas se retiró).
+        download = api.post(base + "/exports", headers=h, json={"format": "moodle_xml"})
+        assert download.status_code == 200
         assert [d["fileName"] for d in api.get(base + "/downloads", headers=h).json()] == [
             "red-301-unidad-1-moodle.xml"
         ]
-        assert (
-            api.post(
-                base + "/downloads",
-                headers=h,
-                json={"format": "pdf", "fileName": "x.pdf", "resourceCount": 1},
-            ).status_code
-            == 422
-        )
+        assert api.post(base + "/exports", headers=h, json={"format": "pdf"}).status_code == 422
         assert api.delete(base + "/downloads", headers=h).status_code == 204
         assert api.get(base + "/downloads", headers=h).json() == []
 
