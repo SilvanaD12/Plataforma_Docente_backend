@@ -180,7 +180,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Sin elegibles: 422 `NO_APPROVED_RESOURCES`, con `details` por motivo y sin generar el archivo.
   - El registro guarda `courseId`, `courseName`, `unitName` y `unitNumber`, y se crea una sola vez por exportación (REV-C9).
   - Cambiar `VERIFICATION_RULE_VERSION` no saca de la exportación a un recurso vigente (REV-C10).
-- [ ] T035 [P] [BE] [US3] Ajustar `backend/tests/unit/test_download_history.py`: quitar las pruebas de `get_download_record` (redescarga) y agregar el historial por docente, incluido después de borrar el curso. Debe mostrar fecha, formato, archivo, curso y unidad, y no mostrar registros de otro docente (REV-C9).
+- [ ] T035 [P] [BE] [US3] **Hecho en parte (2026-11-08):** 5 pruebas del historial por docente agregadas; quitar las de redescarga queda para T041. Ajustar `backend/tests/unit/test_download_history.py`: quitar las pruebas de `get_download_record` (redescarga) y agregar el historial por docente, incluido después de borrar el curso. Debe mostrar fecha, formato, archivo, curso y unidad, y no mostrar registros de otro docente (REV-C9).
 - [ ] T036 [P] [BE] [US3] Ampliar `backend/tests/e2e/test_exports_api.py` con:
   - Exportar SCORM, Moodle XML y documento de unidad con un recurso aprobado vigente y otro no vigente, abrir cada archivo y comprobar que solo trae el vigente (REV-C7 · REV-R7).
   - Sin elegibles: 422 con `details`.
@@ -192,8 +192,8 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Aplicar `export_ineligibility` junto con `exporter.supports`.
   - Sin elegibles, responder 422 `NO_APPROVED_RESOURCES` con `details` del tipo `[{"reason": …, "count": …}]`.
   - Guardar en el registro `courseId`, `courseName`, `unitName` y `unitNumber`.
-- [ ] T039 [BE] [US3] Agregar `get_downloads_by_teacher(teacher_id)` en `backend/src/platform5e/application/ports/outbound/resource_repository_port.py` y en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_resource_repository.py`, ordenado del más reciente al más antiguo.
-- [ ] T040 [BE] [US3] En `backend/src/platform5e/application/services/review/resource_review_service.py`, agregar `get_teacher_downloads(teacher_id)`, con un límite de `MAX_DOWNLOADS_HISTORY` y sin exigir acceso a la unidad, y quitar `get_download_record` y `register_download`.
+- [x] T039 [BE] [US3] Agregar `get_downloads_by_teacher(teacher_id)` en `backend/src/platform5e/application/ports/outbound/resource_repository_port.py` y en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_resource_repository.py`, ordenado del más reciente al más antiguo.
+- [ ] T040 [BE] [US3] **Hecho en parte (2026-11-08):** `get_teacher_downloads` agregado (completa curso y unidad en registros antiguos si la unidad existe); quitar `get_download_record` y `register_download` va con T041. En `backend/src/platform5e/application/services/review/resource_review_service.py`, agregar `get_teacher_downloads(teacher_id)`, con un límite de `MAX_DOWNLOADS_HISTORY` y sin exigir acceso a la unidad, y quitar `get_download_record` y `register_download`.
 - [ ] T041 [BE] [US3] Ajustar `backend/src/platform5e/infrastructure/http/routers/downloads.py` y `backend/src/platform5e/infrastructure/http/schemas/downloads.py`:
   - Agregar `GET /api/v1/downloads`.
   - Retirar `GET /units/{unit_id}/downloads/{download_id}` y `POST /units/{unit_id}/downloads`, y quitar `DownloadInput`.

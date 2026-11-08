@@ -47,6 +47,10 @@ class ResourceReviewRepositoryPort(Protocol):
         """Obtiene el historial de descargas realizadas por el docente en la unidad."""
         ...
 
+    def get_downloads_by_teacher(self, teacher_id: str) -> list[dict[str, Any]]:
+        """REV-R9: todas las descargas del docente, de la más reciente a la más antigua, aunque el curso ya no exista."""
+        ...
+
     def save_download(
         self, teacher_id: str, unit_id: str, download_record: dict[str, Any]
     ) -> None:

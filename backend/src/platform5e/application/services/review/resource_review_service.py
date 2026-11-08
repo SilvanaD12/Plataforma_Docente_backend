@@ -338,6 +338,25 @@ class ResourceReviewService:
             reverse=True,
         )[:MAX_DOWNLOADS_HISTORY]
 
+    def get_teacher_downloads(self, teacher_id: str) -> list[dict[str, Any]]:
+        """REV-C9: el historial del docente, que se conserva al borrar el curso (solo el registro, no el archivo).
+
+        Los registros anteriores a REV-01 no guardaban el curso ni la unidad: si la unidad todavía existe, se completan
+        con sus nombres actuales; si no, quedan sin nombre y la interfaz muestra «Curso eliminado».
+        """
+        units = {
+            unit["id"]: {"courseId": course["id"], "courseName": course.get("name"),
+                         "unitName": unit.get("title"), "unitNumber": unit.get("number")}
+            for course in self._teacher_repository.get_courses(teacher_id)
+            for unit in course.get("units", [])
+        }
+        records = []
+        for record in self._review_repository.get_downloads_by_teacher(teacher_id):
+            if record.get("courseName") is None and record.get("unitId") in units:
+                record = {**record, **units[record["unitId"]]}
+            records.append(record)
+        return sorted(records, key=lambda d: d.get("createdAt", ""), reverse=True)[:MAX_DOWNLOADS_HISTORY]
+
     def get_download_record(self, teacher_id: str, unit_id: str, download_id: str) -> dict[str, Any]:
         """Obtiene un registro individual de descarga del historial de la unidad."""
         self._verify_unit_access(teacher_id, unit_id)

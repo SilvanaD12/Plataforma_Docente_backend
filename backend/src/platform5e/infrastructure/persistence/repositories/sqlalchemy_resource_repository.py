@@ -127,6 +127,16 @@ class SQLAlchemyResourceRepository(ResourceReviewRepositoryPort):
             return [entity.download_data for entity in session.scalars(statement)]
 
     @translate_persistence_errors
+    def get_downloads_by_teacher(self, teacher_id: str) -> list[dict[str, Any]]:
+        with SessionLocal() as session:
+            statement = (
+                select(DownloadORM)
+                .where(DownloadORM.teacher_id == teacher_id)
+                .order_by(DownloadORM.created_at.desc())
+            )
+            return [entity.download_data for entity in session.scalars(statement)]
+
+    @translate_persistence_errors
     def save_download(
         self, teacher_id: str, unit_id: str, download_record: dict[str, Any]
     ) -> None:
