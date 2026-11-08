@@ -21,9 +21,12 @@ from platform5e.application.services.generation.prompt_drafting import (
 from platform5e.domain.generation.errors import GenerationError
 from platform5e.domain.generation.resource_formats import RESOURCE_CATALOG
 from platform5e.domain.generation.sequence import (
+    MAX_SEQUENCE_TYPES,
+    PlannedStep,
     SequenceError,
     content_similarity,
     order_resource_types,
+    plan_steps,
     stage_agent,
 )
 from platform5e.infrastructure.http.schemas.generations import GenerationRequest
@@ -207,3 +210,41 @@ def test_the_request_contract_accepts_one_type_or_a_sequence():
     for invalid in ({"unitId": "u1"}, {"unitId": "u1", "stage": "explain"}, {"unitId": "u1", "resourceTypes": []}):
         with pytest.raises(ValidationError):
             GenerationRequest.model_validate(invalid)
+
+
+# GEN-01 (T001): plan de pasos del pedido en segundo plano.
+
+
+def test_a_sequence_plan_follows_the_class_order_with_a_common_quantity():
+    steps = plan_steps("sequence", ["item_opcion_multiple", "pregunta_detonante", "explicacion"], 3)
+    assert steps == [
+        PlannedStep(0, "engage", "pregunta_detonante", "Agente de Enganchar", 3),
+        PlannedStep(1, "explain", "explicacion", "Agente de Explicar", 3),
+        PlannedStep(2, "evaluate", "item_opcion_multiple", "Agente de Evaluar", 3),
+    ]
+
+
+def test_individual_and_regeneration_plans_have_exactly_one_step():
+    assert plan_steps("individual", ["glosario"], 2) == [PlannedStep(0, "explain", "glosario", "Agente de Explicar", 2)]
+    assert len(plan_steps("regeneration", ["glosario"], 1)) == 1
+    # Un tipo repetido cuenta una vez.
+    assert len(plan_steps("individual", ["glosario", "glosario"], 1)) == 1
+    with pytest.raises(SequenceError, match="exactamente un tipo"):
+        plan_steps("individual", ["glosario", "explicacion"], 1)
+
+
+def test_plans_reuse_the_sequence_limits_and_reject_invalid_input():
+    eight_types = list(RESOURCE_CATALOG)[:MAX_SEQUENCE_TYPES]
+    assert len(plan_steps("sequence", eight_types, 5)) == MAX_SEQUENCE_TYPES
+    invalid_plans = [
+        ("sequence", list(RESOURCE_CATALOG)[: MAX_SEQUENCE_TYPES + 1], 1),
+        ("sequence", [], 1),
+        ("sequence", ["tipo_inventado"], 1),
+        ("individual", ["glosario"], 0),
+        ("individual", ["glosario"], 6),
+        ("individual", ["glosario"], True),
+        ("batch", ["glosario"], 1),
+    ]
+    for mode, resource_types, quantity in invalid_plans:
+        with pytest.raises(SequenceError):
+            plan_steps(mode, resource_types, quantity)
