@@ -32,7 +32,7 @@ Juan hace los commits, las ramas y los PR. Las tareas de cierre de cada bloque i
 ## Fase 1 · Preparación
 
 - [x] T001 [BE] Correr la línea base de pruebas del backend en `feat/revision-y-exportacion` (los tres comandos de arriba) y anotar el resultado en el registro de avance antes de cambiar código. Ruta: `backend/tests/`.
-- [ ] T002 [FE] Clonar `Plataforma_Docente_frontend` y crear la rama `feat/revision-y-exportacion` desde `main` actualizado (`git switch main`, `git pull --ff-only origin main`; `616390a` o posterior, con los PR #1 y #2 integrados, H14). Comprobar que existen `UnitLayout`, `ReviewPage` y `ExportPage`. Correr `npm ci`, `npm run lint`, `npm test` y `npm run build` como línea base. Ruta: `Plataforma_Docente_frontend/`.
+- [x] T002 [FE] Clonar `Plataforma_Docente_frontend` y crear la rama `feat/revision-y-exportacion` desde `main` actualizado (`git switch main`, `git pull --ff-only origin main`; `616390a` o posterior, con los PR #1 y #2 integrados, H14). Comprobar que existen `UnitLayout`, `ReviewPage` y `ExportPage`. Correr `npm ci`, `npm run lint`, `npm test` y `npm run build` como línea base. Ruta: `Plataforma_Docente_frontend/`.
 
 ## Fase 2 · Base compartida: bloque a) huella y versión de la regla
 
@@ -149,16 +149,16 @@ sin una verificación vigente.
 > Las rutas `review` y `export` de la unidad, sus pestañas y las páginas marcador ya existen en `main` del frontend desde `d9d4f7d` (CC-01, integrado en `616390a`). Las tareas de FE-1 y FE-2 reemplazan el contenido de esos marcadores.
 
 - [x] T026 [FE] [US1] **No aplica, resuelta por CC-01** en `d9d4f7d`: las rutas hijas `review` y `export` de `:courseId/units/:unitId` en `Plataforma_Docente_frontend/src/app/App.tsx` y sus pestañas en `src/features/units/pages/UnitLayout.tsx` ya existen. Solo comprobar en T002 que la rama del frontend las incluye.
-- [ ] T027 [P] [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/api/reviewApi.test.ts` con Vitest:
+- [x] T027 [P] [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/api/reviewApi.test.ts` con Vitest:
   - el PUT envía `expectedVersion`;
   - un 409 `VERSION_CONFLICT` produce un error reconocible;
   - el reintento llama a `POST …/verification`;
   - la respuesta con `reviewReset` se expone al llamador.
-- [ ] T028 [P] [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/model/resource.ts`, con los tipos `Resource` y `VerificationResult` según [data-model.md](data-model.md) y las etiquetas `current` → «Vigente», `insufficient` → «Insuficiente» y `pending` → «Pendiente», y su prueba `resource.test.ts`.
-- [ ] T029 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/api/reviewApi.ts` con `listResources`, `saveResource` (con `expectedVersion`) y `retryVerification`. Debe usar `request` y `ApiError` de `src/shared/api/httpClient.ts`. Adaptar lo que sirva de `Yansete/plataforma-5e-frontend@feca57c` (`src/features/review/api/reviewApi.ts`).
-- [ ] T030 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/components/VerificationBadge.tsx`, que muestra el estado en español y `reason`, el botón «Reintentar comprobación» si `retryAvailable` o el aviso «Regenera el recurso» si no. Incluir su prueba `VerificationBadge.test.tsx` (REV-C3, C11).
-- [ ] T031 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/components/ResourceEditor.tsx`. Edita título, cuerpo, opciones y estructura, guarda con la `version` leída y muestra los `approvalBlockers` del servidor sin repetir reglas. Ante un 409 `VERSION_CONFLICT`, pide recargar sin perder lo escrito hasta que el docente confirme (REV-C14). Con `reviewReset`, avisa que el recurso volvió a revisión (REV-C1).
-- [ ] T032 [FE] [US1] Reemplazar el marcador de `Plataforma_Docente_frontend/src/features/review/pages/ReviewPage.tsx` (hoy `UnitModulePlaceholder`), conservando el nombre `ReviewPage` y su exportación. Lee `const { course, unit } = useOutletContext<UnitContext>()`, lista los recursos de `unit.id` con carga, vacío y error, y usa `ResourceEditor` y `VerificationBadge`.
+- [x] T028 [P] [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/model/resource.ts`, con los tipos `Resource` y `VerificationResult` según [data-model.md](data-model.md) y las etiquetas `current` → «Vigente», `insufficient` → «Insuficiente» y `pending` → «Pendiente», y su prueba `resource.test.ts`.
+- [x] T029 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/api/reviewApi.ts` con `listResources`, `saveResource` (con `expectedVersion`) y `retryVerification`. Debe usar `request` y `ApiError` de `src/shared/api/httpClient.ts`. Adaptar lo que sirva de `Yansete/plataforma-5e-frontend@feca57c` (`src/features/review/api/reviewApi.ts`).
+- [x] T030 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/components/VerificationBadge.tsx`, que muestra el estado en español y `reason`, el botón «Reintentar comprobación» si `retryAvailable` o el aviso «Regenera el recurso» si no. Incluir su prueba `VerificationBadge.test.tsx` (REV-C3, C11).
+- [x] T031 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/components/ResourceEditor.tsx`. Edita título, cuerpo, opciones y estructura, guarda con la `version` leída y muestra los `approvalBlockers` del servidor sin repetir reglas. Ante un 409 `VERSION_CONFLICT`, pide recargar sin perder lo escrito hasta que el docente confirme (REV-C14). Con `reviewReset`, avisa que el recurso volvió a revisión (REV-C1).
+- [x] T032 [FE] [US1] Reemplazar el marcador de `Plataforma_Docente_frontend/src/features/review/pages/ReviewPage.tsx` (hoy `UnitModulePlaceholder`), conservando el nombre `ReviewPage` y su exportación. Lee `const { course, unit } = useOutletContext<UnitContext>()`, lista los recursos de `unit.id` con carga, vacío y error, y usa `ResourceEditor` y `VerificationBadge`.
 - [ ] T033 [FE] [US1] Cierre de FE-1: con el backend local del PR 1, correr `npm run lint`, `npm test` y `npm run build`, revisar la pestaña en el navegador y abrir el **PR FE-1** enlazado al PR 1 del backend, con capturas.
 
 ## Fase 4 · Historia 3: exportar solo lo verificado y consultar lo descargado (prioridad 3)
@@ -258,8 +258,9 @@ el pedido conserva ambos y un fallo deja el anterior igual.
 - [ ] T056 [P] [FE] [US3] Crear `Plataforma_Docente_frontend/src/features/export/api/exportApi.test.ts`:
   - el 422 `NO_APPROVED_RESOURCES` expone los motivos de `details`;
   - el historial de `GET /api/v1/downloads` muestra «Curso eliminado» cuando `courseName` es `null`.
-- [ ] T057 [FE] [US3] Crear `Plataforma_Docente_frontend/src/features/export/api/exportApi.ts` (exportar con descarga del archivo, e historial por docente) y reemplazar el marcador de `src/features/export/pages/ExportPage.tsx` (hoy `UnitModulePlaceholder`), conservando el nombre `ExportPage` y su exportación. La página lee `useOutletContext<UnitContext>()`, ofrece los formatos, muestra el motivo sin elegibles y lista el historial con fecha, formato, archivo, curso y unidad (REV-C7, C9). Adaptar lo que sirva de `feca57c` (`src/features/export`).
+- [ ] T057 [FE] [US3] Crear `Plataforma_Docente_frontend/src/features/export/api/exportApi.ts` (exportar con descarga del archivo, e historial por docente) y reemplazar el marcador de `src/features/export/pages/ExportPage.tsx` (hoy `UnitModulePlaceholder`), conservando el nombre `ExportPage` y su exportación. La página lee `useOutletContext<UnitContext>()`, ofrece los formatos, muestra el motivo sin elegibles y lista el historial con fecha, formato, archivo, curso y unidad (REV-C7, C9). Si el 422 llega sin `details`, se muestra el `message` de la API (acordado con Silvana el 2026-11-08). Adaptar lo que sirva de `feca57c` (`src/features/export`).
 - [ ] T058 [FE] [US2] Completar `Plataforma_Docente_frontend/src/features/review/pages/ReviewPage.tsx` y `components/ResourceEditor.tsx`:
+  - **Pasa de FE-1 a FE-2 (acordado el 2026-11-08):** editar la `structure` de imagen, audio y actividades, y descartar con motivo (`discardReason`);
   - aviso de multimedia invalidada con el botón «Generar de nuevo» (REV-C8);
   - botón de regenerar con `expectedVersion`;
   - resultado con el anterior descartado o conservado (REV-C12);
