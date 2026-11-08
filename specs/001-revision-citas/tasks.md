@@ -213,7 +213,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Cambiar solo `alt` o `caption` conserva el archivo `ready`.
   - «Generar de nuevo» quita `invalidated` y permite aprobar.
   - El SCORM nunca incluye el archivo invalidado (REV-C8).
-- [ ] T045 [P] [BE] [US3] Ampliar `backend/tests/unit/test_legacy_stored_data.py` con recursos antiguos según REV-R11:
+- [x] T045 [P] [BE] [US3] Ampliar `backend/tests/unit/test_legacy_stored_data.py` con recursos antiguos según REV-R11:
   - Copia completa y aprobado con resultado `current`: sigue `aprobado`.
   - Resultado `insufficient`: vuelve a `pendiente`.
   - Sin copia, o con un fragmento sin texto: `pending`, sin reintento y fuera de exportación.

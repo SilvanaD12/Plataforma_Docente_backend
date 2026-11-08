@@ -35,6 +35,12 @@ def upgrade_resource_verification(
     if isinstance(resource.get("verification"), dict):
         return resource
     upgraded = {**resource, "version": resource.get("version", 1)}
+    # REV-R11: la falta de fecha de recuperación no invalida la copia; se registra como desconocida (`null`).
+    if isinstance(resource.get("evidence"), list):
+        upgraded["evidence"] = [
+            {"retrievedAt": None, **fragment} if isinstance(fragment, dict) else fragment
+            for fragment in resource["evidence"]
+        ]
     upgraded["verification"] = verify_resource(upgraded, stored_threshold(resource), grounding.VERIFICATION_RULE_VERSION)
     if upgraded.get("status") == APPROVED and upgraded["verification"]["status"] != CURRENT:
         upgraded["status"] = PENDING_REVIEW
