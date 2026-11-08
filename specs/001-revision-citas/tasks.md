@@ -207,7 +207,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
 > - **Sergio:** aprobar la migración para Neon y elegir la opción A (perezosa) o B (script) de D7 (mensaje 2).
 > - **Equipo:** decidir qué pasa con el bloqueo multimedia si la generación de imágenes y voz está apagada (mensaje 5).
 
-- [ ] T044 [P] [BE] [US3] **Hecho en parte (2026-11-08):** pruebas de `alt` y `caption` (conservan el archivo) y de `prompt` (lo invalida) agregadas; las del bloqueo de aprobación esperan D9. Ajustar `backend/tests/unit/test_edited_media.py`:
+- [x] T044 [P] [BE] [US3] **Hecho (2026-11-08), con D9 opción A:** `test_editing_the_script_drops_the_old_audio_everywhere` ahora exige el bloqueo y la exclusión. Ajustar `backend/tests/unit/test_edited_media.py`:
   - Cambiar el `script` deja el respaldo con `media.invalidated = true` y **bloquea** la aprobación. Esto cambia la prueba actual `test_editing_the_script_drops_the_old_audio_everywhere`, según H10.
   - Cambiar el `prompt` de una imagen hace lo mismo.
   - Cambiar solo `alt` o `caption` conserva el archivo `ready`.
@@ -222,14 +222,14 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - La actualización **no incrementa `version`**.
   - Si hubo un guardado concurrente, la actualización se descarta sin error.
 - [x] T046 [BE] [US3] Crear `backend/src/platform5e/domain/review/media_change.py` con `media_source_changed(resource_type, old_structure, new_structure) -> bool`. Compara `prompt` para la imagen y `script` para el audio, normalizados con `normalize_structure` (D9).
-- [ ] T047 [BE] [US3] **Hecho en parte (2026-11-08):** la comparación usa `media_source_changed` (solo `prompt` o `script`). Falta, según D9: `invalidated = true` y el bloqueo de aprobación. En `backend/src/platform5e/application/services/review/resource_review_service.py`:
+- [x] T047 [BE] [US3] **Hecho (2026-11-08), con D9 opción A.** En `backend/src/platform5e/application/services/review/resource_review_service.py`:
   - Reemplazar la comparación de toda la estructura (hoy en la línea 148) por `media_source_changed`.
   - Al invalidar, dejar `fallback_media(..., EDITED_NOTES[...])` con `invalidated = true`.
   - En `validate_approval_blockers`, bloquear mientras `invalidated` esté presente.
 - [ ] T048 [BE] [US3] **Adelantado en parte al bloque c):** ya existe `legacy_verification.py`, que se llama desde `list_resources` y `_get_resource_or_fail` con la regla de estado de REV-R11 e `increment=False`. Desde el bloque d) también la llama `ExportUnitResourcesUseCase` antes de filtrar. Falta solo el script de la opción B, si Sergio lo elige. Crear `backend/src/platform5e/application/services/review/legacy_verification.py` con `upgrade_resource_verification(repository, teacher_id, unit_id, resource) -> dict`, según D7. Recibe `ResourceReviewRepositoryPort`, guarda con `save_resource_if_version(..., increment=False)`, devuelve el recurso actualizado o el original si hubo un guardado concurrente, y no depende de `ResourceReviewService`.
   - **Opción A**, si Sergio la elige: llamarla para los recursos sin `verification` desde `list_resources` y `get_resource`, en `resource_review_service.py`, y desde `ExportUnitResourcesUseCase.execute`, en `export_unit_resources.py`, antes de aplicar el filtro.
   - **Opción B**: crear `backend/scripts/upgrade_resource_verification.py` con `--dry-run` y un informe por estado.
-- [ ] T049 [P] [BE] [US3] En `backend/src/platform5e/application/use_cases/media/regenerate_resource_media.py`, quitar `media.invalidated` cuando el archivo se genere bien. En `backend/src/platform5e/infrastructure/http/schemas/resources.py`, agregar `MediaResponse.invalidated: bool = False`.
+- [x] T049 [P] [BE] [US3] En `backend/src/platform5e/application/use_cases/media/regenerate_resource_media.py`, quitar `media.invalidated` cuando el archivo se genere bien. En `backend/src/platform5e/infrastructure/http/schemas/resources.py`, agregar `MediaResponse.invalidated: bool = False`.
 - [ ] T050 [BE] [US3] Cierre del bloque e): correr las pruebas, incluida la de PostgreSQL con la migración aplicada, ejecutar `scripts/export_openapi.py` y hacer el **commit e)**.
 
 ## Fase 5 · Historia 2: regenerar sin perder el anterior (prioridad 2, dependiente de Yan)

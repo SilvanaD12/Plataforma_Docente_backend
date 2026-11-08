@@ -71,6 +71,8 @@ def validate_approval_blockers(resource_data: dict[str, Any]) -> list[str]:
     media = resource_data.get("media") or {}
     if media.get("status") == "ready" and media.get("outdated"):
         reasons.append("El archivo no coincide con el texto editado: genéralo de nuevo para poder aprobar.")
+    if media.get("invalidated"):
+        reasons.append("Cambiaste el guion o la descripción: genera el archivo de nuevo para poder aprobar.")
     return reasons
 
 
@@ -217,8 +219,12 @@ class ResourceReviewService:
             if media.get("status") == "ready" and media_source_changed(existing["type"], existing.get("structure"), structure):
                 # REV-C8: el archivo se generó con el guion o la descripción anterior y deja de usarse, para que la
                 # revisión y el SCORM no mezclen el texto nuevo con el audio o la imagen viejos. Si cambian solo `alt`
-                # o `caption`, el archivo se conserva. El bloqueo de aprobación espera la decisión del equipo (D9).
-                updated_resource["media"] = fallback_media(existing["format"], EDITED_NOTES[existing["format"]])
+                # o `caption`, el archivo se conserva. Hasta generarlo de nuevo, la aprobación queda bloqueada y el
+                # recurso no entra en exportaciones nuevas (D9, opción A).
+                updated_resource["media"] = {
+                    **fallback_media(existing["format"], EDITED_NOTES[existing["format"]]),
+                    "invalidated": True,
+                }
             updated_resource["structure"] = structure
 
         options = existing.get("options")

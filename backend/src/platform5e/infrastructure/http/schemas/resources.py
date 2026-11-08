@@ -67,6 +67,13 @@ class MediaResponse(ApiResponse):
     file_name: str | None = None
     note: str | None = None
     outdated: bool = Field(default=False, description="The teacher edited the script or description after generating.")
+    invalidated: bool = Field(
+        default=False,
+        description=(
+            "REV-C8: the prompt or script changed, so the generated file is no longer used. Approval is blocked and the "
+            "resource is left out of new exports until the file is generated again."
+        ),
+    )
 
 
 class RemovedClaim(ApiResponse):

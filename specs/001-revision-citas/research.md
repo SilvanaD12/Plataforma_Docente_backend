@@ -220,6 +220,12 @@ aprueba con el respaldo. Cambia para exigir el bloqueo, como pide REV-C8.
 claves), un recurso con archivo invalidado no podría aprobarse. Propuesta: el bloqueo indica
 `MEDIA_GENERATION_DISABLED` y el docente puede regenerar el recurso. Hay que confirmarlo en el grupo antes del bloque e).
 
+**Decisión del equipo (2026-11-08): opción A, como dice la ficha.** Un archivo invalidado (`media.invalidated`)
+bloquea la aprobación y saca el recurso de las exportaciones nuevas hasta generarlo de nuevo, también cuando la
+generación multimedia está apagada en el servidor. Si «Generar de nuevo» falla, la marca se conserva. **Cualquier
+excepción para la demostración (por ejemplo, aprobar con el respaldo cuando no hay generación multimedia) requiere
+acordarla en el equipo y actualizar antes la ficha (REV-C8 y REV-R8).**
+
 ## D10. Regeneración (REV-R10 · REV-C12, C13), dependiente de Yan
 
 **Decisión provisional.**

@@ -43,7 +43,11 @@ class RegenerateResourceMediaUseCase:
                 "o la descripción de la imagen.",
                 409,
             )
-        attach_generated_media(teacher_id, resource, self._media_generator, self._media_repository)
+        was_invalidated = bool((resource.get("media") or {}).get("invalidated"))
+        generated = attach_generated_media(teacher_id, resource, self._media_generator, self._media_repository)
+        if was_invalidated and not generated:
+            # REV-C8: si la generación falla, el archivo sigue sin generar y la aprobación sigue bloqueada.
+            resource["media"] = {**resource["media"], "invalidated": True}
         resource["updatedAt"] = datetime.now(timezone.utc).isoformat()
         self._review_repository.save_resources(teacher_id, unit_id, [resource])
         return resource
