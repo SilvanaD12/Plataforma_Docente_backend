@@ -1,0 +1,11 @@
+Unidad 1: Protocolos de transporte
+
+El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de los datos. TCP numera los segmentos, confirma su recepción con acuses de recibo y retransmite los que se pierden.
+
+El protocolo UDP no establece conexión ni confirma la entrega; por eso es más rápido e introduce menos retardo. UDP se prefiere en videollamadas, transmisiones en vivo y juegos en línea.
+
+El protocolo IP se encarga del direccionamiento y del enrutamiento de los paquetes. El enrutador es el dispositivo que decide el camino de cada paquete hasta su destino.
+
+La encapsulación es el proceso por el cual cada capa agrega su propio encabezado a los datos que recibe de la capa superior. En la capa de transporte la unidad de datos se llama segmento.
+
+El protocolo DNS traduce nombres de dominio en direcciones IP. El protocolo HTTP transporta las páginas web entre el navegador y el servidor.

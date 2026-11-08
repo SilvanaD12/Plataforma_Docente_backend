@@ -1,0 +1,214 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "unitId": {
+      "description": "Unit whose processed material is used.",
+      "examples": [
+        "unidad-1"
+      ],
+      "title": "Unitid",
+      "type": "string"
+    },
+    "outcomeId": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Learning outcome of the unit, optional.",
+      "title": "Outcomeid"
+    },
+    "stage": {
+      "anyOf": [
+        {
+          "enum": [
+            "engage",
+            "explore",
+            "explain",
+            "elaborate",
+            "evaluate"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "5E stage of the requested resource. Required unless `resourceTypes` is sent.",
+      "examples": [
+        "evaluate"
+      ],
+      "title": "Stage"
+    },
+    "resourceType": {
+      "anyOf": [
+        {
+          "enum": [
+            "pregunta_detonante",
+            "sondeo_diagnostico",
+            "guia_exploracion",
+            "caso_indagacion",
+            "explicacion",
+            "glosario",
+            "ejercicio_aplicacion",
+            "item_opcion_multiple",
+            "audio_detonante",
+            "imagen_ilustrativa",
+            "diagrama_proceso",
+            "exploracion_guiada",
+            "reto_prediccion",
+            "mapa_conceptual",
+            "infografia",
+            "podcast_resumen",
+            "caso_aplicado",
+            "emparejamiento",
+            "ordenar_pasos",
+            "verdadero_falso",
+            "completar_espacios"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Requested resource type. Required unless `resourceTypes` is sent.",
+      "examples": [
+        "item_opcion_multiple"
+      ],
+      "title": "Resourcetype"
+    },
+    "resourceTypes": {
+      "anyOf": [
+        {
+          "items": {
+            "enum": [
+              "pregunta_detonante",
+              "sondeo_diagnostico",
+              "guia_exploracion",
+              "caso_indagacion",
+              "explicacion",
+              "glosario",
+              "ejercicio_aplicacion",
+              "item_opcion_multiple",
+              "audio_detonante",
+              "imagen_ilustrativa",
+              "diagrama_proceso",
+              "exploracion_guiada",
+              "reto_prediccion",
+              "mapa_conceptual",
+              "infografia",
+              "podcast_resumen",
+              "caso_aplicado",
+              "emparejamiento",
+              "ordenar_pasos",
+              "verdadero_falso",
+              "completar_espacios"
+            ],
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Several resource types for one class sequence (HU-003). Each type goes to the agent of its 5E stage, in the order of the class, and a resource that repeats another one of the sequence is rejected. When present, `stage` and `resourceType` are ignored.",
+      "examples": [
+        [
+          "pregunta_detonante",
+          "explicacion",
+          "item_opcion_multiple"
+        ]
+      ],
+      "title": "Resourcetypes"
+    },
+    "quantity": {
+      "default": 1,
+      "maximum": 5,
+      "minimum": 1,
+      "title": "Quantity",
+      "type": "integer"
+    },
+    "difficulty": {
+      "default": "intermedia",
+      "enum": [
+        "basica",
+        "intermedia",
+        "avanzada"
+      ],
+      "title": "Difficulty",
+      "type": "string"
+    },
+    "optionCount": {
+      "default": 4,
+      "description": "Options per multiple-choice item.",
+      "maximum": 5,
+      "minimum": 2,
+      "title": "Optioncount",
+      "type": "integer"
+    },
+    "topK": {
+      "default": 10,
+      "description": "Chunks retrieved from the material (BM25).",
+      "maximum": 50,
+      "minimum": 1,
+      "title": "Topk",
+      "type": "integer"
+    },
+    "evidenceThreshold": {
+      "default": 0.6,
+      "description": "Minimum share of a claim's words that its cited chunks must contain (HU-016). Claims below it are removed, and a resource with less than half of its claims supported is rejected.",
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Evidencethreshold",
+      "type": "number"
+    },
+    "instructions": {
+      "default": "",
+      "description": "Free text from the teacher.",
+      "maxLength": 500,
+      "title": "Instructions",
+      "type": "string"
+    },
+    "audience": {
+      "default": "",
+      "examples": [
+        "Tercer ciclo"
+      ],
+      "maxLength": 200,
+      "title": "Audience",
+      "type": "string"
+    },
+    "competency": {
+      "default": "",
+      "maxLength": 200,
+      "title": "Competency",
+      "type": "string"
+    },
+    "modalities": {
+      "description": "Sprint 1 generates text only.",
+      "items": {
+        "const": "Textual",
+        "type": "string"
+      },
+      "maxItems": 1,
+      "title": "Modalities",
+      "type": "array"
+    }
+  },
+  "required": [
+    "unitId"
+  ],
+  "title": "GenerationRequest",
+  "type": "object"
+}

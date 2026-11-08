@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="category">
+    <category>
+      <text>$course$/top/Por defecto en Curso</text>
+    </category>
+    <info format="html">
+      <text></text>
+    </info>
+    <idnumber></idnumber>
+  </question>
+
+  <question type="multichoice">
+    <name>
+      <text>Pregunta 1: Algoritmos de Búsqueda</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>¿Cuál es la complejidad temporal en el peor caso del algoritmo de búsqueda binaria?</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text><![CDATA[<p>La búsqueda binaria divide el espacio de búsqueda a la mitad en cada paso, resultando en O(log n).</p>]]></text>
+    </generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html">
+      <text><![CDATA[<p>Respuesta correcta.</p>]]></text>
+    </correctfeedback>
+    <partiallycorrectfeedback format="html">
+      <text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text>
+    </partiallycorrectfeedback>
+    <incorrectfeedback format="html">
+      <text><![CDATA[<p>Respuesta incorrecta.</p>]]></text>
+    </incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text><![CDATA[<p>O(log n)</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Correcto. La reducción logarítmica es la característica principal.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>O(n)</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Incorrecto. O(n) corresponde a la búsqueda lineal.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>O(n^2)</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Incorrecto. O(n^2) es típico de algoritmos de ordenamiento cuadrático.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>O(1)</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Incorrecto. El tiempo constante se obtiene en tablas hash, no en arreglos ordenados.</p>]]></text>
+      </feedback>
+    </answer>
+  </question>
+
+  <question type="multichoice">
+    <name>
+      <text>Pregunta 2: Estructuras Lineales</text>
+    </name>
+    <questiontext format="html">
+      <text><![CDATA[<p>¿Qué estructura de datos sigue el principio LIFO (Last In, First Out)?</p>]]></text>
+    </questiontext>
+    <generalfeedback format="html">
+      <text><![CDATA[<p>La pila (stack) inserta y elimina elementos por el mismo extremo (tope).</p>]]></text>
+    </generalfeedback>
+    <defaultgrade>1.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html">
+      <text><![CDATA[<p>Respuesta correcta.</p>]]></text>
+    </correctfeedback>
+    <partiallycorrectfeedback format="html">
+      <text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text>
+    </partiallycorrectfeedback>
+    <incorrectfeedback format="html">
+      <text><![CDATA[<p>Respuesta incorrecta.</p>]]></text>
+    </incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text><![CDATA[<p>Pila (Stack)</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Correcto. El último elemento en entrar es el primero en salir.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>Cola (Queue)</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Incorrecto. La cola sigue el principio FIFO.</p>]]></text>
+      </feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>Lista Enlazada Simple</p>]]></text>
+      <feedback format="html">
+        <text><![CDATA[<p>Incorrecto. Una lista permite inserciones y accesos en cualquier posición.</p>]]></text>
+      </feedback>
+    </answer>
+  </question>
+</quiz>

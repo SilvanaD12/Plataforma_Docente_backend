@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "FragmentCitationModel": {
+      "description": "Representa una referencia explícita a un fragmento del material de estudio.",
+      "properties": {
+        "fragment_id": {
+          "description": "Identificador persistente del fragmento en la base de datos (ej. f-u2-01).",
+          "title": "Fragment Id",
+          "type": "string"
+        },
+        "document_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Identificador único o nombre del documento maestro de origen.",
+          "title": "Document Id"
+        },
+        "location": {
+          "description": "Número de página o diapositiva donde se ubica el texto original.",
+          "minimum": 1,
+          "title": "Location",
+          "type": "integer"
+        },
+        "quoted_text": {
+          "description": "Extracto literal del fragmento que valida la afirmación generada.",
+          "minLength": 10,
+          "title": "Quoted Text",
+          "type": "string"
+        },
+        "similarity_score": {
+          "description": "Coeficiente de similitud semántica coseno entre el texto generado y el fragmento.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Similarity Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fragment_id",
+        "location",
+        "quoted_text",
+        "similarity_score"
+      ],
+      "title": "FragmentCitationModel",
+      "type": "object"
+    },
+    "KeyDefinitionModel": {
+      "description": "Representa una entrada de terminología técnica fundamental.",
+      "properties": {
+        "term": {
+          "description": "Nombre formal del término, algoritmo o estructura analizada.",
+          "minLength": 2,
+          "title": "Term",
+          "type": "string"
+        },
+        "definition": {
+          "description": "Explicación conceptual precisa y fundamentada en la cátedra.",
+          "minLength": 10,
+          "title": "Definition",
+          "type": "string"
+        },
+        "source_fragment_id": {
+          "description": "Identificador del fragmento que sustenta textualmente la definición.",
+          "title": "Source Fragment Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "term",
+        "definition",
+        "source_fragment_id"
+      ],
+      "title": "KeyDefinitionModel",
+      "type": "object"
+    }
+  },
+  "description": "Recurso de formalización y síntesis conceptual.",
+  "properties": {
+    "id": {
+      "description": "Identificador persistente del recurso didáctico (ej. rec-expl-01).",
+      "title": "Id",
+      "type": "string"
+    },
+    "stage_5e": {
+      "const": "explain",
+      "default": "explain",
+      "description": "Etapa instruccional fija correspondiente al modelo 5E.",
+      "title": "Stage 5E",
+      "type": "string"
+    },
+    "resource_type": {
+      "const": "explicacion_conceptual",
+      "default": "explicacion_conceptual",
+      "description": "Clasificación estructural del recurso generado.",
+      "title": "Resource Type",
+      "type": "string"
+    },
+    "title": {
+      "description": "Título de la formalización teórica.",
+      "minLength": 5,
+      "title": "Title",
+      "type": "string"
+    },
+    "theoretical_synthesis": {
+      "description": "Desarrollo explicativo estructurado de los fundamentos y mecanismos.",
+      "minLength": 20,
+      "title": "Theoretical Synthesis",
+      "type": "string"
+    },
+    "key_definitions": {
+      "description": "Conjunto de términos técnicos esenciales con su definición formal.",
+      "items": {
+        "$ref": "#/$defs/KeyDefinitionModel"
+      },
+      "minItems": 1,
+      "title": "Key Definitions",
+      "type": "array"
+    },
+    "canonical_example": {
+      "description": "Caso práctico completamente resuelto que ilustra la teoría expuesta.",
+      "minLength": 15,
+      "title": "Canonical Example",
+      "type": "string"
+    },
+    "citations": {
+      "description": "Referencias documentales que certifican la exactitud de los conceptos expuestos.",
+      "items": {
+        "$ref": "#/$defs/FragmentCitationModel"
+      },
+      "minItems": 1,
+      "title": "Citations",
+      "type": "array"
+    },
+    "status": {
+      "default": "pendiente",
+      "description": "Estado del recurso dentro del flujo de revisión docente.",
+      "enum": [
+        "pendiente",
+        "aprobado",
+        "descartado"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "theoretical_synthesis",
+    "key_definitions",
+    "canonical_example",
+    "citations"
+  ],
+  "title": "ResourceExplainItemModel",
+  "type": "object"
+}

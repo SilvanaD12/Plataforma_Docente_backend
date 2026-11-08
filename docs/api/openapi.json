@@ -1,0 +1,4536 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Platform 5E API",
+    "description": "\nBackend of **Platform 5E**: teachers upload the material of a unit, generate 5E learning resources that cite it\n(RAG), review them and export the approved ones to Moodle (Moodle XML) or Chamilo (SCORM 1.2).\n\n**Authentication.** `POST /api/v1/accounts` or `POST /api/v1/sessions` return a bearer token. Click *Authorize* and\npaste only the token. Private routes answer 401 without it.\n\n**Errors.** Every error has the same shape: `{\"error\": {\"code\": \"UNIT_NOT_FOUND\", \"message\": \"…\"}}`. The `code` is\nstable and in English; the `message` is shown to the teacher, so it is in Spanish.\n\n**Stored values.** Review statuses (`pendiente`, `aprobado`, `descartado`), resource types (`item_opcion_multiple`…)\nand difficulties (`basica`, `intermedia`, `avanzada`) are values saved in the database. They move to English in\nSprint 2 together with a data migration.\n",
+    "version": "2.0.0"
+  },
+  "paths": {
+    "/api/v1/resource-types": {
+      "get": {
+        "tags": [
+          "catalog"
+        ],
+        "summary": "List supported resource types in teaching order",
+        "description": "Public metadata only: no teacher data, session or external AI calls.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/resource-types\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_resource_types_api_v1_resource_types_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceTypeResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Resource Types Api V1 Resource Types Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/accounts": {
+      "post": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Register a teacher account",
+        "description": "Creates the account (PBKDF2 password hash) and opens a session right away. 409 if the e-mail is taken.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/accounts\" -H 'Content-Type: application/json' --data '{\"name\":\"Ana Pérez\",\"email\":\"ana@example.com\",\"password\":\"clave-segura-1\"}'\n```\n\nExpected 201. Use a new e-mail; save the returned token for private calls.",
+        "operationId": "register_account_api_v1_accounts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegistrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions": {
+      "post": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Sign in",
+        "description": "Checks e-mail and password and returns a bearer token valid for 8 hours.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/sessions\" -H 'Content-Type: application/json' --data '{\"email\":\"ana@example.com\",\"password\":\"clave-segura-1\"}'\n```\n\nExpected 200 with a token when the registered e-mail and password match.",
+        "operationId": "login_api_v1_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/current": {
+      "get": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Get the signed-in teacher",
+        "description": "Returns the e-mail and name of the teacher who owns the token.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/sessions/current\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "get_current_session_api_v1_sessions_current_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProfileResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      },
+      "delete": {
+        "tags": [
+          "sessions"
+        ],
+        "summary": "Sign out",
+        "description": "Revokes the token: later requests with it get 401.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X DELETE \"$BASE_URL/api/v1/sessions/current\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 204 with an empty body; the token is revoked.",
+        "operationId": "logout_api_v1_sessions_current_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
+    "/api/v1/courses": {
+      "get": {
+        "tags": [
+          "courses"
+        ],
+        "summary": "List my courses",
+        "description": "Courses of the signed-in teacher with their units and learning outcomes.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/courses\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_courses_api_v1_courses_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CourseResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Courses Api V1 Courses Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "courses"
+        ],
+        "summary": "Create a course",
+        "description": "Creates the course with at least one unit. The code is stored in uppercase and must be unique (409).\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/courses\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"code\":\"RED-301\",\"name\":\"Redes de computadoras\",\"term\":\"2026-II\",\"units\":[{\"title\":\"Capa de transporte\",\"outcomes\":[{\"code\":\"RA1\",\"text\":\"Distingue los protocolos TCP y UDP.\"}]}]}'\n```\n\nExpected 201. Use a different code if RED-301 already exists for this teacher.",
+        "operationId": "create_course_api_v1_courses_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
+    "/api/v1/courses/{course_id}": {
+      "put": {
+        "tags": [
+          "courses"
+        ],
+        "summary": "Update a course",
+        "description": "Replaces the course data. Existing units must be sent back with their id; new units have none.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X PUT \"$BASE_URL/api/v1/courses/${COURSE_ID}\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"code\":\"RED-301\",\"name\":\"Redes de computadoras\",\"term\":\"2026-II\",\"units\":[{\"title\":\"Capa de transporte\",\"outcomes\":[{\"code\":\"RA1\",\"text\":\"Distingue los protocolos TCP y UDP.\"}],\"id\":\"unidad-1\"}]}'\n```\n\nReplace unidad-1 with an existing unit id. Copy existing unit and outcome ids from GET /courses before editing to preserve them. Expected 200.",
+        "operationId": "update_course_api_v1_courses__course_id__put",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Course Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CourseInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CourseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "courses"
+        ],
+        "summary": "Delete a course",
+        "description": "Deletes the course with its documents, chunks, resources and download history.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X DELETE \"$BASE_URL/api/v1/courses/${COURSE_ID}\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nDeletes the course and its associated data. Expected 204 with an empty body.",
+        "operationId": "delete_course_api_v1_courses__course_id__delete",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "course_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Course Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "List my documents",
+        "description": "Documents of every unit of the teacher, with their processing status.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/documents\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_documents_api_v1_documents_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Documents Api V1 Documents Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Upload a document",
+        "description": "Saves the file in the database with status `registrado`. Call POST /documents/{id}/process next.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/documents\" -H \"Authorization: Bearer $TOKEN\" -F \"file=@material.txt\" -F 'context={\"unitId\":\"unidad-1\",\"outcomeIds\":[],\"documentType\":\"Separata o apuntes de clase\",\"usePermission\":true}'\n```\n\nReplace material.txt with your own file. The context unitId must belong to your account. Expected 201; process the returned document id next.",
+        "operationId": "upload_document_api_v1_documents_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_document_api_v1_documents_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The file is larger than the limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/from-topic": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Add material from an open source",
+        "description": "Searches the topic in Spanish Wikipedia (CC BY-SA 4.0) and saves each article as processed material.\n\nArticles already in the unit are skipped. 503 when the topic search is disabled or the source does not answer.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/documents/from-topic\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"unitId\":\"unidad-1\",\"topic\":\"Protocolo de control de transmisión\",\"maxResults\":1}'\n```\n\nReplace unidad-1 with your unit id. Expected 201 when topic search is enabled; a disabled or unavailable source returns 503.",
+        "operationId": "create_documents_from_topic_api_v1_documents_from_topic_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DocumentResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Create Documents From Topic Api V1 Documents From Topic Post"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database or an external source is not available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
+    "/api/v1/documents/{document_id}/file": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Download the original file",
+        "description": "Returns the file as it was uploaded, with its name in Content-Disposition.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X GET \"$BASE_URL/api/v1/documents/${DOCUMENT_ID}/file\" -H \"Authorization: Bearer $TOKEN\" -D respuesta-headers.txt --output material.txt\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "download_document_api_v1_documents__document_id__file_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The original file.",
+            "content": {
+              "text/plain; charset=utf-8": {},
+              "application/pdf": {},
+              "application/vnd.openxmlformats-officedocument.presentationml.presentation": {}
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}": {
+      "delete": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Delete a document",
+        "description": "Deletes the file and its chunks. Generated resources keep their own copy of the evidence.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X DELETE \"$BASE_URL/api/v1/documents/${DOCUMENT_ID}\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nDeletes the document and its chunks. Expected 204 with an empty body.",
+        "operationId": "delete_document_api_v1_documents__document_id__delete",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/process": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Extract the text and split it into chunks",
+        "description": "Extracts the text (PDF, PPTX or TXT) and splits it into chunks of about 220 words with their location.\n\nA file without text ends with status `error` and an explanation in `errorMessage`; it does not fail the request.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/documents/${DOCUMENT_ID}/process\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "process_document_api_v1_documents__document_id__process_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/chunks": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "List the chunks of a document",
+        "description": "Chunks in document order. They are the evidence that generated resources cite.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/documents/${DOCUMENT_ID}/chunks\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_document_chunks_api_v1_documents__document_id__chunks_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChunkResponse"
+                  },
+                  "title": "Response List Document Chunks Api V1 Documents  Document Id  Chunks Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generations": {
+      "get": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "List my generation requests",
+        "description": "History of the teacher's requests, newest first.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generations\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_generation_requests_api_v1_generations_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GenerationRequestRecord"
+                  },
+                  "type": "array",
+                  "title": "Response List Generation Requests Api V1 Generations Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Generate resources from the unit material",
+        "description": "Retrieves the most relevant chunks of the unit (BM25) and drafts the resources with the active generator.\n\nOnly resources whose claims cite valid chunks are kept; they are saved as `pendiente` for the teacher's review.\nIf the AI fails, the rule-based generator answers and `generator.fallback` is true. Without material the\nrequest is rejected (400 NO_PROCESSED_MATERIAL) instead of inventing content.\n\nWith `resourceTypes`, the request becomes a class sequence (HU-003): each type goes to the agent of its 5E\nstage, in the order of the class; all agents share the same evidence and see what the previous ones wrote.\nA resource too similar to another one of the sequence is asked again once and, if it still repeats, rejected.\nEach resource records its `agent`, and `sequence` reports what every agent generated or rejected.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"unitId\":\"unidad-1\",\"stage\":\"explain\",\"resourceType\":\"glosario\",\"quantity\":1,\"difficulty\":\"intermedia\"}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 200; returned resources await review.",
+        "operationId": "generate_resources_api_v1_generations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database or an external source is not available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
+    "/api/v1/generations/{generation_id}": {
+      "get": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Get a generation",
+        "description": "Returns a saved generation exactly as it was answered. Generations of other teachers give 404.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generations/${GENERATION_ID}\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "get_generation_api_v1_generations__generation_id__get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "generation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Generation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generator": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get the active generator",
+        "description": "Says whether resources are drafted by a language model (and which one) or by the rule-based generator.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generator\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "get_generator_api_v1_generator_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratorInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review-summary": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Count approved and pending resources per unit",
+        "description": "One row per unit of the teacher's courses.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/review-summary\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "get_review_summary_api_v1_review_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/UnitSummaryResponse"
+                  },
+                  "type": "array",
+                  "title": "Response Get Review Summary Api V1 Review Summary Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
+    "/api/v1/units/{unit_id}/resources": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "List the resources of a unit",
+        "description": "Generated resources of the unit with their review, newest first.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/resources\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_unit_resources_api_v1_units__unit_id__resources_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResourceResponse"
+                  },
+                  "title": "Response List Unit Resources Api V1 Units  Unit Id  Resources Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/resources/{resource_id}": {
+      "put": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Save the review of a resource",
+        "description": "Saves edits and decisions. `aprobado` needs a key, no pending distractors and at least two accepted\n(409 APPROVAL_BLOCKED otherwise): the same rule the review screen shows.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X PUT \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"title\":\"Glosario de transporte\",\"body\":\"TCP confirma la recepción de datos.\",\"status\":\"pendiente\",\"edited\":true}'\n```\n\nUse a resource in your unit; copy its actual title and content before saving. This example saves an edit as pendiente, not an approval. Expected 200.",
+        "operationId": "update_resource_api_v1_units__unit_id__resources__resource_id__put",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewedResourceInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Delete a resource",
+        "description": "Deletes the resource from the unit.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X DELETE \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nDeletes the selected resource. Expected 204 with an empty body.",
+        "operationId": "delete_resource_api_v1_units__unit_id__resources__resource_id__delete",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/resources/{resource_id}/media": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Get the image, graphic or audio of a resource",
+        "description": "Concept maps, infographics and process diagrams are drawn as SVG from their items. Illustrations and\naudio return the generated file; without one, an illustration returns a card with its description and an\naudio resource answers 404 NO_MEDIA (the review reads the script with the browser's voice).\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/media\" -H \"Authorization: Bearer $TOKEN\" -D respuesta-headers.txt --output recurso.bin\n```\n\nExpected 200 when media is available; its actual MIME type determines the file extension. An audio fallback without a file returns 404.",
+        "operationId": "get_resource_media_api_v1_units__unit_id__resources__resource_id__media_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file. Graphics are drawn as SVG from the resource structure.",
+            "content": {
+              "image/svg+xml": {},
+              "image/png": {},
+              "image/jpeg": {},
+              "audio/mpeg": {},
+              "audio/wav": {}
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Generate the image or audio of a resource again",
+        "description": "Generates the illustration or the audio again from the current description or script, for example after\nthe teacher edited it. Only for resources under review (409 RESOURCE_NOT_PENDING) and when image and voice\ngeneration is active on the server (409 MEDIA_GENERATION_DISABLED). If the service fails, the resource keeps\nits fallback: the description card or the browser's voice.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/media\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200 for a pending resource when media generation is enabled; otherwise the documented 409 applies.",
+        "operationId": "regenerate_resource_media_api_v1_units__unit_id__resources__resource_id__media_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/downloads": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "List the downloads of a unit",
+        "description": "The last 50 downloads, newest first.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_downloads_api_v1_units__unit_id__downloads_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DownloadResponse"
+                  },
+                  "title": "Response List Downloads Api V1 Units  Unit Id  Downloads Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Record a download",
+        "description": "Records a file built in the browser (the unit document). Exports built by the backend record themselves.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"documento\",\"fileName\":\"red-301-unidad-1-documento.html\",\"resourceCount\":1}'\n```\n\nReplace unidad-1 through UNIT_ID. This registers browser-built document metadata; it does not generate a package. Expected 201.",
+        "operationId": "register_download_api_v1_units__unit_id__downloads_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DownloadInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DownloadResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Clear the download history",
+        "description": "Deletes the history of the unit. The files already downloaded are not affected.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X DELETE \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nDeletes the download history of the unit. Expected 204 with an empty body.",
+        "operationId": "clear_downloads_api_v1_units__unit_id__downloads_delete",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/downloads/{download_id}": {
+      "get": {
+        "tags": [
+          "downloads"
+        ],
+        "summary": "Re-download an exported package",
+        "description": "Re-downloads an exported package recorded in the unit's download history (HU-010 C02).\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads/${DOWNLOAD_ID}\" -H \"Authorization: Bearer $TOKEN\" -D respuesta-headers.txt --output paquete.zip\n```\n\nExpected 200 for an existing history entry and resources compatible with its format. The returned MIME type determines the file extension.",
+        "operationId": "redownload_package_api_v1_units__unit_id__downloads__download_id__get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "download_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Download Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The re-downloaded file; its name comes in Content-Disposition.",
+            "content": {
+              "application/zip": {},
+              "application/xml": {},
+              "text/html": {}
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/exports": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Export the approved resources of a unit",
+        "description": "Builds the file in the backend from the approved resources (fixed templates, never written by the AI),\nrecords the download in the unit history and returns the file.\n\n- `scorm_zip`: SCORM 1.2 package for Chamilo, one page per resource in 5E order; questions are graded.\n- `moodle_xml`: Moodle question bank with the multiple-choice items.\n- `documento`: printable HTML document of the approved unit resources, with evidence.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/exports\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"scorm_zip\",\"resourceIds\":[]}' -D respuesta-headers.txt --output unidad-scorm.zip\n```\n\nExpected 200 when the unit has approved resources. An empty resourceIds selects every approved resource compatible with scorm_zip.",
+        "operationId": "export_unit_api_v1_units__unit_id__exports_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The file to download; its name comes in Content-Disposition.",
+            "content": {
+              "application/zip": {},
+              "application/xml": {},
+              "text/html": {}
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Check that the API is up",
+        "description": "Answers without touching the database, so Render can wake the service up quickly.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/health\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "check_health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Body_upload_document_api_v1_documents_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "PDF, PPTX or TXT up to 25 MB."
+          },
+          "context": {
+            "type": "string",
+            "title": "Context",
+            "description": "JSON with the unit and the use permission.",
+            "examples": [
+              "{\"unitId\": \"unidad-1\", \"outcomeIds\": [], \"documentType\": \"Separata o apuntes de clase\", \"usePermission\": true}"
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "file",
+          "context"
+        ],
+        "title": "Body_upload_document_api_v1_documents_post"
+      },
+      "ChunkResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "order": {
+            "type": "integer",
+            "title": "Order",
+            "description": "Position of the chunk in the document, from 0."
+          },
+          "location": {
+            "type": "string",
+            "title": "Location",
+            "examples": [
+              "p. 3"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "order",
+          "location",
+          "text"
+        ],
+        "title": "ChunkResponse"
+      },
+      "CitationResponse": {
+        "properties": {
+          "claim": {
+            "type": "string",
+            "title": "Claim",
+            "description": "Sentence of the resource that needs support."
+          },
+          "fragmentIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fragmentids",
+            "description": "Chunks of the teacher's material that support it."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "claim",
+          "fragmentIds"
+        ],
+        "title": "CitationResponse"
+      },
+      "CourseInput": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Code",
+            "description": "Unique per teacher.",
+            "examples": [
+              "RED-301"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Name",
+            "examples": [
+              "Redes de computadoras"
+            ]
+          },
+          "term": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Term",
+            "examples": [
+              "2026-II"
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 3000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary",
+            "description": "Official course summary (sumilla)."
+          },
+          "learningGoal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learninggoal",
+            "description": "Course learning goal (logro)."
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/CourseUnitInput"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Units",
+            "description": "Existing units must be sent back with their id."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "term",
+          "units"
+        ],
+        "title": "CourseInput"
+      },
+      "CourseResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "term": {
+            "type": "string",
+            "title": "Term"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "learningGoal": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learninggoal"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/UnitResponse"
+            },
+            "type": "array",
+            "title": "Units"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "code",
+          "name",
+          "term",
+          "units"
+        ],
+        "title": "CourseResponse"
+      },
+      "CourseUnitInput": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Keep it when editing; omit it for a new unit."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Title",
+            "examples": [
+              "Capa de transporte"
+            ]
+          },
+          "outcomes": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/LearningOutcomeInput"
+                },
+                "type": "array",
+                "maxItems": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomes"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "CourseUnitInput"
+      },
+      "DistractorReliability": {
+        "properties": {
+          "evaluatedDistractors": {
+            "type": "integer",
+            "title": "Evaluateddistractors"
+          },
+          "discardedAsCorrect": {
+            "type": "integer",
+            "title": "Discardedascorrect"
+          },
+          "reliabilityErrorRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reliabilityerrorrate",
+            "description": "discardedAsCorrect / evaluatedDistractors, detected before the teacher's review."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "evaluatedDistractors",
+          "discardedAsCorrect"
+        ],
+        "title": "DistractorReliability",
+        "description": "HU-019: distractors discarded before review because the material shows them as correct (indicator I5)."
+      },
+      "DocumentOrigin": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source",
+            "examples": [
+              "Wikipedia"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "license": {
+            "type": "string",
+            "title": "License",
+            "examples": [
+              "CC BY-SA 4.0"
+            ]
+          },
+          "topic": {
+            "type": "string",
+            "title": "Topic"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "source",
+          "url",
+          "license",
+          "topic"
+        ],
+        "title": "DocumentOrigin",
+        "description": "Open source the document came from (POST /documents/from-topic)."
+      },
+      "DocumentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "fileName": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "pptx",
+              "txt"
+            ],
+            "title": "Kind"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "title": "Sizebytes"
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "outcomeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Outcomeids",
+            "default": []
+          },
+          "documentType": {
+            "type": "string",
+            "title": "Documenttype"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "`registrado`, `procesando`, `procesado` or `error` (values migrate in Sprint 2)."
+          },
+          "registeredAt": {
+            "type": "string",
+            "title": "Registeredat"
+          },
+          "processedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Processedat"
+          },
+          "fragmentCount": {
+            "type": "integer",
+            "title": "Fragmentcount",
+            "default": 0
+          },
+          "pageCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pagecount"
+          },
+          "errorMessage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Errormessage"
+          },
+          "embeddedFragmentCount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embeddedfragmentcount",
+            "description": "Chunks with an embedding in pgvector (EN-013); null if embeddings are disabled."
+          },
+          "embeddingModel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embeddingmodel",
+            "examples": [
+              "gemini-embedding-001"
+            ]
+          },
+          "embeddingError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embeddingerror",
+            "description": "Why the embeddings failed; the document stays processed and BM25 still works."
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "fileName",
+          "kind",
+          "sizeBytes",
+          "unitId",
+          "documentType",
+          "status",
+          "registeredAt"
+        ],
+        "title": "DocumentResponse"
+      },
+      "DownloadInput": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "moodle_xml",
+              "scorm_zip",
+              "documento"
+            ],
+            "title": "Format"
+          },
+          "fileName": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Filename",
+            "examples": [
+              "red-301-unidad-1-documento.html"
+            ]
+          },
+          "resourceCount": {
+            "type": "integer",
+            "maximum": 500.0,
+            "minimum": 0.0,
+            "title": "Resourcecount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "format",
+          "fileName",
+          "resourceCount"
+        ],
+        "title": "DownloadInput",
+        "description": "Download history entry; exports are built and registered by the backend."
+      },
+      "DownloadResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "fileName": {
+            "type": "string",
+            "title": "Filename"
+          },
+          "resourceCount": {
+            "type": "integer",
+            "title": "Resourcecount"
+          },
+          "createdAt": {
+            "type": "string",
+            "title": "Createdat"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "unitId",
+          "format",
+          "fileName",
+          "resourceCount",
+          "createdAt"
+        ],
+        "title": "DownloadResponse"
+      },
+      "ErrorBody": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "description": "Stable machine-readable code.",
+            "examples": [
+              "UNIT_NOT_FOUND"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "Message for the teacher, in Spanish.",
+            "examples": [
+              "La unidad no pertenece a tus cursos."
+            ]
+          },
+          "details": {
+            "anyOf": [
+              {
+                "items": {
+                  "additionalProperties": true,
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Details",
+            "description": "Validation problems (422 only): location and reason of each one."
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "ErrorBody"
+      },
+      "ErrorResponse": {
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ErrorBody"
+          }
+        },
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "title": "ErrorResponse",
+        "description": "Every error has the same shape: `{\"error\": {\"code\", \"message\"}}`."
+      },
+      "EvidenceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location"
+          },
+          "documentId": {
+            "type": "string",
+            "title": "Documentid"
+          },
+          "documentName": {
+            "type": "string",
+            "title": "Documentname"
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceurl"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "location",
+          "documentId",
+          "documentName"
+        ],
+        "title": "EvidenceResponse",
+        "description": "Copy of a cited chunk, saved with the resource when it was generated."
+      },
+      "ExportRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "moodle_xml",
+              "scorm_zip",
+              "documento"
+            ],
+            "title": "Format",
+            "description": "`scorm_zip`: SCORM 1.2 package for Chamilo. `moodle_xml`: Moodle question bank (multiple choice). `documento`: printable unit document (HTML)."
+          },
+          "resourceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Resourceids",
+            "description": "Approved resources to export; empty exports every approved resource that fits the format."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "format"
+        ],
+        "title": "ExportRequest"
+      },
+      "GeneratedChunk": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "relevance": {
+            "type": "number",
+            "title": "Relevance",
+            "default": 0.0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "title": "GeneratedChunk"
+      },
+      "GenerationGenerator": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "usesAi": {
+            "type": "boolean",
+            "title": "Usesai"
+          },
+          "fallback": {
+            "type": "boolean",
+            "title": "Fallback",
+            "description": "True when the AI failed and the rule-based generator answered."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "description",
+          "usesAi",
+          "fallback"
+        ],
+        "title": "GenerationGenerator"
+      },
+      "GenerationRequest": {
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "title": "Unitid",
+            "description": "Unit whose processed material is used.",
+            "examples": [
+              "unidad-1"
+            ]
+          },
+          "outcomeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomeid",
+            "description": "Learning outcome of the unit, optional."
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "engage",
+                  "explore",
+                  "explain",
+                  "elaborate",
+                  "evaluate"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage",
+            "description": "5E stage of the requested resource. Required unless `resourceTypes` is sent.",
+            "examples": [
+              "evaluate"
+            ]
+          },
+          "resourceType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "pregunta_detonante",
+                  "sondeo_diagnostico",
+                  "guia_exploracion",
+                  "caso_indagacion",
+                  "explicacion",
+                  "glosario",
+                  "ejercicio_aplicacion",
+                  "item_opcion_multiple",
+                  "audio_detonante",
+                  "imagen_ilustrativa",
+                  "diagrama_proceso",
+                  "exploracion_guiada",
+                  "reto_prediccion",
+                  "mapa_conceptual",
+                  "infografia",
+                  "podcast_resumen",
+                  "caso_aplicado",
+                  "emparejamiento",
+                  "ordenar_pasos",
+                  "verdadero_falso",
+                  "completar_espacios"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resourcetype",
+            "description": "Requested resource type. Required unless `resourceTypes` is sent.",
+            "examples": [
+              "item_opcion_multiple"
+            ]
+          },
+          "resourceTypes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "pregunta_detonante",
+                    "sondeo_diagnostico",
+                    "guia_exploracion",
+                    "caso_indagacion",
+                    "explicacion",
+                    "glosario",
+                    "ejercicio_aplicacion",
+                    "item_opcion_multiple",
+                    "audio_detonante",
+                    "imagen_ilustrativa",
+                    "diagrama_proceso",
+                    "exploracion_guiada",
+                    "reto_prediccion",
+                    "mapa_conceptual",
+                    "infografia",
+                    "podcast_resumen",
+                    "caso_aplicado",
+                    "emparejamiento",
+                    "ordenar_pasos",
+                    "verdadero_falso",
+                    "completar_espacios"
+                  ]
+                },
+                "type": "array",
+                "maxItems": 8,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resourcetypes",
+            "description": "Several resource types for one class sequence (HU-003). Each type goes to the agent of its 5E stage, in the order of the class, and a resource that repeats another one of the sequence is rejected. When present, `stage` and `resourceType` are ignored.",
+            "examples": [
+              [
+                "pregunta_detonante",
+                "explicacion",
+                "item_opcion_multiple"
+              ]
+            ]
+          },
+          "quantity": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Quantity",
+            "default": 1
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "basica",
+              "intermedia",
+              "avanzada"
+            ],
+            "title": "Difficulty",
+            "default": "intermedia"
+          },
+          "optionCount": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 2.0,
+            "title": "Optioncount",
+            "description": "Options per multiple-choice item.",
+            "default": 4
+          },
+          "topK": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Topk",
+            "description": "Chunks retrieved from the material (BM25).",
+            "default": 10
+          },
+          "evidenceThreshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Evidencethreshold",
+            "description": "Minimum share of a claim's words that its cited chunks must contain (HU-016). Claims below it are removed, and a resource with less than half of its claims supported is rejected.",
+            "default": 0.6
+          },
+          "instructions": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Instructions",
+            "description": "Free text from the teacher.",
+            "default": ""
+          },
+          "audience": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Audience",
+            "default": "",
+            "examples": [
+              "Tercer ciclo"
+            ]
+          },
+          "competency": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Competency",
+            "default": ""
+          },
+          "modalities": {
+            "items": {
+              "type": "string",
+              "const": "Textual"
+            },
+            "type": "array",
+            "maxItems": 1,
+            "title": "Modalities",
+            "description": "Sprint 1 generates text only."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unitId"
+        ],
+        "title": "GenerationRequest"
+      },
+      "GenerationRequestRecord": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "createdAt": {
+            "type": "string",
+            "title": "Createdat"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "resourceType": {
+            "type": "string",
+            "title": "Resourcetype"
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "unitId",
+          "createdAt",
+          "stage",
+          "resourceType",
+          "quantity"
+        ],
+        "title": "GenerationRequestRecord",
+        "description": "The request as it was saved: GET /generations lists them, newest first."
+      },
+      "GenerationResult": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "api_demo",
+              "rag"
+            ],
+            "title": "Mode",
+            "description": "`rag`: the teacher's material; `api_demo`: test catalog."
+          },
+          "notice": {
+            "type": "string",
+            "title": "Notice",
+            "description": "Message shown to the teacher."
+          },
+          "generator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenerationGenerator"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Request",
+            "description": "The saved request, with its id."
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceResponse"
+            },
+            "type": "array",
+            "title": "Resources",
+            "description": "Generated resources, saved as `pendiente` for review."
+          },
+          "available": {
+            "type": "integer",
+            "title": "Available"
+          },
+          "fragments": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Fragments",
+            "description": "Chunks cited by the resources."
+          },
+          "documents": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Documents",
+            "description": "Documents those chunks come from."
+          },
+          "distractorReliability": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DistractorReliability"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only with the teacher's material (`rag`): distractor reliability check (HU-019)."
+          },
+          "grounding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroundingReport"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only with the teacher's material (`rag`): grounding check of the request (HU-016)."
+          },
+          "sequence": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/SequenceStep"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sequence",
+            "description": "Only in sequence requests (`resourceTypes`): one step per stage agent."
+          },
+          "retrievedChunks": {
+            "items": {
+              "$ref": "#/components/schemas/GeneratedChunk"
+            },
+            "type": "array",
+            "title": "Retrievedchunks",
+            "description": "Everything retrieved, not only what was cited. Used by the Ragas evaluation.",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "mode",
+          "notice",
+          "request",
+          "resources",
+          "available",
+          "fragments",
+          "documents"
+        ],
+        "title": "GenerationResult"
+      },
+      "GeneratorInfo": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description",
+            "examples": [
+              "Gemini (gemini-3.8-flash)"
+            ]
+          },
+          "usesAi": {
+            "type": "boolean",
+            "title": "Usesai",
+            "description": "False when the rule-based generator is active."
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider",
+            "examples": [
+              "gemini",
+              "rules"
+            ]
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "description",
+          "usesAi",
+          "provider"
+        ],
+        "title": "GeneratorInfo"
+      },
+      "GroundingReport": {
+        "properties": {
+          "checkedClaims": {
+            "type": "integer",
+            "title": "Checkedclaims",
+            "description": "Claims checked, in kept and rejected resources."
+          },
+          "supportedClaims": {
+            "type": "integer",
+            "title": "Supportedclaims"
+          },
+          "unsupportedClaims": {
+            "type": "integer",
+            "title": "Unsupportedclaims"
+          },
+          "hallucinationRate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hallucinationrate",
+            "description": "I21: unsupported / checked claims (null when nothing was checked)."
+          },
+          "unsupportedParagraphs": {
+            "type": "integer",
+            "title": "Unsupportedparagraphs",
+            "description": "Explanation paragraphs and glossary entries removed for lack of support (HU-049).",
+            "default": 0
+          },
+          "rejectedResources": {
+            "items": {
+              "$ref": "#/components/schemas/RejectedResource"
+            },
+            "type": "array",
+            "title": "Rejectedresources",
+            "description": "Resources rejected because less than half of their claims had support.",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "checkedClaims",
+          "supportedClaims",
+          "unsupportedClaims"
+        ],
+        "title": "GroundingReport",
+        "description": "HU-016: grounding check of the whole request. `hallucinationRate` is indicator I21."
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "HealthResponse"
+      },
+      "LearningOutcomeInput": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id",
+            "description": "Keep it when editing; omit it for a new outcome."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "examples": [
+              "RA1"
+            ]
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Text",
+            "examples": [
+              "Distingue los protocolos TCP y UDP."
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "LearningOutcomeInput"
+      },
+      "LearningOutcomeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "text"
+        ],
+        "title": "LearningOutcomeResponse"
+      },
+      "LoginRequest": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Email",
+            "examples": [
+              "ana.perez@upao.edu.pe"
+            ]
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Password",
+            "examples": [
+              "clave-segura-1"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginRequest"
+      },
+      "MediaResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "fallback"
+            ],
+            "title": "Status"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "mimeType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mimetype"
+          },
+          "fileName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "outdated": {
+            "type": "boolean",
+            "title": "Outdated",
+            "description": "The teacher edited the script or description after generating.",
+            "default": false
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "MediaResponse",
+        "description": "Image or audio generated for the resource. `fallback`: no file, the review shows the description or uses the\nbrowser's voice."
+      },
+      "ProfileResponse": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "examples": [
+              "ana.perez@upao.edu.pe"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "Ana Pérez"
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "email",
+          "name"
+        ],
+        "title": "ProfileResponse"
+      },
+      "RegistrationRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 2,
+            "title": "Name",
+            "description": "Teacher full name.",
+            "examples": [
+              "Ana Pérez"
+            ]
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Email",
+            "description": "Unique e-mail.",
+            "examples": [
+              "ana.perez@upao.edu.pe"
+            ]
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 8,
+            "title": "Password",
+            "description": "At least 8 characters.",
+            "examples": [
+              "clave-segura-1"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "password"
+        ],
+        "title": "RegistrationRequest"
+      },
+      "RejectedResource": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Why it was rejected, in Spanish."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "title",
+          "reason"
+        ],
+        "title": "RejectedResource"
+      },
+      "RemovedClaim": {
+        "properties": {
+          "claim": {
+            "type": "string",
+            "title": "Claim"
+          },
+          "support": {
+            "type": "number",
+            "title": "Support",
+            "description": "Share of the claim words found in the cited chunks (0 to 1)."
+          },
+          "supported": {
+            "type": "boolean",
+            "title": "Supported",
+            "default": false
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why it was removed, in Spanish."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "claim",
+          "support"
+        ],
+        "title": "RemovedClaim"
+      },
+      "RemovedParagraph": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "support": {
+            "type": "number",
+            "title": "Support",
+            "description": "Share of the paragraph words found in the retrieved chunks (0 to 1)."
+          },
+          "supported": {
+            "type": "boolean",
+            "title": "Supported",
+            "default": false
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why it was removed, in Spanish."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "text",
+          "support"
+        ],
+        "title": "RemovedParagraph"
+      },
+      "ResourceGrounding": {
+        "properties": {
+          "threshold": {
+            "type": "number",
+            "title": "Threshold",
+            "description": "Minimum support, from the request `evidenceThreshold`."
+          },
+          "checkedClaims": {
+            "type": "integer",
+            "title": "Checkedclaims"
+          },
+          "supportedClaims": {
+            "type": "integer",
+            "title": "Supportedclaims"
+          },
+          "correctedClaims": {
+            "type": "integer",
+            "title": "Correctedclaims",
+            "description": "Claims that cited the wrong chunk and were moved to the one that supports them.",
+            "default": 0
+          },
+          "removedClaims": {
+            "items": {
+              "$ref": "#/components/schemas/RemovedClaim"
+            },
+            "type": "array",
+            "title": "Removedclaims",
+            "default": []
+          },
+          "paragraphThreshold": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paragraphthreshold",
+            "description": "Explanation and glossary only: minimum support of each paragraph (HU-049)."
+          },
+          "checkedParagraphs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkedparagraphs",
+            "description": "Paragraphs or glossary entries checked."
+          },
+          "supportedParagraphs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supportedparagraphs"
+          },
+          "paragraphSources": {
+            "items": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Paragraphsources",
+            "description": "For each kept paragraph, in order, the chunks that support it.",
+            "default": []
+          },
+          "removedParagraphs": {
+            "items": {
+              "$ref": "#/components/schemas/RemovedParagraph"
+            },
+            "type": "array",
+            "title": "Removedparagraphs",
+            "description": "Paragraphs removed from the content because the material does not support them.",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "threshold",
+          "checkedClaims",
+          "supportedClaims"
+        ],
+        "title": "ResourceGrounding",
+        "description": "HU-016: each claim is checked against the retrieved evidence; the unsupported ones are removed."
+      },
+      "ResourceOptionResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "isCorrect": {
+            "type": "boolean",
+            "title": "Iscorrect"
+          },
+          "feedback": {
+            "type": "string",
+            "title": "Feedback",
+            "default": ""
+          },
+          "sourceFragmentIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Sourcefragmentids",
+            "default": []
+          },
+          "decision": {
+            "type": "string",
+            "title": "Decision",
+            "description": "Only distractors are decided: `pendiente`, `aceptado` or `descartado`."
+          },
+          "discardReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discardreason"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "default": false
+          },
+          "misconception": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Misconception",
+            "description": "Distractors only: the conceptual error the distractor represents (HU-019)."
+          },
+          "reliabilityWarning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reliabilitywarning",
+            "description": "Why the distractor was discarded automatically: the material shows it as correct (HU-019). The teacher can accept it again."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "isCorrect",
+          "decision"
+        ],
+        "title": "ResourceOptionResponse"
+      },
+      "ResourceResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "outcomeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomeid"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "description": "5E stage: engage, explore, explain, elaborate or evaluate."
+          },
+          "type": {
+            "type": "string",
+            "title": "Type",
+            "description": "Resource type, e.g. `item_opcion_multiple`."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body",
+            "description": "Content. In questions it is the prompt; paragraphs separated by a blank line."
+          },
+          "bodyHtml": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodyhtml",
+            "description": "Formatted content from the rich text editor (sanitized)."
+          },
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "description": "`text`, `visual`, `image`, `audio` or `interactive`.",
+            "default": "text"
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structure",
+            "description": "Items of visual, audio and interactive resources (nodes, steps, pairs, statements…)."
+          },
+          "media": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MediaResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ResourceOptionResponse"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationResponse"
+            },
+            "type": "array",
+            "title": "Citations",
+            "default": []
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "`pendiente`, `aprobado` or `descartado`."
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "default": false
+          },
+          "discardReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discardreason"
+          },
+          "createdAt": {
+            "type": "string",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidedat"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceResponse"
+            },
+            "type": "array",
+            "title": "Evidence",
+            "default": []
+          },
+          "params": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Params",
+            "description": "Request parameters, reused by «Regenerar»."
+          },
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agent",
+            "description": "Stage agent that drafted the resource in a sequence request (HU-003)."
+          },
+          "grounding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResourceGrounding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Grounding check of its claims against the retrieved evidence (HU-016)."
+          },
+          "approvalBlockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Approvalblockers",
+            "description": "Reasons that block approval, computed by the same rule that validates approval.",
+            "readOnly": true
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "unitId",
+          "stage",
+          "type",
+          "title",
+          "body",
+          "status",
+          "createdAt",
+          "approvalBlockers"
+        ],
+        "title": "ResourceResponse"
+      },
+      "ResourceTypeResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "singular": {
+            "type": "string",
+            "title": "Singular"
+          },
+          "count": {
+            "prefixItems": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "type": "array",
+            "maxItems": 2,
+            "minItems": 2,
+            "title": "Count"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "engage",
+              "explore",
+              "explain",
+              "elaborate",
+              "evaluate"
+            ],
+            "title": "Stage"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "text",
+              "visual",
+              "image",
+              "audio",
+              "interactive"
+            ],
+            "title": "Format"
+          },
+          "hasOptions": {
+            "type": "boolean",
+            "title": "Hasoptions"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "singular",
+          "count",
+          "stage",
+          "group",
+          "format",
+          "hasOptions"
+        ],
+        "title": "ResourceTypeResponse"
+      },
+      "ReviewedOptionInput": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "feedback": {
+            "type": "string",
+            "maxLength": 600,
+            "title": "Feedback",
+            "default": ""
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "pendiente",
+              "aceptado",
+              "descartado"
+            ],
+            "title": "Decision"
+          },
+          "discardReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sin_sentido",
+                  "tambien_correcto",
+                  "duplicado",
+                  "fuera_de_unidad",
+                  "otro",
+                  "regenerado"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discardreason"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "decision"
+        ],
+        "title": "ReviewedOptionInput"
+      },
+      "ReviewedResourceInput": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Body"
+          },
+          "bodyHtml": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bodyhtml",
+            "description": "HTML from the editor; only text formatting and web links are kept."
+          },
+          "structure": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structure",
+            "description": "Edited items of the activity or graphic."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pendiente",
+              "aprobado",
+              "descartado"
+            ],
+            "title": "Status"
+          },
+          "discardReason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "sin_sentido",
+                  "tambien_correcto",
+                  "duplicado",
+                  "fuera_de_unidad",
+                  "otro",
+                  "regenerado"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Discardreason"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited",
+            "default": false
+          },
+          "options": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReviewedOptionInput"
+                },
+                "type": "array",
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Options"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "body",
+          "status"
+        ],
+        "title": "ReviewedResourceInput",
+        "description": "The teacher's review. Approval is blocked while distractors are pending (409 APPROVAL_BLOCKED)."
+      },
+      "SequenceStep": {
+        "properties": {
+          "stage": {
+            "type": "string",
+            "title": "Stage",
+            "description": "5E stage of the agent."
+          },
+          "resourceType": {
+            "type": "string",
+            "title": "Resourcetype"
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
+            "examples": [
+              "Agente de Enganchar"
+            ]
+          },
+          "generated": {
+            "type": "integer",
+            "title": "Generated",
+            "description": "Resources kept for review."
+          },
+          "rejected": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Rejected",
+            "description": "Resources rejected for repeating another one, with the reason.",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "stage",
+          "resourceType",
+          "agent",
+          "generated"
+        ],
+        "title": "SequenceStep",
+        "description": "What one stage agent did in a sequence request."
+      },
+      "SessionResponse": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "title": "Email",
+            "examples": [
+              "ana.perez@upao.edu.pe"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "examples": [
+              "Ana Pérez"
+            ]
+          },
+          "token": {
+            "type": "string",
+            "title": "Token",
+            "description": "Bearer token. Send it as `Authorization: Bearer <token>`."
+          },
+          "expiresIn": {
+            "type": "integer",
+            "title": "Expiresin",
+            "description": "Seconds until the session expires (8 hours).",
+            "examples": [
+              28800
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "email",
+          "name",
+          "token",
+          "expiresIn"
+        ],
+        "title": "SessionResponse"
+      },
+      "TopicSearchRequest": {
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "title": "Unitid",
+            "examples": [
+              "unidad-1"
+            ]
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 3,
+            "title": "Topic",
+            "examples": [
+              "Protocolo de control de transmisión"
+            ]
+          },
+          "maxResults": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Maxresults",
+            "description": "Maximum number of articles to add.",
+            "default": 3
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unitId",
+          "topic"
+        ],
+        "title": "TopicSearchRequest"
+      },
+      "UnitResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "courseId": {
+            "type": "string",
+            "title": "Courseid"
+          },
+          "number": {
+            "type": "integer",
+            "title": "Number",
+            "description": "Position of the unit in the course, from 1."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/LearningOutcomeResponse"
+            },
+            "type": "array",
+            "title": "Outcomes",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "courseId",
+          "number",
+          "title"
+        ],
+        "title": "UnitResponse"
+      },
+      "UnitSummaryResponse": {
+        "properties": {
+          "courseId": {
+            "type": "string",
+            "title": "Courseid"
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "approved": {
+            "type": "integer",
+            "title": "Approved",
+            "description": "Approved resources of the unit."
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending",
+            "description": "Resources waiting for review."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "courseId",
+          "unitId",
+          "approved",
+          "pending"
+        ],
+        "title": "UnitSummaryResponse"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "TeacherSession": {
+        "type": "http",
+        "description": "Get the token with POST /api/v1/sessions (or POST /api/v1/accounts). In Authorize paste only the token.",
+        "scheme": "bearer"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "catalog",
+      "description": "Public resource types, labels, stages and formats."
+    },
+    {
+      "name": "accounts",
+      "description": "Teacher registration."
+    },
+    {
+      "name": "sessions",
+      "description": "Sign in, current teacher and sign out."
+    },
+    {
+      "name": "courses",
+      "description": "Courses with their units and learning outcomes."
+    },
+    {
+      "name": "documents",
+      "description": "Unit material: upload, text extraction, chunks and open sources."
+    },
+    {
+      "name": "generations",
+      "description": "Resource generation from the unit material (RAG) and its history."
+    },
+    {
+      "name": "resources",
+      "description": "Teacher review of the generated resources."
+    },
+    {
+      "name": "downloads",
+      "description": "Download history of each unit."
+    },
+    {
+      "name": "exports",
+      "description": "Moodle XML and SCORM 1.2 files built in the backend."
+    },
+    {
+      "name": "system",
+      "description": "Health check and active generator."
+    }
+  ]
+}

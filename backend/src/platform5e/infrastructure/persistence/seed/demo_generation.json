@@ -1,0 +1,791 @@
+{
+  "mode": "api_demo",
+  "notice": "Ejemplos ficticios para probar la integración HTTP. No provienen de PDFs reales ni de RAG.",
+  "units": [
+    {
+      "id": "u2",
+      "courseId": "curso-aed",
+      "number": 2,
+      "title": "Estructuras lineales: pilas y colas",
+      "outcomes": [
+        {
+          "id": "ra-2-1",
+          "code": "RA 2.1",
+          "text": "Implementa pilas y colas mediante arreglos, justificando la complejidad de sus operaciones."
+        },
+        {
+          "id": "ra-2-2",
+          "code": "RA 2.2",
+          "text": "Selecciona la estructura lineal adecuada (pila o cola) para resolver un problema dado."
+        }
+      ]
+    },
+    {
+      "id": "u3",
+      "courseId": "curso-aed",
+      "number": 3,
+      "title": "Árboles binarios de búsqueda",
+      "outcomes": [
+        {
+          "id": "ra-3-1",
+          "code": "RA 3.1",
+          "text": "Describe las propiedades de un árbol binario de búsqueda y sus recorridos."
+        },
+        {
+          "id": "ra-3-2",
+          "code": "RA 3.2",
+          "text": "Analiza la complejidad de la búsqueda e inserción en árboles binarios de búsqueda."
+        }
+      ]
+    }
+  ],
+  "documents": [
+    {
+      "id": "doc-u2-separata",
+      "fileName": "U2_Pilas_y_colas.pdf",
+      "kind": "pdf",
+      "sizeBytes": 1842000,
+      "unitId": "u2",
+      "outcomeIds": [
+        "ra-2-1",
+        "ra-2-2"
+      ],
+      "documentType": "Separata o apuntes de clase",
+      "suggestedStage": null,
+      "usePermission": true,
+      "status": "procesado",
+      "currentStep": null,
+      "registeredAt": "2026-09-21T15:00:00.000Z",
+      "processedAt": "2026-09-21T15:00:00.000Z",
+      "fragmentCount": 7,
+      "pageCount": 20,
+      "errorMessage": null,
+      "isDemo": true
+    },
+    {
+      "id": "doc-u2-diapositivas",
+      "fileName": "U2_Diapositivas_colas.pptx",
+      "kind": "pptx",
+      "sizeBytes": 3415000,
+      "unitId": "u2",
+      "outcomeIds": [
+        "ra-2-2"
+      ],
+      "documentType": "Diapositivas de clase",
+      "suggestedStage": "explain",
+      "usePermission": true,
+      "status": "procesado",
+      "currentStep": null,
+      "registeredAt": "2026-09-21T15:00:00.000Z",
+      "processedAt": "2026-09-21T15:00:00.000Z",
+      "fragmentCount": 2,
+      "pageCount": 14,
+      "errorMessage": null,
+      "isDemo": true
+    },
+    {
+      "id": "doc-u3-separata",
+      "fileName": "U3_Arboles_binarios.pdf",
+      "kind": "pdf",
+      "sizeBytes": 2106000,
+      "unitId": "u3",
+      "outcomeIds": [
+        "ra-3-1",
+        "ra-3-2"
+      ],
+      "documentType": "Separata o apuntes de clase",
+      "suggestedStage": null,
+      "usePermission": true,
+      "status": "procesado",
+      "currentStep": null,
+      "registeredAt": "2026-09-21T15:00:00.000Z",
+      "processedAt": "2026-09-21T15:00:00.000Z",
+      "fragmentCount": 3,
+      "pageCount": 16,
+      "errorMessage": null,
+      "isDemo": true
+    }
+  ],
+  "fragments": [
+    {
+      "id": "f-u2-01",
+      "documentId": "doc-u2-separata",
+      "location": "p. 3",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "text": "Una pila es una estructura lineal en la que las inserciones y eliminaciones se realizan por un único extremo, denominado tope. Por ello sigue la política LIFO (last in, first out): el último elemento en entrar es el primero en salir."
+    },
+    {
+      "id": "f-u2-02",
+      "documentId": "doc-u2-separata",
+      "location": "p. 4",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "text": "Las operaciones básicas de una pila son apilar (push), desapilar (pop) y consultar el tope (peek). Implementadas sobre un arreglo con un índice de tope, las tres se ejecutan en tiempo constante, O(1)."
+    },
+    {
+      "id": "f-u2-03",
+      "documentId": "doc-u2-separata",
+      "location": "p. 7",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "text": "Una cola es una estructura lineal en la que los elementos se insertan por el final y se eliminan por el frente, siguiendo la política FIFO (first in, first out)."
+    },
+    {
+      "id": "f-u2-04",
+      "documentId": "doc-u2-separata",
+      "location": "p. 9",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "text": "En una cola implementada sobre un arreglo simple, eliminar por el frente obliga a desplazar los elementos restantes, con costo O(n). La cola circular evita el desplazamiento reutilizando las posiciones liberadas mediante aritmética modular, de modo que encolar y desencolar cuestan O(1)."
+    },
+    {
+      "id": "f-u2-05",
+      "documentId": "doc-u2-separata",
+      "location": "p. 12",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "text": "La evaluación de expresiones en notación posfija utiliza una pila: los operandos se apilan y, al leer un operador, se desapilan dos operandos, se aplica la operación y se apila el resultado."
+    },
+    {
+      "id": "f-u2-06",
+      "documentId": "doc-u2-separata",
+      "location": "p. 15",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "text": "Los sistemas operativos usan colas para administrar los procesos listos para ejecutarse y los trabajos de impresión, que se atienden en el orden en que llegaron."
+    },
+    {
+      "id": "f-u2-07",
+      "documentId": "doc-u2-separata",
+      "location": "p. 18",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "text": "La pila de llamadas registra las funciones activas de un programa: cada llamada apila un marco con sus variables locales y la dirección de retorno, que se desapila al terminar la función."
+    },
+    {
+      "id": "f-u2-08",
+      "documentId": "doc-u2-diapositivas",
+      "location": "diap. 6",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "text": "Una cola de prioridad atiende primero al elemento de mayor prioridad y no necesariamente al que llegó antes; por eso no sigue estrictamente la política FIFO."
+    },
+    {
+      "id": "f-u2-09",
+      "documentId": "doc-u2-diapositivas",
+      "location": "diap. 11",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "text": "Una deque (cola doble) permite insertar y eliminar elementos por ambos extremos."
+    },
+    {
+      "id": "f-u3-01",
+      "documentId": "doc-u3-separata",
+      "location": "p. 5",
+      "unitId": "u3",
+      "outcomeId": "ra-3-1",
+      "text": "En un árbol binario de búsqueda, para todo nodo, las claves del subárbol izquierdo son menores que la clave del nodo y las del subárbol derecho son mayores."
+    },
+    {
+      "id": "f-u3-02",
+      "documentId": "doc-u3-separata",
+      "location": "p. 8",
+      "unitId": "u3",
+      "outcomeId": "ra-3-1",
+      "text": "El recorrido en orden (inorden) de un árbol binario de búsqueda visita las claves en orden ascendente."
+    },
+    {
+      "id": "f-u3-03",
+      "documentId": "doc-u3-separata",
+      "location": "p. 11",
+      "unitId": "u3",
+      "outcomeId": "ra-3-2",
+      "text": "La búsqueda y la inserción en un árbol binario de búsqueda cuestan O(h), donde h es la altura. En un árbol degenerado h puede llegar a n; en uno balanceado es del orden de log n."
+    }
+  ],
+  "examples": [
+    {
+      "exampleId": "ex-u2-engage-1",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "stage": "engage",
+      "type": "pregunta_detonante",
+      "title": "Platos y filas en la cafetería",
+      "body": "En la cafetería de la universidad, los platos limpios se toman siempre del que está encima de la pila, mientras que los estudiantes de la fila se atienden por orden de llegada.\n\n¿Por qué crees que cada situación usa una regla distinta? ¿Qué ocurriría si se intercambiaran ambas reglas?",
+      "citations": [
+        {
+          "claim": "En una pila se inserta y se retira por el mismo extremo (LIFO).",
+          "fragmentIds": [
+            "f-u2-01"
+          ]
+        },
+        {
+          "claim": "En una cola se atiende por orden de llegada (FIFO).",
+          "fragmentIds": [
+            "f-u2-03"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-engage-2",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "stage": "engage",
+      "type": "sondeo_diagnostico",
+      "title": "Sondeo: ¿quién sale primero?",
+      "body": "Indica si estás de acuerdo o en desacuerdo con cada afirmación y explica por qué:\n\n1. En una cola, el último elemento en llegar es el primero en ser atendido.\n\n2. La función «deshacer» de un editor recupera primero el cambio más reciente.\n\n3. Una cola de prioridad siempre atiende por orden de llegada.\n\nConcepciones erróneas previstas: confundir LIFO con FIFO (afirmación 1) y suponer que toda cola es FIFO (afirmación 3).",
+      "citations": [
+        {
+          "claim": "La cola sigue la política FIFO.",
+          "fragmentIds": [
+            "f-u2-03"
+          ]
+        },
+        {
+          "claim": "La pila sigue la política LIFO.",
+          "fragmentIds": [
+            "f-u2-01"
+          ]
+        },
+        {
+          "claim": "La cola de prioridad no sigue estrictamente FIFO.",
+          "fragmentIds": [
+            "f-u2-08"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-explore-1",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "stage": "explore",
+      "type": "guia_exploracion",
+      "title": "Guía: tarjetas que entran y salen",
+      "body": "Materiales: cinco tarjetas marcadas de A a E.\n\n1. Coloca las tarjetas una sobre otra en orden A, B, C, D, E y retíralas siempre desde arriba. Anota el orden de salida.\n\n2. Ahora forma una fila con las mismas tarjetas: agrega siempre al final y retira siempre desde el inicio. Anota el orden de salida.\n\n3. Compara ambos registros. ¿Qué regla describe cada caso? ¿En qué situación cotidiana usarías cada una?",
+      "citations": [
+        {
+          "claim": "Retirar siempre desde arriba corresponde a una pila (LIFO).",
+          "fragmentIds": [
+            "f-u2-01"
+          ]
+        },
+        {
+          "claim": "Agregar al final y retirar del inicio corresponde a una cola (FIFO).",
+          "fragmentIds": [
+            "f-u2-03"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-explore-2",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "stage": "explore",
+      "type": "caso_indagacion",
+      "title": "Caso: la cola de impresión del laboratorio",
+      "body": "La impresora del laboratorio recibe trabajos en este orden: T1 (09:00), T2 (09:01), T3 (09:03) y T4 (09:04). El programa guarda los trabajos en un arreglo de cuatro posiciones.\n\n1. ¿En qué orden deberían imprimirse los trabajos? Justifica.\n\n2. Si cada vez que se imprime un trabajo se desplazan los restantes una posición, ¿cuántos movimientos se realizan en total para vaciar la cola?\n\n3. Propón una forma de reutilizar las posiciones liberadas sin desplazar elementos.",
+      "citations": [
+        {
+          "claim": "Los trabajos de impresión se atienden en el orden en que llegaron.",
+          "fragmentIds": [
+            "f-u2-06"
+          ]
+        },
+        {
+          "claim": "Eliminar por el frente de un arreglo simple exige desplazar elementos.",
+          "fragmentIds": [
+            "f-u2-04"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-explain-1",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "stage": "explain",
+      "type": "explicacion",
+      "title": "Pilas y colas: definición y costo de sus operaciones",
+      "body": "Una pila restringe las inserciones y eliminaciones a un único extremo, el tope, por lo que el último elemento en entrar es el primero en salir (LIFO).\n\nSus operaciones apilar, desapilar y consultar el tope se ejecutan en tiempo constante cuando se implementan sobre un arreglo con índice de tope.\n\nUna cola inserta por el final y elimina por el frente, de modo que el primero en entrar es el primero en salir (FIFO).\n\nSobre un arreglo simple, desencolar cuesta O(n) por el desplazamiento de elementos; la cola circular reutiliza las posiciones liberadas con aritmética modular y reduce ese costo a O(1).",
+      "citations": [
+        {
+          "claim": "Definición de pila y política LIFO.",
+          "fragmentIds": [
+            "f-u2-01"
+          ]
+        },
+        {
+          "claim": "Operaciones de la pila en O(1).",
+          "fragmentIds": [
+            "f-u2-02"
+          ]
+        },
+        {
+          "claim": "Definición de cola y política FIFO.",
+          "fragmentIds": [
+            "f-u2-03"
+          ]
+        },
+        {
+          "claim": "Costo en arreglo simple y cola circular.",
+          "fragmentIds": [
+            "f-u2-04"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-explain-2",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "stage": "explain",
+      "type": "glosario",
+      "title": "Glosario de la unidad 2",
+      "body": "Tope: extremo de la pila por el que se inserta y se elimina.\n\nLIFO: política en la que el último elemento en entrar es el primero en salir.\n\nFIFO: política en la que el primer elemento en entrar es el primero en salir.\n\nCola circular: cola sobre arreglo que reutiliza las posiciones liberadas mediante aritmética modular.\n\nDeque: cola doble que permite insertar y eliminar por ambos extremos.",
+      "citations": [
+        {
+          "claim": "Tope y LIFO.",
+          "fragmentIds": [
+            "f-u2-01"
+          ]
+        },
+        {
+          "claim": "FIFO.",
+          "fragmentIds": [
+            "f-u2-03"
+          ]
+        },
+        {
+          "claim": "Cola circular.",
+          "fragmentIds": [
+            "f-u2-04"
+          ]
+        },
+        {
+          "claim": "Deque.",
+          "fragmentIds": [
+            "f-u2-09"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-elaborate-1",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "stage": "elaborate",
+      "type": "ejercicio_aplicacion",
+      "title": "Ejercicio: verificador de paréntesis balanceados",
+      "body": "Un editor de código necesita advertir cuando una expresión como «(a + [b * c]) - {d}» tiene paréntesis, corchetes o llaves sin cerrar.\n\nDiseña un algoritmo que recorra la expresión una sola vez e indique si está balanceada. Justifica qué estructura lineal usas y por qué.\n\nSolución de referencia: se usa una pila. Cada símbolo de apertura se apila; ante un símbolo de cierre se desapila y se comprueba que corresponda. La expresión está balanceada si no hay discordancias y la pila queda vacía al final. Cada operación cuesta O(1), por lo que el recorrido completo es O(n).",
+      "citations": [
+        {
+          "claim": "La pila retira primero el último elemento apilado.",
+          "fragmentIds": [
+            "f-u2-01"
+          ]
+        },
+        {
+          "claim": "Apilar y desapilar cuestan O(1).",
+          "fragmentIds": [
+            "f-u2-02"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-elaborate-2",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "stage": "elaborate",
+      "type": "ejercicio_aplicacion",
+      "title": "Ejercicio: ventanilla con capacidad limitada",
+      "body": "Una ventanilla de trámites admite como máximo cinco personas en espera. Implementa la fila de espera sobre un arreglo de cinco posiciones de modo que atender y recibir personas no requiera desplazar elementos.\n\nMuestra el estado del arreglo, del frente y del final después de: llegan A, B, C; se atiende uno; llegan D, E, F; se atiende uno; llega G.\n\nSolución de referencia: cola circular con índices frente y final que avanzan con (índice + 1) mod 5. Ambas operaciones cuestan O(1).",
+      "citations": [
+        {
+          "claim": "La cola circular reutiliza posiciones con aritmética modular y opera en O(1).",
+          "fragmentIds": [
+            "f-u2-04"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-evaluate-1",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "stage": "evaluate",
+      "type": "item_opcion_multiple",
+      "title": "Tope de la pila tras una secuencia de operaciones",
+      "body": "Se apilan en orden los valores 4, 7 y 2. Luego se ejecuta una operación desapilar (pop) y se apila el valor 9. ¿Qué valor queda en el tope de la pila?",
+      "options": [
+        {
+          "id": "a",
+          "text": "9",
+          "isCorrect": true,
+          "feedback": "Correcto. Desapilar retira el 2 (último en entrar) y el 9 se coloca en el tope.",
+          "sourceFragmentIds": [
+            "f-u2-01",
+            "f-u2-02"
+          ]
+        },
+        {
+          "id": "b",
+          "text": "2",
+          "isCorrect": false,
+          "feedback": "El 2 fue el elemento retirado por la operación desapilar.",
+          "sourceFragmentIds": [
+            "f-u2-02"
+          ]
+        },
+        {
+          "id": "c",
+          "text": "4",
+          "isCorrect": false,
+          "feedback": "Esta respuesta aplica la política FIFO, propia de las colas, no de las pilas.",
+          "sourceFragmentIds": [
+            "f-u2-03"
+          ]
+        },
+        {
+          "id": "d",
+          "text": "7",
+          "isCorrect": false,
+          "feedback": "El 7 quedó en el tope tras desapilar, pero luego se apiló el 9.",
+          "sourceFragmentIds": [
+            "f-u2-01"
+          ]
+        }
+      ],
+      "citations": [
+        {
+          "claim": "La pila retira el último elemento en entrar (LIFO).",
+          "fragmentIds": [
+            "f-u2-01"
+          ]
+        },
+        {
+          "claim": "Operaciones apilar y desapilar.",
+          "fragmentIds": [
+            "f-u2-02"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-evaluate-2",
+      "unitId": "u2",
+      "outcomeId": "ra-2-1",
+      "stage": "evaluate",
+      "type": "item_opcion_multiple",
+      "title": "Costo de desencolar en un arreglo simple",
+      "body": "En una cola implementada sobre un arreglo simple (sin circularidad), eliminar el elemento del frente obliga a desplazar los restantes. ¿Cuál es el costo de esa operación para una cola con n elementos?",
+      "options": [
+        {
+          "id": "a",
+          "text": "O(n)",
+          "isCorrect": true,
+          "feedback": "Correcto. Deben desplazarse hasta n − 1 elementos.",
+          "sourceFragmentIds": [
+            "f-u2-04"
+          ]
+        },
+        {
+          "id": "b",
+          "text": "O(1)",
+          "isCorrect": false,
+          "feedback": "O(1) corresponde a la cola circular, que evita el desplazamiento.",
+          "sourceFragmentIds": [
+            "f-u2-04"
+          ]
+        },
+        {
+          "id": "c",
+          "text": "O(log n)",
+          "isCorrect": false,
+          "feedback": "Un costo logarítmico corresponde a estructuras jerárquicas, no al desplazamiento en un arreglo.",
+          "sourceFragmentIds": [
+            "f-u2-02"
+          ]
+        },
+        {
+          "id": "d",
+          "text": "O(n²)",
+          "isCorrect": false,
+          "feedback": "Cada elemento se desplaza una sola vez por operación; el costo no es cuadrático.",
+          "sourceFragmentIds": [
+            "f-u2-04"
+          ]
+        }
+      ],
+      "citations": [
+        {
+          "claim": "Desencolar en un arreglo simple cuesta O(n).",
+          "fragmentIds": [
+            "f-u2-04"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-evaluate-3",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "stage": "evaluate",
+      "type": "item_opcion_multiple",
+      "title": "Estructura para los trabajos de impresión",
+      "body": "Los trabajos de impresión de un laboratorio deben atenderse estrictamente en el orden en que llegaron. ¿Qué estructura es la más adecuada?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Una cola",
+          "isCorrect": true,
+          "feedback": "Correcto. La cola atiende en orden de llegada (FIFO).",
+          "sourceFragmentIds": [
+            "f-u2-06",
+            "f-u2-03"
+          ]
+        },
+        {
+          "id": "b",
+          "text": "Una pila",
+          "isCorrect": false,
+          "feedback": "La pila atendería primero el último trabajo en llegar (LIFO).",
+          "sourceFragmentIds": [
+            "f-u2-01"
+          ]
+        },
+        {
+          "id": "c",
+          "text": "Una cola de prioridad",
+          "isCorrect": false,
+          "feedback": "La cola de prioridad atiende según la prioridad, no según el orden de llegada.",
+          "sourceFragmentIds": [
+            "f-u2-08"
+          ]
+        },
+        {
+          "id": "d",
+          "text": "Una cola circular",
+          "isCorrect": false,
+          "feedback": "Una cola circular es una implementación de cola.",
+          "sourceFragmentIds": [
+            "f-u2-04"
+          ],
+          "reliabilityWarning": "Posible distractor correcto: una cola circular también atiende en orden FIFO (fragmento p. 9). Se sugiere descartarlo o reformularlo."
+        }
+      ],
+      "citations": [
+        {
+          "claim": "Los trabajos de impresión se atienden por orden de llegada con colas.",
+          "fragmentIds": [
+            "f-u2-06"
+          ]
+        },
+        {
+          "claim": "La cola de prioridad no sigue estrictamente FIFO.",
+          "fragmentIds": [
+            "f-u2-08"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u2-evaluate-4",
+      "unitId": "u2",
+      "outcomeId": "ra-2-2",
+      "stage": "evaluate",
+      "type": "item_opcion_multiple",
+      "title": "Pila durante la evaluación de una expresión posfija",
+      "body": "Se evalúa la expresión posfija «3 4 + 2 *» usando una pila. ¿Qué contiene la pila inmediatamente después de procesar el operador «+»?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Solo el valor 7",
+          "isCorrect": true,
+          "feedback": "Correcto. Se desapilan 4 y 3, se suman y se apila 7.",
+          "sourceFragmentIds": [
+            "f-u2-05"
+          ]
+        },
+        {
+          "id": "b",
+          "text": "Los valores 3 y 4",
+          "isCorrect": false,
+          "feedback": "Ese es el contenido antes de aplicar el operador.",
+          "sourceFragmentIds": [
+            "f-u2-05"
+          ]
+        },
+        {
+          "id": "c",
+          "text": "Los valores 7 y 2",
+          "isCorrect": false,
+          "feedback": "El 2 se apila después, al leer el siguiente operando.",
+          "sourceFragmentIds": [
+            "f-u2-05"
+          ]
+        },
+        {
+          "id": "d",
+          "text": "Solo el valor 14",
+          "isCorrect": false,
+          "feedback": "14 es el resultado final, tras procesar el operador «*».",
+          "sourceFragmentIds": [
+            "f-u2-05"
+          ]
+        }
+      ],
+      "citations": [
+        {
+          "claim": "Procedimiento de evaluación posfija con pila.",
+          "fragmentIds": [
+            "f-u2-05"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u3-explain-1",
+      "unitId": "u3",
+      "outcomeId": "ra-3-1",
+      "stage": "explain",
+      "type": "explicacion",
+      "title": "Propiedad de orden y recorrido inorden",
+      "body": "En un árbol binario de búsqueda, cada nodo separa las claves: las menores quedan en el subárbol izquierdo y las mayores en el derecho.\n\nGracias a esa propiedad, el recorrido inorden visita las claves en orden ascendente.\n\nBuscar o insertar exige descender desde la raíz, con un costo proporcional a la altura del árbol: cercano a log n si está balanceado y hasta n si está degenerado.",
+      "citations": [
+        {
+          "claim": "Propiedad de orden del ABB.",
+          "fragmentIds": [
+            "f-u3-01"
+          ]
+        },
+        {
+          "claim": "El inorden produce orden ascendente.",
+          "fragmentIds": [
+            "f-u3-02"
+          ]
+        },
+        {
+          "claim": "Costo O(h) según la altura.",
+          "fragmentIds": [
+            "f-u3-03"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u3-evaluate-1",
+      "unitId": "u3",
+      "outcomeId": "ra-3-1",
+      "stage": "evaluate",
+      "type": "item_opcion_multiple",
+      "title": "Recorrido que ordena las claves",
+      "body": "¿Qué recorrido de un árbol binario de búsqueda visita las claves en orden ascendente?",
+      "options": [
+        {
+          "id": "a",
+          "text": "Inorden",
+          "isCorrect": true,
+          "feedback": "Correcto. Visita el subárbol izquierdo, el nodo y luego el derecho.",
+          "sourceFragmentIds": [
+            "f-u3-02"
+          ]
+        },
+        {
+          "id": "b",
+          "text": "Preorden",
+          "isCorrect": false,
+          "feedback": "El preorden visita primero el nodo, antes que las claves menores.",
+          "sourceFragmentIds": [
+            "f-u3-01"
+          ]
+        },
+        {
+          "id": "c",
+          "text": "Postorden",
+          "isCorrect": false,
+          "feedback": "El postorden visita el nodo al final, después de las claves mayores.",
+          "sourceFragmentIds": [
+            "f-u3-01"
+          ]
+        },
+        {
+          "id": "d",
+          "text": "Por niveles",
+          "isCorrect": false,
+          "feedback": "El recorrido por niveles sigue la profundidad, no el orden de las claves.",
+          "sourceFragmentIds": [
+            "f-u3-01"
+          ]
+        }
+      ],
+      "citations": [
+        {
+          "claim": "El inorden de un ABB produce orden ascendente.",
+          "fragmentIds": [
+            "f-u3-02"
+          ]
+        }
+      ]
+    },
+    {
+      "exampleId": "ex-u3-evaluate-2",
+      "unitId": "u3",
+      "outcomeId": "ra-3-2",
+      "stage": "evaluate",
+      "type": "item_opcion_multiple",
+      "title": "Búsqueda en un árbol degenerado",
+      "body": "Un árbol binario de búsqueda con n nodos se construyó insertando las claves ya ordenadas, por lo que quedó degenerado. ¿Cuál es el costo de una búsqueda en el peor caso?",
+      "options": [
+        {
+          "id": "a",
+          "text": "O(n)",
+          "isCorrect": true,
+          "feedback": "Correcto. La altura del árbol degenerado es n.",
+          "sourceFragmentIds": [
+            "f-u3-03"
+          ]
+        },
+        {
+          "id": "b",
+          "text": "O(log n)",
+          "isCorrect": false,
+          "feedback": "Ese costo corresponde a un árbol balanceado.",
+          "sourceFragmentIds": [
+            "f-u3-03"
+          ]
+        },
+        {
+          "id": "c",
+          "text": "O(1)",
+          "isCorrect": false,
+          "feedback": "La búsqueda requiere recorrer niveles; no es constante.",
+          "sourceFragmentIds": [
+            "f-u3-01"
+          ]
+        },
+        {
+          "id": "d",
+          "text": "O(n log n)",
+          "isCorrect": false,
+          "feedback": "Una sola búsqueda recorre a lo sumo un camino de la raíz a una hoja.",
+          "sourceFragmentIds": [
+            "f-u3-03"
+          ]
+        }
+      ],
+      "citations": [
+        {
+          "claim": "El costo de búsqueda es O(h); h puede llegar a n.",
+          "fragmentIds": [
+            "f-u3-03"
+          ]
+        }
+      ]
+    }
+  ]
+}

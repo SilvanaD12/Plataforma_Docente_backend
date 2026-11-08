@@ -1,0 +1,38 @@
+# Base de datos local: PostgreSQL con la extensión pgvector y migraciones con dbmate.
+# Instrucciones en backend/database/README.md. Las variables se leen de backend/.env
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.1-pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Definir POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Definir POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Definir POSTGRES_DB en .env}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./backend/database/verification:/verification:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Herramienta de migraciones. Uso: docker compose run --rm dbmate <orden>
+  dbmate:
+    image: ghcr.io/amacneil/dbmate:2
+    profiles: ["tools"]
+    working_dir: /
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?sslmode=disable
+      DBMATE_WAIT: "true"
+    volumes:
+      - ./database/migrations:/db/migrations
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

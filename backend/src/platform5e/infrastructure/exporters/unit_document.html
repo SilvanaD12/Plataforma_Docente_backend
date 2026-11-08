@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>${code} · Unidad ${number}: ${title}</title>
+<style>
+body{font-family:Georgia,'Times New Roman',serif;max-width:820px;margin:32px auto;padding:0 20px;color:#1a211e;line-height:1.55}
+h1{font-size:26px;margin:4px 0}h2{font-size:21px;border-bottom:2px solid #1f5c4a;padding-bottom:4px;margin-top:36px}
+h3{font-size:17px;margin:22px 0 4px}.meta,.src{color:#4a544f;font-size:13px}.overline{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#4a544f}
+article{page-break-inside:avoid;border-left:3px solid #dcd7cc;padding-left:14px}.options{list-style:none;padding-left:0}
+.options li{margin:6px 0}.letter{font-weight:bold}.key{color:#1f5c4a}.feedback{font-size:13px;color:#4a544f;margin-left:22px}
+.evidence{font-size:13px}.quote{font-style:italic}details summary{cursor:pointer;font-size:14px;color:#1f5c4a}
+figure{margin:16px 0}figure img,figure svg{max-width:100%;height:auto;border:1px solid #dcd7cc;border-radius:6px}
+figcaption{font-size:13px;color:#4a544f}.script{background:#f4f1ea;padding:8px 12px;border-radius:6px}.activity li{margin:6px 0}
+.outcomes{font-size:14px}footer{margin-top:40px;font-size:12px;color:#4a544f;border-top:1px solid #dcd7cc;padding-top:8px}
+</style>
+</head>
+<body>
+<p class="overline">${code} · ${name} · ${term}</p>
+<h1>Unidad ${number}: ${title}</h1>
+<p class="meta">${count} ${count_label} por el docente · ${day}</p>
+${outcomes}
+${sections}
+<footer>Recursos preparados con el material del docente y revisados por el docente antes de su uso.${license_note}</footer>
+</body>
+</html>

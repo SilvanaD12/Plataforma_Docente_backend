@@ -1,0 +1,176 @@
+{
+  "$defs": {
+    "FragmentCitationModel": {
+      "description": "Representa una referencia explícita a un fragmento del material de estudio.",
+      "properties": {
+        "fragment_id": {
+          "description": "Identificador persistente del fragmento en la base de datos (ej. f-u2-01).",
+          "title": "Fragment Id",
+          "type": "string"
+        },
+        "document_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Identificador único o nombre del documento maestro de origen.",
+          "title": "Document Id"
+        },
+        "location": {
+          "description": "Número de página o diapositiva donde se ubica el texto original.",
+          "minimum": 1,
+          "title": "Location",
+          "type": "integer"
+        },
+        "quoted_text": {
+          "description": "Extracto literal del fragmento que valida la afirmación generada.",
+          "minLength": 10,
+          "title": "Quoted Text",
+          "type": "string"
+        },
+        "similarity_score": {
+          "description": "Coeficiente de similitud semántica coseno entre el texto generado y el fragmento.",
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Similarity Score",
+          "type": "number"
+        }
+      },
+      "required": [
+        "fragment_id",
+        "location",
+        "quoted_text",
+        "similarity_score"
+      ],
+      "title": "FragmentCitationModel",
+      "type": "object"
+    },
+    "InquiryStepModel": {
+      "description": "Representa una acción individual dentro del procedimiento de indagación.",
+      "properties": {
+        "number": {
+          "description": "Orden secuencial del paso dentro de la actividad.",
+          "minimum": 1,
+          "title": "Number",
+          "type": "integer"
+        },
+        "instruction": {
+          "description": "Instrucción explícita de la tarea de exploración a ejecutar.",
+          "minLength": 10,
+          "title": "Instruction",
+          "type": "string"
+        },
+        "expected_result": {
+          "description": "Evidencia o respuesta preliminar que el estudiante debe observar.",
+          "minLength": 5,
+          "title": "Expected Result",
+          "type": "string"
+        }
+      },
+      "required": [
+        "number",
+        "instruction",
+        "expected_result"
+      ],
+      "title": "InquiryStepModel",
+      "type": "object"
+    }
+  },
+  "description": "Recurso de aprendizaje para el descubrimiento guiado de conceptos.",
+  "properties": {
+    "id": {
+      "description": "Identificador persistente del recurso didáctico (ej. rec-exp-01).",
+      "title": "Id",
+      "type": "string"
+    },
+    "stage_5e": {
+      "const": "explore",
+      "default": "explore",
+      "description": "Etapa instruccional fija correspondiente al modelo 5E.",
+      "title": "Stage 5E",
+      "type": "string"
+    },
+    "resource_type": {
+      "const": "guia_indagacion",
+      "default": "guia_indagacion",
+      "description": "Clasificación estructural del recurso generado.",
+      "title": "Resource Type",
+      "type": "string"
+    },
+    "title": {
+      "description": "Encabezado temático de la guía de exploración.",
+      "minLength": 5,
+      "title": "Title",
+      "type": "string"
+    },
+    "inquiry_objective": {
+      "description": "Propósito pedagógico o patrón técnico que se espera sea descubierto.",
+      "minLength": 10,
+      "title": "Inquiry Objective",
+      "type": "string"
+    },
+    "required_materials": {
+      "description": "Conjunto de insumos, fragmentos de código o datos requeridos.",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Required Materials",
+      "type": "array"
+    },
+    "steps": {
+      "description": "Secuencia ordenada de actividades prácticas a desarrollar.",
+      "items": {
+        "$ref": "#/$defs/InquiryStepModel"
+      },
+      "minItems": 2,
+      "title": "Steps",
+      "type": "array"
+    },
+    "reflection_questions": {
+      "description": "Interrogantes metacognitivas para sintetizar los hallazgos observados.",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Reflection Questions",
+      "type": "array"
+    },
+    "citations": {
+      "description": "Referencias documentales que fundamentan el diseño de la actividad.",
+      "items": {
+        "$ref": "#/$defs/FragmentCitationModel"
+      },
+      "minItems": 1,
+      "title": "Citations",
+      "type": "array"
+    },
+    "status": {
+      "default": "pendiente",
+      "description": "Estado del recurso dentro del flujo de revisión docente.",
+      "enum": [
+        "pendiente",
+        "aprobado",
+        "descartado"
+      ],
+      "title": "Status",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "inquiry_objective",
+    "required_materials",
+    "steps",
+    "reflection_questions",
+    "citations"
+  ],
+  "title": "ResourceExploreItemModel",
+  "type": "object"
+}
