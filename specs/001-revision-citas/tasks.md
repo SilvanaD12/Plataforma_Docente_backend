@@ -175,7 +175,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
 
 > **Dependencia con Silvana, antes de T042.** El cambio en `delete_course` es de CC-01 (T008 de su ficha). Lo hace ella, o Juan con su aprobación en el PR. También se avisa del retiro de rutas y de la nueva ruta `GET /api/v1/downloads` (mensaje 4).
 
-- [ ] T034 [P] [BE] [US3] Ampliar `backend/tests/unit/test_export_unit_resources.py` con:
+- [x] T034 [P] [BE] [US3] Ampliar `backend/tests/unit/test_export_unit_resources.py` con:
   - Un recurso aprobado con verificación `insufficient`, `pending` o de otra huella queda fuera del archivo (REV-C7).
   - Sin elegibles: 422 `NO_APPROVED_RESOURCES`, con `details` por motivo y sin generar el archivo.
   - El registro guarda `courseId`, `courseName`, `unitName` y `unitNumber`, y se crea una sola vez por exportación (REV-C9).
@@ -187,8 +187,8 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Después de `DELETE /api/v1/courses/{id}`, `GET /api/v1/downloads` sigue mostrando el registro con curso y unidad (REV-C9).
   - **Aislamiento (constitución IV):** con registros de A y de B, `GET /api/v1/downloads` con el token de B devuelve solo los suyos, sin ningún registro, curso ni unidad de A. B recibe 404 en `POST /units/{unidad de A}/exports`.
   - Las rutas retiradas `POST /units/{u}/downloads` y `GET /units/{u}/downloads/{id}` ya no existen.
-- [ ] T037 [BE] [US3] Crear `backend/src/platform5e/domain/review/export_eligibility.py` con `export_ineligibility(resource) -> str | None`, que devuelve un motivo técnico: `not_approved`, `verification_missing`, `verification_outdated`, `verification_insufficient`, `verification_pending` o `media_invalidated` (D6).
-- [ ] T038 [BE] [US3] Ajustar `backend/src/platform5e/application/use_cases/export/export_unit_resources.py`:
+- [x] T037 [BE] [US3] Crear `backend/src/platform5e/domain/review/export_eligibility.py` con `export_ineligibility(resource) -> str | None`, que devuelve un motivo técnico: `not_approved`, `verification_missing`, `verification_outdated`, `verification_insufficient`, `verification_pending` o `media_invalidated` (D6).
+- [x] T038 [BE] [US3] Ajustar `backend/src/platform5e/application/use_cases/export/export_unit_resources.py`:
   - Aplicar `export_ineligibility` junto con `exporter.supports`.
   - Sin elegibles, responder 422 `NO_APPROVED_RESOURCES` con `details` del tipo `[{"reason": …, "count": …}]`.
   - Guardar en el registro `courseId`, `courseName`, `unitName` y `unitNumber`.
@@ -226,7 +226,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Reemplazar la comparación de toda la estructura (hoy en la línea 148) por `media_source_changed`.
   - Al invalidar, dejar `fallback_media(..., EDITED_NOTES[...])` con `invalidated = true`.
   - En `validate_approval_blockers`, bloquear mientras `invalidated` esté presente.
-- [ ] T048 [BE] [US3] **Adelantado en parte al bloque c):** ya existe `legacy_verification.py`, que se llama desde `list_resources` y `_get_resource_or_fail` con la regla de estado de REV-R11 e `increment=False`. Falta llamarla desde la exportación (bloque d) y el script de la opción B si Sergio lo elige. Crear `backend/src/platform5e/application/services/review/legacy_verification.py` con `upgrade_resource_verification(repository, teacher_id, unit_id, resource) -> dict`, según D7. Recibe `ResourceReviewRepositoryPort`, guarda con `save_resource_if_version(..., increment=False)`, devuelve el recurso actualizado o el original si hubo un guardado concurrente, y no depende de `ResourceReviewService`.
+- [ ] T048 [BE] [US3] **Adelantado en parte al bloque c):** ya existe `legacy_verification.py`, que se llama desde `list_resources` y `_get_resource_or_fail` con la regla de estado de REV-R11 e `increment=False`. Desde el bloque d) también la llama `ExportUnitResourcesUseCase` antes de filtrar. Falta solo el script de la opción B, si Sergio lo elige. Crear `backend/src/platform5e/application/services/review/legacy_verification.py` con `upgrade_resource_verification(repository, teacher_id, unit_id, resource) -> dict`, según D7. Recibe `ResourceReviewRepositoryPort`, guarda con `save_resource_if_version(..., increment=False)`, devuelve el recurso actualizado o el original si hubo un guardado concurrente, y no depende de `ResourceReviewService`.
   - **Opción A**, si Sergio la elige: llamarla para los recursos sin `verification` desde `list_resources` y `get_resource`, en `resource_review_service.py`, y desde `ExportUnitResourcesUseCase.execute`, en `export_unit_resources.py`, antes de aplicar el filtro.
   - **Opción B**: crear `backend/scripts/upgrade_resource_verification.py` con `--dry-run` y un informe por estado.
 - [ ] T049 [P] [BE] [US3] En `backend/src/platform5e/application/use_cases/media/regenerate_resource_media.py`, quitar `media.invalidated` cuando el archivo se genere bien. En `backend/src/platform5e/infrastructure/http/schemas/resources.py`, agregar `MediaResponse.invalidated: bool = False`.

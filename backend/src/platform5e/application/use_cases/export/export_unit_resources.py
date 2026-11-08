@@ -4,6 +4,7 @@ Caso de uso: exporta los recursos aprobados de una unidad en el formato pedido y
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Sequence
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -12,10 +13,15 @@ from platform5e.application.ports.outbound.media_port import MediaRepositoryPort
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.application.ports.outbound.unit_exporter_port import ExportedFile, UnitExporterPort
+from platform5e.application.services.review.legacy_verification import upgrade_resource_verification
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
+from platform5e.domain.review.errors import ExportNotEligibleError
+from platform5e.domain.review.export_eligibility import export_ineligibility
 
-# Quitar "aprobado" cuando los valores guardados estén migrados al inglés.
-APPROVED_STATUSES: set[str] = {"approved", "aprobado"}
+UNSUPPORTED_FORMAT = "unsupported_format"
+NO_ELIGIBLE_MESSAGE = (
+    "Ningún recurso cumple las condiciones para exportar: aprobado, con comprobación vigente y compatible con el formato."
+)
 
 
 class ExportUnitResourcesUseCase:
@@ -49,29 +55,39 @@ class ExportUnitResourcesUseCase:
         if exporter is None:
             raise AccountConfigurationError("INVALID_FORMAT", "El formato de exportación no es válido.", 422)
 
+        # REV-R7: el mismo filtro para los tres formatos. Los recursos sin verificación se verifican antes (D7).
         wanted = set(resource_ids)
-        approved = [
-            resource
-            for resource in self._review_repository.get_resources_by_unit(teacher_id, unit_id)
-            if resource.get("status") in APPROVED_STATUSES
-            and (not wanted or resource["id"] in wanted)
-            and exporter.supports(resource)
-        ]
-        if not approved:
-            raise AccountConfigurationError(
-                "NO_APPROVED_RESOURCES", "Elige al menos un recurso aprobado que admita este formato.", 422
+        left_out: Counter[str] = Counter()
+        eligible = []
+        for stored in self._review_repository.get_resources_by_unit(teacher_id, unit_id):
+            if wanted and stored["id"] not in wanted:
+                continue
+            resource = upgrade_resource_verification(self._review_repository, teacher_id, unit_id, stored)
+            reason = export_ineligibility(resource) or (None if exporter.supports(resource) else UNSUPPORTED_FORMAT)
+            if reason:
+                left_out[reason] += 1
+            else:
+                eligible.append(resource)
+        if not eligible:
+            raise ExportNotEligibleError(
+                NO_ELIGIBLE_MESSAGE, [{"reason": reason, "count": count} for reason, count in sorted(left_out.items())]
             )
 
-        exported = exporter.export([self._with_media_file(teacher_id, r) for r in approved], course, unit)
+        exported = exporter.export([self._with_media_file(teacher_id, r) for r in eligible], course, unit)
+        # REV-R9: un solo registro por archivo, con el curso y la unidad, para que el historial sobreviva al borrado.
         self._review_repository.save_download(
             teacher_id,
             unit_id,
             {
                 "id": f"descarga-{uuid4()}",
                 "unitId": unit_id,
+                "courseId": course.get("id"),
+                "courseName": course.get("name"),
+                "unitName": unit.get("title"),
+                "unitNumber": unit.get("number"),
                 "format": export_format,
                 "fileName": exported.file_name,
-                "resourceCount": len(approved),
+                "resourceCount": len(eligible),
                 "createdAt": datetime.now(timezone.utc).isoformat(),
             },
         )
