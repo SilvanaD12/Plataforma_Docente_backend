@@ -1,0 +1,330 @@
+# Contrato de diseño de GEN-01. Las rutas y esquemas se implementan en FastAPI
+# (routers/generation_requests.py, schemas/generation_requests.py) y se exportan a docs/api/openapi.json
+# con scripts/export_openapi.py. Este archivo es la referencia para revisar esa exportación.
+openapi: 3.1.0
+info:
+  title: Platform 5E API — Generation requests (GEN-01)
+  version: 2.1.0-draft
+  description: |
+    Background generation of 5E resources, in individual or sequence mode, with a client idempotency key.
+    Errors keep the common shape `{"error": {"code", "message"}}`: `code` is stable and in English, and `message`
+    is shown to the teacher in Spanish.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+
+paths:
+  /generation-requests:
+    post:
+      tags: [generations]
+      operationId: startGenerationRequest
+      summary: Start a generation request
+      description: |
+        Validates the unit ownership, the outcome and that the unit has processed material, saves the request and
+        runs it in the background. The client sends a stable `Idempotency-Key`. Repeating the same key with the
+        same body returns the existing request (200), and using it with a different body returns 409.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartGenerationRequest' }
+            examples:
+              individual:
+                value: { mode: individual, unitId: unidad-1, resourceTypes: [glosario], quantity: 2 }
+              sequence:
+                value: { mode: sequence, unitId: unidad-1, resourceTypes: [pregunta_detonante, item_opcion_multiple], quantity: 1 }
+      responses:
+        '202':
+          description: Request accepted and queued.
+          headers:
+            Location: { schema: { type: string }, description: URL of the request status. }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationRequestStatus' }
+        '200':
+          description: Same key and same body. The request already exists and is returned in its current state.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationRequestStatus' }
+        '400': { $ref: '#/components/responses/BusinessRule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/UnitNotFound' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '422': { $ref: '#/components/responses/InvalidParameters' }
+        '429': { $ref: '#/components/responses/TooManyActive' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    get:
+      tags: [generations]
+      operationId: listGenerationRequests
+      summary: List my generation requests of a unit
+      description: Newest first. Used to recover a request after reloading when the client lost its id.
+      parameters:
+        - { name: unitId, in: query, required: true, schema: { type: string } }
+        - { name: active, in: query, required: false, schema: { type: boolean, default: false },
+            description: 'Only `queued` or `running` requests.' }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+      responses:
+        '200':
+          description: Requests of the teacher in the unit.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/GenerationRequestSummary' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/UnitNotFound' }
+
+  /generation-requests/{requestId}:
+    get:
+      tags: [generations]
+      operationId: getGenerationRequest
+      summary: Get the status of a generation request
+      description: |
+        Returns the status of the request and of each step, in 5E order, as confirmed by the server. Requests of
+        other teachers answer 404, the same as missing ones.
+      parameters:
+        - { name: requestId, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Current status.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationRequestStatus' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/RequestNotFound' }
+
+  /units/{unitId}/resources/{resourceId}/regenerations:
+    post:
+      tags: [generations]
+      operationId: regenerateResource
+      summary: Regenerate a resource from Review
+      description: |
+        Starts an individual request with the saved parameters of the resource and the current evidence of the
+        material. The previous resource moves to Discarded only if the regeneration succeeds and the resource is
+        still in `expectedVersion`. Otherwise it is kept, and the teacher decides.
+      parameters:
+        - { name: unitId, in: path, required: true, schema: { type: string } }
+        - { name: resourceId, in: path, required: true, schema: { type: string } }
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        '202':
+          description: Regeneration request accepted.
+          headers:
+            Location: { schema: { type: string } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationRequestStatus' }
+        '200':
+          description: Same key and body. Returns the existing regeneration request.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationRequestStatus' }
+        '400': { $ref: '#/components/responses/BusinessRule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/ResourceNotFound' }
+        '409': { $ref: '#/components/responses/VersionOrKeyConflict' }
+        '429': { $ref: '#/components/responses/TooManyActive' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+
+  /generations:
+    post:
+      deprecated: true
+      tags: [generations]
+      summary: Synchronous generation (deprecated)
+      description: Replaced by `POST /generation-requests`. It is removed in this delivery once the evaluation scripts migrate.
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Stable client key, unique per teacher. Reuse it when retrying the same request.
+      schema: { type: string, pattern: '^[A-Za-z0-9_-]{8,128}$' }
+      example: 3f6c2a1e-8b4d-4d7a-9a51-0c2f8e1b7d10
+
+  schemas:
+    Stage: { type: string, enum: [engage, explore, explain, elaborate, evaluate] }
+    ResourceType:
+      type: string
+      description: Values of `domain/generation/resource_catalog.py` (same enum as `GET /catalog/resource-types`).
+      enum: [pregunta_detonante, sondeo_diagnostico, audio_detonante, reto_prediccion, guia_exploracion,
+             caso_indagacion, imagen_ilustrativa, diagrama_proceso, exploracion_guiada, explicacion, glosario,
+             mapa_conceptual, infografia, podcast_resumen, ejercicio_aplicacion, caso_aplicado, emparejamiento,
+             ordenar_pasos, item_opcion_multiple, verdadero_falso, completar_espacios]
+    RequestStatus: { type: string, enum: [queued, running, succeeded, partially_succeeded, failed, interrupted] }
+    StepStatus: { type: string, enum: [pending, running, succeeded, rejected, failed, interrupted] }
+
+    StartGenerationRequest:
+      type: object
+      additionalProperties: false
+      required: [mode, unitId, resourceTypes]
+      properties:
+        mode: { type: string, enum: [individual, sequence] }
+        unitId: { type: string }
+        resourceTypes:
+          type: array
+          items: { $ref: '#/components/schemas/ResourceType' }
+          minItems: 1
+          maxItems: 8
+          description: '`individual` requires exactly one type. In `sequence`, repeated types are ignored and the steps follow the 5E order.'
+        quantity: { type: integer, minimum: 1, maximum: 5, default: 1, description: Common quantity for every type. }
+        outcomeId: { type: [string, 'null'], default: null }
+        difficulty: { type: string, enum: [basica, intermedia, avanzada], default: intermedia }
+        optionCount: { type: integer, minimum: 2, maximum: 5, default: 4 }
+        topK: { type: integer, minimum: 1, maximum: 50, default: 10 }
+        evidenceThreshold: { type: number, minimum: 0, maximum: 1, default: 0.6 }
+        instructions: { type: string, maxLength: 500, default: '' }
+        audience: { type: string, maxLength: 200, default: '' }
+        competency: { type: string, maxLength: 200, default: '' }
+        modalities: { type: array, items: { type: string, enum: [Textual] }, maxItems: 1, default: [Textual] }
+
+    GenerationRequestSummary:
+      type: object
+      required: [id, mode, unitId, status, resourceTypes, createdAt]
+      properties:
+        id: { type: string, example: gen-req-6a1f… }
+        mode: { type: string, enum: [individual, sequence, regeneration] }
+        unitId: { type: string }
+        status: { $ref: '#/components/schemas/RequestStatus' }
+        resourceTypes: { type: array, items: { $ref: '#/components/schemas/ResourceType' } }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+
+    GenerationRequestStatus:
+      allOf:
+        - $ref: '#/components/schemas/GenerationRequestSummary'
+        - type: object
+          required: [parameters, steps]
+          properties:
+            parameters: { $ref: '#/components/schemas/StartGenerationRequest' }
+            retrievalMode:
+              type: [string, 'null']
+              enum: [hybrid, bm25_fallback, null]
+              description: Search fallback reported by Material. It is independent of `steps[].generator.fallback`.
+            regeneration:
+              type: [object, 'null']
+              properties:
+                resourceId: { type: string }
+                expectedVersion: { type: integer }
+                outcome: { type: [string, 'null'], enum: [replaced, kept_version_changed, kept_failed, null] }
+            failure: { oneOf: [{ $ref: '#/components/schemas/Problem' }, { type: 'null' }] }
+            startedAt: { type: [string, 'null'], format: date-time }
+            steps:
+              type: array
+              description: One step per resource type, in 5E order.
+              items: { $ref: '#/components/schemas/GenerationStep' }
+
+    GenerationStep:
+      type: object
+      required: [position, stage, resourceType, agent, status, resourceIds, rejections]
+      properties:
+        position: { type: integer, minimum: 0 }
+        stage: { $ref: '#/components/schemas/Stage' }
+        resourceType: { $ref: '#/components/schemas/ResourceType' }
+        agent: { type: string, example: Agente de Enganchar }
+        status: { $ref: '#/components/schemas/StepStatus' }
+        resourceIds:
+          type: array
+          items: { type: string }
+          description: Resources delivered to Review in this step. Read them with `GET /units/{unitId}/resources/{id}`.
+        resources:
+          type: array
+          description: Short view of the delivered resources for the progress screen.
+          items:
+            type: object
+            required: [id, title, verificationStatus]
+            properties:
+              id: { type: string }
+              title: { type: string }
+              verificationStatus: { type: string, enum: [vigente, pendiente] }
+        rejections:
+          type: array
+          items:
+            type: object
+            required: [title, reason, kind]
+            properties:
+              title: { type: string }
+              reason: { type: string, description: In Spanish, shown to the teacher. }
+              kind: { type: string, enum: [grounding, repetition, structure, distractor] }
+        generator:
+          type: [object, 'null']
+          properties:
+            description: { type: string }
+            usesAi: { type: boolean }
+            fallback: { type: boolean, description: True when the rule-based generator drafted after the AI failed. }
+        grounding: { type: [object, 'null'], description: Same shape as `GroundingReport` in schemas/generations.py. }
+        distractorReliability: { type: [object, 'null'], description: Same shape as `DistractorReliability`. }
+        error: { oneOf: [{ $ref: '#/components/schemas/Problem' }, { type: 'null' }] }
+        startedAt: { type: [string, 'null'], format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+
+    Problem:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string, example: DEADLINE_EXCEEDED }
+        message: { type: string }
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: [array, 'null'], items: { type: object } }
+
+  responses:
+    BusinessRule:
+      description: |
+        Business rule. Codes: `NO_PROCESSED_MATERIAL` (the unit has no processed material), `INVALID_OUTCOME`,
+        `INVALID_SEQUENCE` (`individual` with more than one type), `IDEMPOTENCY_KEY_REQUIRED`, and
+        `REGENERATION_UNAVAILABLE` (resource without saved parameters).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    Unauthorized:
+      description: Missing, invalid or expired session token (`UNAUTHORIZED`).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    UnitNotFound:
+      description: '`UNIT_NOT_FOUND`: the unit does not exist or belongs to another teacher. Both answers are identical.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    RequestNotFound:
+      description: '`GENERATION_REQUEST_NOT_FOUND`: missing or belongs to another teacher.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    ResourceNotFound:
+      description: '`RESOURCE_NOT_FOUND` or `UNIT_NOT_FOUND`.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    IdempotencyConflict:
+      description: '`IDEMPOTENCY_KEY_REUSED`: the key was already used by this teacher with a different body.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    VersionOrKeyConflict:
+      description: '`RESOURCE_VERSION_CHANGED` (the resource is no longer in `expectedVersion`) or `IDEMPOTENCY_KEY_REUSED`.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    InvalidParameters:
+      description: '`INVALID_PARAMETERS`: type, range or unknown field. `details` lists each problem.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    TooManyActive:
+      description: '`TOO_MANY_ACTIVE_REQUESTS`: the teacher already has 2 requests in `queued` or `running`.'
+      headers:
+        Retry-After: { schema: { type: integer }, description: Suggested seconds before retrying. }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    Unavailable:
+      description: '`PERSISTENCE_UNAVAILABLE` or `EVIDENCE_UNAVAILABLE` (Material did not answer).'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
