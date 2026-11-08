@@ -213,12 +213,22 @@ def interrupt(request: GenerationRequest, at: str) -> GenerationRequest:
     return replace(request, status=RequestStatus.INTERRUPTED, steps=steps, failure=problem, finished_at=at)
 
 
-def payload_hash(parameters: GenerationParameters, regeneration: RegenerationTarget | None = None) -> str:
+def payload_hash(
+    mode: GenerationMode | str,
+    unit_id: str,
+    parameters: GenerationParameters,
+    regeneration: RegenerationTarget | None = None,
+) -> str:
     """SHA-256 del JSON canónico del pedido normalizado: claves ordenadas y sin espacios (GEN-R5).
 
-    Dos envíos que solo difieren en campos omitidos con su valor por defecto, o en tipos repetidos, dan el mismo hash.
+    Incluye el modo, la unidad, los parámetros y, en una regeneración, el recurso y su versión. Dos envíos que solo
+    difieren en campos omitidos con su valor por defecto, o en tipos repetidos, dan el mismo hash.
     """
-    payload: dict[str, Any] = {"parameters": parameters.to_payload()}
+    payload: dict[str, Any] = {
+        "mode": GenerationMode(mode).value,
+        "unitId": unit_id,
+        "parameters": parameters.to_payload(),
+    }
     if regeneration is not None:
         payload["regeneration"] = regeneration.to_payload()
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)

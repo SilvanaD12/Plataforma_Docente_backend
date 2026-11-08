@@ -23,7 +23,7 @@ Dependencias externas que bloquean tareas:
   - `RequestStatus`: `queued`, `running`, `succeeded`, `partially_succeeded`, `failed`, `interrupted`.
   - `StepStatus`: `pending`, `running`, `succeeded`, `rejected`, `failed`, `interrupted`.
   - Funciones puras de transición: `final_status(steps)` (todos `succeeded` → `succeeded`; alguno → `partially_succeeded`; ninguno → `failed`) e `interrupt(request)`. Un estado final no se modifica.
-  - `payload_hash(parameters, regeneration)` es el SHA-256 del JSON canónico (claves ordenadas, sin espacios, valores por defecto aplicados y `resourceTypes` deduplicado en el orden recibido).
+  - `payload_hash(mode, unit_id, parameters, regeneration)` es el SHA-256 del JSON canónico (claves ordenadas, sin espacios, valores por defecto aplicados y `resourceTypes` deduplicado en el orden recibido).
   - `validate_idempotency_key` con el patrón `^[A-Za-z0-9_-]{8,128}$`.
   - Pruebas en `backend/tests/unit/test_generation_request.py`.
   - Casos GEN-C3, GEN-C4 y GEN-C6.
@@ -82,13 +82,14 @@ Dependencias externas que bloquean tareas:
   - Las etiquetas `F1…Fn` y `secuenciaPrevia` no cambian.
   - Prueba de equivalencia con el contexto actual.
 - [ ] T015 [BE] Crear `backend/src/platform5e/application/use_cases/generation/start_generation_request.py`, que aplica estas reglas en orden. Casos GEN-C4, GEN-C5 y GEN-C6.
-  1. Pertenencia: si es `None`, `UNIT_NOT_FOUND`.
-  2. `outcomeId` de la unidad: si no, `INVALID_OUTCOME`.
-  3. `plan_steps`.
-  4. `has_processed_material`: si es falso, `NO_PROCESSED_MATERIAL`, sin crear el pedido.
-  5. `find_by_key`: con el mismo hash devuelve el existente con `created = False`; con otro hash, `IDEMPOTENCY_KEY_REUSED`.
-  6. `count_active >= 2`: `TOO_MANY_ACTIVE_REQUESTS`.
-  7. `create`, que ante `IdempotencyKeyTaken` repite el paso 5, y luego `submit`.
+  1. Clave: `validate_idempotency_key` (`IDEMPOTENCY_KEY_REQUIRED` o `INVALID_PARAMETERS`).
+  2. Pertenencia: si es `None`, `UNIT_NOT_FOUND`.
+  3. `find_by_key`: si la clave ya tiene un pedido, con el mismo hash (`mode`, `unitId`, parámetros y regeneración) lo devuelve con `created = False`; con otro hash, `IDEMPOTENCY_KEY_REUSED`. En los dos casos no se aplican las reglas siguientes, así que un pedido aceptado se recupera aunque la unidad ya no tenga material.
+  4. `outcomeId` de la unidad: si no, `INVALID_OUTCOME`.
+  5. `plan_steps`.
+  6. `has_processed_material`: si es falso, `NO_PROCESSED_MATERIAL`, sin crear el pedido.
+  7. `count_active >= 2`: `TOO_MANY_ACTIVE_REQUESTS`.
+  8. `create`, que ante `IdempotencyKeyTaken` aplica la regla 3 al pedido ganador, y luego `submit`.
 - [ ] T016 [BE] Crear `backend/src/platform5e/application/use_cases/generation/run_generation_request.py`. Casos GEN-C1, GEN-C2, GEN-C3 y GEN-C6.
   - **Inicio:** `mark_running`, nueva comprobación de pertenencia y una sola llamada a `retrieve`, guardada con `save_evidence` y `retrievedAt`.
   - **Cada paso en orden 5E:** marcarlo `running`, redactar con `step_drafting`, aplicar el control de repetición contra los recursos aceptados de los pasos anteriores, adjuntar multimedia, guardar los recursos con `ResourceReviewRepositoryPort.save_resources` (incluidos `requestId`, `agent`, `params`, `generatorKind` y `evidence`) y después confirmar el paso con `update_step`.

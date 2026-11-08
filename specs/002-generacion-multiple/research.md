@@ -38,7 +38,9 @@ Otros archivos afectados:
 
 **Alcance de la clave.** La unicidad es `(teacher_id, idempotency_key)`. Dos docentes pueden usar la misma clave sin conflicto, y ninguno puede descubrir el pedido del otro. La clave es una cadena de 8 a 128 caracteres de `[A-Za-z0-9_-]`; el cliente usa `crypto.randomUUID()`. La clave vale mientras exista el pedido; esta entrega no la hace caducar.
 
-**Comparación del contenido.** Se compara `payload_hash`, el SHA-256 del JSON canónico (claves ordenadas, sin espacios) del pedido ya normalizado: valores por defecto aplicados, `resourceTypes` deduplicado en el orden en que se recibió y, en una regeneración, el `resourceId` y la `resourceVersion`. Así, enviar el mismo pedido con y sin un campo por defecto no produce un conflicto.
+**Comparación del contenido.** Se compara `payload_hash`, el SHA-256 del JSON canónico (claves ordenadas, sin espacios) del pedido ya normalizado. Incluye el `mode`, el `unitId` y los parámetros, con los valores por defecto aplicados y `resourceTypes` deduplicado en el orden en que se recibió; en una regeneración, también el `resourceId` y la `resourceVersion`. Así, enviar el mismo pedido con y sin un campo por defecto no produce un conflicto, pero reutilizar la clave con los mismos parámetros en otra unidad o en otro modo sí responde `409 IDEMPOTENCY_KEY_REUSED`.
+
+**Orden de las comprobaciones.** El inicio valida primero la clave y la pertenencia de la unidad, y después busca la clave. Si ya tiene un pedido, lo devuelve (mismo hash) o responde el conflicto (otro hash) sin aplicar las demás reglas: un pedido aceptado se recupera aunque la unidad se haya quedado sin material o el docente ya tenga dos pedidos activos. Solo un pedido nuevo pasa por el resultado de aprendizaje, el plan de pasos, el material procesado y el límite de pedidos activos.
 
 **Concurrencia.** El adaptador inserta el pedido con una restricción `UNIQUE (teacher_id, idempotency_key)`. Si dos `POST` iguales compiten, el que pierde atrapa la violación, lee el pedido ganador y responde `200` o `409` según el hash.
 

@@ -42,7 +42,7 @@ def make_request(steps: tuple[GenerationStep, ...], status: RequestStatus = Requ
         unit_id="u1",
         mode=GenerationMode.SEQUENCE,
         idempotency_key="clave-estable-1",
-        payload_hash=payload_hash(parameters),
+        payload_hash=payload_hash(GenerationMode.SEQUENCE, "u1", parameters),
         parameters=parameters,
         created_at=NOW,
         steps=steps,
@@ -99,6 +99,11 @@ def test_a_final_request_is_not_modified(status):
     assert request.is_final and interrupt(request, NOW) is request
 
 
+def unit_hash(parameters: GenerationParameters, regeneration: RegenerationTarget | None = None) -> str:
+    """Hash de un pedido de secuencia en la unidad u1, para comparar solo los parámetros."""
+    return payload_hash(GenerationMode.SEQUENCE, "u1", parameters, regeneration)
+
+
 def test_the_payload_hash_ignores_omitted_defaults_and_repeated_types():
     explicit = GenerationParameters(
         resource_types=("glosario", "explicacion", "glosario"),
@@ -109,22 +114,32 @@ def test_the_payload_hash_ignores_omitted_defaults_and_repeated_types():
         evidence_threshold=0.6,
         modalities=("Textual",),
     )
-    assert payload_hash(explicit) == payload_hash(GenerationParameters(resource_types=("glosario", "explicacion")))
-    assert len(payload_hash(explicit)) == 64
+    assert unit_hash(explicit) == unit_hash(GenerationParameters(resource_types=("glosario", "explicacion")))
+    assert len(unit_hash(explicit)) == 64
 
 
 def test_the_payload_hash_changes_with_the_content():
     base = GenerationParameters(resource_types=("glosario",))
-    assert payload_hash(base) != payload_hash(replace(base, quantity=2))  # GEN-C5: otra cantidad es otro pedido
-    assert payload_hash(base) != payload_hash(GenerationParameters(resource_types=("explicacion",)))
+    assert unit_hash(base) != unit_hash(replace(base, quantity=2))  # GEN-C5: otra cantidad es otro pedido
+    assert unit_hash(base) != unit_hash(GenerationParameters(resource_types=("explicacion",)))
     # El orden recibido de los tipos forma parte del pedido.
-    assert payload_hash(GenerationParameters(resource_types=("glosario", "explicacion"))) != payload_hash(
+    assert unit_hash(GenerationParameters(resource_types=("glosario", "explicacion"))) != unit_hash(
         GenerationParameters(resource_types=("explicacion", "glosario"))
     )
     first = RegenerationTarget("rec-1", 1)
-    assert payload_hash(base, first) != payload_hash(base)
-    assert payload_hash(base, first) != payload_hash(base, RegenerationTarget("rec-1", 2))
-    assert payload_hash(base, first) == payload_hash(base, RegenerationTarget("rec-1", 1))
+    assert unit_hash(base, first) != unit_hash(base)
+    assert unit_hash(base, first) != unit_hash(base, RegenerationTarget("rec-1", 2))
+    assert unit_hash(base, first) == unit_hash(base, RegenerationTarget("rec-1", 1))
+
+
+def test_the_payload_hash_includes_the_mode_and_the_unit():
+    """GEN-C5: la misma clave con los mismos parámetros en otra unidad o en otro modo es otro pedido."""
+    base = GenerationParameters(resource_types=("glosario",))
+    reference = payload_hash(GenerationMode.SEQUENCE, "u1", base)
+    assert payload_hash("sequence", "u1", base) == reference  # el modo puede llegar como texto
+    assert payload_hash(GenerationMode.SEQUENCE, "u2", base) != reference
+    assert payload_hash(GenerationMode.INDIVIDUAL, "u1", base) != reference
+    assert payload_hash(GenerationMode.REGENERATION, "u1", base) != reference
 
 
 @pytest.mark.parametrize(

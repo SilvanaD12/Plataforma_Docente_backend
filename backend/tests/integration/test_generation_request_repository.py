@@ -87,7 +87,7 @@ def make_request(
         unit_id=unit_id,
         mode=GenerationMode.SEQUENCE,
         idempotency_key=key,
-        payload_hash=payload_hash(parameters),
+        payload_hash=payload_hash(GenerationMode.SEQUENCE, unit_id, parameters),
         parameters=parameters,
         created_at=iso(created_at or datetime.now(timezone.utc)),
         steps=steps,
