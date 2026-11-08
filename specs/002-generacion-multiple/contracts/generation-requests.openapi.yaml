@@ -74,8 +74,9 @@ paths:
               schema: { type: array, items: { $ref: '#/components/schemas/GenerationRequestSummary' } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/UnitNotFound' }
+        '422': { $ref: '#/components/responses/InvalidParameters' }
 
-  /generation-requests/{requestId}:
+  /generation-requests/{request_id}:
     get:
       tags: [generations]
       operationId: getGenerationRequest
@@ -84,7 +85,7 @@ paths:
         Returns the status of the request and of each step, in 5E order, as confirmed by the server. Requests of
         other teachers answer 404, the same as missing ones.
       parameters:
-        - { name: requestId, in: path, required: true, schema: { type: string } }
+        - { name: request_id, in: path, required: true, schema: { type: string } }
       responses:
         '200':
           description: Current status.
@@ -93,6 +94,7 @@ paths:
               schema: { $ref: '#/components/schemas/GenerationRequestStatus' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/RequestNotFound' }
+        '422': { $ref: '#/components/responses/InvalidParameters' }
 
   /generations:
     post:
@@ -109,9 +111,13 @@ components:
     IdempotencyKey:
       name: Idempotency-Key
       in: header
-      required: true
-      description: Stable client key, unique per teacher. Reuse it when retrying the same request.
-      schema: { type: string, pattern: '^[A-Za-z0-9_-]{8,128}$' }
+      required: false
+      description: |
+        Stable client key, unique per teacher: 8 to 128 letters, digits, `-` or `_`. Reuse it when retrying the same
+        request. The client always sends it; it is optional in the schema only so that a missing key answers
+        400 IDEMPOTENCY_KEY_REQUIRED instead of a generic 422. With another format the API answers 422
+        INVALID_PARAMETERS.
+      schema: { type: [string, 'null'], pattern: '^[A-Za-z0-9_-]{8,128}$' }
       example: 3f6c2a1e-8b4d-4d7a-9a51-0c2f8e1b7d10
 
   schemas:
@@ -168,17 +174,14 @@ components:
         - type: object
           required: [parameters, steps]
           properties:
-            parameters: { $ref: '#/components/schemas/StartGenerationRequest' }
+            parameters: { $ref: '#/components/schemas/GenerationParametersView' }
             retrievalMode:
               type: [string, 'null']
               enum: [hybrid, bm25_fallback, null]
               description: Search fallback reported by Material. It is independent of `steps[].generator.fallback`.
             regeneration:
-              type: [object, 'null']
               description: Only in `regeneration` mode, started by Review through its regeneration port. Generation never discards the previous resource.
-              properties:
-                resourceId: { type: string }
-                resourceVersion: { type: integer }
+              oneOf: [{ $ref: '#/components/schemas/RegenerationTargetView' }, { type: 'null' }]
             failure: { oneOf: [{ $ref: '#/components/schemas/Problem' }, { type: 'null' }] }
             startedAt: { type: [string, 'null'], format: date-time }
             steps:
@@ -201,14 +204,9 @@ components:
           description: Resources delivered to Review in this step. Read them with `GET /units/{unitId}/resources/{id}`.
         resources:
           type: array
+          default: []
           description: Short view of the delivered resources for the progress screen.
-          items:
-            type: object
-            required: [id, title, verificationStatus]
-            properties:
-              id: { type: string }
-              title: { type: string }
-              verificationStatus: { type: string, enum: [current, pending], description: Same values as `verification.status` of REV-01. }
+          items: { $ref: '#/components/schemas/StepResource' }
         rejections:
           type: array
           items:
@@ -218,17 +216,85 @@ components:
               title: { type: string }
               reason: { type: string, description: In Spanish, shown to the teacher. }
               kind: { type: string, enum: [grounding, repetition, structure, distractor] }
-        generator:
-          type: [object, 'null']
-          properties:
-            description: { type: string }
-            usesAi: { type: boolean }
-            fallback: { type: boolean, description: True when the rule-based generator drafted after the AI failed. }
-        grounding: { type: [object, 'null'], description: Same shape as `GroundingReport` in schemas/generations.py. }
-        distractorReliability: { type: [object, 'null'], description: Same shape as `DistractorReliability`. }
+        generator: { oneOf: [{ $ref: '#/components/schemas/StepGenerator' }, { type: 'null' }] }
+        grounding: { oneOf: [{ $ref: '#/components/schemas/GroundingReport' }, { type: 'null' }] }
+        distractorReliability: { oneOf: [{ $ref: '#/components/schemas/DistractorReliability' }, { type: 'null' }] }
         error: { oneOf: [{ $ref: '#/components/schemas/Problem' }, { type: 'null' }] }
         startedAt: { type: [string, 'null'], format: date-time }
         finishedAt: { type: [string, 'null'], format: date-time }
+
+    GenerationParametersView:
+      type: object
+      description: Saved parameters of the request. `mode` and `unitId` are at the top level.
+      required: [resourceTypes, quantity, difficulty, optionCount, topK, evidenceThreshold, instructions, audience, competency, modalities]
+      properties:
+        resourceTypes: { type: array, items: { $ref: '#/components/schemas/ResourceType' }, description: Without duplicates and in 5E order. }
+        quantity: { type: integer }
+        outcomeId: { type: [string, 'null'], default: null }
+        difficulty: { type: string, enum: [basica, intermedia, avanzada] }
+        optionCount: { type: integer }
+        topK: { type: integer }
+        evidenceThreshold: { type: number }
+        instructions: { type: string }
+        audience: { type: string }
+        competency: { type: string }
+        modalities: { type: array, items: { type: string } }
+
+    RegenerationTargetView:
+      type: object
+      required: [resourceId, resourceVersion]
+      properties:
+        resourceId: { type: string }
+        resourceVersion: { type: integer }
+
+    StepResource:
+      type: object
+      description: Short view of a resource delivered to Review.
+      # T026: verificationStatus vuelve a ser obligatorio (current | pending) cuando se guarde el bloque verification.
+      required: [id, title]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        verificationStatus:
+          type: [string, 'null']
+          enum: [current, pending, null]
+          description: Same values as `verification.status` of REV-01. Null until the verification block is stored (T026).
+
+    StepGenerator:
+      type: object
+      required: [description, usesAi, fallback]
+      properties:
+        description: { type: string }
+        usesAi: { type: boolean }
+        fallback: { type: boolean, description: True when the rule-based generator drafted after the AI failed. }
+
+    GroundingReport:
+      type: object
+      description: HU-016 grounding check. `hallucinationRate` is indicator I21. Same schema as in `POST /generations`.
+      required: [checkedClaims, supportedClaims, unsupportedClaims]
+      properties:
+        checkedClaims: { type: integer }
+        supportedClaims: { type: integer }
+        unsupportedClaims: { type: integer }
+        hallucinationRate: { type: [number, 'null'] }
+        unsupportedParagraphs: { type: integer, default: 0 }
+        rejectedResources: { type: array, default: [], items: { $ref: '#/components/schemas/RejectedResource' } }
+
+    RejectedResource:
+      type: object
+      required: [title, reason]
+      properties:
+        title: { type: string }
+        reason: { type: string, description: In Spanish. }
+
+    DistractorReliability:
+      type: object
+      description: HU-019 distractor reliability check (indicator I5). Same schema as in `POST /generations`.
+      required: [evaluatedDistractors, discardedAsCorrect]
+      properties:
+        evaluatedDistractors: { type: integer }
+        discardedAsCorrect: { type: integer }
+        reliabilityErrorRate: { type: [number, 'null'] }
 
     Problem:
       type: object

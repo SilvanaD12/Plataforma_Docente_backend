@@ -220,6 +220,9 @@ def test_the_runner_executes_requests_in_background_threads():
     runner = ThreadPoolGenerationRunner(
         lambda request_id: executed.append((request_id, threading.current_thread().name)), repository, max_workers=2
     )
+    with pytest.raises(RuntimeError):
+        runner.submit("gen-req-antes")  # el lifespan todavía no lo inició
+    runner.start()
     futures = [runner.submit(f"gen-req-{n}") for n in range(3)]
     for future in futures:
         future.result(timeout=5)
@@ -239,6 +242,7 @@ def test_an_unhandled_error_marks_the_request_failed_and_is_logged(caplog):
         raise ValueError("detalle interno")
 
     runner = ThreadPoolGenerationRunner(explode, repository, max_workers=1)
+    runner.start()
     with caplog.at_level("ERROR", logger="platform5e.generation.runner"):
         runner.submit("gen-req-1").result(timeout=5)
     runner.shutdown(wait=True)
@@ -253,6 +257,7 @@ def test_the_runner_survives_when_the_failure_cannot_be_saved(caplog):
     runner = ThreadPoolGenerationRunner(
         lambda request_id: (_ for _ in ()).throw(ValueError("x")), FakeRequestRepository(fail_on_finish=True), 1
     )
+    runner.start()
     with caplog.at_level("ERROR", logger="platform5e.generation.runner"):
         runner.submit("gen-req-1").result(timeout=5)  # no propaga la excepción
     runner.shutdown(wait=True)

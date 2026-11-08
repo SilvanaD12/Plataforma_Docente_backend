@@ -139,6 +139,7 @@ Dependencias externas que bloquean tareas:
   - Si devuelve `insufficient`, el borrador se rechaza con `kind = grounding`.
   - Si lanza un error, el recurso se guarda con `status = pending` y el motivo.
   - Guardar el bloque `verification` completo y `version = 1`.
+  - Volver obligatorio `verificationStatus` (`current` o `pending`, sin `null`) en `StepResource`, tanto en `backend/src/platform5e/infrastructure/http/schemas/generation_requests.py` como en `contracts/generation-requests.openapi.yaml`, y volver a exportar OpenAPI.
 - [ ] T027 [BE] **Depende de T026.** Agregar pruebas en `backend/tests/unit/test_generation_evidence_snapshot.py`. Caso GEN-C8.
   - Recursos de `exploracion_guiada`, `reto_prediccion` y `caso_aplicado` redactados por reglas: la copia incluye los fragmentos de pasos, predicciones y criterios.
   - Si falta un fragmento referenciado, `verification.status = pending` con `retryAvailable = false`.

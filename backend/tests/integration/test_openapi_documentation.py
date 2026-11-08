@@ -79,3 +79,24 @@ def test_json_keys_are_camel_case():
 def test_versioned_openapi_is_up_to_date():
     """Si falla: desde backend/, `python scripts/export_openapi.py` y subir docs/api/openapi.json."""
     assert json.loads(VERSIONED_SPEC.read_text(encoding="utf-8")) == json.loads(json.dumps(SPEC))
+
+
+def test_generation_requests_follow_the_gen01_contract():
+    """GEN-01 (T021): lo esencial de specs/002-generacion-multiple/contracts/generation-requests.openapi.yaml."""
+    paths = SPEC["paths"]
+    start = paths["/api/v1/generation-requests"]["post"]
+    assert {"200", "202", "400", "401", "404", "409", "422", "429", "503"} <= set(start["responses"])
+    assert "Location" in start["responses"]["202"]["headers"]
+    assert "Retry-After" in start["responses"]["429"]["headers"]
+    [key] = [p for p in start["parameters"] if p["name"] == "Idempotency-Key"]
+    assert key["in"] == "header" and "^[A-Za-z0-9_-]{8,128}$" in json.dumps(key["schema"])
+    body = SPEC["components"]["schemas"]["StartGenerationRequest"]
+    assert set(body["required"]) == {"mode", "unitId", "resourceTypes"} and body["additionalProperties"] is False
+    assert body["properties"]["resourceTypes"]["maxItems"] == 8 and body["properties"]["quantity"]["maximum"] == 5
+
+    status = SPEC["components"]["schemas"]["GenerationRequestStatus"]["properties"]
+    assert {"status", "steps", "retrievalMode", "failure", "parameters"} <= set(status)
+    step = SPEC["components"]["schemas"]["GenerationStep"]["properties"]
+    assert {"position", "stage", "agent", "status", "resourceIds", "resources", "rejections", "generator"} <= set(step)
+    assert "/api/v1/generation-requests/{request_id}" in paths and "get" in paths["/api/v1/generation-requests"]
+    assert paths["/api/v1/generations"]["post"].get("deprecated") is True

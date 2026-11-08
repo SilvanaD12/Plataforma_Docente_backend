@@ -42,14 +42,28 @@ class ThreadPoolGenerationRunner(GenerationJobRunnerPort):
     ) -> None:
         self._run_request = run_request
         self._repository = repository
-        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="generation")
+        self._max_workers = max_workers
+        self._executor: ThreadPoolExecutor | None = None
+
+    def start(self) -> None:
+        """Crea el grupo de hilos. Lo llama el `lifespan` de la aplicación al arrancar."""
+        if self._executor is None:
+            self._executor = ThreadPoolExecutor(max_workers=self._max_workers, thread_name_prefix="generation")
 
     def submit(self, request_id: str) -> Future[None]:
-        """Encola la ejecución sin bloquear. Devuelve el `Future` para las pruebas; los casos de uso no lo usan."""
+        """Encola la ejecución sin bloquear. Devuelve el `Future` para las pruebas; los casos de uso no lo usan.
+
+        Antes de `start()` o después de `shutdown()` lanza RuntimeError: el pedido queda en cola y el barrido del
+        próximo arranque lo marca como interrumpido.
+        """
+        if self._executor is None:
+            raise RuntimeError("El ejecutor de pedidos de generación no está activo.")
         return self._executor.submit(self._run_safely, request_id)
 
     def shutdown(self, wait: bool) -> None:
-        self._executor.shutdown(wait=wait, cancel_futures=not wait)
+        """Deja de aceptar pedidos. Sin `wait`, cancela los que esperan en la cola; los que están en curso terminan."""
+        if self._executor is not None:
+            self._executor.shutdown(wait=wait, cancel_futures=not wait)
 
     def _run_safely(self, request_id: str) -> None:
         try:

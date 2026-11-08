@@ -1,5 +1,7 @@
 """
-Adaptador HTTP de la generación de recursos (HU-053, EN-006): RAG sobre el material de la unidad.
+Adaptador HTTP de la generación síncrona de recursos (HU-053, EN-006): RAG sobre el material de la unidad.
+
+Obsoleto desde GEN-01: los pedidos nuevos usan routers/generation_requests.py. `GET /generator` se movió allí.
 """
 
 from __future__ import annotations
@@ -19,15 +21,16 @@ from platform5e.infrastructure.http.schemas.generations import (
     GenerationRequest,
     GenerationRequestRecord,
     GenerationResult,
-    GeneratorInfo,
 )
 
 
 def create_generations_router(
     generation_service: GenerationService,
     account_service: AccountService,
-    generator_info: dict[str, Any],
+    generator_info: dict[str, Any] | None = None,
 ) -> APIRouter:
+    """`generator_info` ya no se usa (`GET /generator` está en generation_requests.py); se acepta por compatibilidad
+    con quienes construyen este router, hasta retirarlo en T046."""
     router = APIRouter(prefix="/api/v1")
     current_teacher = current_teacher_dependency(account_service)
 
@@ -35,13 +38,17 @@ def create_generations_router(
         "/generations",
         tags=["generations"],
         response_model=GenerationResult,
-        summary="Generate resources from the unit material",
+        summary="Generate resources from the unit material (deprecated)",
         responses=error_responses(400, 401, 404, 422, 503),
+        deprecated=True,
     )
     def generate_resources(
         body: GenerationRequest, authorization: str | None = Depends(extract_authorization_header)
     ) -> Any:
-        """Retrieves the most relevant chunks of the unit (BM25) and drafts the resources with the active generator.
+        """Deprecated: use `POST /generation-requests`, which runs in the background with an idempotency key. This
+        synchronous route keeps working the same until the evaluation scripts migrate, and is then removed.
+
+        Retrieves the most relevant chunks of the unit (BM25) and drafts the resources with the active generator.
 
         Only resources whose claims cite valid chunks are kept; they are saved as `pendiente` for the teacher's review.
         If the AI fails, the rule-based generator answers and `generator.fallback` is true. Without material the
@@ -119,24 +126,5 @@ def create_generations_router(
             return generation_service.get_by_id(generation_id)
         except GenerationError as error:
             return error_json(404, error.code, error.message)
-
-    @router.get(
-        "/generator",
-        response_model=GeneratorInfo,
-        summary="Get the active generator",
-        tags=["system"],
-    )
-    def get_generator() -> dict[str, Any]:
-        """Says whether resources are drafted by a language model (and which one) or by the rule-based generator.
-
-        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
-        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
-
-        ```bash
-        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/generator"
-        ```
-
-        Expected 200. See the response schema below for the returned fields."""
-        return generator_info
 
     return router

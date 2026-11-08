@@ -7,6 +7,10 @@ capa de aplicación y registra las rutas HTTP. Es el único módulo que conoce t
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
+
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,12 +24,17 @@ from platform5e.application.services.materials.chunk_embedding_service import Ch
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
+from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
+from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
+from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
 from platform5e.application.use_cases.media.get_resource_media import GetResourceMediaUseCase
 from platform5e.application.use_cases.media.regenerate_resource_media import RegenerateResourceMediaUseCase
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.domain.generation.errors import GenerationError
 from platform5e.domain.materials.chunking import MaterialError
 from platform5e.domain.shared.errors import DuplicateRecordError, EntityNotFoundError, PersistenceUnavailableError
+from platform5e.infrastructure.adapters.account_unit_membership_adapter import AccountUnitMembershipAdapter
+from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
 from platform5e.infrastructure.exporters.moodle_xml_exporter import MoodleXmlExporter
 from platform5e.infrastructure.exporters.unit_document_exporter import UnitDocumentExporter
 from platform5e.infrastructure.exporters.scorm_package_exporter import ScormPackageExporter
@@ -44,6 +53,7 @@ from platform5e.infrastructure.http.routers.courses import create_courses_router
 from platform5e.infrastructure.http.routers.documents import create_documents_router
 from platform5e.infrastructure.http.routers.downloads import create_downloads_router
 from platform5e.infrastructure.http.routers.exports import create_exports_router
+from platform5e.infrastructure.http.routers.generation_requests import create_generation_requests_router
 from platform5e.infrastructure.http.routers.generations import create_generations_router
 from platform5e.infrastructure.http.routers.health import create_health_router
 from platform5e.infrastructure.http.routers.resources import create_resources_router
@@ -53,6 +63,7 @@ from platform5e.infrastructure.llm.language_model_factory import (
     create_media_generator,
     describe_generator,
 )
+from platform5e.infrastructure.jobs.thread_pool_generation_runner import ThreadPoolGenerationRunner
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_account_repository import SQLAlchemyAccountRepository
 from platform5e.infrastructure.retrieval.bm25_evidence_retriever import Bm25EvidenceRetriever
 from platform5e.infrastructure.retrieval.hybrid_evidence_retriever import HybridEvidenceRetriever   
@@ -61,10 +72,18 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_reposit
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_repository import (
     SQLAlchemyGenerationRepository,
 )
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
+    SQLAlchemyGenerationRequestRepository,
+)
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_resource_repository import (
     SQLAlchemyResourceRepository,
 )
-from platform5e.infrastructure.settings import read_flag, read_setting
+from platform5e.infrastructure.settings import (
+    generation_max_workers,
+    generation_request_deadline_seconds,
+    read_flag,
+    read_setting,
+)
 from platform5e.infrastructure.sources.wikipedia_source import WikipediaSource
 
 API_DESCRIPTION = """
@@ -95,10 +114,36 @@ OPENAPI_TAGS = [
     {"name": "system", "description": "Health check and active generator."},
 ]
 
+# Research R3: al arrancar, un pedido activo sin latido en este tiempo quedó de un proceso anterior.
+STALE_REQUEST_SECONDS = 60
+
 
 def create_application() -> FastAPI:
     """Crea la aplicación con sus dependencias. Las variables de entorno se leen solo aquí y en los adaptadores."""
-    app = FastAPI(title="Platform 5E API", version="2.0.0", description=API_DESCRIPTION, openapi_tags=OPENAPI_TAGS)
+    generation_request_repository = SQLAlchemyGenerationRequestRepository()
+    generation_runner: ThreadPoolGenerationRunner | None = None  # se crea abajo, con sus casos de uso
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        """GEN-01 (research R3): antes de aceptar tráfico, marca como interrumpidos los pedidos que quedaron a medias
+        y crea el grupo de hilos; al apagar, lo cierra sin esperar los pedidos que todavía están en cola."""
+        generation_request_repository.mark_interrupted(
+            datetime.now(timezone.utc) - timedelta(seconds=STALE_REQUEST_SECONDS)
+        )
+        assert generation_runner is not None
+        generation_runner.start()
+        try:
+            yield
+        finally:
+            generation_runner.shutdown(wait=False)
+
+    app = FastAPI(
+        title="Platform 5E API",
+        version="2.0.0",
+        description=API_DESCRIPTION,
+        openapi_tags=OPENAPI_TAGS,
+        lifespan=lifespan,
+    )
 
     cors_origins = [o.strip().rstrip("/") for o in read_setting("CORS_ALLOWED_ORIGINS").split(",") if o.strip()]
     if cors_origins:
@@ -159,6 +204,27 @@ def create_application() -> FastAPI:
         media_generator=media_generator,
         media_repository=media_repository,
     )
+    # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas y Material.
+    unit_membership = AccountUnitMembershipAdapter(account_repository)
+    evidence_provider = MaterialEvidenceAdapter(chunk_repository, evidence_retriever, account_repository)
+    run_generation = RunGenerationRequest(
+        generation_request_repository,
+        unit_membership,
+        evidence_provider,
+        resource_repository,
+        primary_generator,
+        fallback_generator,
+        media_generator=media_generator,
+        media_repository=media_repository,
+        deadline_seconds=generation_request_deadline_seconds(),
+    )
+    generation_runner = ThreadPoolGenerationRunner(
+        run_generation.execute, generation_request_repository, max_workers=generation_max_workers()
+    )
+    start_generation = StartGenerationRequest(
+        unit_membership, evidence_provider, generation_request_repository, generation_runner
+    )
+    get_generation = GetGenerationRequest(generation_request_repository, unit_membership, resource_repository)
     export_use_case = ExportUnitResourcesUseCase(
         account_repository,
         resource_repository,
@@ -185,8 +251,11 @@ def create_application() -> FastAPI:
     app.include_router(create_courses_router(account_service))
     app.include_router(create_documents_router(account_service, material_service))
     app.include_router(
-        create_generations_router(generation_service, account_service, describe_generator(primary_generator))
+        create_generation_requests_router(
+            start_generation, get_generation, account_service, describe_generator(primary_generator)
+        )
     )
+    app.include_router(create_generations_router(generation_service, account_service))
     app.include_router(
         create_resources_router(review_service, account_service, media_use_case, regenerate_media_use_case)
     )
