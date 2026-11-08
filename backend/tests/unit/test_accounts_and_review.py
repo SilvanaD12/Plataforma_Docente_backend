@@ -224,6 +224,10 @@ def make_sample_item(rid: str = "r1", **overrides) -> dict[str, Any]:
         "title": "TCP o UDP",
         "body": "¿Cuál confirma la entrega?",
         "options": options,
+        # REV-01: afirmación y copia histórica que la respalda, como en los recursos de Generación.
+        "citations": [{"claim": "El protocolo TCP confirma la entrega de los datos.", "fragmentIds": ["frag-sample"]}],
+        "evidence": [{"id": "frag-sample", "text": "El protocolo TCP confirma la entrega de los datos al receptor.",
+                      "location": "página 1", "documentId": "d1", "documentName": "redes.pdf"}],
         "status": "pendiente",
         "edited": False,
         "discardReason": None,
@@ -564,4 +568,195 @@ def test_saving_never_touches_the_stored_evidence_copy():
     service, repo = make_versioned_service(resource)
     service.update_resource("ana", "u1", "rx", save_changes(resource, body=UNSUPPORTED_TEXT))
     assert repo.get_resource_by_id("ana", "rx")["evidence"] == resource["evidence"]
+
+
+# --------------------------------------------------------------------------- REV-01 · bloque c) bloqueos y reintento
+
+from platform5e.application.services.review import resource_review_service as review_module  # noqa: E402
+from platform5e.application.services.review.resource_review_service import (  # noqa: E402
+    approval_blockers,
+    verification_blockers,
+)
+
+
+def pending_from_generation(resource: dict[str, Any], retry: bool = True) -> dict[str, Any]:
+    """Un recurso que Generación entrega sin poder completar la verificación (REV-C11)."""
+    return {
+        **resource,
+        "verification": {
+            **resource["verification"],
+            "status": "pending",
+            "reason": "La comprobación no pudo completarse durante la generación.",
+            "retryAvailable": retry,
+            "summary": {},
+        },
+    }
+
+
+def test_missing_verification_is_not_a_blocker_because_saving_computes_it():
+    """Opción A: sin `verification` (p. ej. la respuesta de Generación) no hay bloqueo que mostrar; al guardar, el
+    servicio verifica la versión editada antes de evaluar la aprobación."""
+    resource = make_verified_explanation()
+    del resource["verification"]
+    assert verification_blockers(resource) == []
+
+
+@pytest.mark.parametrize(
+    ("change", "expected"),
+    [
+        pytest.param(lambda r: r["verification"].update(fingerprint="sha256:" + "0" * 64), "otra versión", id="otra-huella"),
+        pytest.param(lambda r: r["verification"].update(status="insufficient", reason="Sin respaldo en el material."),
+                     "Sin respaldo en el material.", id="insuficiente"),
+        pytest.param(lambda r: r["verification"].update(status="pending", reason="No se pudo completar."),
+                     "No se pudo completar.", id="pendiente"),
+    ],
+)
+def test_verification_blocks_approval_with_its_reason(change, expected):
+    """REV-C3 y REV-C5: sin verificación vigente para el contenido actual no se puede aprobar, y se dice por qué."""
+    resource = make_verified_explanation()
+    assert verification_blockers(resource) == [] and approval_blockers(resource) == []
+    change(resource)
+    reasons = verification_blockers(resource)
+    assert len(reasons) == 1 and expected in reasons[0]
+    assert reasons[0] in approval_blockers(resource)
+
+
+def test_pedagogical_rules_are_unchanged_and_combined_with_verification():
+    """`validate_approval_blockers` conserva sus reglas; `approval_blockers` agrega la de verificación."""
+    resource = make_verified_explanation(body=" ")
+    assert validate_approval_blockers(resource) == ["El contenido no puede estar vacío."]
+    assert approval_blockers(resource)[0] == "El contenido no puede estar vacío."
+
+
+def test_approval_is_checked_against_the_verification_of_the_edited_version():
+    """El bloqueo se evalúa con la verificación de la versión editada, no con la que tenía guardada."""
+    resource = make_verified_explanation()
+    service, repo = make_versioned_service(resource)
+    with pytest.raises(AccountConfigurationError) as error:
+        service.update_resource("ana", "u1", "rx", save_changes(resource, body=UNSUPPORTED_TEXT, status="aprobado"))
+    assert error.value.code == "APPROVAL_BLOCKED" and "respaldo" in error.value.message.lower()
+    assert repo.get_resource_by_id("ana", "rx")["version"] == 1  # el guardado bloqueado no cambia nada
+
+    stale = pending_from_generation(make_verified_explanation())
+    service, _ = make_versioned_service(stale)
+    fixed = service.update_resource(
+        "ana", "u1", "rx", save_changes(stale, body="Los dos protocolos principales de esta capa en Internet son TCP y UDP.",
+                                        status="aprobado")
+    )
+    assert fixed["status"] == "aprobado" and fixed["verification"]["status"] == "current"
+
+
+def test_resource_delivered_pending_by_generation_cannot_be_approved():
+    """REV-C11: un recurso que llega pendiente se trata como uno editado sin verificar."""
+    resource = pending_from_generation(make_verified_explanation())
+    service, _ = make_versioned_service(resource)
+    with pytest.raises(AccountConfigurationError) as error:
+        service.update_resource("ana", "u1", "rx", save_changes(resource, status="aprobado"))
+    assert error.value.code == "APPROVAL_BLOCKED" and "pendiente" in error.value.message.lower()
+
+
+def test_retrying_a_pending_check_uses_the_stored_threshold_and_the_current_rule():
+    """REV-C3: «Reintentar comprobación» verifica la misma versión con la copia histórica, sin editar."""
+    resource = pending_from_generation(make_verified_explanation())
+    resource["verification"]["evidenceThreshold"] = 0.55
+    resource["verification"]["ruleVersion"] = 0
+    service, repo = make_versioned_service(resource)
+    checked = service.retry_verification("ana", "u1", "rx", expected_version=1)
+    verification = checked["verification"]
+    assert verification["status"] == "current" and verification["evidenceThreshold"] == 0.55
+    assert verification["ruleVersion"] == VERIFICATION_RULE_VERSION
+    assert checked["version"] == 1 and checked["body"] == resource["body"]  # misma versión del contenido
+    assert repo.get_resource_by_id("ana", "rx")["verification"] == verification
+
+
+@pytest.mark.parametrize(
+    ("resource", "expected_version", "code"),
+    [
+        pytest.param(make_verified_explanation(), 1, "VERIFICATION_NOT_PENDING", id="vigente"),
+        pytest.param({**pending_from_generation(make_verified_explanation(), retry=False), "evidence": []}, 1,
+                     "REGENERATION_REQUIRED", id="copia-incompleta"),
+        pytest.param(pending_from_generation(make_verified_explanation()), 7, "VERSION_CONFLICT", id="version-obsoleta"),
+    ],
+)
+def test_retry_is_only_offered_for_pending_checks_with_a_complete_copy(resource, expected_version, code):
+    service, repo = make_versioned_service(resource)
+    before = copy.deepcopy(repo.get_resource_by_id("ana", "rx"))
+    with pytest.raises(AccountConfigurationError) as error:
+        service.retry_verification("ana", "u1", "rx", expected_version=expected_version)
+    assert error.value.code == code and error.value.status_code == 409
+    assert repo.get_resource_by_id("ana", "rx") == before
+
+
+def test_retry_respects_unit_isolation():
+    service, _ = make_versioned_service(pending_from_generation(make_verified_explanation()))
+    with pytest.raises(AccountConfigurationError) as error:
+        service.retry_verification("otro", "u1", "rx", expected_version=1)
+    assert error.value.status_code == 404
+
+
+def test_a_rule_change_without_edits_keeps_the_state(monkeypatch):
+    """REV-C10: si cambia la regla en el código y el recurso no se edita, conserva su estado y sigue aprobable."""
+    resource = make_verified_explanation()
+    service, _ = make_versioned_service(resource)
+    monkeypatch.setattr(review_module, "VERIFICATION_RULE_VERSION", VERIFICATION_RULE_VERSION + 1)
+    approved = service.update_resource("ana", "u1", "rx", save_changes(resource, title="Mismo contenido", status="aprobado"))
+    assert approved["status"] == "aprobado"
+    assert approved["verification"] == resource["verification"]  # no se recalcula
+
+
+def test_after_a_rule_change_an_edit_that_changes_the_result_says_the_rule_changed(monkeypatch):
+    """REV-C10: al editar se verifica con la regla vigente y, si el resultado cambia, el motivo lo indica."""
+    resource = make_verified_explanation()
+    service, _ = make_versioned_service(resource)
+    new_rule = VERIFICATION_RULE_VERSION + 1
+    monkeypatch.setattr(review_module, "VERIFICATION_RULE_VERSION", new_rule)
+    saved = service.update_resource("ana", "u1", "rx", save_changes(resource, body=UNSUPPORTED_TEXT))
+    verification = saved["verification"]
+    assert verification["status"] == "insufficient" and verification["ruleVersion"] == new_rule
+    assert f"v{VERIFICATION_RULE_VERSION} → v{new_rule}" in verification["reason"]
+
+
+# --------------------------------------------------------------------------- REV-01 · verificar al leer (parte de T048)
+
+def without_verification(resource: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in resource.items() if key != "verification"}
+
+
+def test_reading_a_resource_without_verification_checks_it_once_without_changing_its_version():
+    """D7: los recursos sin `verification` se verifican al leerlos y se guardan sin incrementar la versión."""
+    service, repo = make_versioned_service(without_verification(make_verified_explanation(version=3)))
+    listed = service.list_resources("ana", "u1")[0]
+    assert listed["verification"]["status"] == "current" and listed["version"] == 3
+    stored = repo.get_resource_by_id("ana", "rx")
+    assert stored["verification"] == listed["verification"] and stored["version"] == 3
+    assert service.get_resource("ana", "u1", "rx")["verification"] == listed["verification"]  # no se recalcula
+
+
+@pytest.mark.parametrize(
+    ("changes", "status", "verification_status"),
+    [
+        pytest.param({}, "aprobado", "current", id="aprobado-vigente-sigue-aprobado"),
+        pytest.param({"citations": [{"claim": UNSUPPORTED_TEXT, "fragmentIds": [FRAGMENT_TCP]}]}, "pendiente", "insufficient",
+                     id="aprobado-insuficiente-vuelve-a-revision"),
+        pytest.param({"evidence": []}, "pendiente", "pending", id="aprobado-sin-copia-vuelve-a-revision"),
+    ],
+)
+def test_reading_an_old_approved_resource_applies_the_migration_rule(changes, status, verification_status):
+    """REV-R11: los aprobados con resultado vigente siguen aprobados; los demás vuelven a revisión."""
+    resource = {**without_verification(make_verified_explanation(status="aprobado")), **changes}
+    service, repo = make_versioned_service(resource)
+    listed = service.list_resources("ana", "u1")[0]
+    assert listed["status"] == status and listed["verification"]["status"] == verification_status
+    assert repo.get_resource_by_id("ana", "rx")["status"] == status
+
+
+def test_a_concurrent_save_wins_over_the_read_check():
+    """Si el docente guardó entre la lectura y la actualización, la actualización se descarta sin error."""
+    service, repo = make_versioned_service(without_verification(make_verified_explanation()))
+    original = repo.save_resource_if_version
+    repo.save_resource_if_version = lambda *args, **kwargs: False  # simula un guardado concurrente
+    listed = service.list_resources("ana", "u1")[0]
+    assert "verification" not in repo.get_resource_by_id("ana", "rx")
+    assert listed["id"] == "rx"
+    repo.save_resource_if_version = original
     assert service.get_summary("otro") == []

@@ -98,7 +98,7 @@ sin una verificación vigente.
 - [x] T010 [BE] [US1] Crear `backend/src/platform5e/domain/review/resource_verification.py` con `verify_resource(resource, threshold, rule_version) -> dict`, según D4. Debe:
   - Usar solo `resource["evidence"]` y las funciones de `grounding.py` y `distractor_reliability.py`, sin cambiar sus reglas.
   - Devolver `status` (`current`, `insufficient` o `pending`), `reason` («Obligatorio si `status` ≠ `current`»), `fingerprint`, `verifiedVersion`, `evidenceThreshold`, `ruleVersion`, `checkedAt`, `retryAvailable` («`true` solo si `status = pending` y la copia histórica está completa») y `summary`.
-- [ ] T011 [P] [BE] [US1] Crear `backend/database/migrations/20261108000001_resource_version.sql` con `-- migrate:up`, que ejecuta `ALTER TABLE ep002_recursos ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;`, y `-- migrate:down`, que la quita. Probarla en la base desechable de CI con PostgreSQL. **Aviso a Sergio** para Neon (mensaje 2).
+- [x] T011 [P] [BE] [US1] Crear `backend/database/migrations/20261108000001_resource_version.sql` con `-- migrate:up`, que ejecuta `ALTER TABLE ep002_recursos ADD COLUMN IF NOT EXISTS version INTEGER NOT NULL DEFAULT 1;`, y `-- migrate:down`, que la quita. Probarla en la base desechable de CI con PostgreSQL. **Aviso a Sergio** para Neon (mensaje 2).
 - [x] T012 [BE] [US1] Agregar `version = Column(Integer, nullable=False, default=1)` a `TeacherResourceORM` en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_account_repository.py`. **El archivo es de CC-01:** solo se agrega la columna, y se avisa a Silvana en el PR.
 - [x] T013 [BE] [US1] Agregar `save_resource_if_version(teacher_id, unit_id, resource, expected_version, increment=True) -> bool` en `backend/src/platform5e/application/ports/outbound/resource_repository_port.py`. Devuelve `False` si la versión ya no es la vigente.
 - [x] T014 [BE] [US1] Implementar en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_resource_repository.py`:
@@ -117,11 +117,11 @@ sin una verificación vigente.
   - `EvidenceResponse` gana `retrieved_at: str | None` («`null` = desconocida»).
   - Además, en `backend/src/platform5e/infrastructure/http/schemas/citation.py`, corregir la descripción de `similarity_score`: es una coincidencia de palabras, no similitud coseno (H13).
 - [x] T017 [BE] [US1] Actualizar el PUT en `backend/src/platform5e/infrastructure/http/routers/resources.py`: la docstring con `expectedVersion`, el ejemplo cURL y el 409 `VERSION_CONFLICT`.
-- [ ] T018 [BE] [US1] Cierre del bloque b): correr las pruebas, ejecutar `scripts/export_openapi.py`, revisar el diff de `docs/api/openapi.json`, anotar los resultados y hacer el **commit b)**.
+- [x] T018 [BE] [US1] Cierre del bloque b): correr las pruebas, ejecutar `scripts/export_openapi.py`, revisar el diff de `docs/api/openapi.json`, anotar los resultados y hacer el **commit b)**.
 
 ### Bloque c) bloqueos, estado con motivo y reintento (REV-C3, C10, C11 · REV-R5)
 
-- [ ] T019 [P] [BE] [US1] Ampliar `backend/tests/unit/test_accounts_and_review.py` con:
+- [x] T019 [P] [BE] [US1] Ampliar `backend/tests/unit/test_accounts_and_review.py` con:
   - `validate_approval_blockers` con el motivo cuando falta `verification`, cuando la huella no coincide o cuando el estado es `insufficient` o `pending` (REV-C3).
   - Un recurso que llega `pending` desde Generación no se puede aprobar (REV-C11).
   - Reintento sobre `pending` con `retryAvailable` usa el `evidenceThreshold` guardado y la regla vigente, sin subir la versión del contenido.
@@ -129,14 +129,14 @@ sin una verificación vigente.
   - Reintento con la copia incompleta: 409 `REGENERATION_REQUIRED`.
   - Cambiar `VERIFICATION_RULE_VERSION` sin editar conserva el estado (REV-C10).
   - Editar después de un cambio de regla, con un resultado distinto, deja un `reason` que menciona la regla anterior y la nueva (REV-C10).
-- [ ] T020 [P] [BE] [US1] Ampliar `backend/tests/e2e/test_accounts_and_review_api.py` con:
+- [x] T020 [P] [BE] [US1] Ampliar `backend/tests/e2e/test_accounts_and_review_api.py` con:
   - Aprobar después de una edición `insufficient`: 409 `APPROVAL_BLOCKED`, con el motivo de la verificación en `message` (REV-C3).
   - `POST …/verification` sobre un recurso `current`: 409 `VERIFICATION_NOT_PENDING`.
   - La cuenta B recibe 404 en `POST …/verification` sobre la unidad de A.
-- [ ] T021 [BE] [US1] Ajustar `validate_approval_blockers` en `backend/src/platform5e/application/services/review/resource_review_service.py`. Debe agregar el motivo de la verificación cuando falte, cuando su huella no sea la actual o cuando el estado no sea `current`, y conservar las reglas actuales de distractores, estructura y multimedia. Revisar que `ResourceResponse.approval_blockers` le pase `verification` y la huella.
-- [ ] T022 [BE] [US1] Agregar `retry_verification(teacher_id, unit_id, resource_id, expected_version)` en `backend/src/platform5e/application/services/review/resource_review_service.py`. Solo actúa si el estado es `pending` y `retryAvailable` es verdadero. Usa `verify_resource` con el umbral guardado y guarda con `save_resource_if_version`.
-- [ ] T023 [BE] [US1] En `verify_resource` (`backend/src/platform5e/domain/review/resource_verification.py`): si el resultado nuevo difiere del anterior y la `ruleVersion` guardada es otra, el motivo debe decir «la regla de verificación cambió (vN → vM)» (REV-C10).
-- [ ] T024 [BE] [US1] Agregar `POST /api/v1/units/{unit_id}/resources/{resource_id}/verification` en `backend/src/platform5e/infrastructure/http/routers/resources.py`. Recibe `{expectedVersion}` y documenta los errores 404 y 409 (`VERSION_CONFLICT`, `VERIFICATION_NOT_PENDING`, `REGENERATION_REQUIRED`), según [contracts/](contracts/review-export.openapi.yaml).
+- [x] T021 [BE] [US1] En `backend/src/platform5e/application/services/review/resource_review_service.py`, conservar `validate_approval_blockers` y agregar `verification_blockers` (huella distinta, `insufficient` o `pending`, con su motivo; sin `verification`, ningún bloqueo: opción A) y `approval_blockers`, que junta las dos. La usan `update_resource`, después de calcular la verificación de la versión editada, y `ResourceResponse.approval_blockers`, que le pasa `verification` y `citations`.
+- [x] T022 [BE] [US1] Agregar `retry_verification(teacher_id, unit_id, resource_id, expected_version)` en `backend/src/platform5e/application/services/review/resource_review_service.py`. Solo actúa si el estado es `pending` y `retryAvailable` es verdadero. Usa `verify_resource` con el umbral guardado y guarda con `save_resource_if_version`.
+- [x] T023 [BE] [US1] En `verify_resource` (`backend/src/platform5e/domain/review/resource_verification.py`): si el resultado nuevo difiere del anterior y la `ruleVersion` guardada es otra, el motivo debe decir «la regla de verificación cambió (vN → vM)» (REV-C10).
+- [x] T024 [BE] [US1] Agregar `POST /api/v1/units/{unit_id}/resources/{resource_id}/verification` en `backend/src/platform5e/infrastructure/http/routers/resources.py`. Recibe `{expectedVersion}` y documenta los errores 404 y 409 (`VERSION_CONFLICT`, `VERIFICATION_NOT_PENDING`, `REGENERATION_REQUIRED`), según [contracts/](contracts/review-export.openapi.yaml).
 - [ ] T025 [BE] [US1] Cierre del bloque c): correr las pruebas y `scripts/export_openapi.py`, y hacer el **commit c)** y el **PR 1** del backend. El PR debe:
   - enlazar la ficha y las tareas T003 a T025;
   - avisar del cambio incompatible del PUT;
@@ -226,7 +226,7 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Reemplazar la comparación de toda la estructura (hoy en la línea 148) por `media_source_changed`.
   - Al invalidar, dejar `fallback_media(..., EDITED_NOTES[...])` con `invalidated = true`.
   - En `validate_approval_blockers`, bloquear mientras `invalidated` esté presente.
-- [ ] T048 [BE] [US3] Crear `backend/src/platform5e/application/services/review/legacy_verification.py` con `upgrade_resource_verification(repository, teacher_id, unit_id, resource) -> dict`, según D7. Recibe `ResourceReviewRepositoryPort`, guarda con `save_resource_if_version(..., increment=False)`, devuelve el recurso actualizado o el original si hubo un guardado concurrente, y no depende de `ResourceReviewService`.
+- [ ] T048 [BE] [US3] **Adelantado en parte al bloque c):** ya existe `legacy_verification.py`, que se llama desde `list_resources` y `_get_resource_or_fail` con la regla de estado de REV-R11 e `increment=False`. Falta llamarla desde la exportación (bloque d) y el script de la opción B si Sergio lo elige. Crear `backend/src/platform5e/application/services/review/legacy_verification.py` con `upgrade_resource_verification(repository, teacher_id, unit_id, resource) -> dict`, según D7. Recibe `ResourceReviewRepositoryPort`, guarda con `save_resource_if_version(..., increment=False)`, devuelve el recurso actualizado o el original si hubo un guardado concurrente, y no depende de `ResourceReviewService`.
   - **Opción A**, si Sergio la elige: llamarla para los recursos sin `verification` desde `list_resources` y `get_resource`, en `resource_review_service.py`, y desde `ExportUnitResourcesUseCase.execute`, en `export_unit_resources.py`, antes de aplicar el filtro.
   - **Opción B**: crear `backend/scripts/upgrade_resource_verification.py` con `--dry-run` y un informe por estado.
 - [ ] T049 [P] [BE] [US3] En `backend/src/platform5e/application/use_cases/media/regenerate_resource_media.py`, quitar `media.invalidated` cuando el archivo se genere bien. En `backend/src/platform5e/infrastructure/http/schemas/resources.py`, agregar `MediaResponse.invalidated: bool = False`.

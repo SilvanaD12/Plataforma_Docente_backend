@@ -138,8 +138,17 @@ def _check(resource: dict[str, Any], fragments: dict[str, str], threshold: float
     return CURRENT, None, summary
 
 
-def verify_resource(resource: dict[str, Any], threshold: float, rule_version: int) -> dict[str, Any]:
-    """Verifica el contenido actual del recurso contra su copia histórica. No modifica el recurso."""
+def verify_resource(
+    resource: dict[str, Any],
+    threshold: float,
+    rule_version: int,
+    previous: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Verifica el contenido actual del recurso contra su copia histórica. No modifica el recurso.
+
+    `previous` es el resultado guardado antes de la edición: si se obtuvo con otra versión de la regla y el estado
+    cambia, el motivo lo indica (REV-C10).
+    """
     status, reason, summary, retry_available = PENDING, incomplete_copy_reason(resource), {}, False
     if reason is None:
         try:
@@ -147,6 +156,11 @@ def verify_resource(resource: dict[str, Any], threshold: float, rule_version: in
         except Exception as error:  # la comprobación no se completó: se puede reintentar con la misma copia
             status, summary, retry_available = PENDING, {}, True
             reason = f"La comprobación no pudo completarse ({type(error).__name__}). Reintenta la comprobación."
+    if isinstance(previous, dict):
+        previous_rule = previous.get("ruleVersion")
+        if previous_rule is not None and previous_rule != rule_version and previous.get("status") != status:
+            note = f"La regla de verificación cambió (v{previous_rule} → v{rule_version})."
+            reason = f"{reason} {note}" if reason else note
     return {
         "status": status,
         "reason": reason,

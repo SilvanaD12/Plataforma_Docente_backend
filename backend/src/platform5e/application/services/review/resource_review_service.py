@@ -17,7 +17,15 @@ from platform5e.application.services.media.media_attachment import EDITED_NOTES,
 from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION
 from platform5e.domain.generation.resource_formats import needs_structure, normalize_structure, structure_problems
 from platform5e.domain.review.content_fingerprint import content_fingerprint
-from platform5e.domain.review.resource_verification import assess_edited_distractors, stored_threshold, verify_resource
+from platform5e.application.services.review.legacy_verification import upgrade_resource_verification
+from platform5e.domain.review.resource_verification import (
+    INSUFFICIENT,
+    PENDING,
+    assess_edited_distractors,
+    incomplete_copy_reason,
+    stored_threshold,
+    verify_resource,
+)
 
 MIN_ACCEPTED_DISTRACTORS: int = 2
 ALLOWED_REVIEW_STATUSES: set[str] = {"pendiente", "aprobado", "descartado"}
@@ -65,6 +73,30 @@ def validate_approval_blockers(resource_data: dict[str, Any]) -> list[str]:
     return reasons
 
 
+def verification_blockers(resource_data: dict[str, Any]) -> list[str]:
+    """REV-C3, C5 y C11: motivo por el que la verificación no permite aprobar.
+
+    Sin `verification` no hay bloqueo que mostrar: el guardado verifica la versión editada antes de evaluar la
+    aprobación, así que al aprobar siempre existe (opción A del bloque c).
+    """
+    verification = resource_data.get("verification")
+    if not isinstance(verification, dict):
+        return []
+    if verification.get("fingerprint") != content_fingerprint(resource_data):
+        return ["La comprobación del respaldo corresponde a otra versión del contenido: guarda el recurso para comprobarlo de nuevo."]
+    reason = verification.get("reason") or ""
+    if verification.get("status") == INSUFFICIENT:
+        return [f"El respaldo es insuficiente: {reason}".strip()]
+    if verification.get("status") == PENDING:
+        return [f"La comprobación del respaldo está pendiente: {reason}".strip()]
+    return []
+
+
+def approval_blockers(resource_data: dict[str, Any]) -> list[str]:
+    """Todos los motivos que impiden aprobar: las reglas pedagógicas y la verificación vigente."""
+    return validate_approval_blockers(resource_data) + verification_blockers(resource_data)
+
+
 class ResourceReviewService:
     """Servicio de aplicación para la gestión del ciclo de vida de revisión y descargas."""
 
@@ -98,16 +130,49 @@ class ResourceReviewService:
             raise AccountConfigurationError(
                 "RESOURCE_NOT_FOUND", "El recurso no existe.", 404
             )
-        return resource
+        return upgrade_resource_verification(self._review_repository, teacher_id, unit_id, resource)
 
     def list_resources(self, teacher_id: str, unit_id: str) -> list[dict[str, Any]]:
         """Lista los recursos de una unidad ordenados por fecha de creación descendente."""
         self._verify_unit_access(teacher_id, unit_id)
-        return sorted(
-            self._review_repository.get_resources_by_unit(teacher_id, unit_id),
-            key=lambda r: r.get("createdAt", ""),
-            reverse=True,
-        )
+        resources = [
+            upgrade_resource_verification(self._review_repository, teacher_id, unit_id, resource)
+            for resource in self._review_repository.get_resources_by_unit(teacher_id, unit_id)
+        ]
+        return sorted(resources, key=lambda r: r.get("createdAt", ""), reverse=True)
+
+    def retry_verification(
+        self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int
+    ) -> dict[str, Any]:
+        """REV-C3: «Reintentar comprobación» de una comprobación pendiente, sobre la misma versión y sin editar.
+
+        Usa la regla vigente, el `evidenceThreshold` guardado y solo la copia histórica. No cambia la versión.
+        """
+        existing = self._get_resource_or_fail(teacher_id, unit_id, resource_id)
+        verification = existing.get("verification") or {}
+        if verification.get("status") != PENDING:
+            raise AccountConfigurationError(
+                "VERIFICATION_NOT_PENDING", "Solo se puede reintentar una comprobación pendiente.", 409
+            )
+        if not verification.get("retryAvailable") or incomplete_copy_reason(existing):
+            raise AccountConfigurationError(
+                "REGENERATION_REQUIRED",
+                incomplete_copy_reason(existing) or "La comprobación no se puede reintentar: regenera el recurso.",
+                409,
+            )
+        checked = {
+            **existing,
+            "verification": verify_resource(
+                existing, stored_threshold(existing), VERIFICATION_RULE_VERSION, previous=verification
+            ),
+        }
+        if not self._review_repository.save_resource_if_version(
+            teacher_id, unit_id, checked, expected_version, increment=False
+        ):
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de reintentar.", 409
+            )
+        return checked
 
     def update_resource(
         self,
@@ -208,26 +273,26 @@ class ResourceReviewService:
         if review_reset:
             status = "pendiente"
 
-        if status == "aprobado":
-            blockers = validate_approval_blockers(updated_resource)
-            if blockers:
-                raise AccountConfigurationError("APPROVAL_BLOCKED", blockers[0], 409)
-
         expected_version = changes.get("expectedVersion")
         if not isinstance(expected_version, int) or isinstance(expected_version, bool):
             raise AccountConfigurationError(
                 "VERSION_REQUIRED", "Indica la versión del recurso de la que parte el guardado.", 422
             )
-        new_version = expected_version + 1
-        updated_resource["version"] = new_version
+        updated_resource["version"] = expected_version + 1
 
         stored = existing.get("verification")
         if isinstance(stored, dict) and stored.get("fingerprint") == fingerprint:
             updated_resource["verification"] = stored
         else:
             updated_resource["verification"] = verify_resource(
-                updated_resource, stored_threshold(existing), VERIFICATION_RULE_VERSION
+                updated_resource, stored_threshold(existing), VERIFICATION_RULE_VERSION, previous=stored
             )
+
+        # La aprobación se evalúa con la verificación de la versión editada, ya calculada.
+        if status == "aprobado":
+            blockers = approval_blockers(updated_resource)
+            if blockers:
+                raise AccountConfigurationError("APPROVAL_BLOCKED", blockers[0], 409)
 
         current_time = datetime.now(timezone.utc).isoformat()
         if status != existing.get("status"):

@@ -68,7 +68,7 @@ Estado de revisión (status)        Verificación (verification.status)
 
 - Sin edición, la verificación no se recalcula, aunque cambie `VERIFICATION_RULE_VERSION`.
 - Una edición que no cambia la huella conserva la verificación (REV-C2).
-- Reintentar solo es posible si `status = pending` y `retryAvailable = true`. No cambia la `version` del contenido, pero sí la de la fila.
+- Reintentar solo es posible si `status = pending` y `retryAvailable = true`. No cambia la `version`: el contenido es el mismo, y así una pestaña abierta no recibe un conflicto falso. Igual exige `expectedVersion`.
 
 ## Registro de descarga (`ep002_descargas`)
 

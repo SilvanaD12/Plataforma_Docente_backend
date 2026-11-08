@@ -85,6 +85,10 @@ def audio_resource() -> dict[str, Any]:
         "title": "Resumen", "body": "Escucha el resumen.", "options": None, "createdAt": "2026-10-18T10:00",
         "structure": {"script": OLD_SCRIPT},
         "media": {"status": "ready", "id": "media-old", "mimeType": "audio/mpeg", "fileName": "r1.mp3"},
+        # REV-01: afirmación y copia histórica que la respalda, como en los recursos de Generación.
+        "citations": [{"claim": "El protocolo TCP confirma la entrega de los datos.", "fragmentIds": ["frag-audio"]}],
+        "evidence": [{"id": "frag-audio", "text": "El protocolo TCP confirma la entrega de los datos al receptor.",
+                      "location": "página 1", "documentId": "d1", "documentName": "redes.pdf"}],
     }
 
 

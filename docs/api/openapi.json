@@ -1482,6 +1482,103 @@
         }
       }
     },
+    "/api/v1/units/{unit_id}/resources/{resource_id}/verification": {
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Retry the verification of a pending resource",
+        "description": "«Reintentar comprobación» (REV-C3): checks the same version again with the current rule and the stored\n`evidenceThreshold`, using only the evidence copy saved in the resource (no external services). The version\ndoes not change.\n\nOnly for `verification.status = pending` (409 VERIFICATION_NOT_PENDING). Without an evidence copy, or with a\nreferenced chunk missing from it, the retry is not offered: regenerate the resource (409 REGENERATION_REQUIRED).\nAn outdated `expectedVersion` returns 409 VERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/verification\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource whose verification is pending and send its current version. Expected 200.",
+        "operationId": "retry_verification_api_v1_units__unit_id__resources__resource_id__verification_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationRetryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/units/{unit_id}/resources/{resource_id}/media": {
       "get": {
         "tags": [
@@ -4611,6 +4708,26 @@
         ],
         "title": "VerificationResult",
         "description": "REV-01: result of checking the current content against the stored evidence copy (REV-R4, REV-R5)."
+      },
+      "VerificationRetryInput": {
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "description": "Version you read. The retry does not change it.",
+            "examples": [
+              1
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expectedVersion"
+        ],
+        "title": "VerificationRetryInput",
+        "description": "«Reintentar comprobación» de un recurso con verificación pendiente (REV-C3)."
       }
     },
     "securitySchemes": {

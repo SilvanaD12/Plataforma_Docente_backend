@@ -139,7 +139,8 @@ la copia, fallaría.
 
 **Decisión.**
 - Si un PUT cambia la huella de un recurso `aprobado`, el recurso queda `pendiente` aunque el cuerpo pida `aprobado`. La respuesta incluye `reviewReset: true`, y la nueva aprobación requiere otro guardado.
-- `validate_approval_blockers` agrega un bloqueo con el motivo cuando falta `verification`, cuando su huella no coincide o cuando su estado no es `current`.
+- `validate_approval_blockers` conserva sus reglas pedagógicas. Se agrega `verification_blockers`, que bloquea con su motivo cuando la huella de `verification` no coincide o cuando su estado no es `current`, y `approval_blockers`, que junta las dos y es la que usan el servicio y `ResourceResponse.approvalBlockers`.
+- **Opción A (bloque c).** Sin `verification` no hay bloqueo que mostrar, por ejemplo en la respuesta de Generación: `update_resource` calcula la verificación de la versión editada **antes** de evaluar la aprobación, así que al aprobar siempre existe.
 - El bloqueo multimedia de D9 también aplica.
 
 ## D6. Filtro común de exportación (REV-R7 · REV-C7)

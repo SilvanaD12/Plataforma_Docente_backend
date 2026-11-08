@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import Field, computed_field, field_validator
 
-from platform5e.application.services.review.resource_review_service import validate_approval_blockers
+from platform5e.application.services.review.resource_review_service import approval_blockers
 from platform5e.infrastructure.html_sanitizer import clean_html
 from platform5e.infrastructure.http.schemas.common import ApiRequest, ApiResponse
 
@@ -166,13 +166,21 @@ class ResourceResponse(ApiResponse):
     @computed_field(description="Reasons that block approval, computed by the same rule that validates approval.")
     @property
     def approval_blockers(self) -> list[str]:
-        return validate_approval_blockers({
+        return approval_blockers({
             "body": self.body,
             "type": self.type,
             "structure": self.structure,
             "media": self.media.model_dump(by_alias=True) if self.media else None,
             "options": [option.model_dump(by_alias=True) for option in self.options] if self.options else None,
+            "citations": [citation.model_dump(by_alias=True) for citation in self.citations],
+            "verification": self.verification.model_dump(by_alias=True) if self.verification else None,
         })
+
+
+class VerificationRetryInput(ApiRequest):
+    """«Reintentar comprobación» de un recurso con verificación pendiente (REV-C3)."""
+
+    expected_version: int = Field(ge=1, description="Version you read. The retry does not change it.", examples=[1])
 
 
 class ReviewedOptionInput(ApiRequest):
