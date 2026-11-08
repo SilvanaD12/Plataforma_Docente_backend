@@ -429,7 +429,7 @@
           "courses"
         ],
         "summary": "Delete a course",
-        "description": "Deletes the course with its documents, chunks, resources and download history.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X DELETE \"$BASE_URL/api/v1/courses/${COURSE_ID}\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nDeletes the course and its associated data. Expected 204 with an empty body.",
+        "description": "Deletes the course, its documents, chunks, resources and their media. Download records are retained.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X DELETE \"$BASE_URL/api/v1/courses/${COURSE_ID}\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 204 with an empty body.",
         "operationId": "delete_course_api_v1_courses__course_id__delete",
         "security": [
           {
