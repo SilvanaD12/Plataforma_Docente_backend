@@ -37,13 +37,23 @@ def _reset_postgres(url: str) -> None:
 
 
 @pytest.fixture
-def server(tmp_path: Path) -> Iterator[str]:
-    """Levanta la API en un puerto libre y devuelve su URL base. Se apaga al terminar."""
+def e2e_database_url(tmp_path: Path) -> str:
+    """La base de la prueba: PostgreSQL desechable si se define E2E_DATABASE_URL (se vacía), o SQLite temporal.
+
+    Las pruebas que necesitan preparar datos directamente en la base (por ejemplo, un recurso anterior a REV-01) la
+    piden junto con `server`, que usa esta misma URL.
+    """
     database_url = os.getenv("E2E_DATABASE_URL")
     if database_url:
         _reset_postgres(database_url)
-    else:
-        database_url = f"sqlite:///{tmp_path / 'e2e.db'}"
+        return database_url
+    return f"sqlite:///{tmp_path / 'e2e.db'}"
+
+
+@pytest.fixture
+def server(tmp_path: Path, e2e_database_url: str) -> Iterator[str]:
+    """Levanta la API en un puerto libre y devuelve su URL base. Se apaga al terminar."""
+    database_url = e2e_database_url
 
     port = _free_port()
     src_dir = str(BACKEND_ROOT / "src")

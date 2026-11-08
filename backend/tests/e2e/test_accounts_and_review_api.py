@@ -268,3 +268,70 @@ def test_approval_needs_a_current_verification_and_retry_only_applies_to_pending
         # Otra cuenta no puede reintentar en la unidad ajena.
         other = {"Authorization": "Bearer " + api.post("/api/v1/accounts", json={**ACCOUNT, "email": "otra-c@correo.pe"}).json()["token"]}
         assert api.post(url + "/verification", headers=other, json={"expectedVersion": 3}).status_code == 404
+
+
+def _stored_resource(database_url: str, resource_id: str) -> tuple[int, dict]:
+    """La columna `version` y el JSON guardado del recurso, leídos directamente de la base."""
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(database_url)
+    with engine.connect() as connection:
+        version, data = connection.execute(
+            text("SELECT version, datos FROM ep002_recursos WHERE id = :id"), {"id": resource_id}
+        ).one()
+    engine.dispose()
+    return version, json.loads(data) if isinstance(data, str) else data
+
+
+def _insert_old_resource(database_url: str, teacher_id: str, unit_id: str, resource: dict) -> None:
+    """Inserta un recurso como los guardados antes de REV-01: sin `verification` y sin indicar la versión."""
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(database_url)
+    data = "CAST(:datos AS JSONB)" if engine.dialect.name == "postgresql" else ":datos"
+    with engine.begin() as connection:
+        connection.execute(
+            text(f"INSERT INTO ep002_recursos (id, docente, unidad, creado, datos) VALUES (:id, :docente, :unidad, :creado, {data})"),
+            {"id": resource["id"], "docente": teacher_id, "unidad": unit_id, "creado": resource["createdAt"],
+             "datos": json.dumps(resource)},
+        )
+    engine.dispose()
+
+
+def test_an_old_resource_without_verification_is_checked_when_read(server: str, e2e_database_url: str):
+    """REV-R11 y D7 en la base real (SQLite en local, PostgreSQL en CI): al leer un recurso antiguo queda verificado,
+    sigue aprobado si su respaldo es vigente, la fecha de recuperación queda como desconocida y la versión no sube."""
+    with httpx.Client(base_url=server, timeout=30) as api:
+        email = "antiguo@correo.pe"
+        token = api.post("/api/v1/accounts", json={**ACCOUNT, "email": email}).json()["token"]
+        h = {"Authorization": "Bearer " + token}
+        unit = api.post("/api/v1/courses", headers=h, json={
+            "code": "OLD-1", "name": "Redes", "term": "2026-II",
+            "units": [{"title": "Protocolos", "outcomes": [{"text": "Distingue TCP y UDP"}]}],
+        }).json()["units"][0]
+        old = {
+            "id": "rec-antiguo-1", "unitId": unit["id"], "type": "explicacion", "stage": "explain", "format": "text",
+            "title": "Protocolos", "body": "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de los datos.",
+            "options": None, "structure": None, "status": "aprobado", "edited": False, "discardReason": None,
+            "createdAt": "2026-10-01T10:00:00+00:00", "updatedAt": "2026-10-01T10:00:00+00:00",
+            "decidedAt": "2026-10-02T10:00:00+00:00",
+            "citations": [{"claim": "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de los datos.",
+                           "fragmentIds": ["frag-antiguo"]}],
+            "evidence": [{"id": "frag-antiguo", "text": MATERIAL.decode(), "location": "página 1",
+                          "documentId": "doc-antiguo", "documentName": "protocolos.txt"}],
+            "grounding": {"threshold": 0.6, "checkedClaims": 1, "supportedClaims": 1},
+        }
+        _insert_old_resource(e2e_database_url, email, unit["id"], old)
+
+        [listed] = api.get(f"/api/v1/units/{unit['id']}/resources", headers=h).json()
+        assert listed["id"] == "rec-antiguo-1"
+        assert listed["verification"]["status"] == "current" and listed["verification"]["evidenceThreshold"] == 0.6
+        assert listed["status"] == "aprobado" and listed["version"] == 1
+        assert listed["evidence"][0]["retrievedAt"] is None
+
+        version, stored = _stored_resource(e2e_database_url, "rec-antiguo-1")
+        assert version == 1 and stored["verification"] == listed["verification"]
+        assert stored["evidence"][0]["retrievedAt"] is None
+
+        # La segunda lectura no vuelve a verificar: devuelve el mismo resultado guardado.
+        assert api.get(f"/api/v1/units/{unit['id']}/resources", headers=h).json()[0]["verification"] == listed["verification"]
