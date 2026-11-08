@@ -12,7 +12,7 @@ from platform5e.application.ports.outbound.media_port import MediaRepositoryPort
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.application.ports.outbound.unit_exporter_port import ExportedFile, UnitExporterPort
-from platform5e.domain.accounts.teacher_account import AccountConfigurationError
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
 
 # Quitar "aprobado" cuando los valores guardados estén migrados al inglés.
 APPROVED_STATUSES: set[str] = {"approved", "aprobado"}
@@ -40,17 +40,10 @@ class ExportUnitResourcesUseCase:
     def execute(
         self, teacher_id: str, unit_id: str, export_format: str, resource_ids: Sequence[str] = ()
     ) -> ExportedFile:
-        course, unit = next(
-            (
-                (course, unit)
-                for course in self._teacher_repository.get_courses(teacher_id)
-                for unit in course["units"]
-                if unit["id"] == unit_id
-            ),
-            (None, None),
-        )
-        if unit is None:
+        match = find_course_and_unit(self._teacher_repository.get_courses(teacher_id), unit_id)
+        if match is None:
             raise AccountConfigurationError("UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404)
+        course, unit = match
 
         exporter = self._exporters.get(export_format)
         if exporter is None:

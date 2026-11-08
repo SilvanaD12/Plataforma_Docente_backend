@@ -17,7 +17,7 @@ from typing import Any
 from uuid import uuid4
 
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
-from platform5e.domain.accounts.teacher_account import AccountConfigurationError
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
 
 MAX_FILE_SIZE: int = 25 * 1024 * 1024
 ALLOWED_DOCUMENT_TYPES: set[str] = {
@@ -160,15 +160,12 @@ class AccountService:
 
     def get_unit(self, teacher_id: str, unit_id: str) -> dict[str, Any]:
         """Recupera una unidad verificando pertenencia al catálogo de cursos del docente."""
-        found_unit = next(
-            (u for course in self.repository.get_courses(teacher_id) for u in course["units"] if u["id"] == unit_id),
-            None,
-        )
-        if not found_unit:
+        match = find_course_and_unit(self.repository.get_courses(teacher_id), unit_id)
+        if match is None:
             raise AccountConfigurationError(
                 "UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404
             )
-        return found_unit
+        return match[1]
 
     def save_course(
         self, teacher_id: str, course_data: dict[str, Any], course_id: str | None = None

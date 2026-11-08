@@ -16,6 +16,7 @@ from platform5e.application.ports.outbound.open_educational_resource_port import
 from platform5e.application.ports.outbound.text_extractor_port import TextExtractorPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
+from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.domain.materials.chunking import MaterialError, chunk_pages
 
 OPEN_EDUCATIONAL_RESOURCE_TYPE: str = "Artículo de fuente abierta"
@@ -64,18 +65,10 @@ class MaterialService:
 
     def _get_unit(self, teacher_id: str, unit_id: str) -> dict[str, Any]:
         """Obtiene la unidad asegurando pertenencia al catálogo de cursos del docente."""
-        unit = next(
-            (
-                u
-                for course in self._teacher_repository.get_courses(teacher_id)
-                for u in course["units"]
-                if u["id"] == unit_id
-            ),
-            None,
-        )
-        if unit is None:
+        match = find_course_and_unit(self._teacher_repository.get_courses(teacher_id), unit_id)
+        if match is None:
             raise MaterialError("UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404)
-        return unit
+        return match[1]
 
     def process_material(self, teacher_id: str, document_id: str) -> dict[str, Any]:
         """Extrae el texto del documento, lo divide en fragmentos y persiste el resultado."""

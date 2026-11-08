@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
-from platform5e.domain.accounts.teacher_account import AccountConfigurationError
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
 from platform5e.application.services.media.media_attachment import EDITED_NOTES, fallback_media
 from platform5e.domain.generation.resource_formats import needs_structure, normalize_structure, structure_problems
 
@@ -76,7 +76,7 @@ class ResourceReviewService:
     def _verify_unit_access(self, teacher_id: str, unit_id: str) -> None:
         """Comprueba que la unidad académica pertenezca al docente en sesión."""
         courses = self._teacher_repository.get_courses(teacher_id)
-        if not any(u["id"] == unit_id for course in courses for u in course["units"]):
+        if find_course_and_unit(courses, unit_id) is None:
             raise AccountConfigurationError(
                 "UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404
             )

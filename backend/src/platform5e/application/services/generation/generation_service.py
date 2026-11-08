@@ -20,6 +20,7 @@ from platform5e.application.ports.outbound.language_model_port import ResourceGe
 from platform5e.application.ports.outbound.media_port import MediaGeneratorPort, MediaRepositoryPort
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
+from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.application.services.media.media_attachment import attach_generated_media
 from platform5e.application.services.generation.prompt_drafting import (
     build_generation_context,
@@ -349,11 +350,8 @@ class GenerationService:
     ) -> tuple[dict[str, Any], dict[str, Any] | None]:
         """Localiza el curso y la unidad dentro del repositorio de configuración."""
         assert self._teacher_repository is not None
-        for course in self._teacher_repository.get_courses(teacher_id):
-            for unit in course["units"]:
-                if unit["id"] == unit_id:
-                    return course, unit
-        return {}, None
+        match = find_course_and_unit(self._teacher_repository.get_courses(teacher_id), unit_id)
+        return match if match is not None else ({}, None)
 
     def _generate_with_material(
         self,
