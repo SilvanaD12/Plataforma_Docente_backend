@@ -94,49 +94,6 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/RequestNotFound' }
 
-  /units/{unitId}/resources/{resourceId}/regenerations:
-    post:
-      tags: [generations]
-      operationId: regenerateResource
-      summary: Regenerate a resource from Review
-      description: |
-        Starts an individual request with the saved parameters of the resource and the current evidence of the
-        material. The previous resource moves to Discarded only if the regeneration succeeds and the resource is
-        still in `expectedVersion`. Otherwise it is kept, and the teacher decides.
-      parameters:
-        - { name: unitId, in: path, required: true, schema: { type: string } }
-        - { name: resourceId, in: path, required: true, schema: { type: string } }
-        - $ref: '#/components/parameters/IdempotencyKey'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [expectedVersion]
-              properties:
-                expectedVersion: { type: integer, minimum: 1 }
-      responses:
-        '202':
-          description: Regeneration request accepted.
-          headers:
-            Location: { schema: { type: string } }
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/GenerationRequestStatus' }
-        '200':
-          description: Same key and body. Returns the existing regeneration request.
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/GenerationRequestStatus' }
-        '400': { $ref: '#/components/responses/BusinessRule' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/ResourceNotFound' }
-        '409': { $ref: '#/components/responses/VersionOrKeyConflict' }
-        '429': { $ref: '#/components/responses/TooManyActive' }
-        '503': { $ref: '#/components/responses/Unavailable' }
-
   /generations:
     post:
       deprecated: true
@@ -218,10 +175,10 @@ components:
               description: Search fallback reported by Material. It is independent of `steps[].generator.fallback`.
             regeneration:
               type: [object, 'null']
+              description: Only in `regeneration` mode, started by Review through its regeneration port. Generation never discards the previous resource.
               properties:
                 resourceId: { type: string }
-                expectedVersion: { type: integer }
-                outcome: { type: [string, 'null'], enum: [replaced, kept_version_changed, kept_failed, null] }
+                resourceVersion: { type: integer }
             failure: { oneOf: [{ $ref: '#/components/schemas/Problem' }, { type: 'null' }] }
             startedAt: { type: [string, 'null'], format: date-time }
             steps:
@@ -251,7 +208,7 @@ components:
             properties:
               id: { type: string }
               title: { type: string }
-              verificationStatus: { type: string, enum: [vigente, pendiente] }
+              verificationStatus: { type: string, enum: [current, pending], description: Same values as `verification.status` of REV-01. }
         rejections:
           type: array
           items:
@@ -296,8 +253,7 @@ components:
     BusinessRule:
       description: |
         Business rule. Codes: `NO_PROCESSED_MATERIAL` (the unit has no processed material), `INVALID_OUTCOME`,
-        `INVALID_SEQUENCE` (`individual` with more than one type), `IDEMPOTENCY_KEY_REQUIRED`, and
-        `REGENERATION_UNAVAILABLE` (resource without saved parameters).
+        `INVALID_SEQUENCE` (`individual` with more than one type), `IDEMPOTENCY_KEY_REQUIRED`.
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
     Unauthorized:
       description: Missing, invalid or expired session token (`UNAUTHORIZED`).
@@ -308,14 +264,8 @@ components:
     RequestNotFound:
       description: '`GENERATION_REQUEST_NOT_FOUND`: missing or belongs to another teacher.'
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
-    ResourceNotFound:
-      description: '`RESOURCE_NOT_FOUND` or `UNIT_NOT_FOUND`.'
-      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
     IdempotencyConflict:
       description: '`IDEMPOTENCY_KEY_REUSED`: the key was already used by this teacher with a different body.'
-      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
-    VersionOrKeyConflict:
-      description: '`RESOURCE_VERSION_CHANGED` (the resource is no longer in `expectedVersion`) or `IDEMPOTENCY_KEY_REUSED`.'
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
     InvalidParameters:
       description: '`INVALID_PARAMETERS`: type, range or unknown field. `details` lists each problem.'

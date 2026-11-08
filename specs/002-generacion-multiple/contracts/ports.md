@@ -74,28 +74,35 @@ class EvidenceProviderPort(Protocol):
 - `retrievedAt` lo asigna Generación al recibir la respuesta.
 - El adaptador inicial es `MaterialEvidenceAdapter`, sobre `ChunkRepositoryPort.get_chunks_by_unit(teacher_id, unit_id)`, `HybridEvidenceRetriever` y `TeacherRepositoryPort.get_documents`. Necesita que el recuperador informe si degradó a BM25.
 
-### ContentFingerprintPort (REV-01 · Revisión y Exportación)
+### ResourceVerificationPort (REV-01 · Revisión y Exportación)
 
 ```python
-class ContentFingerprintPort(Protocol):
+class ResourceVerificationPort(Protocol):
+    def referenced_fragment_ids(self, resource: Mapping[str, Any]) -> list[str]:
+        """Fragmentos que citan las afirmaciones, alternativas y estructura del recurso (REV-01)."""
     def fingerprint(self, resource: Mapping[str, Any]) -> str:
-        """Huella del contenido normalizado del recurso, calculada con domain/review/content_fingerprint.py."""
+        """content_fingerprint(resource) de domain/review/content_fingerprint.py: 'sha256:<hex>'."""
+    def verify(self, resource: Mapping[str, Any], threshold: float) -> dict[str, Any]:
+        """verify_resource de domain/review/resource_verification.py con VERIFICATION_RULE_VERSION de grounding.py.
+        Devuelve el bloque verification de REV-01."""
 ```
 
-- La huella se calcula después de la verificación y antes de entregar el recurso. Un recurso sin huella no se entrega; el paso termina `failed` con `FINGERPRINT_UNAVAILABLE`.
-- Esta parte está **bloqueada** hasta que REV-01 publique `content_fingerprint.py`.
+- Se llama después de armar la copia histórica y antes de entregar el recurso. Un borrador con `status = insufficient` se rechaza en el paso. Si `verify` lanza un error, el recurso se guarda con `status = pending` y el motivo.
+- El adaptador inicial es `ReviewVerificationAdapter`. Las funciones ya existen en `feat/revision-y-exportacion`; las tareas que las usan dependen de que se integre el PR 1 de REV-01.
 
-### ResourceReviewRepositoryPort (REV-01, se amplía)
+### ResourceRegenerationPort (lo define REV-01; Generación escribe el adaptador)
 
-Ya existe. Generación sigue usando `save_resources` y necesita una operación nueva:
+Firma propuesta por REV-01 en su D10, en `application/ports/outbound/resource_regeneration_port.py`:
 
 ```python
-def get_resource_by_id(self, teacher_id: str, resource_id: str) -> dict[str, Any] | None: ...  # ya existe
-def discard_if_version(
-    self, teacher_id: str, resource_id: str, expected_version: int, reason: str
-) -> bool:
-    """Pasa el recurso a Descartados solo si sigue en expected_version. Devuelve False si cambió. Es atómico."""
+request_regeneration(teacher_id: str, resource_id: str, resource_version: int, params: dict) -> RegenerationStatus
+get_regeneration(teacher_id: str, request_id: str) -> RegenerationStatus
+# RegenerationStatus: request_id, status ("pending" | "running" | "succeeded" | "failed"),
+#                     new_resource_ids: list[str], reason: str | None
 ```
+
+- `GenerationRegenerationAdapter` llama a `StartRegeneration` y `GetGenerationRequest` y traduce los estados ([research R9](../research.md#r9-regeneración-y-edición-durante-el-pedido)).
+- Generación no modifica ni descarta el recurso anterior; eso lo hace Revisión con su guardado condicional por versión.
 
 ## Propios de Generación
 

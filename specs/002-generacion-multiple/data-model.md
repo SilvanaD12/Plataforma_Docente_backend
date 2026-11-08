@@ -2,18 +2,18 @@
 
 [Ficha](spec.md) · [Plan](plan.md) · [Research](research.md) · [Contratos](contracts/)
 
-Los nombres de campo siguen la convención del backend: snake_case en Python y en las columnas nuevas, y camelCase en JSON. Los estados del pedido y de los pasos son códigos nuevos en inglés. Los estados de verificación (`vigente`, `pendiente`, `insuficiente`) se guardan en español porque los comparte Revisión, igual que los estados de revisión actuales.
+Los nombres de campo siguen la convención del backend: snake_case en Python y en las columnas nuevas, y camelCase en JSON. Los estados del pedido y de los pasos son códigos nuevos en inglés. El bloque `verification` sigue el data-model de REV-01: sus estados técnicos van en inglés (`current`, `insufficient`, `pending`) y la interfaz los muestra como vigente, insuficiente y pendiente.
 
 ## GenerationRequest
 
-Es el pedido persistido. Lo crea `StartGenerationRequest` o `RegenerateResource` y lo actualiza `RunGenerationRequest`.
+Es el pedido persistido. Lo crea `StartGenerationRequest` o `StartRegeneration` y lo actualiza `RunGenerationRequest`.
 
 | Campo | Tipo | Reglas |
 | --- | --- | --- |
 | `id` | `str` | `gen-req-{uuid4}`. Es la clave primaria. |
 | `teacher_id` | `str` | Es obligatorio y es el docente autenticado. |
 | `unit_id` | `str` | La unidad debe pertenecer al docente según `UnitMembershipPort` al crearse el pedido. |
-| `mode` | `individual` \| `sequence` \| `regeneration` | `individual` tiene un tipo; `sequence` tiene entre 1 y 8 tipos; `regeneration` se crea desde Revisión. |
+| `mode` | `individual` \| `sequence` \| `regeneration` | `individual` tiene un tipo; `sequence` tiene entre 1 y 8 tipos; `regeneration` se crea desde Revisión por su puerto de regeneración. |
 | `idempotency_key` | `str` | 8 a 128 caracteres de `[A-Za-z0-9_-]`. `UNIQUE (teacher_id, idempotency_key)`. |
 | `payload_hash` | `str` | SHA-256 del pedido normalizado ([research R2](research.md#r2-contrato-de-inicio-consulta-e-idempotencia)). |
 | `parameters` | `GenerationParameters` (JSON) | Es el pedido normalizado. No cambia después de crearse. |
@@ -39,8 +39,7 @@ Es el pedido persistido. Lo crea `StartGenerationRequest` o `RegenerateResource`
 | Campo | Tipo | Reglas |
 | --- | --- | --- |
 | `resourceId` | `str` | Es el recurso de Revisión que pertenece al docente y a la unidad. |
-| `expectedVersion` | `int` | Debe coincidir con la versión actual al crear el pedido (`409 RESOURCE_VERSION_CHANGED`). |
-| `outcome` | `replaced` \| `kept_version_changed` \| `kept_failed` \| `null` | Lo fija el paso al terminar ([research R9](research.md#r9-edición-durante-una-regeneración)). |
+| `resourceVersion` | `int` | Versión del recurso que Revisión registró al pedir la regeneración. Forma parte de la clave `regen-{resourceId}-v{resourceVersion}`. Generación no la compara ni descarta recursos ([research R9](research.md#r9-regeneración-y-edición-durante-el-pedido)). |
 
 ## GenerationStep
 
@@ -87,7 +86,7 @@ pending ──► running ──► succeeded | rejected | failed
    └───────────┴──────► interrupted
 ```
 
-- `succeeded`: al menos un recurso se entregó a Revisión, como `vigente` o `pendiente`.
+- `succeeded`: al menos un recurso se entregó a Revisión, con `verification.status` igual a `current` o `pending`.
 - `rejected`: todos los borradores se rechazaron por verificación, estructura o repetición. `rejections` explica cada caso.
 - `failed`: hubo un error de infraestructura o del generador sin respaldo útil, o se superó el tiempo máximo (`DEADLINE_EXCEEDED`).
 
@@ -118,15 +117,15 @@ Se mantiene el diccionario actual de `_build_resource_dict` (`ep002_recursos.dat
 | `params` | `GenerationParameters` del paso | Ya existe. Lo usa la regeneración (GEN-R6). |
 | `generatorKind` | `ia` \| `respaldo` | Ya existe. |
 | `evidence` | `list[EvidenceSnapshotItem]` | Es la copia histórica de **todos** los fragmentos referenciados ([research R6](research.md#r6-copia-histórica-de-la-evidencia)). |
-| `contentFingerprint` | `str` | La calcula `ContentFingerprintPort` (GEN-R7). |
-| `verification` | `VerificationResult` | — |
-| `version` | `int` | Empieza en 1 y lo incrementa Revisión en cada edición (acuerdo con REV-01). |
+| `verification` | `VerificationResult` | Lo calcula `ResourceVerificationPort.verify`. Incluye la huella en `verification.fingerprint` (GEN-R7). |
+| `version` | `int` | Empieza en 1 (columna de REV-01) y lo incrementa Revisión en cada guardado. |
+| `regeneratedFrom` | `{resourceId, version}` \| ausente | Solo en recursos de un pedido `regeneration`. |
 
 ### EvidenceSnapshotItem
 
 Contiene `id`, `text`, `location`, `documentId`, `documentName`, `sourceUrl`, `license` y `retrievedAt`. Se copia de `EvidenceFragment`, donde `id` es `chunkId`.
 
-Los ids referenciados se obtienen con `referenced_fragment_ids(resource)` desde:
+Los ids referenciados se obtienen con `referenced_fragment_ids(resource)` de REV-01 desde:
 
 - `citations[].fragmentIds`
 - `options[].sourceFragmentIds`
@@ -136,16 +135,19 @@ Los ids referenciados se obtienen con `referenced_fragment_ids(resource)` desde:
 
 ### VerificationResult
 
+Es el bloque que define REV-01 en `specs/001-revision-citas/data-model.md`. Generación no agrega campos.
+
 | Campo | Tipo | Reglas |
 | --- | --- | --- |
-| `status` | `vigente` \| `pendiente` | Generación no emite `insuficiente`. |
+| `status` | `current` \| `insufficient` \| `pending` | Un recurso de GEN-01 llega con `current` o `pending`. Un borrador `insufficient` se rechaza en el paso. |
+| `reason` | `str \| null` | Motivo en español. Obligatorio si `status` no es `current`. |
+| `fingerprint` | `sha256:<hex>` | `content_fingerprint(resource)` de REV-01. |
+| `verifiedVersion` | `int` | `version` del recurso al verificar: 1 al crearlo. |
 | `evidenceThreshold` | `float` | Es el valor del pedido. |
-| `ruleVersion` | `int` | `VERIFICATION_RULE_VERSION`. |
+| `ruleVersion` | `int` | `VERIFICATION_RULE_VERSION` de `grounding.py`. |
 | `checkedAt` | ISO 8601 UTC | — |
-| `reasons` | `list[{code, message}]` | Va vacío en `vigente`. Los códigos posibles son `MISSING_REFERENCED_FRAGMENT`, `NO_VERIFIABLE_CLAIMS`, `CHECK_NOT_COMPLETED` y `BELOW_THRESHOLD`. |
-| `summary` | JSON | `grounding.summary()`, los resúmenes de `link_*_sources` y la fiabilidad de distractores. |
-
-`BELOW_THRESHOLD` se aplica cuando `supportedClaims / checkedClaims` del recurso, incluidas las afirmaciones quitadas, es menor que `evidenceThreshold`, aunque llegue al 50 % que exige `grounding` para no rechazarlo.
+| `retryAvailable` | `bool` | `true` solo si `status = pending` y la copia histórica está completa. |
+| `summary` | JSON | La misma forma de `ResourceGrounding`. |
 
 ## Persistencia
 
