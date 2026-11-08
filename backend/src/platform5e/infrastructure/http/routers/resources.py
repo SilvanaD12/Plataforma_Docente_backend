@@ -132,7 +132,13 @@ def create_resources_router(
         "/units/{unit_id}/resources/{resource_id}/regenerations",
         response_model=RegenerationResponse,
         summary="Regenerate a resource from review",
-        responses={**error_responses(401, 404, 409, 422), 502: {"model": ErrorResponse, "description": "REGENERATION_FAILED: the previous resource is unchanged; `message` gives the reason."}, 503: {"model": ErrorResponse, "description": "REGENERATION_UNAVAILABLE."}},
+        responses={
+            **error_responses(401, 404),
+            409: {"model": ErrorResponse, "description": "VERSION_CONFLICT, or Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE). The previous resource is unchanged."},
+            422: {"model": ErrorResponse, "description": "Invalid body, or Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING). The previous resource is unchanged."},
+            502: {"model": ErrorResponse, "description": "REGENERATION_FAILED: only for provider or unexpected failures. The previous resource is unchanged."},
+            503: {"model": ErrorResponse, "description": "REGENERATION_UNAVAILABLE."},
+        },
     )
     def regenerate_resource(
         unit_id: str, resource_id: str, body: RegenerationInput, teacher_id: str = Depends(current_teacher)
@@ -143,8 +149,11 @@ def create_resources_router(
         On success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the
         previous one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it
         was edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version
-        returns the same result without generating again. On failure the previous resource is unchanged (502
-        REGENERATION_FAILED with the reason). An outdated `expectedVersion` returns 409 VERSION_CONFLICT.
+        returns the same result without generating again. On failure the previous resource is unchanged and `message`
+        gives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the
+        unit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME); 502
+        REGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409
+        VERSION_CONFLICT.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.

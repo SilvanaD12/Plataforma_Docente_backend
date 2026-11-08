@@ -64,8 +64,8 @@ class Resources:
 class FakeGeneration:
     """Doble del puerto de regeneración: «genera» recursos nuevos guardándolos, como lo hace Generación."""
 
-    def __init__(self, resources: Resources, outcome: str = "succeeded", during=None) -> None:
-        self.resources, self.outcome, self.during = resources, outcome, during
+    def __init__(self, resources: Resources, outcome: str = "succeeded", during=None, failure_code: str | None = None) -> None:
+        self.resources, self.outcome, self.during, self.failure_code = resources, outcome, during, failure_code
         self.calls: list[dict[str, Any]] = []
 
     def request_regeneration(self, teacher_id, resource_id, resource_version, params) -> RegenerationStatus:
@@ -74,7 +74,7 @@ class FakeGeneration:
             self.during()
         request_id = f"req-{len(self.calls)}"
         if self.outcome == "failed":
-            return RegenerationStatus(request_id, "failed", (), "No hay material procesado en la unidad.")
+            return RegenerationStatus(request_id, "failed", (), "No hay material procesado en la unidad.", self.failure_code)
         new_id = f"nuevo-{len(self.calls)}"
         self.resources.save_resources(teacher_id, params["unitId"], [{k: v for k, v in explanation(new_id).items() if k != "version"}])
         return RegenerationStatus(request_id, "succeeded", (new_id,), None)
@@ -83,9 +83,9 @@ class FakeGeneration:
         raise AssertionError("el adaptador síncrono no se consulta")
 
 
-def build(outcome: str = "succeeded", during=None, resource: dict[str, Any] | None = None):
+def build(outcome: str = "succeeded", during=None, resource: dict[str, Any] | None = None, failure_code: str | None = None):
     resources = Resources(resource or explanation("viejo"))
-    generation = FakeGeneration(resources, outcome, during)
+    generation = FakeGeneration(resources, outcome, during, failure_code)
     return ResourceReviewService(Teachers(), resources, generation), resources, generation
 
 
@@ -178,3 +178,26 @@ def test_without_a_regeneration_port_the_service_says_it_is_not_available():
     with pytest.raises(AccountConfigurationError) as error:
         service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
     assert error.value.code == "REGENERATION_UNAVAILABLE" and error.value.status_code == 503
+
+
+@pytest.mark.parametrize(
+    ("generation_code", "http_status"),
+    [
+        ("NO_PROCESSED_MATERIAL", 409),
+        ("INSUFFICIENT_EVIDENCE", 409),
+        ("INVALID_OUTCOME", 422),
+        ("INVALID_SEQUENCE", 422),
+        ("REGENERATION_PARAMETERS_MISSING", 422),
+    ],
+)
+def test_a_rejection_for_the_teachers_data_keeps_the_generation_code(generation_code, http_status):
+    """REV-C13: si Generación rechaza el pedido por los datos del docente, se responde con su código (409 por el
+    material de la unidad, 422 por los parámetros guardados); 502 queda solo para fallos del proveedor."""
+    service, resources, _ = build(outcome="failed", failure_code=generation_code)
+    before = copy.deepcopy(resources.by_id["viejo"])
+    with pytest.raises(AccountConfigurationError) as error:
+        service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
+    assert error.value.code == generation_code and error.value.status_code == http_status
+    assert error.value.message == "No hay material procesado en la unidad."
+    old = resources.by_id["viejo"]
+    assert {k: old[k] for k in ("status", "body", "version")} == {k: before[k] for k in ("status", "body", "version")}

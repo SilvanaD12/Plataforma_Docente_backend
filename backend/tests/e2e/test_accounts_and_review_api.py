@@ -351,10 +351,11 @@ def test_regenerating_a_resource_from_review(server: str):
         assert again.status_code == 200 and again.json() == body
         assert len(api.get(base, headers=h).json()) == 2
 
-        # Sin material procesado la regeneración falla: el recurso queda igual y se informa el motivo (REV-C13).
+        # Sin material procesado Generación rechaza el pedido: se responde con su código (409, no 502), el recurso
+        # queda igual y se informa el motivo (REV-C13).
         assert api.delete(f"/api/v1/documents/{document['id']}", headers=h).status_code == 204
         failed = api.post(f"{base}/{new_id}/regenerations", headers=h, json={"expectedVersion": new["version"]})
-        assert failed.status_code == 502 and failed.json()["error"]["code"] == "REGENERATION_FAILED"
+        assert failed.status_code == 409 and failed.json()["error"]["code"] == "NO_PROCESSED_MATERIAL"
         assert failed.json()["error"]["message"]
         after = {r["id"]: r for r in api.get(base, headers=h).json()}[new_id]
         assert after["status"] == "pendiente" and after["version"] == new["version"] and after["body"] == new["body"]

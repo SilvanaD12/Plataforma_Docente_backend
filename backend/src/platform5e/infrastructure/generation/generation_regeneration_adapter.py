@@ -28,6 +28,9 @@ STORED_PARAMETERS: tuple[str, ...] = (
 )
 MISSING_PARAMETERS = "Faltan los parámetros guardados del recurso para regenerarlo: genera uno nuevo desde Generación."
 UNEXPECTED_ERROR = "La regeneración no pudo completarse. Inténtalo de nuevo más tarde."
+# Códigos propios del adaptador; los demás rechazos llevan el código de Generación.
+PARAMETERS_MISSING_CODE = "REGENERATION_PARAMETERS_MISSING"
+NO_RESOURCES_CODE = "INSUFFICIENT_EVIDENCE"
 
 
 class GenerationUseCase(Protocol):
@@ -59,16 +62,16 @@ class GenerationRegenerationAdapter:
                 {**{key: params[key] for key in STORED_PARAMETERS if key in params}, "quantity": 1}
             )
         except ValidationError:
-            return RegenerationStatus(request_id, "failed", (), MISSING_PARAMETERS)
+            return RegenerationStatus(request_id, "failed", (), MISSING_PARAMETERS, PARAMETERS_MISSING_CODE)
         try:
             result = self._generation.generate(request.to_domain(), teacher_id)
         except GenerationError as error:
-            return RegenerationStatus(request_id, "failed", (), error.message)
-        except Exception as error:  # el recurso anterior se conserva; se informa un motivo general
+            return RegenerationStatus(request_id, "failed", (), error.message, error.code)
+        except Exception as error:  # fallo del proveedor o inesperado: sin código, se responde 502
             logger.warning("Regeneración fallida (%s): %s", request_id, str(error)[:200])
             return RegenerationStatus(request_id, "failed", (), UNEXPECTED_ERROR)
         new_ids = tuple(resource["id"] for resource in result.get("resources") or [] if resource.get("id"))
         if not new_ids:
             notice = result.get("notice") or "Generación no devolvió recursos con respaldo suficiente."
-            return RegenerationStatus(request_id, "failed", (), f"La regeneración no produjo recursos nuevos. {notice}")
+            return RegenerationStatus(request_id, "failed", (), f"La regeneración no produjo recursos nuevos. {notice}", NO_RESOURCES_CODE)
         return RegenerationStatus(request_id, "succeeded", new_ids, None)

@@ -21,6 +21,9 @@ class RegenerationStatus:
     status: RegenerationState
     new_resource_ids: tuple[str, ...] = ()
     reason: str | None = None
+    # Solo en `failed`: código del rechazo por los datos del docente (p. ej. NO_PROCESSED_MATERIAL). None si falló el
+    # proveedor o algo inesperado.
+    code: str | None = None
 
 
 class ResourceRegenerationPort(Protocol):

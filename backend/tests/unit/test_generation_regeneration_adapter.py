@@ -69,3 +69,26 @@ def test_the_status_of_a_request_can_be_read_again():
     status = adapter.request_regeneration("ana", "rec-viejo", 3, PARAMS)
     assert adapter.get_regeneration("ana", status.request_id) == status
     assert adapter.get_regeneration("beto", status.request_id) is None
+
+
+def test_a_generation_error_keeps_its_code():
+    generation = FakeGenerationService(error=GenerationError("NO_PROCESSED_MATERIAL", "Procesa primero un documento de la unidad."))
+    status = GenerationRegenerationAdapter(generation).request_regeneration("ana", "rec-viejo", 3, PARAMS)
+    assert status.code == "NO_PROCESSED_MATERIAL"
+
+
+def test_no_new_resources_is_reported_as_insufficient_evidence():
+    generation = FakeGenerationService({"resources": [], "notice": "Ningún recurso tuvo respaldo suficiente."})
+    status = GenerationRegenerationAdapter(generation).request_regeneration("ana", "rec-viejo", 3, PARAMS)
+    assert status.code == "INSUFFICIENT_EVIDENCE"
+
+
+def test_missing_stored_parameters_have_their_own_code():
+    status = GenerationRegenerationAdapter(FakeGenerationService()).request_regeneration("ana", "rec-viejo", 3, {"unitId": "u1"})
+    assert status.code == "REGENERATION_PARAMETERS_MISSING"
+
+
+def test_an_unexpected_error_has_no_code_so_it_is_treated_as_a_provider_failure():
+    generation = FakeGenerationService(error=RuntimeError("timeout del proveedor"))
+    status = GenerationRegenerationAdapter(generation).request_regeneration("ana", "rec-viejo", 3, PARAMS)
+    assert status.code is None

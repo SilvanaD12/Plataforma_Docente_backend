@@ -417,8 +417,10 @@ class ResourceReviewService:
 
         if outcome.status != "succeeded":
             reason = outcome.reason or "La regeneración no terminó bien."
-            self._record_regeneration(teacher_id, unit_id, resource_id, {**record, "status": "failed", "reason": reason})
-            raise RegenerationFailedError(reason)
+            self._record_regeneration(
+                teacher_id, unit_id, resource_id, {**record, "status": "failed", "reason": reason, "code": outcome.code}
+            )
+            raise RegenerationFailedError(reason, outcome.code)
 
         for new_id in outcome.new_resource_ids:
             new = self._review_repository.get_resource_by_id(teacher_id, new_id)

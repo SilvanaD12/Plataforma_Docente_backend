@@ -48,7 +48,8 @@ paths:
       description: >
         Asks Generation for a new resource with the stored parameters and the current evidence of the material.
         On success the previous one is discarded with reason `regenerado` only if it is still at `expectedVersion`;
-        otherwise both stay in review. On failure the previous one is unchanged.
+        otherwise both stay in review. On failure the previous one is unchanged: a rejection for the teacher's data keeps
+        Generation's code (409 or 422) and 502 is left for provider failures.
       requestBody:
         required: true
         content:
@@ -61,8 +62,10 @@ paths:
       responses:
         '200': { description: Regeneration result, content: { application/json: { schema: { $ref: '#/components/schemas/RegenerationResponse' } } } }
         '404': { description: UNIT_NOT_FOUND or RESOURCE_NOT_FOUND }
-        '409': { description: VERSION_CONFLICT }
-        '502': { description: 'REGENERATION_FAILED: the previous resource is unchanged; `message` gives the reason' }
+        '409': { description: 'VERSION_CONFLICT, or Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); the previous resource is unchanged and `message` gives the reason' }
+        '422': { description: 'Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING); the previous resource is unchanged' }
+        '502': { description: 'REGENERATION_FAILED: only for provider or unexpected failures; the previous resource is unchanged' }
+        '503': { description: REGENERATION_UNAVAILABLE }
   /api/v1/units/{unit_id}/exports:
     post:
       summary: Export the eligible resources of a unit

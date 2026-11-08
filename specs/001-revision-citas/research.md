@@ -236,7 +236,8 @@ prefiere otra cosa, el cambio se concentra en el adaptador (ver «Qué cambiarí
 - **Puerto** `application/ports/outbound/resource_regeneration_port.py`, el que se propuso a Yan:
   `request_regeneration(teacher_id, resource_id, resource_version, params) -> RegenerationStatus` y
   `get_regeneration(teacher_id, request_id) -> RegenerationStatus | None`. `RegenerationStatus` trae `request_id`,
-  `status` (`pending`, `running`, `succeeded` o `failed`), `new_resource_ids` y `reason`.
+  `status` (`pending`, `running`, `succeeded` o `failed`), `new_resource_ids`, `reason` y `code` (solo en `failed`: el
+  código del rechazo por los datos del docente, o `None` si falló el proveedor o algo inesperado).
 - **Adaptador síncrono** `infrastructure/generation/generation_regeneration_adapter.py`. Arma el pedido con
   `GenerationRequest` (los `params` guardados del recurso, la unidad y `quantity = 1`) y llama a
   `GenerationService.generate`, el mismo caso de uso que usa `POST /api/v1/generations`, así que usa la evidencia
@@ -251,10 +252,15 @@ prefiere otra cosa, el cambio se concentra en el adaptador (ver «Qué cambiarí
     los recursos antiguos (D7). El anterior pasa a `descartado` con `discardReason = "regenerado"` con un guardado
     condicional por versión. Si el docente lo editó mientras tanto, no se toca, los dos quedan en Revisión y la
     respuesta trae `previousDiscarded: false`.
-  - Si falla, el anterior queda como estaba (contenido, estado y versión) y la ruta responde 502
-    `REGENERATION_FAILED` con el motivo. Solo se registra el fallo en `regeneration`.
+  - Si falla, el anterior queda como estaba (contenido, estado y versión) y `message` trae el motivo. Solo se
+    registra el fallo en `regeneration`. Si Generación rechazó el pedido por los datos del docente, se responde con su
+    código: **409** por el material de la unidad (`NO_PROCESSED_MATERIAL`, `INSUFFICIENT_EVIDENCE`, que también se usa
+    cuando no sale ningún recurso con respaldo) y **422** por los parámetros guardados (`INVALID_OUTCOME`,
+    `INVALID_SEQUENCE`, `REGENERATION_PARAMETERS_MISSING`). **502** `REGENERATION_FAILED` queda solo para fallos del
+    proveedor o inesperados. Generación ya cubre la caída de la IA con el generador por reglas, así que el 502 es raro.
 - **Ruta** `POST /api/v1/units/{unit_id}/resources/{resource_id}/regenerations` con `{expectedVersion}`. Errores: 404,
-  409 `VERSION_CONFLICT`, 502 `REGENERATION_FAILED` y 503 `REGENERATION_UNAVAILABLE`.
+  409 `VERSION_CONFLICT` o rechazo por el material, 422 por los parámetros guardados, 502 `REGENERATION_FAILED` y 503
+  `REGENERATION_UNAVAILABLE`.
 
 **Límites conocidos.**
 - Dos pedidos **simultáneos** desde la misma versión, en el mismo milisegundo, podrían pasar los dos antes de que
