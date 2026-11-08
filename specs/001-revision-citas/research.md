@@ -22,7 +22,7 @@ Cada decisión indica qué se eligió, por qué y qué alternativas se descartar
 | H11 | Los contratos `docs/api/contracts/resource-*.v1.json` describen otro modelo (snake_case, `quoted_text`, `similarity_score` coseno) que no coincide con el recurso guardado (`title`, `body`, `options`, `structure`, `citations`). | `docs/api/contracts/` | La huella se define sobre el modelo real guardado y expuesto en OpenAPI (D1). Los JSON antiguos no se modifican en esta entrega. |
 | H12 | En SQLite las migraciones SQL no se aplican: las tablas se crean con `create(checkfirst=True)`, que no agrega columnas a tablas existentes. | `database.py`, `sqlalchemy_account_repository.py:151` | La nueva columna `version` necesita un ajuste para SQLite además de la migración de PostgreSQL (D3). |
 | H13 | `citation.py` describe `similarity_score` como similitud coseno, pero la verificación es por palabras. | `infrastructure/http/schemas/citation.py` | Se corrige la descripción. |
-| H14 | En el frontend, `UnitLayout` y `UnitContext` solo existen en `feat/cuentas-y-cursos` (PR 2, en `d9d4f7d`). `feat/acceso-docente` (`ad7b8b4`) solo tiene `auth`, y `main` aún no tiene funcionalidades. Desde `d9d4f7d` («feat: preparar las pestañas de cada unidad»), la unidad tiene las rutas hijas `material`, `generation`, `review` y `export`, con pestañas `NavLink`, y las páginas marcador `src/features/review/pages/ReviewPage.tsx` y `src/features/export/pages/ExportPage.tsx` (`UnitModulePlaceholder`). | `Plataforma_Docente_frontend`: `src/app/App.tsx`, `src/features/units/pages/UnitLayout.tsx`, `src/shared/types/courses.ts` | La rama del frontend de REV-01 debe partir de `feat/cuentas-y-cursos`, o de `main` cuando se integre el PR 2. Las rutas y las pestañas ya las resolvió CC-01: REV-01 reemplaza el contenido de los dos marcadores (D12). |
+| H14 | En el frontend, `UnitLayout` y `UnitContext` estaban solo en `feat/cuentas-y-cursos` (PR 2). **Resuelto:** los PR #1 y #2 ya se integraron en `main` (`616390a`), que incluye `UnitLayout`, `UnitContext` y las pestañas. Desde `d9d4f7d` («feat: preparar las pestañas de cada unidad»), la unidad tiene las rutas hijas `material`, `generation`, `review` y `export`, con pestañas `NavLink`, y las páginas marcador `src/features/review/pages/ReviewPage.tsx` y `src/features/export/pages/ExportPage.tsx` (`UnitModulePlaceholder`). | `Plataforma_Docente_frontend`: `src/app/App.tsx`, `src/features/units/pages/UnitLayout.tsx`, `src/shared/types/courses.ts` | La rama del frontend de REV-01 se crea desde `main` actualizado. Las rutas y las pestañas ya las resolvió CC-01: REV-01 reemplaza el contenido de los dos marcadores (D12). |
 
 ## D1. Huella del contenido verificable (REV-R1, REV-R2 · REV-C2, C4, C5)
 
@@ -35,16 +35,17 @@ Se conservan las mayúsculas, porque pueden cambiar el sentido de una sigla.
 | Entra en la huella | Fuera de la huella |
 |---|---|
 | `type` | `id`, `title`, `status`, `edited`, fechas, `version` |
-| `body` normalizado | `bodyHtml`: solo formato visual |
+| `body` normalizado como lista de párrafos (los separa una línea en blanco), porque `verify_statements` verifica por párrafo | `bodyHtml`: solo formato visual. Las líneas en blanco de más y los espacios repetidos |
 | `citations`: cada `claim` normalizado con sus `fragmentIds` ordenados, y la lista ordenada | `media`, `evidence`, `params`, `grounding`, `verification`, `agent`, `generator*` |
-| `options`, **ordenadas por `id`**: `id`, `text`, `isCorrect` y `feedback` normalizados | En cada opción: `decision`, `discardReason`, `edited`, `misconception`, `reliabilityWarning` |
-| `structure`: la salida de `normalize_structure(type, structure)`, que ya limpia espacios y conserva el orden de las listas | — |
+| `options`, **ordenadas por `id`**: `id`, `text`, `isCorrect`, `feedback` y `sourceFragmentIds` ordenados (fuentes vinculadas, REV-R6) | En cada opción: `decision`, `discardReason`, `edited`, `misconception`, `reliabilityWarning` |
+| `structure`: la salida de `normalize_structure(type, structure)`, que ya limpia espacios y conserva el orden de las listas | En `structure` de la imagen: `alt` |
 
 **Por qué.**
 - Ordenar las opciones por su `id` estable hace que reordenarlas no cambie la huella (REV-C2).
 - Incluir `text` e `isCorrect` hace que cambiar la respuesta correcta o el texto de un distractor sí la cambie (REV-C2 y REV-C4).
 - Excluir `decision` deja que cambiar solo la decisión sobre un distractor aplique las reglas de aprobación sin volver a verificar (REV-C4).
 - `title` se excluye porque ninguna regla de `grounding.py` lo verifica.
+- `alt` de la imagen se excluye porque es texto de accesibilidad: no afirma nada y `grounding.py` no lo verifica. Si entrara, corregirlo devolvería a revisión un recurso aprobado (D5) sin que cambie ningún contenido verificable. `prompt` y `caption` sí entran.
 - En `structure`, el orden de pasos y secuencias sí es contenido, y por eso se respeta.
 - Reutilizar `normalize_structure` evita una segunda normalización por tipo (tabla de reutilización).
 
@@ -209,7 +210,7 @@ Si Sergio elige B, A puede quedar activa solo como red de seguridad mientras Gen
 - Función pura `media_source_changed(type, old_structure, new_structure)`: compara `prompt` para la imagen y `script` para el audio, normalizados con `normalize_structure`.
 - Si cambió y el archivo estaba `ready`, el recurso queda con el respaldo (`fallback_media(..., EDITED_NOTES)`) y `media.invalidated = true`.
 - `validate_approval_blockers` bloquea si `invalidated` sigue presente; «Generar de nuevo» lo limpia.
-- Si cambian solo `alt` o `caption`, se conserva el archivo. Igual sigue verificándose el contenido, porque `caption` entra en la huella.
+- Si cambian solo `alt` o `caption`, se conserva el archivo. Cambiar `alt` no cambia la huella. Cambiar `caption` sí la cambia y produce una nueva comprobación, porque entra en la huella.
 
 **Cambio de prueba existente.** `test_edited_media.py::test_editing_the_script_drops_the_old_audio_everywhere` hoy
 aprueba con el respaldo. Cambia para exigir el bloqueo, como pide REV-C8.
@@ -237,7 +238,7 @@ sin ese acuerdo.
 
 **Decisión.** Las tareas de frontend se planifican en esta carpeta, con la etiqueta `[FE]` (`specs/README.md`). Se
 implementan en la rama del módulo del repositorio `Plataforma_Docente_frontend`.
-- **Base.** La rama parte de `origin/feat/cuentas-y-cursos` (`d9d4f7d`), porque ahí están `UnitContext` y las pestañas de la unidad (H14), o de `main` cuando ese PR se integre.
+- **Base.** La rama se crea desde `main` actualizado (`616390a` o posterior), que ya incluye `UnitContext` y las pestañas de la unidad (H14).
 - **Pestañas.** Las rutas `review` y `export` y sus pestañas son de CC-01. REV-01 reemplaza el contenido de los marcadores `ReviewPage.tsx` y `ExportPage.tsx`, conserva sus nombres y exportaciones y no modifica `src/app/App.tsx`.
 - **Contexto.** Las pestañas leen `const { course, unit } = useOutletContext<UnitContext>()`, como `UnitOverviewPage`, y usan `unit.id` en las llamadas.
 - **Cliente HTTP.** Se reutiliza `request` y `ApiError` de `src/shared/api/httpClient.ts`.

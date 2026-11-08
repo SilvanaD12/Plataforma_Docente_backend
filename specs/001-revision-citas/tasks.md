@@ -31,31 +31,32 @@ Juan hace los commits, las ramas y los PR. Las tareas de cierre de cada bloque i
 
 ## Fase 1 · Preparación
 
-- [ ] T001 [BE] Correr la línea base de pruebas del backend en `feat/revision-y-exportacion` (los tres comandos de arriba) y anotar el resultado en el registro de avance antes de cambiar código. Ruta: `backend/tests/`.
-- [ ] T002 [FE] Clonar `Plataforma_Docente_frontend` y crear la rama `feat/revision-y-exportacion` desde `origin/feat/cuentas-y-cursos` (H14), o desde `main` si el PR 2 ya se integró. Correr `npm ci`, `npm run lint`, `npm test` y `npm run build` como línea base. Ruta: `Plataforma_Docente_frontend/`.
+- [x] T001 [BE] Correr la línea base de pruebas del backend en `feat/revision-y-exportacion` (los tres comandos de arriba) y anotar el resultado en el registro de avance antes de cambiar código. Ruta: `backend/tests/`.
+- [ ] T002 [FE] Clonar `Plataforma_Docente_frontend` y crear la rama `feat/revision-y-exportacion` desde `main` actualizado (`git switch main`, `git pull --ff-only origin main`; `616390a` o posterior, con los PR #1 y #2 integrados, H14). Comprobar que existen `UnitLayout`, `ReviewPage` y `ExportPage`. Correr `npm ci`, `npm run lint`, `npm test` y `npm run build` como línea base. Ruta: `Plataforma_Docente_frontend/`.
 
 ## Fase 2 · Base compartida: bloque a) huella y versión de la regla
 
 Bloquea a todas las historias. Casos REV-C2, C4, C5 · REV-R1, R2.
 
-- [ ] T003 [P] [BE] Crear `backend/tests/unit/test_content_fingerprint.py`. Debe probar:
+- [x] T003 [P] [BE] Crear `backend/tests/unit/test_content_fingerprint.py`. Debe probar:
   - Formato `sha256:<64 hex>`.
   - Espacios equivalentes, `bodyHtml`, `title`, `status`, `edited`, `media`, `evidence` y `grounding` no cambian la huella.
   - Reordenar `options` con los mismos `id` no la cambia (REV-C2).
   - Cambiar `decision` o `discardReason` de un distractor no la cambia (REV-C4).
   - Cambiar el texto de la opción correcta, el texto de un distractor, un `feedback`, un `claim` o `body` sí la cambia (REV-C2, C4).
   - Cambiar los `fragmentIds` referenciados en `citations`, `options` o `structure` también la cambia: son las fuentes vinculadas de REV-R6.
-  - En la imagen, cambiar `prompt`, `alt` o `caption` la cambia.
+  - En la imagen, cambiar `prompt` o `caption` la cambia. Cambiar solo `alt` **no** la cambia (D1).
   - En `ordenar_pasos`, cambiar el orden de `sequence` la cambia.
   - Dos recursos con distinta huella permiten detectar un resultado de otra versión (REV-C5).
-- [ ] T004 [BE] Crear `backend/src/platform5e/domain/review/__init__.py` y `backend/src/platform5e/domain/review/content_fingerprint.py`, con `normalize_verifiable_content(resource) -> dict` y `content_fingerprint(resource) -> str`, según D1 de [research.md](research.md#d1-huella-del-contenido-verificable-rev-r1-rev-r2--rev-c2-c4-c5):
-  - NFC y espacios colapsados.
-  - Opciones ordenadas por `id`, con `id`, `text`, `isCorrect` y `feedback`.
+- [x] T004 [BE] Crear `backend/src/platform5e/domain/review/__init__.py` y `backend/src/platform5e/domain/review/content_fingerprint.py`, con `normalize_verifiable_content(resource) -> dict` y `content_fingerprint(resource) -> str`, según D1 de [research.md](research.md#d1-huella-del-contenido-verificable-rev-r1-rev-r2--rev-c2-c4-c5):
+  - NFC y espacios colapsados; `body` como lista de párrafos.
+  - Opciones ordenadas por `id`, con `id`, `text`, `isCorrect`, `feedback` y `sourceFragmentIds`.
+  - Sin `alt` en la estructura de la imagen.
   - `citations` normalizadas y ordenadas.
   - `structure` pasada por `normalize_structure`.
   - JSON canónico y SHA-256.
   - Sin importar `application` ni `infrastructure`.
-- [ ] T005 [P] [BE] Agregar `VERIFICATION_RULE_VERSION: int = 1` en `backend/src/platform5e/domain/generation/grounding.py`, con un comentario que diga cuándo se incrementa. No cambiar ninguna otra regla del archivo, porque es compartido con Generación.
+- [x] T005 [P] [BE] Agregar `VERIFICATION_RULE_VERSION: int = 1` en `backend/src/platform5e/domain/generation/grounding.py`, con un comentario que diga cuándo se incrementa. No cambiar ninguna otra regla del archivo, porque es compartido con Generación.
 - [ ] T006 [BE] Cierre del bloque a): correr las pruebas, comprobar que `test_grounding.py` y `test_distractor_reliability.py` siguen pasando sin cambios, anotar los resultados y hacer el **commit a)**. Ruta: `backend/tests/`.
 
 ## Fase 3 · Historia 1: editar sin perder el control del respaldo (prioridad 1)
@@ -145,7 +146,7 @@ sin una verificación vigente.
 
 ### FE-1 · Pestaña de revisión (REV-C1, C3, C11, C14)
 
-> Las rutas `review` y `export` de la unidad, sus pestañas y las páginas marcador ya existen en `origin/feat/cuentas-y-cursos` desde `d9d4f7d` (CC-01). Las tareas de FE-1 y FE-2 reemplazan el contenido de esos marcadores.
+> Las rutas `review` y `export` de la unidad, sus pestañas y las páginas marcador ya existen en `main` del frontend desde `d9d4f7d` (CC-01, integrado en `616390a`). Las tareas de FE-1 y FE-2 reemplazan el contenido de esos marcadores.
 
 - [x] T026 [FE] [US1] **No aplica, resuelta por CC-01** en `d9d4f7d`: las rutas hijas `review` y `export` de `:courseId/units/:unitId` en `Plataforma_Docente_frontend/src/app/App.tsx` y sus pestañas en `src/features/units/pages/UnitLayout.tsx` ya existen. Solo comprobar en T002 que la rama del frontend las incluye.
 - [ ] T027 [P] [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/api/reviewApi.test.ts` con Vitest:

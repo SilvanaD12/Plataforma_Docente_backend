@@ -44,7 +44,7 @@ Las reglas completas están en la decisión D1 de [research.md](research.md#d1-h
 | Tipo de recurso | Campos de `structure` que entran |
 |---|---|
 | Texto (`explicacion`, `glosario`, `item_opcion_multiple`, …) | Ninguno. Entran `body`, `citations` y `options`. |
-| `imagen_ilustrativa` (imagen) | `prompt`, `alt`, `caption` |
+| `imagen_ilustrativa` (imagen) | `prompt` y `caption`. `alt` no entra: es texto de accesibilidad y no se verifica (D1) |
 | `audio_detonante` (audio) | `script` |
 | Visuales e interactivos (`mapa_conceptual`, `infografia`, `diagrama_proceso`, `exploracion_guiada`, `reto_prediccion`, `caso_aplicado`, `ordenar_pasos`, `emparejamiento`, `verdadero_falso`, `completar_espacios`) | Toda la salida de `normalize_structure`, incluidos los `fragmentIds` de pasos, predicciones y criterios, en su orden |
 

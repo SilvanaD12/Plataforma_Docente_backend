@@ -143,8 +143,8 @@ tests/
 
 ### Código fuente del frontend (`Plataforma_Docente_frontend/`)
 
-**Rama.** `feat/revision-y-exportacion`, creada desde `origin/feat/cuentas-y-cursos`, porque ahí está `UnitContext`
-(H14), o desde `main` cuando se integre el PR 2. Las rutas `review` y `export` de la unidad, sus pestañas y las páginas
+**Rama.** `feat/revision-y-exportacion`, creada desde `main` actualizado (`616390a` o posterior), que ya integra los
+PR #1 y #2 con `UnitContext` (H14). Las rutas `review` y `export` de la unidad, sus pestañas y las páginas
 marcador `ReviewPage` y `ExportPage` ya existen desde `d9d4f7d` (CC-01): REV-01 reemplaza el contenido de esos
 marcadores y no toca `src/app/App.tsx`. **Código anterior.**
 `Yansete/plataforma-5e-frontend@feca57c`, carpetas `src/features/review` y `src/features/export`, que se adaptan
