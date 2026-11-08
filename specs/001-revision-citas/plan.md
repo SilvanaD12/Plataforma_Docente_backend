@@ -144,13 +144,14 @@ tests/
 ### Código fuente del frontend (`Plataforma_Docente_frontend/`)
 
 **Rama.** `feat/revision-y-exportacion`, creada desde `origin/feat/cuentas-y-cursos`, porque ahí está `UnitContext`
-(H14), o desde `main` cuando se integre el PR 2. **Código anterior.**
+(H14), o desde `main` cuando se integre el PR 2. Las rutas `review` y `export` de la unidad, sus pestañas y las páginas
+marcador `ReviewPage` y `ExportPage` ya existen desde `d9d4f7d` (CC-01): REV-01 reemplaza el contenido de esos
+marcadores y no toca `src/app/App.tsx`. **Código anterior.**
 `Yansete/plataforma-5e-frontend@feca57c`, carpetas `src/features/review` y `src/features/export`, que se adaptan
 según los casos REV y no se copian completas.
 
 ```text
 src/
-├── app/App.tsx                               A  rutas hijas de UnitLayout: review y export (acordar con Silvana, D12)
 ├── shared/api/httpClient.ts                  R  request y ApiError
 ├── shared/types/courses.ts                   R  Course, Unit y UnitContext
 ├── features/review/
@@ -158,11 +159,11 @@ src/
 │   ├── model/resource.ts                     C  Resource, VerificationResult y etiquetas vigente, insuficiente y pendiente
 │   ├── components/VerificationBadge.tsx      C  estado y motivo; «Reintentar comprobación» o aviso de regenerar
 │   ├── components/ResourceEditor.tsx         C  edición de texto, opciones y estructura; envía la version leída
-│   ├── pages/ReviewTab.tsx                   C  lee { course, unit } con useOutletContext<UnitContext>()
+│   ├── pages/ReviewPage.tsx                  A  reemplaza el marcador de CC-01; lee { course, unit } con useOutletContext<UnitContext>()
 │   └── *.test.ts(x)                          C  Vitest: cliente, etiquetas, 409 VERSION_CONFLICT, reviewReset
 └── features/export/
     ├── api/exportApi.ts                      C  exportar (descarga del archivo) e historial por docente
-    ├── pages/ExportTab.tsx                   C  formatos, motivo sin elegibles (details del 422) e historial
+    ├── pages/ExportPage.tsx                  A  reemplaza el marcador de CC-01: formatos, motivo sin elegibles (details del 422) e historial
     └── *.test.ts(x)                          C  Vitest: motivos del 422 e historial con «Curso eliminado»
 ```
 
@@ -192,11 +193,11 @@ backend local en el puerto 8000 y `VITE_API_URL` vacío.
 | a) | `content_fingerprint.py`, `VERIFICATION_RULE_VERSION` y pruebas | REV-C2, C4, C5 · R1, R2 | — | commit |
 | b) | `resource_verification.py`, columna `version`, PUT con `expectedVersion`, reverificación al guardar, `reviewReset` y prueba de reproceso del material | REV-C1, C6, C14 · R3, R4, R6, R12 | Aviso a Yan (`verification` al crear) | commit |
 | c) | Bloqueos por verificación, estado con motivo, reintento y recursos pendientes desde Generación | REV-C3, C10, C11 · R5 | — | commit y **PR 1** del backend |
-| FE-1 | Rutas `review` y `export`, `ReviewTab` con estados, reintento, conflicto y `reviewReset` | REV-C1, C3, C11, C14 | PR 1 del backend y acuerdo de rutas con Silvana | **PR 1** del frontend |
+| FE-1 | `ReviewPage` con estados, reintento, conflicto y `reviewReset` (las rutas y pestañas ya las dejó CC-01 en `d9d4f7d`) | REV-C1, C3, C11, C14 | PR 1 del backend | **PR 1** del frontend |
 | d) | `export_eligibility.py`, filtro común, registro único con curso y unidad, historial por docente y retiro de rutas | REV-C7, C9 · R7, R9 | Silvana: `delete_course` (CC-01, T008) y rutas | commit |
 | e) | `media_change.py`, `media.invalidated` y actualización de recursos antiguos (REV-R11, opción A o B) | REV-C8 · R8, R11 | Sergio (migración y opción de D7) y equipo (riesgo de D9) | commit |
 | f) | Puerto y adaptador de regeneración y ruta `…/regenerations` | REV-C12, C13 · R10 | Contrato con Yan (GEN-R6) | commit y **PR 2** del backend |
-| FE-2 | `ExportTab` con motivo sin elegibles e historial; regeneración en `ReviewTab`; aviso de multimedia | REV-C7, C8, C9, C12, C13 | PR 2 del backend | **PR 2** del frontend |
+| FE-2 | `ExportPage` con motivo sin elegibles e historial; regeneración en `ReviewPage`; aviso de multimedia | REV-C7, C8, C9, C12, C13 | PR 2 del backend | **PR 2** del frontend |
 | E2E | Dos recorridos en el navegador: editar, verificar, aprobar y exportar; y borrar un curso y ver el historial | REV-C1, C3, C7, C9 | FE-2 y CC-01 T008 | evidencia en los PR |
 
 En cada bloque se escriben las pruebas primero, luego la implementación, y después se corren los comandos de
