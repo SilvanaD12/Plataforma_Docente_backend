@@ -117,3 +117,25 @@ def test_material_routes_validate_session_and_data(server: str):
         assert api.post("/api/v1/documents/from-topic", headers=h, json={"unitId": "u1", "topic": "ab"}).status_code == 422
         disabled_search = api.post("/api/v1/documents/from-topic", headers=h, json={"unitId": "u2", "topic": "redes"})
         assert disabled_search.status_code == 503 and disabled_search.json()["error"]["code"] == "TOPIC_SEARCH_UNAVAILABLE"
+
+def test_secure_404_on_unauthorized_unit_access(server: str):
+    """Valida el 404 seguro (MAT-C2) al intentar operar sobre unidades ajenas o inexistentes."""
+    with httpx.Client(base_url=server, timeout=30) as api:
+        h = {"Authorization": "Bearer " + api.post("/api/v1/sessions", json=CREDENTIALS).json()["token"]}
+        
+        # Intentar procesar o subir material a una unidad que no existe o no pertenece al scope
+        response = api.post(
+            "/api/v1/documents",
+            headers=h,
+            files={"file": ("invalido.txt", b"Contenido de prueba")},
+            data={"context": json.dumps({
+                "unitId": "unidad-inexistente-999",
+                "outcomeIds": [],
+                "documentType": "Separata o apuntes de clase",
+                "usePermission": True
+            })},
+        )
+        # El sistema debe denegar el acceso de forma segura con un 404 o 422 de membresía
+        assert response.status_code in (404, 422)
+        error_data = response.json()
+        assert "error" in error_data

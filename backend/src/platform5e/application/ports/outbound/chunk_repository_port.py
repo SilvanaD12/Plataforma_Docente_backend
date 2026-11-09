@@ -25,3 +25,7 @@ class ChunkRepositoryPort(Protocol):
     def update_document(self, teacher_id: str, document_data: dict[str, Any]) -> None:
         """Actualiza los metadatos o estado de un documento educativo."""
         ...
+
+    def delete_by_course_id(self, course_id: str) -> None:
+        """Elimina todos los fragmentos asociados a un curso."""
+        ...

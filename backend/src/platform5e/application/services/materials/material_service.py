@@ -15,6 +15,7 @@ from platform5e.application.ports.outbound.chunk_repository_port import ChunkRep
 from platform5e.application.ports.outbound.open_educational_resource_port import OpenEducationalResourcePort
 from platform5e.application.ports.outbound.text_extractor_port import TextExtractorPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
+from platform5e.application.ports.outbound.unit_membership_port import UnitMembershipPort
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.domain.materials.chunking import MaterialError, chunk_pages
@@ -42,6 +43,9 @@ def build_article_filename(title: str, source_label: str = "") -> str:
 class MaterialService:
     """Servicio de aplicación para coordinar la ingesta y extracción de fragmentos de material."""
 
+    # Declaración explícita para que Pylance la reconozca en toda la clase
+    _unit_membership_port: UnitMembershipPort | None
+
     def __init__(
         self,
         teacher_repository: TeacherRepositoryPort,
@@ -49,12 +53,14 @@ class MaterialService:
         text_extractor: TextExtractorPort,
         open_resource_port: OpenEducationalResourcePort | None = None,
         embedding_service: ChunkEmbeddingService | None = None,
+        unit_membership_port: UnitMembershipPort | None = None,
     ) -> None:
         self._teacher_repository = teacher_repository
         self._chunk_repository = chunk_repository
         self._text_extractor = text_extractor
         self._open_resource_port = open_resource_port
         self._embedding_service = embedding_service
+        self._unit_membership_port = unit_membership_port
 
     def _get_document(self, teacher_id: str, document_id: str) -> tuple[dict[str, Any], bytes]:
         """Recupera los metadatos y bytes del documento validando existencia."""
@@ -69,6 +75,30 @@ class MaterialService:
         if match is None:
             raise MaterialError("UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404)
         return match[1]
+
+    def validate_unit_membership_secure(self, teacher_id: str, unit_id: str, outcome_ids: list[str]) -> None:
+            """
+            Valida que el docente tenga acceso a la unidad y que los outcomes pertenezcan a ella.
+            Implementa MAT-C2: Unidad ajena o inexistente devuelven el mismo 404 Not Found.
+            """
+            if not self._unit_membership_port:
+                return
+
+            context = self._unit_membership_port.get_unit_context(teacher_id, unit_id)
+            
+            if context is None:
+                raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
+
+            if outcome_ids:
+                valid_ids = {out["id"] for out in context.get("outcomes", [])}
+                invalid_ids = set(outcome_ids) - valid_ids
+                
+                if invalid_ids:
+                    raise MaterialError(
+                        "INVALID_OUTCOMES", 
+                        "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.", 
+                        400
+                    )
 
     def process_material(self, teacher_id: str, document_id: str) -> dict[str, Any]:
         """Extrae el texto del documento, lo divide en fragmentos y persiste el resultado."""

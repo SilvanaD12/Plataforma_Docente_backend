@@ -19,6 +19,8 @@ from sqlalchemy import (
     select,
 )
 
+from pgvector.sqlalchemy import Vector
+
 from platform5e.application.ports.outbound.generation_repository_port import GenerationRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine
@@ -106,6 +108,9 @@ class ChunkORM(Base):
     order_index = Column("orden", Integer, nullable=False)
     location = Column("ubicacion", String, nullable=False)
     text_content = Column("texto", Text, nullable=False)
+    # Campos para soporte de vectores de 768 dimensiones (pgvector)
+    embedding = Column(Vector(768), nullable=True)
+    model_name = Column("modelo_embedding", String, nullable=True)
 
 
 class TeacherResourceORM(Base):

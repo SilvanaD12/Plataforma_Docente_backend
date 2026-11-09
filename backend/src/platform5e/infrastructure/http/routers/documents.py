@@ -37,6 +37,21 @@ def create_documents_router(account_service: AccountService, material_service: M
     router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
     current_teacher = current_teacher_dependency(account_service)
 
+    @router.get(
+        "/search",
+        summary="Hybrid search of evidence across documents",
+        responses=error_responses(401, 404),
+    )
+    def search_evidence(
+        query: str,
+        unit_id: str | None = None,
+        top_k: int = 5,
+        teacher_id: str = Depends(current_teacher),
+    ) -> list[dict[str, Any]]:
+        """Realiza una búsqueda híbrida (BM25 + pgvector HNSW) para recuperar fragmentos relevantes."""
+        # Aquí puedes invocar tu HybridEvidenceRetriever configurado a través del material_service o repositorio correspondiente
+        return material_service.search_evidence(teacher_id, query, top_k=top_k, unit_id=unit_id)
+    
     @router.get("", response_model=list[DocumentResponse], summary="List my documents", responses=error_responses(401))
     def list_documents(teacher_id: str = Depends(current_teacher)) -> list[dict[str, Any]]:
         """Documents of every unit of the teacher, with their processing status.
@@ -78,6 +93,14 @@ def create_documents_router(account_service: AccountService, material_service: M
                 parsed_context = DocumentContextInput.model_validate(json.loads(context)).model_dump(by_alias=True)
             except (ValueError, TypeError, ValidationError):
                 raise AccountConfigurationError("INVALID_CONTEXT", "Revisa los datos del documento.", 422)
+            
+            # Validación de seguridad MAT-C2 antes de gastar memoria leyendo el archivo
+            material_service.validate_unit_membership_secure(
+                teacher_id, 
+                parsed_context["unitId"], 
+                parsed_context.get("outcomeIds", [])
+            )
+
             content = await file.read(MAX_FILE_SIZE + 1)
             return account_service.register_document(teacher_id, file.filename or "archivo", content, parsed_context)
         finally:

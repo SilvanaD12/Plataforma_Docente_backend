@@ -19,7 +19,7 @@ from platform5e.domain.materials.text_analysis import retrieve_relevant_chunks
 logger = logging.getLogger("platform5e.retrieval")
 
 # Timeout estricto de 10 segundos para no bloquear la consulta si Gemini responde lento
-EMBEDDING_QUERY_TIMEOUT_SECONDS: float = 10.0
+EMBEDDING_QUERY_TIMEOUT_SECONDS: float = 1.5
 
 
 class HybridEvidenceRetriever:
