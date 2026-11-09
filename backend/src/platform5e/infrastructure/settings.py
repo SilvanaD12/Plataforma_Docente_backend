@@ -21,6 +21,8 @@ DEMO_CATALOG                solo pruebas: cuenta y curso de ejemplo
 DATABASE_URL                conexión a PostgreSQL (Neon) o SQLite
 GENERATION_MAX_WORKERS      hilos que ejecutan pedidos de generación por proceso (por defecto 2)
 GENERATION_REQUEST_DEADLINE_SECONDS  tiempo máximo de un pedido de generación (por defecto 900)
+GENERATION_REGENERATION_WAIT_SECONDS  segundos que la regeneración desde Revisión espera el pedido antes de responder
+                            `running` (por defecto 10; 0 responde enseguida)
 """
 
 from __future__ import annotations
@@ -64,6 +66,8 @@ DEFAULT_GENERATION_REQUEST_DEADLINE_SECONDS: int = 900
 DEFAULT_GENERATION_HEARTBEAT_SECONDS: float = 15.0
 DEFAULT_GENERATION_SWEEP_INTERVAL_SECONDS: int = 30
 GENERATION_STALE_REQUEST_SECONDS: int = 60
+# T029: la regeneración desde Revisión espera hasta 10 s el resultado antes de responder `running`.
+DEFAULT_GENERATION_REGENERATION_WAIT_SECONDS: float = 10.0
 
 
 def read_positive_int(name: str, default: int, environment: Mapping[str, str] | None = None) -> int:
@@ -90,3 +94,13 @@ def generation_sweep_interval_seconds(environment: Mapping[str, str] | None = No
     return read_positive_int(
         "GENERATION_SWEEP_INTERVAL_SECONDS", DEFAULT_GENERATION_SWEEP_INTERVAL_SECONDS, environment
     )
+
+
+def generation_regeneration_wait_seconds(environment: Mapping[str, str] | None = None) -> float:
+    """Segundos (0 o más) que la regeneración espera el pedido. Un valor vacío, no numérico o negativo deja 10."""
+    value = read_setting("GENERATION_REGENERATION_WAIT_SECONDS", "", environment).strip()
+    try:
+        seconds = float(value)
+    except ValueError:
+        return DEFAULT_GENERATION_REGENERATION_WAIT_SECONDS
+    return seconds if seconds >= 0 and seconds == seconds else DEFAULT_GENERATION_REGENERATION_WAIT_SECONDS

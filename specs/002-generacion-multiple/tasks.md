@@ -146,6 +146,7 @@ Dependencias externas que bloquean tareas:
 - [x] T028 [BE] **Depende de REV-01 PR 1.** Crear `backend/src/platform5e/application/use_cases/generation/start_regeneration.py`. Caso GEN-C7. [PR #14 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/14).
   - Crea un pedido `regeneration` de un paso con los `params` guardados del recurso y la evidencia actual.
   - Usa la clave `regen-{resourceId}-v{resourceVersion}`.
+  - Si el último intento de esa versión terminó `failed` o `interrupted`, crea otro con la clave siguiente (`-r2`, `-r3`…). Si sigue en curso o terminó `succeeded`, devuelve ese mismo ([research R9](research.md#r9-regeneración-y-edición-durante-el-pedido)).
   - Un recurso sin `params` lanza `REGENERATION_UNAVAILABLE`.
   - Los recursos nuevos llevan `regeneratedFrom: {resourceId, version}`.
 - [ ] T029 [BE] **Depende de REV-01 PR 1 y T028.** Implementar `backend/src/platform5e/infrastructure/adapters/generation_regeneration_adapter.py` sobre `resource_regeneration_port.py`, y en `main.py` reemplazar con él el adaptador síncrono provisional de Revisión. Caso GEN-C7.

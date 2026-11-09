@@ -67,7 +67,8 @@ def server(tmp_path: Path, e2e_database_url: str) -> Iterator[str]:
             sys.executable,
             "-m",
             "uvicorn",
-            "platform5e.main:create_application",
+            # Una prueba puede arrancar otra fábrica (por ejemplo, con un generador falso) con E2E_APP_FACTORY.
+            os.environ.get("E2E_APP_FACTORY", "platform5e.main:create_application"),
             "--factory",
             "--app-dir",
             src_dir,
