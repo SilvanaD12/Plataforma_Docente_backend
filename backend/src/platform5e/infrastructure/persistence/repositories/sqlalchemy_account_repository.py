@@ -128,6 +128,9 @@ class TeacherResourceORM(Base):
     # REV-01 (REV-C12): versión desde la que hay un pedido de regeneración reservado; NULL sin pedido en curso.
     # Migración 20261109000001_regeneration_claim.sql.
     regeneration_claim = Column(Integer, nullable=True)
+    # REV-01 (REV-C12): `attemptId` del intento de regeneración vigente; las escrituras de su resultado lo comparan.
+    # Migración 20261111000001_regeneration_attempt.sql.
+    regeneration_attempt = Column(String, nullable=True)
 
 
 class DownloadORM(Base):

@@ -12,6 +12,7 @@ import time
 from typing import Any
 from uuid import uuid4
 
+import pytest
 from sqlalchemy import URL, create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -181,3 +182,70 @@ def test_two_overlapping_status_queries_keep_the_discarded_result(tmp_path, monk
     assert [r["previousDiscarded"] for r in results] == [True, True]
     old = repository.get_resource_by_id(TEACHER, "viejo")
     assert old["status"] == "descartado" and old["regeneration"]["previousDiscarded"] is True
+
+
+class LateGeneration:
+    """Doble del adaptador en segundo plano: cada pedido queda `running`. La primera consulta del primer pedido espera
+    a Generación; mientras tanto ese pedido falla y el docente lo pide otra vez. Después llega la respuesta tardía."""
+
+    def __init__(self, late_status: str) -> None:
+        self.late_status = late_status
+        self.requests = 0
+        self.while_waiting = lambda: None
+        self._waiting = True
+
+    def request_regeneration(self, teacher_id, resource_id, resource_version, params) -> RegenerationStatus:
+        self.requests += 1
+        return RegenerationStatus(f"gen-req-{self.requests}", "running")
+
+    def get_regeneration(self, teacher_id, request_id) -> RegenerationStatus | None:
+        if self._waiting:
+            self._waiting = False
+            self.while_waiting()
+            new_ids = ("nuevo-tardio",) if self.late_status == "succeeded" else ()
+            return RegenerationStatus(request_id, self.late_status, new_ids, "Respuesta tardía.")  # type: ignore[arg-type]
+        return RegenerationStatus(request_id, "failed", (), "Generación no respondió a tiempo.")
+
+
+@pytest.mark.parametrize("late_status", ["failed", "succeeded"])
+def test_a_late_answer_of_an_old_attempt_leaves_the_new_attempt_intact(tmp_path, monkeypatch, request, late_status):
+    """Revisión de Silvana en el PR #17 de Yan, con el repositorio real: la respuesta tardía del primer intento no
+    cambia el registro, la reserva ni el recurso del intento nuevo, que parte de la misma versión."""
+    engine = create_engine(URL.create("sqlite", database=str(tmp_path / "tardia.db")))
+    request.addfinalizer(engine.dispose)
+    sessions = sessionmaker(bind=engine)
+    monkeypatch.setattr(accounts, "engine", engine)
+    monkeypatch.setattr(accounts, "SessionLocal", sessions)
+    monkeypatch.setattr(generations, "engine", engine)
+    monkeypatch.setattr(resources, "engine", engine)
+    monkeypatch.setattr(resources, "SessionLocal", sessions)
+
+    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    course = AccountService(account_repository, "", "").save_course(
+        TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
+    )
+    unit_id = course["units"][0]["id"]
+    repository = resources.SQLAlchemyResourceRepository()
+    repository.save_resources(TEACHER, unit_id, [explanation("viejo", unit_id)])
+    generation = LateGeneration(late_status)
+    service = ResourceReviewService(account_repository, repository, generation)
+    service.list_resources(TEACHER, unit_id)
+    version = repository.get_resource_by_id(TEACHER, "viejo")["version"]
+    assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
+    if late_status == "succeeded":
+        repository.save_resources(TEACHER, unit_id, [explanation("nuevo-tardio", unit_id)])
+
+    def fail_and_retry() -> None:
+        assert service.get_regeneration_status(TEACHER, unit_id, "viejo")["status"] == "failed"
+        assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
+
+    generation.while_waiting = fail_and_retry
+    answer = service.get_regeneration_status(TEACHER, unit_id, "viejo")
+
+    old = repository.get_resource_by_id(TEACHER, "viejo")
+    assert old["regeneration"]["requestId"] == "gen-req-2" and old["regeneration"]["status"] == "running"
+    assert old["status"] == "pendiente" and old["version"] == version, "la respuesta vieja descartó el recurso"
+    assert answer["status"] == "running"
+    # La reserva del intento nuevo sigue tomada: pedirlo otra vez desde la misma versión no crea otro pedido.
+    assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
+    assert generation.requests == 2, "la respuesta vieja liberó la reserva del intento nuevo"

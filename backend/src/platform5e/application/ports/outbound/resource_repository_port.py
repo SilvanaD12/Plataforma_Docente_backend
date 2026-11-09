@@ -43,14 +43,31 @@ class ResourceReviewRepositoryPort(Protocol):
         self, teacher_id: str, unit_id: str, resource: dict[str, Any], expected_version: int
     ) -> bool:
         """REV-C12: reserva de forma atómica el pedido de regeneración desde `expected_version` y guarda `resource`
-        (con su registro `regeneration`) sin cambiar la versión.
+        (con su registro `regeneration`) sin cambiar la versión. El `attemptId` de `resource["regeneration"]` pasa a ser
+        el intento vigente.
 
         Devuelve False, sin modificar nada, si la versión ya no es la vigente o si otro pedido ya reservó esa versión.
         """
         ...
 
-    def release_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int) -> None:
-        """Libera la reserva de `expected_version` (por ejemplo, si la regeneración falló) para poder pedirla otra vez."""
+    def save_resource_if_attempt(
+        self,
+        teacher_id: str,
+        unit_id: str,
+        resource: dict[str, Any],
+        expected_version: int,
+        attempt_id: str,
+        increment: bool = False,
+    ) -> bool:
+        """REV-C12: como `save_resource_if_version`, pero además solo si `attempt_id` sigue siendo el intento de
+        regeneración vigente, comparado en la misma escritura. Así la respuesta tardía de un intento viejo no cambia
+        nada del intento nuevo, aunque los dos partan de la misma versión.
+        """
+        ...
+
+    def release_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, attempt_id: str) -> None:
+        """Libera la reserva (por ejemplo, si la regeneración falló) para poder pedirla otra vez, solo si `attempt_id`
+        sigue siendo el intento vigente: un intento viejo no libera la reserva de uno nuevo."""
         ...
 
     def delete_resource(self, teacher_id: str, resource_id: str) -> None:
