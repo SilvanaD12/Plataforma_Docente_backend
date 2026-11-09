@@ -44,6 +44,7 @@ class Resources:
         self.by_id = {r["id"]: copy.deepcopy(r) for r in resources}
         self.claims: dict[str, int] = {}
         self.attempts: dict[str, str | None] = {}
+        self.attempt_statuses: dict[str, str | None] = {}
 
     def get_resource_by_id(self, teacher_id: str, resource_id: str) -> dict[str, Any] | None:
         return copy.deepcopy(self.by_id.get(resource_id)) if teacher_id == "ana" else None
@@ -70,15 +71,19 @@ class Resources:
             return False
         self.claims[resource["id"]] = expected_version
         self.attempts[resource["id"]] = (resource.get("regeneration") or {}).get("attemptId")
+        self.attempt_statuses[resource["id"]] = "running"
         self.by_id[resource["id"]] = {**copy.deepcopy(resource), "version": expected_version}
         return True
 
     def save_resource_if_attempt(
         self, teacher_id, unit_id, resource, expected_version, attempt_id, increment=False
     ) -> bool:
-        if self.attempts.get(resource["id"]) != attempt_id:
+        if self.attempts.get(resource["id"]) != attempt_id or self.attempt_statuses.get(resource["id"]) != "running":
             return False
-        return self.save_resource_if_version(teacher_id, unit_id, resource, expected_version, increment)
+        if not self.save_resource_if_version(teacher_id, unit_id, resource, expected_version, increment):
+            return False
+        self.attempt_statuses[resource["id"]] = (resource.get("regeneration") or {}).get("status")
+        return True
 
     def release_regeneration(self, teacher_id, unit_id, resource_id, attempt_id) -> None:
         if self.attempts.get(resource_id) == attempt_id:
