@@ -23,6 +23,7 @@ from platform5e.application.services.generation.generation_service import Genera
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
+from platform5e.infrastructure.generation.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
@@ -52,7 +53,10 @@ from platform5e.infrastructure.http.error_handlers import (
 from platform5e.infrastructure.http.routers.accounts import create_accounts_router
 from platform5e.infrastructure.http.routers.courses import create_courses_router
 from platform5e.infrastructure.http.routers.documents import create_documents_router
-from platform5e.infrastructure.http.routers.downloads import create_downloads_router
+from platform5e.infrastructure.http.routers.downloads import (
+    create_downloads_router,
+    create_teacher_downloads_router,
+)
 from platform5e.infrastructure.http.routers.exports import create_exports_router
 from platform5e.infrastructure.http.routers.generation_requests import create_generation_requests_router
 from platform5e.infrastructure.http.routers.generations import create_generations_router
@@ -210,7 +214,6 @@ def create_application() -> FastAPI:
         evidence_retriever=evidence_retriever,
     )
 
-    review_service = ResourceReviewService(account_repository, resource_repository)
     generation_service = GenerationService(
         repository=generation_repository,
         teacher_repository=account_repository,
@@ -222,6 +225,11 @@ def create_application() -> FastAPI:
         evidence_retriever=evidence_retriever,
         media_generator=media_generator,
         media_repository=media_repository,
+    )
+    # REV-01 (D10, confirmada por Yan): Revisión pide la regeneración por su puerto. Hasta T064 el adaptador es síncrono
+    # y delega en GenerationService; el adaptador en segundo plano de Generación lo reemplaza aquí sin tocar Revisión.
+    review_service = ResourceReviewService(
+        account_repository, resource_repository, GenerationRegenerationAdapter(generation_service)
     )
     # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
     evidence_provider = MaterialEvidenceAdapter(chunk_repository, evidence_retriever, account_repository)
@@ -278,7 +286,8 @@ def create_application() -> FastAPI:
     app.include_router(
         create_resources_router(review_service, account_service, media_use_case, regenerate_media_use_case)
     )
-    app.include_router(create_downloads_router(review_service, account_service, export_use_case))
+    app.include_router(create_downloads_router(review_service, account_service))
+    app.include_router(create_teacher_downloads_router(review_service, account_service))
     app.include_router(create_exports_router(export_use_case, account_service))
     app.include_router(create_health_router())
     return app

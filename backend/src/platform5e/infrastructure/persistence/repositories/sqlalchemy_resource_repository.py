@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import delete, inspect, select, text, update
+from sqlalchemy import delete, inspect, or_, select, text, update
 
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.infrastructure.persistence.database import SessionLocal, engine
@@ -26,9 +26,12 @@ def _ensure_version_column_in_sqlite() -> None:
     table = TeacherResourceORM.__tablename__
     if not inspector.has_table(table):
         return
-    if "version" not in {column["name"] for column in inspector.get_columns(table)}:
-        with engine.begin() as connection:
+    columns = {column["name"] for column in inspector.get_columns(table)}
+    with engine.begin() as connection:
+        if "version" not in columns:
             connection.execute(text(f"ALTER TABLE {table} ADD COLUMN version INTEGER NOT NULL DEFAULT 1"))
+        if "regeneration_claim" not in columns:
+            connection.execute(text(f"ALTER TABLE {table} ADD COLUMN regeneration_claim INTEGER NULL"))
 
 
 def _with_version(entity: TeacherResourceORM) -> dict[str, Any]:
@@ -106,6 +109,46 @@ class SQLAlchemyResourceRepository(ResourceReviewRepositoryPort):
             return result.rowcount == 1
 
     @translate_persistence_errors
+    def claim_regeneration(
+        self, teacher_id: str, unit_id: str, resource: dict[str, Any], expected_version: int
+    ) -> bool:
+        with SessionLocal() as session:
+            result = session.execute(
+                update(TeacherResourceORM)
+                .where(
+                    TeacherResourceORM.id == resource["id"],
+                    TeacherResourceORM.teacher_id == teacher_id,
+                    TeacherResourceORM.unit_id == unit_id,
+                    TeacherResourceORM.version == expected_version,
+                    or_(
+                        TeacherResourceORM.regeneration_claim.is_(None),
+                        TeacherResourceORM.regeneration_claim != expected_version,
+                    ),
+                )
+                .values(
+                    resource_data={**resource, "version": expected_version},
+                    regeneration_claim=expected_version,
+                )
+            )
+            session.commit()
+            return result.rowcount == 1
+
+    @translate_persistence_errors
+    def release_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int) -> None:
+        with SessionLocal() as session:
+            session.execute(
+                update(TeacherResourceORM)
+                .where(
+                    TeacherResourceORM.id == resource_id,
+                    TeacherResourceORM.teacher_id == teacher_id,
+                    TeacherResourceORM.unit_id == unit_id,
+                    TeacherResourceORM.regeneration_claim == expected_version,
+                )
+                .values(regeneration_claim=None)
+            )
+            session.commit()
+
+    @translate_persistence_errors
     def delete_resource(self, teacher_id: str, resource_id: str) -> None:
         with SessionLocal() as session:
             session.execute(
@@ -122,6 +165,16 @@ class SQLAlchemyResourceRepository(ResourceReviewRepositoryPort):
             statement = (
                 select(DownloadORM)
                 .where(DownloadORM.teacher_id == teacher_id, DownloadORM.unit_id == unit_id)
+                .order_by(DownloadORM.created_at.desc())
+            )
+            return [entity.download_data for entity in session.scalars(statement)]
+
+    @translate_persistence_errors
+    def get_downloads_by_teacher(self, teacher_id: str) -> list[dict[str, Any]]:
+        with SessionLocal() as session:
+            statement = (
+                select(DownloadORM)
+                .where(DownloadORM.teacher_id == teacher_id)
                 .order_by(DownloadORM.created_at.desc())
             )
             return [entity.download_data for entity in session.scalars(statement)]

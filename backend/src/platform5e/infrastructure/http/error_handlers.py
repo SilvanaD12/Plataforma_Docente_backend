@@ -39,7 +39,7 @@ async def domain_error_handler(
     request: Request, exc: AccountConfigurationError | MaterialError | GenerationError
 ) -> JSONResponse:
     """Errores del dominio con código propio; el estado sale del error (400 si no trae uno)."""
-    return error_json(getattr(exc, "status_code", 400), exc.code, exc.message)
+    return error_json(getattr(exc, "status_code", 400), exc.code, exc.message, getattr(exc, "details", None))
 
 
 async def value_error_handler(request: Request, exc: ValueError) -> JSONResponse:

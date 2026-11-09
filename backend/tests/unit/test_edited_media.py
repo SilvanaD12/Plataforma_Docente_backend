@@ -112,13 +112,19 @@ def test_editing_the_script_drops_the_old_audio_everywhere():
     service, resources, media = setup()
     edited = review(service, structure={"script": NEW_SCRIPT})
     assert edited["media"]["status"] == "fallback" and "Cambiaste el guion" in edited["media"]["note"]
+    assert edited["media"]["invalidated"] is True
 
-    approved = review(service, status="aprobado")  # se puede aprobar: se escucha con la voz del navegador
-    assert approved["status"] == "aprobado"
-    archive = scorm(resources, media)
-    page = next(archive.read(n).decode() for n in archive.namelist() if n.startswith("sco/"))
-    assert not any(n.endswith(".mp3") for n in archive.namelist())
-    assert NEW_SCRIPT in page and 'data-speak="script"' in page and OLD_SCRIPT not in page
+    # REV-C8 (D9, opción A): la aprobación se bloquea hasta generar el archivo de nuevo.
+    with pytest.raises(AccountConfigurationError) as blocked:
+        review(service, status="aprobado")
+    assert blocked.value.code == "APPROVAL_BLOCKED" and "genera" in blocked.value.message.lower()
+
+    # Aunque estuviera aprobado de antes, un recurso con el archivo invalidado no entra en una exportación nueva.
+    resources.by_id["r1"]["status"] = "aprobado"
+    with pytest.raises(AccountConfigurationError) as excluded:
+        scorm(resources, media)
+    assert excluded.value.code == "NO_APPROVED_RESOURCES"
+    assert excluded.value.details == [{"reason": "media_invalidated", "count": 1}]
 
 
 def test_same_script_keeps_the_generated_audio():
@@ -159,3 +165,120 @@ def test_generate_again_needs_a_pending_media_resource_and_an_active_service(cha
     with pytest.raises(AccountConfigurationError) as error:
         RegenerateResourceMediaUseCase(service, resources, generator, media).execute("ana", "u1", "r1")
     assert error.value.code == code
+
+
+# --------------------------------------------------------------------------- REV-01 · bloque e) (REV-C8 · REV-R8)
+
+IMAGE_STRUCTURE = {
+    "prompt": "Ilustración didáctica de un segmento TCP que confirma la entrega de los datos.",
+    "alt": "Ilustración sobre la entrega de datos",
+    "caption": "El protocolo TCP confirma la entrega de los datos.",
+}
+
+
+def image_resource() -> dict[str, Any]:
+    return {
+        "id": "img1", "unitId": "u1", "type": "imagen_ilustrativa", "stage": "explore", "format": "image",
+        "status": "pendiente", "title": "Imagen", "body": "Observa la imagen.", "options": None,
+        "createdAt": "2026-10-18T10:00", "structure": dict(IMAGE_STRUCTURE),
+        "media": {"status": "ready", "id": "media-img", "mimeType": "image/png", "fileName": "img1.png"},
+        "citations": [{"claim": "El protocolo TCP confirma la entrega de los datos.", "fragmentIds": ["frag-img"]}],
+        "evidence": [{"id": "frag-img", "text": "El protocolo TCP confirma la entrega de los datos al receptor.",
+                      "location": "página 1", "documentId": "d1", "documentName": "redes.pdf"}],
+    }
+
+
+def edit_image(**structure_changes: str) -> dict[str, Any]:
+    resources = Resources([image_resource()])
+    service = ResourceReviewService(Teachers(), resources)
+    version = service.get_resource("ana", "u1", "img1").get("version", 1)
+    return service.update_resource("ana", "u1", "img1", {
+        "title": "Imagen", "body": "Observa la imagen.", "status": "pendiente", "expectedVersion": version,
+        "structure": {**IMAGE_STRUCTURE, **structure_changes},
+    })
+
+
+@pytest.mark.parametrize("field", ["alt", "caption"])
+def test_changing_only_the_alt_text_or_the_caption_keeps_the_generated_image(field):
+    """REV-C8: si cambian solo `alt` o `caption`, el archivo se conserva."""
+    edited = edit_image(**{field: "Texto corregido por el docente para la imagen."})
+    assert edited["media"]["status"] == "ready" and edited["media"]["id"] == "media-img"
+    assert edited["structure"][field] == "Texto corregido por el docente para la imagen."
+
+
+def test_changing_the_prompt_drops_the_generated_image():
+    """REV-C8: si cambia el `prompt` normalizado, el archivo deja de usarse y se muestra la descripción."""
+    edited = edit_image(prompt="Ilustración de un datagrama UDP que viaja sin confirmación de entrega.")
+    assert edited["media"]["status"] == "fallback" and "Cambiaste la descripción" in edited["media"]["note"]
+    assert edited["media"]["invalidated"] is True
+
+
+@pytest.mark.parametrize("field", ["alt", "caption"])
+def test_changing_alt_or_caption_does_not_mark_the_file_as_invalidated(field):
+    assert not edit_image(**{field: "Texto corregido."})["media"].get("invalidated")
+
+
+class FailingVoice(Voice):
+    def synthesize_speech(self, script):
+        raise RuntimeError("servicio de voz sin cuota")
+
+
+def test_a_failed_generation_keeps_the_file_invalidated_and_approval_blocked():
+    """Si «Generar de nuevo» falla, el recurso sigue con el respaldo y la aprobación sigue bloqueada."""
+    service, resources, media = setup()
+    review(service, structure={"script": NEW_SCRIPT})
+    regenerated = RegenerateResourceMediaUseCase(service, resources, FailingVoice(), media).execute("ana", "u1", "r1")
+    assert regenerated["media"]["status"] == "fallback" and regenerated["media"]["invalidated"] is True
+    with pytest.raises(AccountConfigurationError) as blocked:
+        review(service, status="aprobado")
+    assert blocked.value.code == "APPROVAL_BLOCKED"
+
+
+def test_the_invalidated_file_is_a_pedagogical_blocker_with_its_reason():
+    resource = {**audio_resource(), "media": {"status": "fallback", "note": "Cambiaste el guion.", "invalidated": True}}
+    assert validate_approval_blockers(resource)[-1] == (
+        "Cambiaste el guion o la descripción: genera el archivo de nuevo para poder aprobar."
+    )
+
+
+def test_a_prompt_that_only_differs_in_spaces_keeps_the_generated_image():
+    edited = edit_image(prompt="  " + IMAGE_STRUCTURE["prompt"].replace(" ", "   ") + "  ")
+    assert edited["media"]["status"] == "ready"
+
+
+class VoiceWhileTheTeacherEdits(Voice):
+    """Mientras genera el audio, el docente guarda en otra pestaña un guion distinto (la versión avanza)."""
+
+    def __init__(self, service):
+        super().__init__()
+        self._service = service
+
+    def synthesize_speech(self, script):
+        review(self._service, structure={"script": EDITED_MEANWHILE})
+        return super().synthesize_speech(script)
+
+
+EDITED_MEANWHILE = "Guion guardado mientras se generaba el audio: TCP confirma la entrega y UDP no lo hace, por eso es más rápido."
+
+
+def test_generating_again_does_not_overwrite_an_edit_saved_meanwhile():
+    """Revisión de Silvana (PR #13): el resultado se guarda solo si la versión de partida sigue vigente."""
+    service, resources, media = setup()
+    review(service, structure={"script": NEW_SCRIPT})
+    started = service.get_resource("ana", "u1", "r1")["version"]
+    with pytest.raises(AccountConfigurationError) as error:
+        RegenerateResourceMediaUseCase(service, resources, VoiceWhileTheTeacherEdits(service), media).execute("ana", "u1", "r1")
+    assert error.value.code == "VERSION_CONFLICT" and error.value.status_code == 409
+    stored = resources.by_id["r1"]
+    assert stored["version"] == started + 1
+    assert stored["structure"]["script"] == EDITED_MEANWHILE
+    assert stored["media"]["status"] == "fallback" and stored["media"]["invalidated"] is True
+
+
+def test_generating_again_without_edits_meanwhile_keeps_the_version():
+    service, resources, media = setup()
+    review(service, structure={"script": NEW_SCRIPT})
+    started = service.get_resource("ana", "u1", "r1")["version"]
+    regenerated = RegenerateResourceMediaUseCase(service, resources, Voice(), media).execute("ana", "u1", "r1")
+    assert regenerated["media"]["status"] == "ready"
+    assert resources.by_id["r1"]["version"] == started and resources.by_id["r1"]["media"]["status"] == "ready"

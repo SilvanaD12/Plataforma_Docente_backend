@@ -39,12 +39,30 @@ class ResourceReviewRepositoryPort(Protocol):
         """
         ...
 
+    def claim_regeneration(
+        self, teacher_id: str, unit_id: str, resource: dict[str, Any], expected_version: int
+    ) -> bool:
+        """REV-C12: reserva de forma atómica el pedido de regeneración desde `expected_version` y guarda `resource`
+        (con su registro `regeneration`) sin cambiar la versión.
+
+        Devuelve False, sin modificar nada, si la versión ya no es la vigente o si otro pedido ya reservó esa versión.
+        """
+        ...
+
+    def release_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int) -> None:
+        """Libera la reserva de `expected_version` (por ejemplo, si la regeneración falló) para poder pedirla otra vez."""
+        ...
+
     def delete_resource(self, teacher_id: str, resource_id: str) -> None:
         """Elimina un recurso del repositorio."""
         ...
 
     def get_downloads(self, teacher_id: str, unit_id: str) -> list[dict[str, Any]]:
         """Obtiene el historial de descargas realizadas por el docente en la unidad."""
+        ...
+
+    def get_downloads_by_teacher(self, teacher_id: str) -> list[dict[str, Any]]:
+        """REV-R9: todas las descargas del docente, de la más reciente a la más antigua, aunque el curso ya no exista."""
         ...
 
     def save_download(

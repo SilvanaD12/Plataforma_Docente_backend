@@ -2007,6 +2007,200 @@
         }
       }
     },
+    "/api/v1/units/{unit_id}/resources/{resource_id}/regenerations": {
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Regenerate a resource from review",
+        "description": "REV-C12 and REV-C13 (decision D10, confirmed by Generation): asks Generation for a new resource with the\nstored parameters and the current evidence of the material. If Generation does not finish within its time\nlimit, the answer is `status: running` and the request goes on in the background: ask\n`GET …/resources/{resource_id}/regeneration` until it ends.\n\nOn success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the\nprevious one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it\nwas edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version\nreturns the same result without generating again. On failure the previous resource is unchanged and `message`\ngives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the\nunit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME); 502\nREGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409\nVERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource of your unit with its current version. Expected 200.",
+        "operationId": "regenerate_resource_api_v1_units__unit_id__resources__resource_id__regenerations_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegenerationInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegenerationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "VERSION_CONFLICT, or Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE). The previous resource is unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid body, or Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING). The previous resource is unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "REGENERATION_FAILED: only for provider or unexpected failures. The previous resource is unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "REGENERATION_UNAVAILABLE.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/resources/{resource_id}/regeneration": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Get the state of the last regeneration of a resource",
+        "description": "D10: while the request is `running`, this asks Generation for its state. When it sees `succeeded`, the\nprevious resource goes to discarded with reason `regenerado` only if it is still at the version of the request;\nwhen it sees `failed`, `reason` and `code` say why and the regeneration can be asked again. Asking again for a\nfinished request returns the same answer. Without a regeneration request: 404 REGENERATION_NOT_FOUND.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regeneration\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nUse a resource whose regeneration you asked for. Expected 200.",
+        "operationId": "get_regeneration_status_api_v1_units__unit_id__resources__resource_id__regeneration_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegenerationStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/units/{unit_id}/resources/{resource_id}/media": {
       "get": {
         "tags": [
@@ -2088,7 +2282,7 @@
           "resources"
         ],
         "summary": "Generate the image or audio of a resource again",
-        "description": "Generates the illustration or the audio again from the current description or script, for example after\nthe teacher edited it. Only for resources under review (409 RESOURCE_NOT_PENDING) and when image and voice\ngeneration is active on the server (409 MEDIA_GENERATION_DISABLED). If the service fails, the resource keeps\nits fallback: the description card or the browser's voice.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/media\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200 for a pending resource when media generation is enabled; otherwise the documented 409 applies.",
+        "description": "Generates the illustration or the audio again from the current description or script, for example after\nthe teacher edited it. Only for resources under review (409 RESOURCE_NOT_PENDING) and when image and voice\ngeneration is active on the server (409 MEDIA_GENERATION_DISABLED). If the service fails, the resource keeps\nits fallback: the description card or the browser's voice. If the teacher saved another version while the file\nwas being generated, the result is not stored and the answer is 409 VERSION_CONFLICT: reload the resource.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/media\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200 for a pending resource when media generation is enabled; otherwise the documented 409 applies.",
         "operationId": "regenerate_resource_media_api_v1_units__unit_id__resources__resource_id__media_post",
         "security": [
           {
@@ -2175,7 +2369,7 @@
           "downloads"
         ],
         "summary": "List the downloads of a unit",
-        "description": "The last 50 downloads, newest first.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "description": "The last 50 downloads of the unit, newest first (there is no paging yet). Exports record themselves once\nper file; GET /api/v1/downloads lists the whole history of the teacher, also after a course is deleted.\n\nREV-01 removed `POST /units/{unit_id}/downloads` (it duplicated the record that every export already saves)\nand `GET /units/{unit_id}/downloads/{download_id}` (re-downloading is out of scope and that route exported the\ncurrent state, not the original file).\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
         "operationId": "list_downloads_api_v1_units__unit_id__downloads_get",
         "security": [
           {
@@ -2234,82 +2428,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "downloads"
-        ],
-        "summary": "Record a download",
-        "description": "Records a file built in the browser (the unit document). Exports built by the backend record themselves.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"documento\",\"fileName\":\"red-301-unidad-1-documento.html\",\"resourceCount\":1}'\n```\n\nReplace unidad-1 through UNIT_ID. This registers browser-built document metadata; it does not generate a package. Expected 201.",
-        "operationId": "register_download_api_v1_units__unit_id__downloads_post",
-        "security": [
-          {
-            "TeacherSession": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "unit_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Unit Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DownloadInput"
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DownloadResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing, invalid or expired session token.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "The entity does not exist or does not belong to the teacher.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid parameters (type, range or unknown field).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2376,46 +2494,27 @@
         }
       }
     },
-    "/api/v1/units/{unit_id}/downloads/{download_id}": {
+    "/api/v1/downloads": {
       "get": {
         "tags": [
           "downloads"
         ],
-        "summary": "Re-download an exported package",
-        "description": "Re-downloads an exported package recorded in the unit's download history (HU-010 C02).\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/downloads/${DOWNLOAD_ID}\" -H \"Authorization: Bearer $TOKEN\" -D respuesta-headers.txt --output paquete.zip\n```\n\nExpected 200 for an existing history entry and resources compatible with its format. The returned MIME type determines the file extension.",
-        "operationId": "redownload_package_api_v1_units__unit_id__downloads__download_id__get",
-        "security": [
-          {
-            "TeacherSession": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "unit_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Unit Id"
-            }
-          },
-          {
-            "name": "download_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Download Id"
-            }
-          }
-        ],
+        "summary": "List my downloads",
+        "description": "Downloads of the signed-in teacher, newest first, limited to the last 50 (there is no paging yet). Each\nrecord keeps the date, format, file name, course and unit, also after the course is deleted. Only the record\nis kept, not the exported file. Records saved before REV-01 may come without course and unit names.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/downloads\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "list_teacher_downloads_api_v1_downloads_get",
         "responses": {
           "200": {
-            "description": "The re-downloaded file; its name comes in Content-Disposition.",
+            "description": "Successful Response",
             "content": {
-              "application/zip": {},
-              "application/xml": {},
-              "text/html": {}
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DownloadResponse"
+                  },
+                  "type": "array",
+                  "title": "Response List Teacher Downloads Api V1 Downloads Get"
+                }
+              }
             }
           },
           "401": {
@@ -2427,28 +2526,13 @@
                 }
               }
             }
-          },
-          "404": {
-            "description": "The entity does not exist or does not belong to the teacher.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Invalid parameters (type, range or unknown field).",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
-        }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
       }
     },
     "/api/v1/units/{unit_id}/exports": {
@@ -2457,7 +2541,7 @@
           "exports"
         ],
         "summary": "Export the approved resources of a unit",
-        "description": "Builds the file in the backend from the approved resources (fixed templates, never written by the AI),\nrecords the download in the unit history and returns the file.\n\n- `scorm_zip`: SCORM 1.2 package for Chamilo, one page per resource in 5E order; questions are graded.\n- `moodle_xml`: Moodle question bank with the multiple-choice items.\n- `documento`: printable HTML document of the approved unit resources, with evidence.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/exports\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"scorm_zip\",\"resourceIds\":[]}' -D respuesta-headers.txt --output unidad-scorm.zip\n```\n\nExpected 200 when the unit has approved resources. An empty resourceIds selects every approved resource compatible with scorm_zip.",
+        "description": "Builds the file in the backend from the approved resources (fixed templates, never written by the AI),\nrecords the download in the unit history and returns the file.\n\n- `scorm_zip`: SCORM 1.2 package for Chamilo, one page per resource in 5E order; questions are graded.\n- `moodle_xml`: Moodle question bank with the multiple-choice items.\n- `documento`: printable HTML document of the approved unit resources, with evidence.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/exports\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"scorm_zip\",\"resourceIds\":[]}' -D respuesta-headers.txt --output unidad-scorm.zip\n```\n\nExpected 200 when the unit has eligible resources. An empty resourceIds selects every eligible resource compatible with scorm_zip.\n\nREV-01: the three formats use the same filter. A resource is exported only if it is approved, has a current\nverification for its present content and no invalidated media, and the format supports it. Resources without a\nstored verification are checked first. If none is eligible, the answer is 422 NO_APPROVED_RESOURCES and no\nfile is made; `details` gives how many resources were left out for each reason, for example\n`[{\"reason\": \"verification_pending\", \"count\": 2}]`. Reasons: `not_approved`, `verification_missing`,\n`verification_outdated`, `verification_insufficient`, `verification_pending`, `media_invalidated`,\n`unsupported_format`. Each export records one download with the course and the unit.",
         "operationId": "export_unit_api_v1_units__unit_id__exports_post",
         "security": [
           {
@@ -3032,43 +3116,6 @@
         ],
         "title": "DocumentResponse"
       },
-      "DownloadInput": {
-        "properties": {
-          "format": {
-            "type": "string",
-            "enum": [
-              "moodle_xml",
-              "scorm_zip",
-              "documento"
-            ],
-            "title": "Format"
-          },
-          "fileName": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Filename",
-            "examples": [
-              "red-301-unidad-1-documento.html"
-            ]
-          },
-          "resourceCount": {
-            "type": "integer",
-            "maximum": 500.0,
-            "minimum": 0.0,
-            "title": "Resourcecount"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "format",
-          "fileName",
-          "resourceCount"
-        ],
-        "title": "DownloadInput",
-        "description": "Download history entry; exports are built and registered by the backend."
-      },
       "DownloadResponse": {
         "properties": {
           "id": {
@@ -3094,6 +3141,54 @@
           "createdAt": {
             "type": "string",
             "title": "Createdat"
+          },
+          "courseId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Courseid",
+            "description": "Course at export time (REV-R9)."
+          },
+          "courseName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coursename",
+            "description": "Course name at export time. Kept after the course is deleted; null in older records."
+          },
+          "unitName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unitname",
+            "description": "Unit title at export time; null in older records."
+          },
+          "unitNumber": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unitnumber",
+            "description": "Unit number at export time; null in older records."
           }
         },
         "additionalProperties": true,
@@ -4574,6 +4669,12 @@
             "title": "Outdated",
             "description": "The teacher edited the script or description after generating.",
             "default": false
+          },
+          "invalidated": {
+            "type": "boolean",
+            "title": "Invalidated",
+            "description": "REV-C8: the prompt or script changed, so the generated file is no longer used. Approval is blocked and the resource is left out of new exports until the file is generated again.",
+            "default": false
           }
         },
         "additionalProperties": true,
@@ -4631,6 +4732,150 @@
           "name"
         ],
         "title": "ProfileResponse"
+      },
+      "RegeneratedFrom": {
+        "properties": {
+          "resourceId": {
+            "type": "string",
+            "title": "Resourceid"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "description": "Version of the previous resource when the regeneration was requested."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "resourceId",
+          "version"
+        ],
+        "title": "RegeneratedFrom"
+      },
+      "RegenerationInput": {
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "description": "Version you read. The previous resource is discarded only if it is still at it.",
+            "examples": [
+              1
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expectedVersion"
+        ],
+        "title": "RegenerationInput",
+        "description": "REV-C12: regenerar un recurso desde Revisión."
+      },
+      "RegenerationResponse": {
+        "properties": {
+          "previousResourceId": {
+            "type": "string",
+            "title": "Previousresourceid"
+          },
+          "previousDiscarded": {
+            "type": "boolean",
+            "title": "Previousdiscarded",
+            "description": "True when the previous resource went to discarded with reason `regenerado`; false when it was edited meanwhile and both stay in review."
+          },
+          "newResourceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Newresourceids",
+            "description": "Resources created by Generation, waiting for review."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "running"
+            ],
+            "title": "Status",
+            "description": "`succeeded`, or `running` while Generation works in the background: ask `GET …/regeneration` until it ends."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "previousResourceId",
+          "previousDiscarded",
+          "newResourceIds",
+          "status"
+        ],
+        "title": "RegenerationResponse"
+      },
+      "RegenerationStatusResponse": {
+        "properties": {
+          "previousResourceId": {
+            "type": "string",
+            "title": "Previousresourceid"
+          },
+          "previousDiscarded": {
+            "type": "boolean",
+            "title": "Previousdiscarded",
+            "description": "True when the previous resource went to discarded with reason `regenerado`; false when it was edited meanwhile and both stay in review."
+          },
+          "newResourceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Newresourceids",
+            "description": "Resources created by Generation, waiting for review."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "running",
+              "failed"
+            ],
+            "title": "Status",
+            "description": "`running` while Generation works; `succeeded` (the previous one is discarded only if unchanged) or `failed`."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why it failed, in Spanish. Only for `failed`."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Generation code of the rejection (for example NO_PROCESSED_MATERIAL). Only for `failed`."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "previousResourceId",
+          "previousDiscarded",
+          "newResourceIds",
+          "status"
+        ],
+        "title": "RegenerationStatusResponse",
+        "description": "D10: state of the last regeneration request of the resource."
       },
       "RegenerationTargetView": {
         "properties": {
@@ -5177,6 +5422,17 @@
               }
             ],
             "description": "Last check against the stored evidence copy (REV-01). None until it is checked."
+          },
+          "regeneratedFrom": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegeneratedFrom"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "For a regenerated resource: the resource and version it replaces (REV-C12)."
           },
           "reviewReset": {
             "anyOf": [

@@ -362,16 +362,14 @@ def test_approval_blockers():
 
 
 def test_download_history():
-    service, _ = make_review_service()
-    first = service.register_download(
-        "ana", "u1", {"format": "moodle_xml", "fileName": "red-301-unidad-1.xml", "resourceCount": 2}
-    )
-    service.register_download("ana", "u2", {"format": "documento", "fileName": "otra.html", "resourceCount": 1})
+    # REV-01: los registros los crea la exportación (un registro por archivo); el POST manual se retiró.
+    service, repo = make_review_service()
+    first = {"id": "descarga-1", "unitId": "u1", "format": "moodle_xml", "fileName": "red-301-unidad-1.xml",
+             "resourceCount": 2, "createdAt": "2026-11-08T10:00:00+00:00"}
+    repo.save_download("ana", "u1", first)
+    repo.save_download("ana", "u2", {"id": "descarga-2", "unitId": "u2", "format": "documento", "fileName": "otra.html",
+                                     "resourceCount": 1, "createdAt": "2026-11-08T11:00:00+00:00"})
     assert [d["id"] for d in service.get_downloads_history("ana", "u1")] == [first["id"]]
-
-    with pytest.raises(AccountConfigurationError) as error:
-        service.register_download("ana", "u1", {"format": "pdf", "fileName": "x.pdf", "resourceCount": 1})
-    assert error.value.code == "INVALID_FORMAT"
 
     service.clear_downloads_history("ana", "u1")
     assert service.get_downloads_history("ana", "u1") == [] and len(service.get_downloads_history("ana", "u2")) == 1

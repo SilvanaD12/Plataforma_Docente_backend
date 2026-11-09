@@ -90,11 +90,16 @@ Estado de revisión (status)        Verificación (verification.status)
 |---|---|
 | `save_resource_if_version(teacher_id, unit_id, resource, expected_version, increment=True) -> bool` | **nueva**. Devuelve `False` si la versión ya no es la vigente. Con `increment=False`, que usa la actualización de recursos antiguos (D7), guarda sin cambiar `version`. |
 | `get_downloads_by_teacher(teacher_id) -> list[dict]` | **nueva** |
+| `claim_regeneration(teacher_id, unit_id, resource, expected_version) -> bool` | **nueva** (REV-C12). Reserva atómica del pedido de regeneración: `False` si la versión cambió o si esa versión ya está reservada. Guarda `resource` sin cambiar `version`. Columna `regeneration_claim` (migración `20261109000001_regeneration_claim.sql`). |
+| `release_regeneration(teacher_id, unit_id, resource_id, expected_version) -> None` | **nueva**. Libera la reserva si la regeneración falló. |
 | `save_resources(...)` | Se conserva para Generación, que crea recursos con `version = 1`. |
 | `get_downloads(teacher_id, unit_id)` | Se conserva para el filtro por unidad. |
 
-## Puerto de regeneración (`ResourceRegenerationPort`), pendiente de acuerdo con Yan
+## Puerto de regeneración (`ResourceRegenerationPort`), decisión provisional D10 sin confirmación de Yan
 
 | Operación | Entrada | Salida |
 |---|---|---|
-| `request_regeneration` | `teacher_id` y el recurso, con `id`, `version` y `params` | `RegenerationOutcome(ok: bool, new_resource_ids: list[str], reason: str \| None)` |
+| `request_regeneration` | `teacher_id`, `resource_id`, `resource_version` y `params` (con `unitId`) | `RegenerationStatus(request_id, status, new_resource_ids, reason, code)`; `status`: `pending`, `running`, `succeeded` o `failed`; `code` solo en `failed` por los datos del docente (`None` si falló el proveedor) |
+| `get_regeneration` | `teacher_id` y `request_id` | `RegenerationStatus` o `None` si no existe o es de otro docente. Revisión lo consulta desde `GET …/regeneration` mientras el pedido está en curso (D10 confirmada) |
+
+En el recurso anterior, Revisión guarda `regeneration: {fromVersion, requestId, status, newResourceIds, previousDiscarded}`. En cada recurso nuevo guarda `regeneratedFrom: {resourceId, version}`.

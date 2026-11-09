@@ -13,8 +13,11 @@ from platform5e.application.services.review.resource_review_service import Resou
 from platform5e.application.use_cases.media.get_resource_media import GetResourceMediaUseCase
 from platform5e.application.use_cases.media.regenerate_resource_media import RegenerateResourceMediaUseCase
 from platform5e.infrastructure.http.dependencies import current_teacher_dependency
-from platform5e.infrastructure.http.schemas.common import error_responses
+from platform5e.infrastructure.http.schemas.common import ErrorResponse, error_responses
 from platform5e.infrastructure.http.schemas.resources import (
+    RegenerationInput,
+    RegenerationResponse,
+    RegenerationStatusResponse,
     ResourceResponse,
     ReviewedResourceInput,
     UnitSummaryResponse,
@@ -126,6 +129,69 @@ def create_resources_router(
         Use a resource whose verification is pending and send its current version. Expected 200."""
         return review_service.retry_verification(teacher_id, unit_id, resource_id, body.expected_version)
 
+    @router.post(
+        "/units/{unit_id}/resources/{resource_id}/regenerations",
+        response_model=RegenerationResponse,
+        summary="Regenerate a resource from review",
+        responses={
+            **error_responses(401, 404),
+            409: {"model": ErrorResponse, "description": "VERSION_CONFLICT, or Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE). The previous resource is unchanged."},
+            422: {"model": ErrorResponse, "description": "Invalid body, or Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING). The previous resource is unchanged."},
+            502: {"model": ErrorResponse, "description": "REGENERATION_FAILED: only for provider or unexpected failures. The previous resource is unchanged."},
+            503: {"model": ErrorResponse, "description": "REGENERATION_UNAVAILABLE."},
+        },
+    )
+    def regenerate_resource(
+        unit_id: str, resource_id: str, body: RegenerationInput, teacher_id: str = Depends(current_teacher)
+    ) -> dict[str, Any]:
+        """REV-C12 and REV-C13 (decision D10, confirmed by Generation): asks Generation for a new resource with the
+        stored parameters and the current evidence of the material. If Generation does not finish within its time
+        limit, the answer is `status: running` and the request goes on in the background: ask
+        `GET …/resources/{resource_id}/regeneration` until it ends.
+
+        On success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the
+        previous one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it
+        was edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version
+        returns the same result without generating again. On failure the previous resource is unchanged and `message`
+        gives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the
+        unit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME); 502
+        REGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409
+        VERSION_CONFLICT.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X POST "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"expectedVersion":1}'
+        ```
+
+        Use a resource of your unit with its current version. Expected 200."""
+        return review_service.regenerate_resource(teacher_id, unit_id, resource_id, body.expected_version)
+
+    @router.get(
+        "/units/{unit_id}/resources/{resource_id}/regeneration",
+        response_model=RegenerationStatusResponse,
+        summary="Get the state of the last regeneration of a resource",
+        responses=error_responses(401, 404),
+    )
+    def get_regeneration_status(
+        unit_id: str, resource_id: str, teacher_id: str = Depends(current_teacher)
+    ) -> dict[str, Any]:
+        """D10: while the request is `running`, this asks Generation for its state. When it sees `succeeded`, the
+        previous resource goes to discarded with reason `regenerado` only if it is still at the version of the request;
+        when it sees `failed`, `reason` and `code` say why and the regeneration can be asked again. Asking again for a
+        finished request returns the same answer. Without a regeneration request: 404 REGENERATION_NOT_FOUND.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regeneration" -H "Authorization: Bearer $TOKEN"
+        ```
+
+        Use a resource whose regeneration you asked for. Expected 200."""
+        return review_service.get_regeneration_status(teacher_id, unit_id, resource_id)
+
     @router.get(
         "/units/{unit_id}/resources/{resource_id}/media",
         summary="Get the image, graphic or audio of a resource",
@@ -168,7 +234,8 @@ def create_resources_router(
         """Generates the illustration or the audio again from the current description or script, for example after
         the teacher edited it. Only for resources under review (409 RESOURCE_NOT_PENDING) and when image and voice
         generation is active on the server (409 MEDIA_GENERATION_DISABLED). If the service fails, the resource keeps
-        its fallback: the description card or the browser's voice.
+        its fallback: the description card or the browser's voice. If the teacher saved another version while the file
+        was being generated, the result is not stored and the answer is 409 VERSION_CONFLICT: reload the resource.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.

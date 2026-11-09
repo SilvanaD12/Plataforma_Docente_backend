@@ -11,14 +11,6 @@ from platform5e.infrastructure.http.schemas.common import ApiRequest, ApiRespons
 DownloadFormat = Literal["moodle_xml", "scorm_zip", "documento"]
 
 
-class DownloadInput(ApiRequest):
-    """Download history entry; exports are built and registered by the backend."""
-
-    format: DownloadFormat
-    file_name: str = Field(min_length=1, max_length=200, examples=["red-301-unidad-1-documento.html"])
-    resource_count: int = Field(ge=0, le=500)
-
-
 class DownloadResponse(ApiResponse):
     id: str
     unit_id: str
@@ -26,6 +18,12 @@ class DownloadResponse(ApiResponse):
     file_name: str
     resource_count: int
     created_at: str
+    course_id: str | None = Field(default=None, description="Course at export time (REV-R9).")
+    course_name: str | None = Field(
+        default=None, description="Course name at export time. Kept after the course is deleted; null in older records."
+    )
+    unit_name: str | None = Field(default=None, description="Unit title at export time; null in older records.")
+    unit_number: int | None = Field(default=None, description="Unit number at export time; null in older records.")
 
 
 class ExportRequest(ApiRequest):

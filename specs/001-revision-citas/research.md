@@ -220,20 +220,86 @@ aprueba con el respaldo. Cambia para exigir el bloqueo, como pide REV-C8.
 claves), un recurso con archivo invalidado no podría aprobarse. Propuesta: el bloqueo indica
 `MEDIA_GENERATION_DISABLED` y el docente puede regenerar el recurso. Hay que confirmarlo en el grupo antes del bloque e).
 
-## D10. Regeneración (REV-R10 · REV-C12, C13), dependiente de Yan
+**Decisión del equipo (2026-11-08): opción A, como dice la ficha.** Un archivo invalidado (`media.invalidated`)
+bloquea la aprobación y saca el recurso de las exportaciones nuevas hasta generarlo de nuevo, también cuando la
+generación multimedia está apagada en el servidor. Si «Generar de nuevo» falla, la marca se conserva. **Cualquier
+excepción para la demostración (por ejemplo, aprobar con el respaldo cuando no hay generación multimedia) requiere
+acordarla en el equipo y actualizar antes la ficha (REV-C8 y REV-R8).**
 
-**Decisión provisional.**
-- Puerto de salida `application/ports/outbound/resource_regeneration_port.py`, con `request_regeneration(teacher_id, resource) -> RegenerationOutcome`. El resultado trae `ok`, `newResourceIds` y `reason`.
-- El adaptador de infraestructura delega en Generación con `params` guardados y la evidencia vigente del material.
-- Revisión registra la `version` del recurso al pedir la regeneración.
-  - Si termina bien y la versión no cambió, pasa el recurso anterior a `descartado` con `discardReason = "regenerado"`, usando el guardado condicional.
-  - Si el docente lo editó mientras tanto, no lo toca y ambos quedan en Revisión.
-  - Si la regeneración falla, el anterior queda igual y se devuelve el motivo.
-- Ruta: `POST /units/{unit_id}/resources/{resource_id}/regenerations` con `expectedVersion`.
+## D10. Regeneración (REV-R10 · REV-C12, C13)
 
-**Pendiente con Yan.** Hay que definir si el pedido es síncrono, como hoy, o en segundo plano con estado consultable
-(GEN-R6). También el nombre del puerto y qué pasa si el recurso se edita durante el pedido. El bloque f) no empieza
-sin ese acuerdo.
+**Estado: confirmada por Yan (2026-11-09), con pedido en segundo plano.** Se implementó primero como decisión
+provisional y síncrona (2026-11-08). Yan confirmó el puerto y el pedido en segundo plano:
+- su adaptador (T029 de Generación) reemplaza al síncrono en `main.py` sin tocar Revisión;
+- `request_regeneration` crea un pedido en modo regeneración, con clave `regen-{resourceId}-v{version}` por docente,
+  y devuelve `pending` o `running` cuando no termina en su tiempo límite;
+- `get_regeneration` traduce `queued → pending`, `running → running`, `succeeded → succeeded`, y
+  `failed`/`interrupted → failed` con `reason` y `code`, y devuelve `None` para otro docente o un pedido inexistente;
+- Generación guarda los recursos nuevos con `verification`, `version = 1`, `evidence[].retrievedAt` y
+  `regeneratedFrom`, y nunca toca el recurso anterior: el descarte condicional es de Revisión.
+
+Mientras T029 no se integre, el adaptador síncrono sigue en `main.py`.
+
+**Alcance de los PR #13 (backend) y #7 (frontend), anotado para la integración (2026-11-09).**
+- **El adaptador sigue síncrono.** `main.py` usa `GenerationRegenerationAdapter`, que llama a `GenerationService.generate`
+  y siempre devuelve `succeeded` o `failed`.
+- **Revisión ya maneja `pending` y `running`.** Es el último commit de cada PR: el pedido queda «en curso», la ruta
+  `GET …/regeneration` hace el descarte al ver `succeeded`, y la revisión consulta ese estado. Hoy solo lo ejercitan
+  pruebas con dobles, porque el adaptador síncrono nunca devuelve esos estados.
+- **Para un PR posterior con Yan (T064):** el adaptador asíncrono de Generación (su T029) y una prueba e2e con un pedido
+  que pase por `running`.
+
+**Lo implementado.**
+- **Puerto** `application/ports/outbound/resource_regeneration_port.py`, el que se propuso a Yan:
+  `request_regeneration(teacher_id, resource_id, resource_version, params) -> RegenerationStatus` y
+  `get_regeneration(teacher_id, request_id) -> RegenerationStatus | None`. `RegenerationStatus` trae `request_id`,
+  `status` (`pending`, `running`, `succeeded` o `failed`), `new_resource_ids`, `reason` y `code` (solo en `failed`: el
+  código del rechazo por los datos del docente, o `None` si falló el proveedor o algo inesperado).
+- **Adaptador síncrono** `infrastructure/generation/generation_regeneration_adapter.py`. Arma el pedido con
+  `GenerationRequest` (los `params` guardados del recurso, la unidad y `quantity = 1`) y llama a
+  `GenerationService.generate`, el mismo caso de uso que usa `POST /api/v1/generations`, así que usa la evidencia
+  vigente del material. Devuelve `succeeded` con los ids nuevos o `failed` con el motivo (`GenerationError`, parámetros
+  guardados incompletos, ningún recurso con respaldo o un error inesperado). **No se modificó ningún archivo de
+  Generación.** `main.py` crea el servicio de revisión después del de generación para pasarle el adaptador.
+- **Servicio** `ResourceReviewService.regenerate_resource(teacher_id, unit_id, resource_id, expected_version)`:
+  - Antes de pedirlo, **reserva el pedido de forma atómica** con `claim_regeneration`: un solo `UPDATE` condicional
+    que exige la versión esperada y que no haya reserva para esa versión (columna `regeneration_claim`, migración
+    `20261109000001_regeneration_claim.sql`), y que en la misma sentencia guarda en el anterior
+    `regeneration: {fromVersion, requestId, status: "running", newResourceIds}` sin cambiar su versión. Si llega otra
+    vez el mismo pedido, incluso al mismo tiempo (misma `fromVersion`, estado `running` o `succeeded`), devuelve el
+    mismo resultado **sin generar de nuevo**. Después de un fallo se libera la reserva y se puede volver a pedir.
+    Corrección pedida por Silvana en la revisión del PR #13 (2026-11-09), con una prueba concurrente
+    (`tests/integration/test_regeneration_concurrency.py`).
+  - Si termina bien, cada recurso nuevo guarda `regeneratedFrom: {resourceId, version}` y se verifica al leerlo, como
+    los recursos antiguos (D7). El anterior pasa a `descartado` con `discardReason = "regenerado"` con un guardado
+    condicional por versión. Si el docente lo editó mientras tanto, no se toca, los dos quedan en Revisión y la
+    respuesta trae `previousDiscarded: false`.
+  - Si falla, el anterior queda como estaba (contenido, estado y versión) y `message` trae el motivo. Solo se
+    registra el fallo en `regeneration`. Si Generación rechazó el pedido por los datos del docente, se responde con su
+    código: **409** por el material de la unidad (`NO_PROCESSED_MATERIAL`, `INSUFFICIENT_EVIDENCE`, que también se usa
+    cuando no sale ningún recurso con respaldo) y **422** por los parámetros guardados (`INVALID_OUTCOME`,
+    `INVALID_SEQUENCE`, `REGENERATION_PARAMETERS_MISSING`). **502** `REGENERATION_FAILED` queda solo para fallos del
+    proveedor o inesperados. Generación ya cubre la caída de la IA con el generador por reglas, así que el 502 es raro.
+- **Ruta** `POST /api/v1/units/{unit_id}/resources/{resource_id}/regenerations` con `{expectedVersion}`. Errores: 404,
+  409 `VERSION_CONFLICT` o rechazo por el material, 422 por los parámetros guardados, 502 `REGENERATION_FAILED` y 503
+  `REGENERATION_UNAVAILABLE`.
+
+**Límites conocidos.**
+- ~~Dos pedidos simultáneos desde la misma versión podían pasar los dos.~~ Cerrado con la reserva atómica
+  (2026-11-09).
+- Si el servidor se cae a mitad de un pedido, la reserva y `status: "running"` quedan para esa versión y el mismo
+  pedido no se repite. Editar el recurso cambia su versión y permite volver a pedirlo.
+
+**Pedido en segundo plano (implementado en Revisión, 2026-11-09).**
+- `pending` y `running` dejan el pedido «en curso» (`regeneration.status = running`, con su `requestId`), sin marcar
+  fallo y conservando la reserva. El `POST` responde `status: running`.
+- `GET /units/{unit_id}/resources/{resource_id}/regeneration` consulta `get_regeneration`. Si ve `succeeded`, hace el
+  descarte condicional (REV-C12); si ve `failed` o `None`, registra el motivo y libera la reserva (REV-C13).
+  Consultar otra vez un pedido terminado devuelve lo mismo. Si dos consultas del mismo pedido se solapan, la que pierde
+  el descarte no sobrescribe el resultado: cada reserva lleva un `attemptId` y el registro de un intento terminado
+  (`succeeded` o `failed`) no se reemplaza (revisión de Silvana en el PR #13, con una prueba con dos hilos en SQLite).
+- Revisión guarda `regeneratedFrom` también. Si Generación ya lo guardó, queda igual.
+- El frontend consulta el estado hasta que el pedido termina.
 
 ## D12. Frontend en la misma carpeta de especificación
 
@@ -258,7 +324,7 @@ implementan en la rama del módulo del repositorio `Plataforma_Docente_frontend`
 
 ## Mensajes para el grupo (antes de los bloques que los necesitan)
 
-1. **Yan (antes de b y f).** Generación debe llamar `content_fingerprint` y `verify_resource` al crear, guardar `verification`, `version = 1` y `evidence[].retrievedAt`, y entregar `pending` cuando no pudo verificar. También hay que acordar el contrato de regeneración (D10).
+1. **Yan (antes de b; para f se avanzó con la decisión provisional de D10).** Generación debe llamar `content_fingerprint` y `verify_resource` al crear, guardar `verification`, `version = 1` y `evidence[].retrievedAt`, y entregar `pending` cuando no pudo verificar. También hay que acordar el contrato de regeneración (D10).
 2. **Sergio (antes de e).** Aprobar la migración SQL de `version` para Neon y elegir entre la actualización perezosa (A) y el script único `scripts/upgrade_resource_verification.py` (B) de D7. También, de dónde sale `retrievedAt` en la copia (H3).
 3. **Silvana, PR 1 (antes de integrarlo).** El PUT de recursos pasa a exigir `expectedVersion` y deja de aceptar guardados sin él. El PR 1 del backend se integra en `main` coordinado con el PR del frontend que envía `expectedVersion`, y el despliegue de ese commit en Render espera a que el frontend esté listo en Vercel.
 4. **Silvana, borrado y descargas (antes de d).** Quitar `DownloadORM` de `delete_course` (H5): lo hace ella, o Juan con su aprobación en el PR (T008 de CC-01). Además: se retiran `POST` y `GET /{download_id}` de descargas, y se agrega `GET /api/v1/downloads`. Las pestañas `review` y `export` ya están resueltas en `d9d4f7d`; no hace falta otro acuerdo de rutas (H14). El borrado de `media_assets` en `delete_course`, que hoy no ocurre, es de CC-01.

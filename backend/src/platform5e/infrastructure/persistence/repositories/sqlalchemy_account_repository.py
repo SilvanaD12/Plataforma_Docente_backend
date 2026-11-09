@@ -125,6 +125,9 @@ class TeacherResourceORM(Base):
     resource_data = Column("datos", JSON, nullable=False)
     # REV-01 (REV-R12): guardado condicional por versión. Migración 20261108000001_resource_version.sql.
     version = Column(Integer, nullable=False, default=1, server_default="1")
+    # REV-01 (REV-C12): versión desde la que hay un pedido de regeneración reservado; NULL sin pedido en curso.
+    # Migración 20261109000001_regeneration_claim.sql.
+    regeneration_claim = Column(Integer, nullable=True)
 
 
 class DownloadORM(Base):
