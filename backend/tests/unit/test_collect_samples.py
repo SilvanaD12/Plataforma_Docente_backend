@@ -202,3 +202,82 @@ def test_with_timeout_1_the_case_ends_as_timeout_within_about_one_second(collect
         status, failure, _ = collect.run_case(client, {}, UNIT, CASE, args(timeout=1, poll=2), 0)
     assert status is None and failure["code"] == "TIMEOUT", (label, failure)
     assert clock.elapsed <= 1.0 + 1e-6, f"{label}: el reloj avanzó {clock.elapsed} s"
+
+
+# 4. Presupuesto de tiempo con un servidor HTTP local real que responde lento
+
+
+class SlowServer:
+    """Servidor HTTP local: crea el pedido enseguida (o lento) y responde lento cada consulta."""
+
+    def __init__(self, post_delay: float, get_delay: float) -> None:
+        import threading
+        import time as real_time
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        self.arrivals: list[tuple[str, float]] = []
+        server = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args) -> None:  # sin ruido en la salida de pytest
+                pass
+
+            def _answer(self, delay: float, status: int, body: dict) -> None:
+                server.arrivals.append((self.command, real_time.perf_counter()))
+                real_time.sleep(delay)
+                payload = json.dumps(body).encode()
+                try:
+                    self.send_response(status)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                except OSError:
+                    pass  # el cliente ya cortó la llamada por su límite de tiempo
+
+            def do_POST(self) -> None:
+                length = int(self.headers.get("Content-Length") or 0)
+                self.rfile.read(length)
+                self._answer(post_delay, 202, ACCEPTED)
+
+            def do_GET(self) -> None:
+                self._answer(get_delay, 200, {**ACCEPTED, "status": "running"})
+
+        self._http = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._http.daemon_threads = True
+        self.url = f"http://127.0.0.1:{self._http.server_address[1]}"
+        self._thread = threading.Thread(target=self._http.serve_forever, daemon=True)
+
+    def __enter__(self) -> "SlowServer":
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._http.shutdown()
+        self._http.server_close()
+
+
+BUDGET = 0.12
+MARGIN = 0.08
+
+
+@pytest.mark.parametrize(
+    ("post_delay", "get_delay"), [(0.0, 0.5), (0.5, 0.0)], ids=["consulta-lenta", "creacion-lenta"]
+)
+def test_a_slow_local_server_ends_as_timeout_within_the_budget(post_delay, get_delay):
+    import time as real_time
+
+    spec = importlib.util.spec_from_file_location("collect_samples_real_time", SCRIPT)
+    collect = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(collect)  # type: ignore[union-attr]
+
+    with SlowServer(post_delay, get_delay) as server, httpx.Client(base_url=server.url, timeout=180) as client:
+        started = real_time.perf_counter()
+        status, failure, _ = collect.run_case(client, {}, UNIT, CASE, args(timeout=BUDGET, poll=0.05), 0)
+        elapsed = real_time.perf_counter() - started
+
+    assert status is None and failure["code"] == "TIMEOUT", failure
+    assert elapsed <= BUDGET + MARGIN, f"tardó {elapsed * 1000:.0f} ms con un presupuesto de {BUDGET * 1000:.0f} ms"
+    # Ninguna llamada empezó después de agotar el presupuesto.
+    late = [(method, round((moment - started) * 1000)) for method, moment in server.arrivals if moment - started > BUDGET]
+    assert not late, f"llamadas iniciadas después del presupuesto (ms): {late}"

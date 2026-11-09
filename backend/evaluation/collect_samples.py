@@ -18,7 +18,8 @@ evaluation/results/failures.jsonl (no en samples.jsonl, porque run_ragas.py exig
 con el caso siguiente. Si el servidor rechaza el pedido o su consulta de forma definitiva (4xx salvo 429), se deja de
 consultar y se registran su código HTTP (`status`), su `code` y su `message`; los 429, los 5xx y los fallos de red se
 reintentan hasta --timeout, al crear el pedido y al consultarlo. Ninguna espera interna (Retry-After, reintentos ni
---poll) pasa del tiempo que queda: al agotarse se registra TIMEOUT. Los rechazos de un pedido que sí entregó recursos van en el campo `problems` de cada muestra.
+--poll) ni el timeout de cada llamada HTTP pasan del tiempo que queda, y no se inicia ninguna llamada con el tiempo
+agotado: se registra TIMEOUT. Los rechazos de un pedido que sí entregó recursos van en el campo `problems` de cada muestra.
 
 La clave de cada pedido sale de una marca de la corrida (--run-id), del id del caso y del intento, así que repetir la
 corrida con la misma marca no duplica pedidos. El caso y el intento siempre quedan completos: si la clave pasa de 128
@@ -74,14 +75,35 @@ def pause(seconds: float, deadline: float | None = None) -> None:
         time.sleep(wait)
 
 
+class BudgetExhausted(Exception):
+    """Se agotó el tiempo del caso antes de hacer la llamada: no se hace."""
+
+
+def call_timeout(client: httpx.Client, deadline: float | None) -> httpx.Timeout:
+    """El timeout normal del cliente, recortado a lo que queda hasta `deadline`."""
+    normal = client.timeout
+    if deadline is None:
+        return normal
+    left = remaining(deadline)
+    limit = lambda value: left if value is None else min(value, left)  # noqa: E731
+    return httpx.Timeout(connect=limit(normal.connect), read=limit(normal.read), write=limit(normal.write),
+                         pool=limit(normal.pool))
+
+
 def request(
     client: httpx.Client, method: str, path: str, retries: int = 3, deadline: float | None = None, **kwargs
 ) -> httpx.Response:
-    """Reintenta errores 502/503/504 y de conexión (Render tarda en despertar). Con `deadline`, ninguna espera pasa de
-    lo que queda y, al agotarse, devuelve la última respuesta (o relanza el error de red) sin esperar más."""
+    """Reintenta errores 502/503/504 y de conexión (Render tarda en despertar).
+
+    Con `deadline`: antes de cada llamada comprueba el tiempo restante y, si se agotó, lanza BudgetExhausted sin
+    llamar; el timeout de cada llamada se recorta a lo que queda (si lo supera, httpx lanza un TimeoutException, que es
+    un error de red), y ninguna espera entre reintentos pasa de lo que queda. Al agotarse, devuelve la última respuesta
+    (o relanza el error de red) sin esperar más."""
     for attempt in range(retries + 1):
+        if deadline is not None and remaining(deadline) <= 0:
+            raise BudgetExhausted()
         try:
-            response = client.request(method, path, **kwargs)
+            response = client.request(method, path, timeout=call_timeout(client, deadline), **kwargs)
             if response.status_code not in (502, 503, 504) or attempt == retries or remaining(deadline) <= 0:
                 return response
         except httpx.TransportError:
@@ -205,6 +227,8 @@ def start_request(
         try:
             response = request(client, 'POST', REQUESTS_PATH, deadline=deadline,
                                headers={**headers, 'Idempotency-Key': key}, json=body)
+        except BudgetExhausted:
+            return None
         except httpx.TransportError:
             response = None
         if not is_transient(response):
@@ -244,6 +268,8 @@ def wait_until_final(
     while True:
         try:
             response = request(client, 'GET', f'{REQUESTS_PATH}/{request_id}', deadline=deadline, headers=headers)
+        except BudgetExhausted:
+            return None, None
         except httpx.TransportError:
             response = None
         if response is not None:
