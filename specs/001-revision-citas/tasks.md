@@ -251,8 +251,8 @@ el pedido conserva ambos y un fallo deja el anterior igual.
 - [x] T052 [BE] [US2] Crear `backend/src/platform5e/application/ports/outbound/resource_regeneration_port.py` con `request_regeneration(teacher_id, resource) -> RegenerationOutcome(ok, new_resource_ids, reason)`, según el acuerdo con Yan.
 - [x] T053 [BE] [US2] Crear el adaptador en `backend/src/platform5e/infrastructure/generation/generation_regeneration_adapter.py`, que delega en Generación con `params` y la evidencia vigente, e inyectarlo en `backend/src/platform5e/main.py`. Revisión no importa el servicio de Generación; `tests/architecture` lo comprueba.
 - [x] T054 [BE] [US2] Agregar `regenerate_resource(teacher_id, unit_id, resource_id, expected_version)` en `backend/src/platform5e/application/services/review/resource_review_service.py`, y `POST /api/v1/units/{unit_id}/resources/{resource_id}/regenerations` con `RegenerationResponse` en `backend/src/platform5e/infrastructure/http/routers/resources.py` y en `schemas/resources.py`. Errores: 409 `VERSION_CONFLICT`; rechazos de Generación con su código (409 por el material, 422 por los parámetros guardados); 502 `REGENERATION_FAILED` solo para fallos del proveedor.
-- [ ] T055 [BE] [US2] Cierre del bloque f):
-  - **Hecho (2026-11-08):** la e2e de regeneración con el servidor real (`test_regenerating_a_resource_from_review`: éxito, sin duplicados, fallo sin material y cuenta B con 404), `openapi.json` regenerado y D10 registrada como provisional. Falta el **PR 2**.
+- [x] T055 [BE] [US2] Cierre del bloque f):
+  - **Hecho (2026-11-08):** la e2e de regeneración con el servidor real (`test_regenerating_a_resource_from_review`: éxito, sin duplicados, fallo sin material y cuenta B con 404), `openapi.json` regenerado y D10 registrada como provisional. PR 2 abierto como [#13 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/13), enlazado al [PR #7 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/7). D10 sigue pendiente de la confirmación de Yan.
   - **Pendiente del análisis (M3, constitución V):** cuando exista el contrato con Yan, agregar a `backend/tests/e2e/test_accounts_and_review_api.py` una prueba e2e de regeneración con el servidor real. Debe cubrir un éxito que descarta el anterior, un fallo que lo conserva y la cuenta B con 404 (REV-C12, C13).
   - Correr las pruebas y `scripts/export_openapi.py`, y hacer el **commit f)** y el **PR 2** del backend, enlazado con el PR FE-2 (T059).
 
@@ -272,7 +272,7 @@ el pedido conserva ambos y un fallo deja el anterior igual.
   - motivo del fallo (REV-C13).
 
   **Hecho (2026-11-08):** en la rama FE-2, en cuatro commits: descarte con motivo y vuelta a revisión (`84a3f87`); editor de la estructura con los mínimos del backend (`0c7d3e6`); aviso de multimedia invalidada con «Generar de nuevo» (`c33cbc4`); y «Regenerar» con el resultado y el motivo del fallo (`439c971`). Las reglas están en `src/features/review/model/` con sus pruebas.
-- [ ] T059 [FE] Cierre de FE-2: correr `npm run lint`, `npm test` y `npm run build`, y abrir el **PR FE-2** enlazado al PR 2 del backend, con capturas.
+- [x] T059 [FE] Cierre de FE-2: correr `npm run lint`, `npm test` y `npm run build`, y abrir el **PR FE-2** enlazado al PR 2 del backend, con capturas. **Hecho (2026-11-08):** lint y build correctos y 166 pruebas; recorrido en el navegador con el backend del PR 2 (exportación con motivos, descargas e historial, descarte con motivo, estructura incompleta, regeneración y cuenta B sin acceso al historial de A). El aviso de multimedia invalidada no se pudo ver en local porque la generación de imágenes y voz no está activa; lo cubren las pruebas. PR FE-2 abierto como [#7 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/7), enlazado al [PR #13 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/13).
 
 ## Fase 7 · Recorridos de extremo a extremo y cierre
 
