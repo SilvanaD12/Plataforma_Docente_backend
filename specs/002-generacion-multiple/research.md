@@ -62,8 +62,18 @@ Otros archivos afectados:
 **Pedido borrado durante la ejecución.** Si el docente borra el curso mientras se genera, `delete_course` elimina el pedido y sus pasos (T047). El ejecutor no debe recrearlos ni dejar recursos sueltos:
 
 - `save_evidence`, `update_step`, `heartbeat` y `finish` solo actualizan filas existentes (`UPDATE`, nunca `INSERT`) y devuelven si el pedido existía. `update_step` exige que existan el pedido y el paso.
-- Antes de generar los medios y antes de guardar los recursos de cada paso, `RunGenerationRequest` comprueba que el pedido sigue existiendo y que la unidad sigue siendo del docente. Si el pedido ya no existe, se detiene sin escribir nada más. Si existe pero la unidad ya no es del docente, lo cierra como `failed` con `UNIT_NOT_FOUND`, sin guardar recursos.
-- Si confirmar el paso falla porque el pedido desapareció entre la comprobación y la confirmación, quita de Revisión los recursos recién guardados de ese paso y se detiene.
+- Cada paso escribe en este orden:
+  1. Marca el paso como `running` (`update_step`).
+  2. Redacta y verifica los recursos. No escribe nada.
+  3. Comprueba que el pedido sigue existiendo y que la unidad sigue siendo del docente.
+  4. Genera la imagen o el audio de los recursos que se entregan, **sin guardarlos** (`generate_media`).
+  5. Vuelve a comprobar el pedido y la unidad: la multimedia pudo tardar.
+  6. Guarda la multimedia (`MediaRepositoryPort.save_media`) y después los recursos (`save_resources`).
+  7. Confirma el paso (`update_step`). Es la última escritura del paso.
+- Si una comprobación falla porque el pedido ya no existe, el paso se detiene sin escribir nada más. Si el pedido existe pero la unidad ya no es del docente, el pedido se cierra como `failed` con `UNIT_NOT_FOUND`, sin guardar recursos ni multimedia.
+- Si la confirmación devuelve que el pedido ya no existe (el curso se borró entre el paso 5 y el 7), quita lo que ese paso guardó: los recursos de Revisión y sus archivos de `media_assets` (`MediaRepositoryPort.delete_media`).
+- Si el guardado del paso 6 falla a medias, quita también lo que alcanzó a guardar, y el paso queda `failed`.
+- `save_media` solo se llama en el paso 6. «Generar de nuevo» en Revisión y la generación anterior siguen usando `attach_generated_media`, fuera de los pedidos.
 
 **Latido.** El ejecutor (`ThreadPoolGenerationRunner`) renueva `heartbeat_at` cada 15 s de **todos** los pedidos que tiene en su cola o en ejecución, y lo hace también al recibirlos. Así un pedido que espera un hilo libre tiene dueño, aunque todavía no haya empezado.
 

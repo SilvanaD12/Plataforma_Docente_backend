@@ -446,3 +446,75 @@ def test_the_heartbeat_beats_while_the_request_runs():
 
     with _Heartbeat(broken, 0.01):
         assert failures.wait(1)  # un latido fallido no rompe la ejecución
+
+
+# Orden de escritura de un paso con multimedia (research R3)
+
+
+class MemoryMedia:
+    def __init__(self, log: list[str]) -> None:
+        self.saved: dict[str, bytes] = {}
+        self.log = log
+
+    def save_media(self, teacher_id, media, content) -> None:
+        self.log.append("multimedia")
+        self.saved[media["id"]] = content
+
+    def get_media(self, teacher_id, media_id):
+        return None
+
+    def delete_media(self, teacher_id, media_id) -> None:
+        self.log.append("borra multimedia")
+        self.saved.pop(media_id, None)
+
+
+def _image_setup(setup, log: list[str]):
+    from tests.integration.test_course_deleted_while_generating_media import IMAGE_RESOURCE, PausingMediaGenerator
+
+    media = MemoryMedia(log)
+    real_update_step, real_save_resources = setup.repository.update_step, setup.review.save_resources
+
+    def update_step(request_id, step):
+        log.append(f"paso {step.status.value}")
+        return real_update_step(request_id, step)
+
+    def save_resources(teacher_id, unit_id, resources):
+        log.append("recursos")
+        return real_save_resources(teacher_id, unit_id, resources)
+
+    setup.repository.update_step = update_step
+    setup.review.save_resources = save_resources
+    generator = StageAwareGenerator({**DISTINCT_RESOURCES, "imagen_ilustrativa": IMAGE_RESOURCE})
+    options = {"media_generator": PausingMediaGenerator(pause=False), "media_repository": media}
+    return media, generator, options
+
+
+def test_the_step_saves_media_then_resources_and_confirms_last(setup):
+    log: list[str] = []
+    request_id = setup.start("imagen_ilustrativa", mode=GenerationMode.INDIVIDUAL)
+    media, generator, options = _image_setup(setup, log)
+
+    request = setup.run(request_id, generator, **options)
+
+    assert request.status == RequestStatus.SUCCEEDED
+    assert log == ["paso running", "multimedia", "recursos", "paso succeeded"]
+    [resource] = setup.review.all()
+    assert resource["media"]["status"] == "ready" and resource["media"]["id"] in media.saved
+
+
+def test_if_saving_the_resources_fails_the_saved_media_is_removed(setup):
+    log: list[str] = []
+    request_id = setup.start("imagen_ilustrativa", mode=GenerationMode.INDIVIDUAL)
+    media, generator, options = _image_setup(setup, log)
+
+    def failing_save(teacher_id, unit_id, resources):
+        log.append("recursos")
+        raise ConnectionError("base caída")
+
+    setup.review.save_resources = failing_save
+    request = setup.run(request_id, generator, **options)
+
+    [step] = request.steps
+    assert step.status == StepStatus.FAILED and step.resource_ids == ()
+    assert media.saved == {} and setup.review.all() == []
+    assert log == ["paso running", "multimedia", "recursos", "borra multimedia", "paso failed"]

@@ -47,7 +47,7 @@ from platform5e.application.services.generation.step_drafting import (
     retrieval_limit,
     saved_parameters,
 )
-from platform5e.application.services.media.media_attachment import attach_generated_media
+from platform5e.application.services.media.media_attachment import PendingMedia, generate_media
 from platform5e.domain.generation.distractor_reliability import reliability_report
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
 from platform5e.domain.generation.evidence import build_snapshot
@@ -222,9 +222,10 @@ class RunGenerationRequest:
             running = replace(step, status=StepStatus.RUNNING, started_at=self._clock())
             if not self._repository.update_step(request.id, running):
                 return None
+            saved_media: list[str] = []  # multimedia que guardó este paso, para quitarla si el pedido desaparece
             try:
                 finished = self._run_step(
-                    request, running, unit, retrieval.fragments, retrieved_at, outcome_id, accepted
+                    request, running, unit, retrieval.fragments, retrieved_at, outcome_id, accepted, saved_media
                 )
             except _RequestGone:
                 return None
@@ -240,9 +241,10 @@ class RunGenerationRequest:
                     finished_at=self._clock(),
                 )
             steps[index] = finished
+            # La confirmación del paso es su última escritura (research R3).
             if not self._repository.update_step(request.id, finished):
-                # El pedido desapareció entre la comprobación y la confirmación: no quedan recursos sueltos.
-                self._remove_resources(request.teacher_id, finished.resource_ids)
+                # El pedido desapareció entre la comprobación y la confirmación: se quitan sus recursos y archivos.
+                self._remove_step_outputs(request.teacher_id, finished.resource_ids, saved_media)
                 return None
 
         status = final_status(steps)
@@ -255,12 +257,38 @@ class RunGenerationRequest:
         if self._membership.get_unit_context(request.teacher_id, request.unit_id) is None:
             raise _UnitGone()
 
-    def _remove_resources(self, teacher_id: str, resource_ids: Sequence[str]) -> None:
+    def _remove_step_outputs(self, teacher_id: str, resource_ids: Sequence[str], media_ids: Sequence[str]) -> None:
+        """Quita lo que guardó un paso que no se pudo confirmar: sus recursos y sus archivos de multimedia."""
         for resource_id in resource_ids:
             try:
                 self._review_repository.delete_resource(teacher_id, resource_id)
             except Exception:
-                logger.exception("No se pudo quitar el recurso %s de un pedido eliminado.", resource_id)
+                logger.exception("No se pudo quitar el recurso %s de un paso sin confirmar.", resource_id)
+        for media_id in media_ids:
+            try:
+                if self._media_repository is not None:
+                    self._media_repository.delete_media(teacher_id, media_id)
+            except Exception:
+                logger.exception("No se pudo quitar el archivo %s de un paso sin confirmar.", media_id)
+
+    def _save_step_outputs(
+        self,
+        request: GenerationRequest,
+        resources: list[dict[str, Any]],
+        pending_media: Sequence[PendingMedia],
+        saved_media: list[str],
+    ) -> None:
+        """Guarda la multimedia y después los recursos del paso. Si algo falla a medias, quita lo que ya guardó."""
+        try:
+            for pending in pending_media:
+                assert self._media_repository is not None  # solo hay multimedia pendiente si hay repositorio
+                self._media_repository.save_media(request.teacher_id, pending.media, pending.content)
+                saved_media.append(pending.media["id"])
+            self._review_repository.save_resources(request.teacher_id, request.unit_id, resources)
+        except Exception:
+            self._remove_step_outputs(request.teacher_id, [resource["id"] for resource in resources], saved_media)
+            saved_media.clear()
+            raise
 
     def _fail_remaining(self, request_id: str, steps: list[GenerationStep], start: int) -> None:
         problem = Problem(GenerationErrorCode.DEADLINE_EXCEEDED, DEADLINE_MESSAGE)
@@ -292,7 +320,11 @@ class RunGenerationRequest:
         retrieved_at: str,
         outcome_id: str,
         accepted: list[dict[str, Any]],
+        saved_media: list[str],
     ) -> GenerationStep:
+        """Redacta, verifica y entrega los recursos de un paso. Orden de escritura (research R3): genera la multimedia
+        sin guardarla, comprueba que el pedido y la unidad siguen, guarda la multimedia (anota sus ids en
+        `saved_media`) y después los recursos. La confirmación del paso la escribe `_run`, al final."""
         step_request = {
             **request.parameters.to_payload(),
             "id": request.id,
@@ -316,7 +348,7 @@ class RunGenerationRequest:
                 finished_at=self._clock(),
             )
 
-        # Antes de generar medios y de guardar: el curso pudo borrarse mientras se redactaba.
+        # Antes de generar multimedia: el curso pudo borrarse mientras se redactaba.
         self._ensure_still_owned(request)
         timestamp = self._clock()
         uses_ai = bool(getattr(generator, "uses_ai", False))
@@ -324,6 +356,7 @@ class RunGenerationRequest:
         threshold = request.parameters.evidence_threshold
         evidence = [fragment.to_dict(retrieved_at) for fragment in fragments]
         resources: list[dict[str, Any]] = []
+        pending_media: list[PendingMedia] = []
         delivered_drafts: list[dict[str, Any]] = []
         for drafted_resource in drafted.kept:
             resource = {
@@ -356,15 +389,13 @@ class RunGenerationRequest:
                 )
                 continue
             resource["verification"] = verification
-            # Los medios se generan solo para los recursos que se entregan.
-            attach_generated_media(request.teacher_id, resource, self._media_generator, self._media_repository)
+            # La multimedia se genera solo para los recursos que se entregan, y todavía no se guarda.
+            pending = generate_media(resource, self._media_generator if self._media_repository is not None else None)
+            if pending is not None:
+                pending_media.append(pending)
             resources.append(resource)
             delivered_drafts.append(drafted_resource)
         accepted.extend({**draft, "etapa": step.stage} for draft in delivered_drafts)
-
-        if resources:
-            self._ensure_still_owned(request)  # los medios pudieron tardar
-            self._review_repository.save_resources(request.teacher_id, request.unit_id, resources)
 
         rejections = [
             {"title": item["title"], "reason": item["reason"], "kind": item.get("kind", "grounding")}
@@ -373,7 +404,7 @@ class RunGenerationRequest:
         if not resources and not rejections:
             rejections.append({"title": step.resource_type, "reason": NO_RESOURCES_MESSAGE, "kind": "structure"})
 
-        return replace(
+        finished = replace(
             step,
             status=StepStatus.SUCCEEDED if resources else StepStatus.REJECTED,
             resource_ids=tuple(resource["id"] for resource in resources),
@@ -387,6 +418,10 @@ class RunGenerationRequest:
             distractor_reliability=reliability_report(resources),
             finished_at=self._clock(),
         )
+        if resources:
+            self._ensure_still_owned(request)  # la multimedia pudo tardar: si el curso se borró, no se guarda nada
+            self._save_step_outputs(request, resources, pending_media, saved_media)
+        return finished
 
     def _verify(self, resource: dict[str, Any], threshold: float, copy_complete: bool) -> dict[str, Any]:
         """Bloque `verification` del recurso. Si la verificación lanza un error, el recurso queda `pending` con el
