@@ -471,24 +471,31 @@ class RuleBasedGenerator:
     ) -> dict[str, Any] | None:
         glossary_entries: list[str] = []
         citations: list[dict[str, Any]] = []
+        chosen_terms: list[str] = []
+        used_sentences: set[str] = set()
 
         for term in terms[index * 8 :]:
+            # Un término contenido en otro ya elegido («TCP» en «Protocolo TCP»), o al revés, no se repite.
+            if any(_contains_word(chosen, term) or _contains_word(term, chosen) for chosen in chosen_terms):
+                continue
+            # Cada oración del material define a un solo término.
+            candidates = [
+                (tag, sentence)
+                for tag, sentence in sentence_pairs
+                if _contains_word(sentence, term) and normalize_text(sentence) not in used_sentences
+            ]
             matched_definition = next(
                 (
                     (tag, sentence)
-                    for tag, sentence in sentence_pairs
-                    if _contains_word(sentence, term)
-                    and re.search(
-                        r"\b(es|son|se define|consiste|significa|permite)\b", sentence, re.IGNORECASE
-                    )
+                    for tag, sentence in candidates
+                    if re.search(r"\b(es|son|se define|consiste|significa|permite)\b", sentence, re.IGNORECASE)
                 ),
                 None,
-            ) or next(
-                ((tag, sentence) for tag, sentence in sentence_pairs if _contains_word(sentence, term)),
-                None,
-            )
+            ) or next(iter(candidates), None)
 
             if matched_definition:
+                chosen_terms.append(term)
+                used_sentences.add(normalize_text(matched_definition[1]))
                 glossary_entries.append(f"{_capitalize_first(term)}: {matched_definition[1]}")
                 citations.append(
                     {"afirmacion": matched_definition[1], "fragmentos": [matched_definition[0]]}
