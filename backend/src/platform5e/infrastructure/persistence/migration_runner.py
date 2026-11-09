@@ -36,6 +36,10 @@ def apply_database_migrations(engine: Engine) -> None:
         return
 
     with engine.begin() as conn:
+        # 1. Habilitar la extensión pgvector si estamos en PostgreSQL (o de forma segura con IF NOT EXISTS)
+        if engine.dialect.name == "postgresql":
+            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
+
         conn.execute(
             text(
                 """
