@@ -14,6 +14,7 @@ from platform5e.application.services.materials.material_service import (
     build_article_filename,
 )
 from platform5e.domain.materials.chunking import MaterialError
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 
 PAGE_TEXT: str = (
     "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de los datos. "
@@ -218,3 +219,15 @@ def test_from_topic_propagates_source_errors():
 def test_article_file_name_is_safe():
     assert build_article_filename("TCP/IP \\ redes", "Wikipedia") == "TCP IP   redes.txt"
     assert build_article_filename("", "Wikipedia") == "Artículo.txt"
+
+def test_material_service_unit_membership_validation():
+    """Valida que el servicio verifique la membresía de la unidad (MAT-C2)."""
+    service, config_repo, _ = build_test_environment()
+    courses = config_repo.get_courses("d")
+    unit_id = courses[0]["units"][0]["id"]
+    
+    # Verificamos que acepte una unidad y outcomes válidos sin error
+    try:
+        service.validate_unit_membership_secure("d", unit_id, [])
+    except Exception as e:
+        pytest.fail(f"La validación falló con datos válidos: {e}")

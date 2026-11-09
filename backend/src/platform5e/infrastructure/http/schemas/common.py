@@ -47,6 +47,7 @@ ERROR_DESCRIPTIONS: dict[int, str] = {
     409: "Conflict with the current state (duplicate or blocked approval).",
     413: "The file is larger than the limit.",
     422: "Invalid parameters (type, range or unknown field).",
+    429: "Too many active requests; `Retry-After` suggests when to try again.",
     503: "The database or an external source is not available.",
 }
 

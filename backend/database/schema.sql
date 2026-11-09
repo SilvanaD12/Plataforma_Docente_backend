@@ -21,7 +21,6 @@ SET row_security = off;
 
 CREATE EXTENSION IF NOT EXISTS vector WITH SCHEMA public;
 
-
 --
 -- Name: EXTENSION vector; Type: COMMENT; Schema: -; Owner: -
 --

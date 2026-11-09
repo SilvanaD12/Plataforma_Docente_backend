@@ -78,3 +78,48 @@ def test_detects_aliases_relative_imports_and_imports_inside_functions(source, p
 
 def test_comments_and_strings_are_not_imports():
     assert violations('# import fastapi\ntexto = "sqlalchemy"', 'platform5e.domain', ('fastapi', 'sqlalchemy')) == []
+
+# GEN-01 (T012, Constitución I): los casos de uso de Generación y sus puertos hacia otros módulos no importan los
+# servicios de Cuentas, Material ni Revisión, ni el dominio de Revisión. Hablan con ellos solo por puertos.
+GENERATION_ISOLATED = [
+    'application/use_cases/generation',
+    'application/ports/outbound/unit_membership_port.py',
+    'application/ports/outbound/evidence_provider_port.py',
+    'application/ports/outbound/generation_request_repository_port.py',
+    'application/ports/outbound/generation_job_runner_port.py',
+    'application/ports/outbound/resource_verification_port.py',
+]
+GENERATION_FORBIDDEN = (
+    'platform5e.application.services.accounts',
+    'platform5e.application.services.materials',
+    'platform5e.application.services.review',
+    'platform5e.domain.review',
+)
+
+
+def generation_files() -> list[Path]:
+    files: list[Path] = []
+    for relative in GENERATION_ISOLATED:
+        path = ROOT / relative
+        files += sorted(path.rglob('*.py')) if path.is_dir() else [path] if path.exists() else []
+    return files
+
+
+def test_generation_talks_to_other_modules_only_through_ports():
+    files = generation_files()
+    # Los puertos ya existen; la carpeta de casos de uso llega con T015.
+    assert any(f.name == 'unit_membership_port.py' for f in files)
+    failures = []
+    for file_path in files:
+        relative_parts = file_path.relative_to(ROOT).parent.parts
+        package = '.'.join(['platform5e', *relative_parts])
+        errors = violations(file_path.read_text(encoding='utf-8'), package, GENERATION_FORBIDDEN)
+        failures.extend(f'{file_path.relative_to(ROOT)}: {name}' for name in errors)
+    assert not failures, '\n'.join(failures)
+
+
+def test_the_generation_rule_detects_a_review_import():
+    source = 'from platform5e.domain.review.content_fingerprint import content_fingerprint'
+    assert violations(source, 'platform5e.application.use_cases.generation', GENERATION_FORBIDDEN)
+    assert violations('from ..services.accounts import account_service', 'platform5e.application.use_cases',
+                      GENERATION_FORBIDDEN)

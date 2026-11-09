@@ -104,9 +104,16 @@ def server(tmp_path: Path, e2e_database_url: str) -> Iterator[str]:
         yield base
     finally:
         process.terminate()
+        hung = False
         try:
             process.wait(timeout=10)
         except subprocess.TimeoutExpired:
+            hung = True
             process.kill()
+            process.wait(timeout=10)
         if not record.closed:
             record.close()
+        # GEN-01 (T020): el lifespan cierra el ejecutor de pedidos; ningún hilo debe impedir que el proceso termine.
+        if hung:
+            error_log = (tmp_path / "uvicorn.log").read_text(encoding="utf-8", errors="replace")
+            pytest.fail("El servidor no terminó en 10 s tras SIGTERM (¿hilos colgados?):\n" + error_log[-4000:])

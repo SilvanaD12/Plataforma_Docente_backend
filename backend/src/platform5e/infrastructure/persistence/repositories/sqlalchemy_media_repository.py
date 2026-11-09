@@ -7,7 +7,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from sqlalchemy import JSON, Column, LargeBinary, String
+from sqlalchemy import JSON, Column, LargeBinary, String, delete
 
 from platform5e.application.ports.outbound.media_port import MediaRepositoryPort
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine
@@ -54,3 +54,11 @@ class SQLAlchemyMediaRepository(MediaRepositoryPort):
             if entity is None or entity.teacher_id != teacher_id:
                 return None
             return dict(entity.details), bytes(entity.content)
+
+    @translate_persistence_errors
+    def delete_media(self, teacher_id: str, media_id: str) -> None:
+        with SessionLocal() as session:
+            session.execute(
+                delete(MediaAssetORM).where(MediaAssetORM.id == media_id, MediaAssetORM.teacher_id == teacher_id)
+            )
+            session.commit()

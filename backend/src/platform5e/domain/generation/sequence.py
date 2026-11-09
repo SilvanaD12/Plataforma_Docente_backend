@@ -7,6 +7,7 @@ y conocen lo que redactaron los anteriores; un recurso demasiado parecido a otro
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from platform5e.domain.generation.resource_formats import RESOURCE_CATALOG, resource_stage
@@ -26,6 +27,12 @@ STAGE_AGENTS: dict[str, str] = {
 # Proporción de palabras compartidas a partir de la cual dos recursos se consideran repetidos.
 SIMILARITY_THRESHOLD: float = 0.6
 MAX_SEQUENCE_TYPES: int = 8
+# GEN-R2: cantidad común por tipo de recurso en un pedido.
+MIN_QUANTITY_PER_TYPE: int = 1
+MAX_QUANTITY_PER_TYPE: int = 5
+# GEN-01: modos del pedido. La secuencia admite varios tipos; los demás, exactamente uno.
+SEQUENCE_MODE: str = "sequence"
+SINGLE_TYPE_MODES: frozenset[str] = frozenset({"individual", "regeneration"})
 # HU-050: partes del caso aplicado que se comparan con los recursos de las etapas anteriores.
 CASE_FIELDS: tuple[str, ...] = ("scenario", "task")
 
@@ -50,6 +57,47 @@ def order_resource_types(resource_types: list[str]) -> list[str]:
 def stage_agent(resource_type: str) -> str:
     """Nombre del agente que redacta ese tipo de recurso."""
     return STAGE_AGENTS[resource_stage(resource_type)]
+
+
+@dataclass(frozen=True)
+class PlannedStep:
+    """Un paso del pedido (GEN-01): un tipo de recurso, su etapa 5E, su agente y la cantidad común."""
+
+    position: int
+    stage: str
+    resource_type: str
+    agent: str
+    quantity: int
+
+
+def plan_steps(mode: str, resource_types: list[str], quantity: int) -> list[PlannedStep]:
+    """GEN-R1 y GEN-R2: los pasos del pedido en el orden de la clase, uno por tipo de recurso.
+
+    El modo individual (y la regeneración) es una secuencia de un solo paso: exige exactamente un tipo, contando los
+    repetidos una sola vez. La secuencia admite de 1 a `MAX_SEQUENCE_TYPES` tipos distintos. Todos los pasos usan la
+    misma cantidad, de `MIN_QUANTITY_PER_TYPE` a `MAX_QUANTITY_PER_TYPE`.
+    """
+    if mode != SEQUENCE_MODE and mode not in SINGLE_TYPE_MODES:
+        raise SequenceError(f"Modo de generación desconocido: {mode}.")
+    if isinstance(quantity, bool) or not isinstance(quantity, int) or not (
+        MIN_QUANTITY_PER_TYPE <= quantity <= MAX_QUANTITY_PER_TYPE
+    ):
+        raise SequenceError(
+            f"La cantidad por tipo debe estar entre {MIN_QUANTITY_PER_TYPE} y {MAX_QUANTITY_PER_TYPE}."
+        )
+    ordered_types = order_resource_types(resource_types)
+    if mode in SINGLE_TYPE_MODES and len(ordered_types) != 1:
+        raise SequenceError("La generación individual necesita exactamente un tipo de recurso.")
+    return [
+        PlannedStep(
+            position=position,
+            stage=resource_stage(resource_type),
+            resource_type=resource_type,
+            agent=stage_agent(resource_type),
+            quantity=quantity,
+        )
+        for position, resource_type in enumerate(ordered_types)
+    ]
 
 
 def resource_text(resource: dict[str, Any]) -> str:

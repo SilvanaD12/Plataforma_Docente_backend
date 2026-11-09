@@ -484,6 +484,112 @@
         }
       }
     },
+    "/api/v1/documents/search": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Hybrid search of evidence across documents",
+        "description": "Hybrid search of evidence across documents.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/documents/search?query=redes\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "search_evidence_api_v1_documents_search_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Términos de búsqueda",
+              "title": "Query"
+            },
+            "description": "Términos de búsqueda"
+          },
+          {
+            "name": "unitId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ID de la unidad",
+              "title": "Unitid"
+            },
+            "description": "ID de la unidad"
+          },
+          {
+            "name": "topK",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Cantidad máxima de resultados",
+              "default": 5,
+              "title": "Topk"
+            },
+            "description": "Cantidad máxima de resultados"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EvidenceSearchResponse"
+                  },
+                  "title": "Response Search Evidence Api V1 Documents Search Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents": {
       "get": {
         "tags": [
@@ -978,6 +1084,349 @@
         }
       }
     },
+    "/api/v1/generation-requests": {
+      "post": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Start a generation request",
+        "description": "Validates the unit ownership, the outcome and that the unit has processed material, saves the request\nand runs it in the background (202 with `Location`). Poll `GET /generation-requests/{requestId}` for the\nstatus of each step.\n\nThe client sends a stable `Idempotency-Key`, unique per teacher. Repeating the same key with the same body\n(mode, unit and parameters) returns the existing request (200) without applying the other rules again;\nusing it with a different body returns 409 IDEMPOTENCY_KEY_REUSED. Without processed material the request\nis rejected (400 NO_PROCESSED_MATERIAL), and a teacher with 2 active requests gets 429 with `Retry-After`.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generation-requests\" -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $(uuidgen)\" -H 'Content-Type: application/json' --data '{\"mode\":\"sequence\",\"unitId\":\"unidad-1\",\"resourceTypes\":[\"pregunta_detonante\",\"item_opcion_multiple\"],\"quantity\":1}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 202; repeat with the same key to get 200.",
+        "operationId": "start_generation_request_api_v1_generation_requests_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{8,128}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Stable client key, unique per teacher: 8 to 128 letters, digits, `-` or `_`. Reuse it when retrying the same request. Without it the API answers 400 IDEMPOTENCY_KEY_REQUIRED; with another format, 422 INVALID_PARAMETERS.",
+              "examples": [
+                "3f6c2a1e-8b4d-4d7a-9a51-0c2f8e1b7d10"
+              ],
+              "title": "Idempotency-Key"
+            },
+            "description": "Stable client key, unique per teacher: 8 to 128 letters, digits, `-` or `_`. Reuse it when retrying the same request. Without it the API answers 400 IDEMPOTENCY_KEY_REQUIRED; with another format, 422 INVALID_PARAMETERS."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartGenerationRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Request accepted and queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationRequestStatus"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "URL of the request status."
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many active requests; `Retry-After` suggests when to try again.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Suggested seconds before retrying."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database or an external source is not available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Same key and same body. The request already exists and is returned in its current state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationRequestStatus"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "List my generation requests of a unit",
+        "description": "Requests of the teacher in the unit, newest first. Used to recover a request after reloading when the\nclient lost its id. A unit of another teacher answers 404 UNIT_NOT_FOUND, the same as a missing one.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generation-requests?unitId=unidad-1&active=true\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nReplace unidad-1 with one of your units. Expected 200. See the response schema below for the returned fields.",
+        "operationId": "list_generation_requests_api_v1_generation_requests_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unitId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unit of the teacher.",
+              "title": "Unitid"
+            },
+            "description": "Unit of the teacher."
+          },
+          {
+            "name": "active",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Only `queued` or `running` requests.",
+              "default": false,
+              "title": "Active"
+            },
+            "description": "Only `queued` or `running` requests."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenerationRequestSummary"
+                  },
+                  "title": "Response List Generation Requests Api V1 Generation Requests Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generation-requests/{request_id}": {
+      "get": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Get the status of a generation request",
+        "description": "Returns the status of the request and of each step, in 5E order, as confirmed by the server: delivered\nresources, rejections with their reason, generator and fallback flags. Requests of other teachers answer\n404 GENERATION_REQUEST_NOT_FOUND, the same as missing ones.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generation-requests/${REQUEST_ID}\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. Poll until `status` is `succeeded`, `partially_succeeded`, `failed` or `interrupted`.",
+        "operationId": "get_generation_request_api_v1_generation_requests__request_id__get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationRequestStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generator": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Get the active generator",
+        "description": "Says whether resources are drafted by a language model (and which one) or by the rule-based generator.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generator\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "get_generator_api_v1_generator_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeneratorInfo"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/generations": {
       "get": {
         "tags": [
@@ -1022,8 +1471,8 @@
         "tags": [
           "generations"
         ],
-        "summary": "Generate resources from the unit material",
-        "description": "Retrieves the most relevant chunks of the unit (BM25) and drafts the resources with the active generator.\n\nOnly resources whose claims cite valid chunks are kept; they are saved as `pendiente` for the teacher's review.\nIf the AI fails, the rule-based generator answers and `generator.fallback` is true. Without material the\nrequest is rejected (400 NO_PROCESSED_MATERIAL) instead of inventing content.\n\nWith `resourceTypes`, the request becomes a class sequence (HU-003): each type goes to the agent of its 5E\nstage, in the order of the class; all agents share the same evidence and see what the previous ones wrote.\nA resource too similar to another one of the sequence is asked again once and, if it still repeats, rejected.\nEach resource records its `agent`, and `sequence` reports what every agent generated or rejected.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"unitId\":\"unidad-1\",\"stage\":\"explain\",\"resourceType\":\"glosario\",\"quantity\":1,\"difficulty\":\"intermedia\"}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 200; returned resources await review.",
+        "summary": "Generate resources from the unit material (deprecated)",
+        "description": "Deprecated: use `POST /generation-requests`, which runs in the background with an idempotency key. This\nsynchronous route keeps working the same until the evaluation scripts migrate, and is then removed.\n\nRetrieves the most relevant chunks of the unit (BM25) and drafts the resources with the active generator.\n\nOnly resources whose claims cite valid chunks are kept; they are saved as `pendiente` for the teacher's review.\nIf the AI fails, the rule-based generator answers and `generator.fallback` is true. Without material the\nrequest is rejected (400 NO_PROCESSED_MATERIAL) instead of inventing content.\n\nWith `resourceTypes`, the request becomes a class sequence (HU-003): each type goes to the agent of its 5E\nstage, in the order of the class; all agents share the same evidence and see what the previous ones wrote.\nA resource too similar to another one of the sequence is asked again once and, if it still repeats, rejected.\nEach resource records its `agent`, and `sequence` reports what every agent generated or rejected.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"unitId\":\"unidad-1\",\"stage\":\"explain\",\"resourceType\":\"glosario\",\"quantity\":1,\"difficulty\":\"intermedia\"}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 200; returned resources await review.",
         "operationId": "generate_resources_api_v1_generations_post",
         "requestBody": {
           "content": {
@@ -1097,6 +1546,7 @@
             }
           }
         },
+        "deprecated": true,
         "security": [
           {
             "TeacherSession": []
@@ -1165,28 +1615,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/generator": {
-      "get": {
-        "tags": [
-          "system"
-        ],
-        "summary": "Get the active generator",
-        "description": "Says whether resources are drafted by a language model (and which one) or by the rule-based generator.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generator\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
-        "operationId": "get_generator_api_v1_generator_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/GeneratorInfo"
                 }
               }
             }
@@ -2899,6 +3327,73 @@
         "title": "EvidenceResponse",
         "description": "Copy of a cited chunk, saved with the resource when it was generated."
       },
+      "EvidenceSearchResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "documentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documentid"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "relevance": {
+            "type": "number",
+            "title": "Relevance"
+          },
+          "retrievalMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievalmode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "relevance"
+        ],
+        "title": "EvidenceSearchResponse"
+      },
       "ExportRequest": {
         "properties": {
           "format": {
@@ -2993,6 +3488,112 @@
           "fallback"
         ],
         "title": "GenerationGenerator"
+      },
+      "GenerationParametersView": {
+        "properties": {
+          "resourceTypes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "pregunta_detonante",
+                "sondeo_diagnostico",
+                "guia_exploracion",
+                "caso_indagacion",
+                "explicacion",
+                "glosario",
+                "ejercicio_aplicacion",
+                "item_opcion_multiple",
+                "audio_detonante",
+                "imagen_ilustrativa",
+                "diagrama_proceso",
+                "exploracion_guiada",
+                "reto_prediccion",
+                "mapa_conceptual",
+                "infografia",
+                "podcast_resumen",
+                "caso_aplicado",
+                "emparejamiento",
+                "ordenar_pasos",
+                "verdadero_falso",
+                "completar_espacios"
+              ]
+            },
+            "type": "array",
+            "title": "Resourcetypes",
+            "description": "Without duplicates and in 5E order."
+          },
+          "quantity": {
+            "type": "integer",
+            "title": "Quantity"
+          },
+          "outcomeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomeid"
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "basica",
+              "intermedia",
+              "avanzada"
+            ],
+            "title": "Difficulty"
+          },
+          "optionCount": {
+            "type": "integer",
+            "title": "Optioncount"
+          },
+          "topK": {
+            "type": "integer",
+            "title": "Topk"
+          },
+          "evidenceThreshold": {
+            "type": "number",
+            "title": "Evidencethreshold"
+          },
+          "instructions": {
+            "type": "string",
+            "title": "Instructions"
+          },
+          "audience": {
+            "type": "string",
+            "title": "Audience"
+          },
+          "competency": {
+            "type": "string",
+            "title": "Competency"
+          },
+          "modalities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Modalities"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "resourceTypes",
+          "quantity",
+          "difficulty",
+          "optionCount",
+          "topK",
+          "evidenceThreshold",
+          "instructions",
+          "audience",
+          "competency",
+          "modalities"
+        ],
+        "title": "GenerationParametersView",
+        "description": "Los parámetros guardados del pedido. El modo y la unidad están en el nivel superior."
       },
       "GenerationRequest": {
         "properties": {
@@ -3244,6 +3845,256 @@
         "title": "GenerationRequestRecord",
         "description": "The request as it was saved: GET /generations lists them, newest first."
       },
+      "GenerationRequestStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "gen-req-6a1f2c3d-0000-4000-8000-000000000000"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "individual",
+              "sequence",
+              "regeneration"
+            ],
+            "title": "Mode"
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "partially_succeeded",
+              "failed",
+              "interrupted"
+            ],
+            "title": "Status"
+          },
+          "resourceTypes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "pregunta_detonante",
+                "sondeo_diagnostico",
+                "guia_exploracion",
+                "caso_indagacion",
+                "explicacion",
+                "glosario",
+                "ejercicio_aplicacion",
+                "item_opcion_multiple",
+                "audio_detonante",
+                "imagen_ilustrativa",
+                "diagrama_proceso",
+                "exploracion_guiada",
+                "reto_prediccion",
+                "mapa_conceptual",
+                "infografia",
+                "podcast_resumen",
+                "caso_aplicado",
+                "emparejamiento",
+                "ordenar_pasos",
+                "verdadero_falso",
+                "completar_espacios"
+              ]
+            },
+            "type": "array",
+            "title": "Resourcetypes",
+            "description": "In 5E order."
+          },
+          "createdAt": {
+            "type": "string",
+            "title": "Createdat",
+            "description": "ISO 8601 date-time in UTC."
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/GenerationParametersView"
+          },
+          "retrievalMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "hybrid",
+                  "bm25_fallback"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievalmode",
+            "description": "Search fallback reported by Material. It is independent of `steps[].generator.fallback`."
+          },
+          "regeneration": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegenerationTargetView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Only in `regeneration` mode, started by Review through its regeneration port."
+          },
+          "failure": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Problem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/GenerationStep"
+            },
+            "type": "array",
+            "title": "Steps",
+            "description": "One step per resource type, in 5E order."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "mode",
+          "unitId",
+          "status",
+          "resourceTypes",
+          "createdAt",
+          "parameters",
+          "steps"
+        ],
+        "title": "GenerationRequestStatus",
+        "description": "Estado del pedido y de cada paso, en orden 5E, tal como lo confirmó el servidor."
+      },
+      "GenerationRequestSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "gen-req-6a1f2c3d-0000-4000-8000-000000000000"
+            ]
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "individual",
+              "sequence",
+              "regeneration"
+            ],
+            "title": "Mode"
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "partially_succeeded",
+              "failed",
+              "interrupted"
+            ],
+            "title": "Status"
+          },
+          "resourceTypes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "pregunta_detonante",
+                "sondeo_diagnostico",
+                "guia_exploracion",
+                "caso_indagacion",
+                "explicacion",
+                "glosario",
+                "ejercicio_aplicacion",
+                "item_opcion_multiple",
+                "audio_detonante",
+                "imagen_ilustrativa",
+                "diagrama_proceso",
+                "exploracion_guiada",
+                "reto_prediccion",
+                "mapa_conceptual",
+                "infografia",
+                "podcast_resumen",
+                "caso_aplicado",
+                "emparejamiento",
+                "ordenar_pasos",
+                "verdadero_falso",
+                "completar_espacios"
+              ]
+            },
+            "type": "array",
+            "title": "Resourcetypes",
+            "description": "In 5E order."
+          },
+          "createdAt": {
+            "type": "string",
+            "title": "Createdat",
+            "description": "ISO 8601 date-time in UTC."
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "mode",
+          "unitId",
+          "status",
+          "resourceTypes",
+          "createdAt"
+        ],
+        "title": "GenerationRequestSummary"
+      },
       "GenerationResult": {
         "properties": {
           "mode": {
@@ -3365,6 +4216,170 @@
           "documents"
         ],
         "title": "GenerationResult"
+      },
+      "GenerationStep": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Position"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "engage",
+              "explore",
+              "explain",
+              "elaborate",
+              "evaluate"
+            ],
+            "title": "Stage"
+          },
+          "resourceType": {
+            "type": "string",
+            "enum": [
+              "pregunta_detonante",
+              "sondeo_diagnostico",
+              "guia_exploracion",
+              "caso_indagacion",
+              "explicacion",
+              "glosario",
+              "ejercicio_aplicacion",
+              "item_opcion_multiple",
+              "audio_detonante",
+              "imagen_ilustrativa",
+              "diagrama_proceso",
+              "exploracion_guiada",
+              "reto_prediccion",
+              "mapa_conceptual",
+              "infografia",
+              "podcast_resumen",
+              "caso_aplicado",
+              "emparejamiento",
+              "ordenar_pasos",
+              "verdadero_falso",
+              "completar_espacios"
+            ],
+            "title": "Resourcetype"
+          },
+          "agent": {
+            "type": "string",
+            "title": "Agent",
+            "examples": [
+              "Agente de Enganchar"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "running",
+              "succeeded",
+              "rejected",
+              "failed",
+              "interrupted"
+            ],
+            "title": "Status"
+          },
+          "resourceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Resourceids",
+            "description": "Resources delivered to Review in this step. Read them with `GET /units/{unitId}/resources/{id}`."
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/StepResource"
+            },
+            "type": "array",
+            "title": "Resources",
+            "description": "Short view of the delivered resources.",
+            "default": []
+          },
+          "rejections": {
+            "items": {
+              "$ref": "#/components/schemas/StepRejection"
+            },
+            "type": "array",
+            "title": "Rejections"
+          },
+          "generator": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StepGenerator"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "grounding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GroundingReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distractorReliability": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DistractorReliability"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Problem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "position",
+          "stage",
+          "resourceType",
+          "agent",
+          "status",
+          "resourceIds",
+          "rejections"
+        ],
+        "title": "GenerationStep"
       },
       "GeneratorInfo": {
         "properties": {
@@ -3670,6 +4685,29 @@
         "title": "MediaResponse",
         "description": "Image or audio generated for the resource. `fallback`: no file, the review shows the description or uses the\nbrowser's voice."
       },
+      "Problem": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code",
+            "examples": [
+              "DEADLINE_EXCEEDED"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "In Spanish, shown to the teacher."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "Problem"
+      },
       "ProfileResponse": {
         "properties": {
           "email": {
@@ -3838,6 +4876,25 @@
         ],
         "title": "RegenerationStatusResponse",
         "description": "D10: state of the last regeneration request of the resource."
+      },
+      "RegenerationTargetView": {
+        "properties": {
+          "resourceId": {
+            "type": "string",
+            "title": "Resourceid"
+          },
+          "resourceVersion": {
+            "type": "integer",
+            "title": "Resourceversion"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "resourceId",
+          "resourceVersion"
+        ],
+        "title": "RegenerationTargetView"
       },
       "RegistrationRequest": {
         "properties": {
@@ -4742,6 +5799,251 @@
           "expiresIn"
         ],
         "title": "SessionResponse"
+      },
+      "StartGenerationRequest": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "individual",
+              "sequence"
+            ],
+            "title": "Mode",
+            "description": "`individual`: exactly one type. `sequence`: one step per type, in 5E order."
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid",
+            "description": "Unit whose processed material is used.",
+            "examples": [
+              "unidad-1"
+            ]
+          },
+          "resourceTypes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "pregunta_detonante",
+                "sondeo_diagnostico",
+                "guia_exploracion",
+                "caso_indagacion",
+                "explicacion",
+                "glosario",
+                "ejercicio_aplicacion",
+                "item_opcion_multiple",
+                "audio_detonante",
+                "imagen_ilustrativa",
+                "diagrama_proceso",
+                "exploracion_guiada",
+                "reto_prediccion",
+                "mapa_conceptual",
+                "infografia",
+                "podcast_resumen",
+                "caso_aplicado",
+                "emparejamiento",
+                "ordenar_pasos",
+                "verdadero_falso",
+                "completar_espacios"
+              ]
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Resourcetypes",
+            "description": "`individual` requires exactly one type. In `sequence`, repeated types are ignored and the steps follow the 5E order.",
+            "examples": [
+              [
+                "pregunta_detonante",
+                "item_opcion_multiple"
+              ]
+            ]
+          },
+          "quantity": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Quantity",
+            "description": "Common quantity for every type.",
+            "default": 1
+          },
+          "outcomeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomeid",
+            "description": "Learning outcome of the unit, optional."
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "basica",
+              "intermedia",
+              "avanzada"
+            ],
+            "title": "Difficulty",
+            "default": "intermedia"
+          },
+          "optionCount": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 2.0,
+            "title": "Optioncount",
+            "description": "Options per multiple-choice item.",
+            "default": 4
+          },
+          "topK": {
+            "type": "integer",
+            "maximum": 50.0,
+            "minimum": 1.0,
+            "title": "Topk",
+            "description": "Chunks retrieved from the material.",
+            "default": 10
+          },
+          "evidenceThreshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Evidencethreshold",
+            "description": "Minimum share of a claim's words that its cited chunks must contain.",
+            "default": 0.6
+          },
+          "instructions": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Instructions",
+            "description": "Free text from the teacher.",
+            "default": ""
+          },
+          "audience": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Audience",
+            "default": "",
+            "examples": [
+              "Tercer ciclo"
+            ]
+          },
+          "competency": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Competency",
+            "default": ""
+          },
+          "modalities": {
+            "items": {
+              "type": "string",
+              "const": "Textual"
+            },
+            "type": "array",
+            "maxItems": 1,
+            "title": "Modalities",
+            "description": "Only text in this delivery.",
+            "default": [
+              "Textual"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "mode",
+          "unitId",
+          "resourceTypes"
+        ],
+        "title": "StartGenerationRequest",
+        "description": "Cuerpo de POST /generation-requests. La clave de idempotencia va en la cabecera `Idempotency-Key`."
+      },
+      "StepGenerator": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "usesAi": {
+            "type": "boolean",
+            "title": "Usesai"
+          },
+          "fallback": {
+            "type": "boolean",
+            "title": "Fallback",
+            "description": "True when the rule-based generator drafted after the AI failed."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "description",
+          "usesAi",
+          "fallback"
+        ],
+        "title": "StepGenerator"
+      },
+      "StepRejection": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "In Spanish, shown to the teacher."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "grounding",
+              "repetition",
+              "structure",
+              "distractor"
+            ],
+            "title": "Kind"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "title",
+          "reason",
+          "kind"
+        ],
+        "title": "StepRejection"
+      },
+      "StepResource": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "verificationStatus": {
+            "type": "string",
+            "enum": [
+              "current",
+              "insufficient",
+              "pending"
+            ],
+            "title": "Verificationstatus",
+            "description": "Current `verification.status` of the resource in Review (REV-01). Generation delivers `current` or `pending`; `insufficient` appears after an edit in Review. `pending` if the resource has no verification."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "verificationStatus"
+        ],
+        "title": "StepResource",
+        "description": "Vista corta de un recurso entregado a Revisión."
       },
       "TopicSearchRequest": {
         "properties": {

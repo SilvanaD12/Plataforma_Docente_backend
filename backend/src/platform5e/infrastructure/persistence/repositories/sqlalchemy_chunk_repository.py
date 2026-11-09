@@ -25,6 +25,8 @@ def _serialize_chunk_entity(entity: ChunkORM) -> dict[str, Any]:
     """Convierte la entidad ORM Chunk a diccionario canónico con compatibilidad dual."""
     return {
         "id": entity.id,
+        "teacher_id": entity.teacher_id,
+        "teacherId": entity.teacher_id,
         "document_id": entity.document_id,
         "documentId": entity.document_id,
         "documento_id": entity.document_id,
@@ -55,7 +57,6 @@ class SQLAlchemyChunkRepository(ChunkRepositoryPort, ChunkEmbeddingRepositoryPor
         self, teacher_id: str, document_id: str, unit_id: str, chunks: list[dict[str, Any]]
     ) -> None:
         with SessionLocal() as session:
-            # EN-013 (incremental): los fragmentos que no cambiaron de texto conservan su vector al reprocesar.
             previous_vectors = self._vectors_by_text(session, teacher_id, document_id)
             session.execute(
                 delete(ChunkORM).where(
@@ -77,8 +78,11 @@ class SQLAlchemyChunkRepository(ChunkRepositoryPort, ChunkEmbeddingRepositoryPor
             session.add_all(new_entities)
             session.flush()
             reused = [
-                {"id": entity.id, "vector": previous_vectors[entity.text_content][0],
-                 "model": previous_vectors[entity.text_content][1]}
+                {
+                    "id": entity.id,
+                    "vector": previous_vectors[entity.text_content][0],
+                    "model": previous_vectors[entity.text_content][1],
+                }
                 for entity in new_entities
                 if entity.text_content in previous_vectors
             ]
@@ -103,8 +107,6 @@ class SQLAlchemyChunkRepository(ChunkRepositoryPort, ChunkEmbeddingRepositoryPor
             {"teacher": teacher_id, "document": document_id},
         )
         return {row[0]: (row[1], row[2]) for row in rows}
-
-    # --- EN-013: embeddings en pgvector ---------------------------------------------------------------------------
 
     @translate_persistence_errors
     def vector_store_available(self) -> bool:
@@ -176,25 +178,49 @@ class SQLAlchemyChunkRepository(ChunkRepositoryPort, ChunkEmbeddingRepositoryPor
 
     @translate_persistence_errors
     def search_similar_chunks(
-        self, vector: list[float], limit: int, unit_id: str | None = None
+        self,
+        vector: list[float],
+        limit: int,
+        unit_id: str | None = None,
+        teacher_id: str | None = None,
     ) -> list[dict[str, Any]]:
         if not self.vector_store_available():
             return []
-        unit_filter = "AND unidad = :unit " if unit_id else ""
+        conditions = ["embedding IS NOT NULL"]
+        params: dict[str, Any] = {
+            "vector": vector_literal(vector),
+            "limit": limit,
+        }
+        if unit_id:
+            conditions.append("unidad = :unit")
+            params["unit"] = unit_id
+        if teacher_id:
+            conditions.append("docente = :teacher")
+            params["teacher"] = teacher_id
+
+        where_clause = " AND ".join(conditions)
         with SessionLocal() as session:
             rows = session.execute(
                 text(
-                    "SELECT id, documento, ubicacion, texto, "
-                    "1 - (embedding <=> CAST(:vector AS vector)) AS similarity "
-                    "FROM ep002_fragmentos WHERE embedding IS NOT NULL "
-                    f"{unit_filter}"
-                    "ORDER BY embedding <=> CAST(:vector AS vector) LIMIT :limit"
+                    f"SELECT id, documento, ubicacion, texto, docente, unidad, "
+                    f"1 - (embedding <=> CAST(:vector AS vector)) AS similarity "
+                    f"FROM ep002_fragmentos WHERE {where_clause} "
+                    f"ORDER BY embedding <=> CAST(:vector AS vector) LIMIT :limit"
                 ),
-                {"vector": vector_literal(vector), "limit": limit, "unit": unit_id},
+                params,
             )
             return [
-                {"id": row[0], "documentId": row[1], "location": row[2], "text": row[3],
-                 "similarity": round(float(row[4]), 4)}
+                {
+                    "id": row[0],
+                    "documentId": row[1],
+                    "location": row[2],
+                    "text": row[3],
+                    "teacherId": row[4],
+                    "teacher_id": row[4],
+                    "unitId": row[5],
+                    "unit_id": row[5],
+                    "similarity": round(float(row[6]), 4),
+                }
                 for row in rows
             ]
 
@@ -214,6 +240,16 @@ class SQLAlchemyChunkRepository(ChunkRepositoryPort, ChunkEmbeddingRepositoryPor
             statement = (
                 select(ChunkORM)
                 .where(ChunkORM.teacher_id == teacher_id, ChunkORM.unit_id == unit_id)
+                .order_by(ChunkORM.document_id, ChunkORM.order_index)
+            )
+            return [_serialize_chunk_entity(entity) for entity in session.scalars(statement)]
+
+    @translate_persistence_errors
+    def get_chunks_by_teacher(self, teacher_id: str) -> list[dict[str, Any]]:
+        with SessionLocal() as session:
+            statement = (
+                select(ChunkORM)
+                .where(ChunkORM.teacher_id == teacher_id)
                 .order_by(ChunkORM.document_id, ChunkORM.order_index)
             )
             return [_serialize_chunk_entity(entity) for entity in session.scalars(statement)]
