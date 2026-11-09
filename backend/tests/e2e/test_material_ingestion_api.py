@@ -151,7 +151,7 @@ def test_search_evidence_isolation_and_t007_strict(server: str):
         assert reg_a.status_code == 201
         h_a = {"Authorization": f"Bearer {reg_a.json()['token']}"}
 
-        curso_a = api.post(
+        course_a = api.post(
             "/api/v1/courses",
             headers=h_a,
             json={
@@ -163,8 +163,8 @@ def test_search_evidence_isolation_and_t007_strict(server: str):
                 "units": [{"title": "Unidad A", "outcomes": [{"text": "Resultado A"}]}],
             },
         ).json()
-        unit_a_id = curso_a["units"][0]["id"]
-        outcome_a_id = curso_a["units"][0]["outcomes"][0]["id"]
+        unit_a_id = course_a["units"][0]["id"]
+        outcome_a_id = course_a["units"][0]["outcomes"][0]["id"]
 
         # 2. Crear docente B y su curso/unidad con resultado de aprendizaje
         reg_b = api.post(
@@ -174,7 +174,7 @@ def test_search_evidence_isolation_and_t007_strict(server: str):
         assert reg_b.status_code == 201
         h_b = {"Authorization": f"Bearer {reg_b.json()['token']}"}
 
-        curso_b = api.post(
+        course_b = api.post(
             "/api/v1/courses",
             headers=h_b,
             json={
@@ -186,8 +186,8 @@ def test_search_evidence_isolation_and_t007_strict(server: str):
                 "units": [{"title": "Unidad B", "outcomes": [{"text": "Resultado B"}]}],
             },
         ).json()
-        unit_b_id = curso_b["units"][0]["id"]
-        outcome_b_id = curso_b["units"][0]["outcomes"][0]["id"]
+        unit_b_id = course_b["units"][0]["id"]
+        outcome_b_id = course_b["units"][0]["outcomes"][0]["id"]
 
         # 3. Subir y procesar material para Docente A
         doc_a_payload = {
