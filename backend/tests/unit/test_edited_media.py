@@ -244,3 +244,41 @@ def test_the_invalidated_file_is_a_pedagogical_blocker_with_its_reason():
 def test_a_prompt_that_only_differs_in_spaces_keeps_the_generated_image():
     edited = edit_image(prompt="  " + IMAGE_STRUCTURE["prompt"].replace(" ", "   ") + "  ")
     assert edited["media"]["status"] == "ready"
+
+
+class VoiceWhileTheTeacherEdits(Voice):
+    """Mientras genera el audio, el docente guarda en otra pestaña un guion distinto (la versión avanza)."""
+
+    def __init__(self, service):
+        super().__init__()
+        self._service = service
+
+    def synthesize_speech(self, script):
+        review(self._service, structure={"script": EDITED_MEANWHILE})
+        return super().synthesize_speech(script)
+
+
+EDITED_MEANWHILE = "Guion guardado mientras se generaba el audio: TCP confirma la entrega y UDP no lo hace, por eso es más rápido."
+
+
+def test_generating_again_does_not_overwrite_an_edit_saved_meanwhile():
+    """Revisión de Silvana (PR #13): el resultado se guarda solo si la versión de partida sigue vigente."""
+    service, resources, media = setup()
+    review(service, structure={"script": NEW_SCRIPT})
+    started = service.get_resource("ana", "u1", "r1")["version"]
+    with pytest.raises(AccountConfigurationError) as error:
+        RegenerateResourceMediaUseCase(service, resources, VoiceWhileTheTeacherEdits(service), media).execute("ana", "u1", "r1")
+    assert error.value.code == "VERSION_CONFLICT" and error.value.status_code == 409
+    stored = resources.by_id["r1"]
+    assert stored["version"] == started + 1
+    assert stored["structure"]["script"] == EDITED_MEANWHILE
+    assert stored["media"]["status"] == "fallback" and stored["media"]["invalidated"] is True
+
+
+def test_generating_again_without_edits_meanwhile_keeps_the_version():
+    service, resources, media = setup()
+    review(service, structure={"script": NEW_SCRIPT})
+    started = service.get_resource("ana", "u1", "r1")["version"]
+    regenerated = RegenerateResourceMediaUseCase(service, resources, Voice(), media).execute("ana", "u1", "r1")
+    assert regenerated["media"]["status"] == "ready"
+    assert resources.by_id["r1"]["version"] == started and resources.by_id["r1"]["media"]["status"] == "ready"

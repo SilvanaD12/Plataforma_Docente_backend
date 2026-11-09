@@ -43,11 +43,22 @@ class RegenerateResourceMediaUseCase:
                 "o la descripción de la imagen.",
                 409,
             )
+        started_version = resource.get("version", 1)
         was_invalidated = bool((resource.get("media") or {}).get("invalidated"))
         generated = attach_generated_media(teacher_id, resource, self._media_generator, self._media_repository)
         if was_invalidated and not generated:
             # REV-C8: si la generación falla, el archivo sigue sin generar y la aprobación sigue bloqueada.
             resource["media"] = {**resource["media"], "invalidated": True}
         resource["updatedAt"] = datetime.now(timezone.utc).isoformat()
-        self._review_repository.save_resources(teacher_id, unit_id, [resource])
+        # REV-R12: el archivo se generó con el guion o la descripción de `started_version`. Si el docente guardó otra
+        # versión mientras tanto, el resultado no se guarda para no pisar su edición. La versión no cambia: el archivo
+        # no es contenido verificable.
+        if not self._review_repository.save_resource_if_version(
+            teacher_id, unit_id, resource, started_version, increment=False
+        ):
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT",
+                "El recurso cambió mientras se generaba el archivo. Recárgalo y genera el archivo de nuevo si hace falta.",
+                409,
+            )
         return resource

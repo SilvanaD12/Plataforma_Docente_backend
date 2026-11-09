@@ -207,7 +207,8 @@ def create_resources_router(
         """Generates the illustration or the audio again from the current description or script, for example after
         the teacher edited it. Only for resources under review (409 RESOURCE_NOT_PENDING) and when image and voice
         generation is active on the server (409 MEDIA_GENERATION_DISABLED). If the service fails, the resource keeps
-        its fallback: the description card or the browser's voice.
+        its fallback: the description card or the browser's voice. If the teacher saved another version while the file
+        was being generated, the result is not stored and the answer is 409 VERSION_CONFLICT: reload the resource.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
