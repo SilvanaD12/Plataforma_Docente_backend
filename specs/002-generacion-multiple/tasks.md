@@ -168,42 +168,42 @@ Dependencias externas que bloquean tareas:
   - Acceso al código de estado de la respuesta.
   - `ApiError` con `status` y `code`.
   - Las llamadas existentes no cambian.
-- [ ] T035 [FE] Crear `src/features/generation/model/generationRequest.ts`. Casos GEN-C2, GEN-C3 y GEN-C8.
+- [x] T035 [FE] Crear `src/features/generation/model/generationRequest.ts`. Casos GEN-C2, GEN-C3 y GEN-C8. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
   - Tipos escritos a mano según `docs/api/openapi.json`: `RequestStatus`, `StepStatus`, `StartGenerationRequest`, `GenerationRequestStatus` y `GenerationStep`.
   - Funciones `isTerminal`, `stepLabel` y `verificationLabel` (`current` → vigente, `pending` → pendiente).
   - Pruebas en `src/features/generation/model/generationRequest.test.ts`.
-- [ ] T036 [FE] **Depende de T034.** Crear `src/features/generation/api/generationApi.ts` sobre `request` de `src/shared/api/httpClient.ts`. Casos GEN-C4 y GEN-C5.
+- [x] T036 [FE] **Depende de T034.** Crear `src/features/generation/api/generationApi.ts` sobre `request` de `src/shared/api/httpClient.ts`. Casos GEN-C4 y GEN-C5. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
   - `startGenerationRequest(token, key, body)` devuelve `{ request, created }` según `202` o `200`.
   - `getGenerationRequest(token, id)`.
   - `listGenerationRequests(token, unitId, active)`.
   - Pruebas en `src/features/generation/api/generationApi.test.ts`, como `coursesApi.test.ts`.
-- [ ] T037 [FE] **Depende de T036.** Crear `src/features/generation/hooks/useStartGeneration.ts`. Casos GEN-C4, GEN-C5 y GEN-C6.
+- [x] T037 [FE] **Depende de T036.** Crear `src/features/generation/hooks/useStartGeneration.ts`. Casos GEN-C4, GEN-C5 y GEN-C6. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
   - Crea la clave con `crypto.randomUUID()` y guarda `{ key, payload, requestId }` en `sessionStorage` bajo `generation:{unitId}` antes de enviar.
   - Si falla la red, reintenta con la misma clave.
   - Muestra el `message` de `409 IDEMPOTENCY_KEY_REUSED` y ofrece un pedido nuevo con otra clave.
   - Muestra `429` y `400 NO_PROCESSED_MATERIAL`, con un enlace a la pestaña Material.
-- [ ] T038 [FE] **Depende de T036.** Crear `src/features/generation/hooks/useGenerationRequest.ts`. Casos GEN-C2 y GEN-C4.
+- [x] T038 [FE] **Depende de T036.** Crear `src/features/generation/hooks/useGenerationRequest.ts`. Casos GEN-C2 y GEN-C4. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
   - Consulta cada 2 s, con espera creciente hasta 10 s, y se detiene en un estado final.
   - Al montar, recupera el `requestId` guardado o, si no hay ninguno, consulta `listGenerationRequests(…, active = true)`.
   - Ante un `404`, limpia `sessionStorage`.
-- [ ] T039 [FE] Crear `src/features/generation/components/GenerationForm.tsx`. Casos GEN-C1 y GEN-C2.
+- [x] T039 [FE] Crear `src/features/generation/components/GenerationForm.tsx`. Casos GEN-C1 y GEN-C2. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
   - Selector de modo individual o secuencia.
   - Tipos tomados de `GET /api/v1/resource-types`, con un tipo en el modo individual y hasta 8 en la secuencia.
   - `quantity` de 1 a 5, común a todos los tipos.
   - Resultado de aprendizaje opcional, entre los de la unidad.
-- [ ] T040 [FE] Crear `src/features/generation/components/GenerationProgress.tsx`. Casos GEN-C2, GEN-C3, GEN-C6 y GEN-C8.
+- [x] T040 [FE] Crear `src/features/generation/components/GenerationProgress.tsx`. Casos GEN-C2, GEN-C3, GEN-C6 y GEN-C8. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
   - Muestra los pasos en orden 5E con el estado que informa el servidor.
   - Los recursos de cada paso aparecen con su estado de verificación y un enlace a Revisión.
   - Los rechazos aparecen con su motivo.
   - Muestra `failure.message` cuando el pedido falla.
   - El estado `interrupted` ofrece crear un pedido nuevo.
-- [ ] T041 [FE] Crear `src/features/generation/components/FallbackNotices.tsx`, con avisos distintos para `retrievalMode = bm25_fallback` y para `generator.fallback`. Con `retrievalMode = null` no muestra aviso de búsqueda. Los datos reales dependen de T031. Caso GEN-C9.
-- [ ] T042 [FE] **Depende de T037 y T038.** Reemplazar el marcador `src/features/generation/pages/GenerationPage.tsx`. Casos GEN-C1 a GEN-C6.
+- [x] T041 [FE] Crear `src/features/generation/components/FallbackNotices.tsx`, con avisos distintos para `retrievalMode = bm25_fallback` y para `generator.fallback`. Con `retrievalMode = null` no muestra aviso de búsqueda. Los datos reales dependen de T031. Caso GEN-C9. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
+- [x] T042 [FE] **Depende de T037 y T038.** Reemplazar el marcador `src/features/generation/pages/GenerationPage.tsx`. Casos GEN-C1 a GEN-C6. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
   - Usa `course`, `unit`, `token` y `onSessionExpired` del contexto de `UnitLayout`.
   - Compone el formulario, el progreso y los avisos.
   - Estilos en `src/features/generation/generation.css`.
   - Pasa `npm run lint` y `npm test`.
-- [ ] T043 [E2E] **Depende de T042 y T024.** Recorrer en el navegador el [recorrido de interfaz](quickstart.md#recorrido-en-interfaz) y adjuntar la evidencia. Casos GEN-C2, GEN-C4 y GEN-C9.
+- [x] T043 [E2E] **Depende de T042 y T024.** Recorrer en el navegador el [recorrido de interfaz](quickstart.md#recorrido-en-interfaz) y adjuntar la evidencia. Casos GEN-C2, GEN-C4 y GEN-C9. [PR #9 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/9).
   - Recargar a mitad de una secuencia y recuperar su progreso.
   - Cortar la red al enviar y reintentar sin duplicar el pedido.
   - Distinguir los avisos de respaldo.
