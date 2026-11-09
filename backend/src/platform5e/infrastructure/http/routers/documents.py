@@ -8,7 +8,7 @@ import json
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status, Query
 from pydantic import ValidationError
 
 from platform5e.application.services.accounts.account_service import MAX_FILE_SIZE, AccountService
@@ -22,6 +22,20 @@ from platform5e.infrastructure.http.schemas.documents import (
     DocumentResponse,
     TopicSearchRequest,
 )
+
+from pydantic import BaseModel, Field
+
+class EvidenceSearchResponse(BaseModel):
+    id: str
+    document_id: str | None = Field(default=None, alias="documentId")
+    name: str | None = None
+    location: str | None = None
+    text: str
+    relevance: float
+    retrieval_mode: str | None = Field(default=None, alias="retrievalMode")
+
+    class Config:
+        populate_by_name = True
 
 MEDIA_TYPES: dict[str, str] = {
     "txt": "text/plain; charset=utf-8",
@@ -37,6 +51,29 @@ def create_documents_router(account_service: AccountService, material_service: M
     router = APIRouter(prefix="/api/v1/documents", tags=["documents"])
     current_teacher = current_teacher_dependency(account_service)
 
+    @router.get(
+        "/search",
+        response_model=list[EvidenceSearchResponse],
+        summary="Hybrid search of evidence across documents",
+        description=(
+            "Hybrid search of evidence across documents.\n\n"
+            "Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\n"
+            "Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n"
+            "```bash\n"
+            'curl --fail-with-body -i -X GET "$BASE_URL/api/v1/documents/search?query=redes" -H "Authorization: Bearer $TOKEN"\n'
+            "```\n\n"
+            "Expected 200. See the response schema below for the returned fields."
+        ),
+        responses=error_responses(401, 404),
+    )
+    def search_evidence(
+        query: str = Query(..., description="Términos de búsqueda"),
+        unit_id: str | None = Query(None, alias="unitId", description="ID de la unidad"),
+        top_k: int = Query(5, alias="topK", ge=1, le=50, description="Cantidad máxima de resultados"),
+        teacher_id: str = Depends(current_teacher),
+    ) -> list[EvidenceSearchResponse]:
+        return material_service.search_evidence(teacher_id, query, top_k=top_k, unit_id=unit_id)
+    
     @router.get("", response_model=list[DocumentResponse], summary="List my documents", responses=error_responses(401))
     def list_documents(teacher_id: str = Depends(current_teacher)) -> list[dict[str, Any]]:
         """Documents of every unit of the teacher, with their processing status.
@@ -78,6 +115,14 @@ def create_documents_router(account_service: AccountService, material_service: M
                 parsed_context = DocumentContextInput.model_validate(json.loads(context)).model_dump(by_alias=True)
             except (ValueError, TypeError, ValidationError):
                 raise AccountConfigurationError("INVALID_CONTEXT", "Revisa los datos del documento.", 422)
+            
+            # Validación de seguridad MAT-C2 antes de gastar memoria leyendo el archivo
+            material_service.validate_unit_membership_secure(
+                teacher_id, 
+                parsed_context["unitId"], 
+                parsed_context.get("outcomeIds", [])
+            )
+
             content = await file.read(MAX_FILE_SIZE + 1)
             return account_service.register_document(teacher_id, file.filename or "archivo", content, parsed_context)
         finally:

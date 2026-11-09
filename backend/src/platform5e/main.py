@@ -164,10 +164,10 @@ def create_application() -> FastAPI:
             allow_origins=cors_origins,
             allow_methods=["*"],
             allow_headers=["*"],
-            expose_headers=["Content-Disposition"],  # nombre del archivo exportado
+            expose_headers=["Content-Disposition"],
         )
 
-    # 1. Adaptadores de salida (persistencia, extracción, fuentes abiertas, modelos de lenguaje, exportadores)
+    # 1. Adaptadores de salida
     generation_repository = SQLAlchemyGenerationRepository()
     account_repository = SQLAlchemyAccountRepository(generation_repository)
     chunk_repository = SQLAlchemyChunkRepository()
@@ -180,9 +180,9 @@ def create_application() -> FastAPI:
 
     # Recuperador híbrido con RRF (k=60), BM25 léxico y pgvector HNSW semántico
     evidence_retriever = HybridEvidenceRetriever(
-    chunk_repository=chunk_repository,
-    embedding_generator=embedding_generator,
-    rrf_k=60,
+        chunk_repository=chunk_repository,
+        embedding_generator=embedding_generator,
+        rrf_k=60,
     )
 
     # 2. Servicios y casos de uso de la capa de aplicación
@@ -196,13 +196,20 @@ def create_application() -> FastAPI:
     embedding_service = (
         ChunkEmbeddingService(chunk_repository, embedding_generator) if embedding_generator is not None else None
     )
+    
+    # Adaptador T007 para validación de pertenencia de unidades y resultados; lo comparten Material y Generación.
+    unit_membership = AccountUnitMembershipAdapter(account_repository)
+
     material_service = MaterialService(
-        account_repository,
-        chunk_repository,
-        DocumentTextExtractor(),
+        teacher_repository=account_repository,
+        chunk_repository=chunk_repository,
+        text_extractor=DocumentTextExtractor(),
         open_resource_port=open_source,
         embedding_service=embedding_service,
+        unit_membership_port=unit_membership,
+        evidence_retriever=evidence_retriever,
     )
+
     review_service = ResourceReviewService(account_repository, resource_repository)
     generation_service = GenerationService(
         repository=generation_repository,
@@ -217,7 +224,6 @@ def create_application() -> FastAPI:
         media_repository=media_repository,
     )
     # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
-    unit_membership = AccountUnitMembershipAdapter(account_repository)
     evidence_provider = MaterialEvidenceAdapter(chunk_repository, evidence_retriever, account_repository)
     run_generation = RunGenerationRequest(
         generation_request_repository,
@@ -249,7 +255,7 @@ def create_application() -> FastAPI:
         review_service, resource_repository, media_generator, media_repository
     )
 
-    # 3. Errores del dominio → JSON uniforme
+    # 3. Errores del dominio
     for domain_error in (AccountConfigurationError, MaterialError, GenerationError):
         app.add_exception_handler(domain_error, domain_error_handler)
     app.add_exception_handler(DuplicateRecordError, conflict_error_handler)

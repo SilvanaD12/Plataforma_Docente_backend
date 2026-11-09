@@ -113,7 +113,6 @@ class ChunkORM(Base):
     location = Column("ubicacion", String, nullable=False)
     text_content = Column("texto", Text, nullable=False)
 
-
 class TeacherResourceORM(Base):
     """Recursos pedagógicos generados para una unidad y su revisión."""
 

@@ -484,6 +484,112 @@
         }
       }
     },
+    "/api/v1/documents/search": {
+      "get": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Hybrid search of evidence across documents",
+        "description": "Hybrid search of evidence across documents.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/documents/search?query=redes\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "search_evidence_api_v1_documents_search_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Términos de búsqueda",
+              "title": "Query"
+            },
+            "description": "Términos de búsqueda"
+          },
+          {
+            "name": "unitId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "ID de la unidad",
+              "title": "Unitid"
+            },
+            "description": "ID de la unidad"
+          },
+          {
+            "name": "topK",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Cantidad máxima de resultados",
+              "default": 5,
+              "title": "Topk"
+            },
+            "description": "Cantidad máxima de resultados"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EvidenceSearchResponse"
+                  },
+                  "title": "Response Search Evidence Api V1 Documents Search Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/documents": {
       "get": {
         "tags": [
@@ -3125,6 +3231,73 @@
         ],
         "title": "EvidenceResponse",
         "description": "Copy of a cited chunk, saved with the resource when it was generated."
+      },
+      "EvidenceSearchResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "documentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Documentid"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "relevance": {
+            "type": "number",
+            "title": "Relevance"
+          },
+          "retrievalMode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievalmode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "relevance"
+        ],
+        "title": "EvidenceSearchResponse"
       },
       "ExportRequest": {
         "properties": {
