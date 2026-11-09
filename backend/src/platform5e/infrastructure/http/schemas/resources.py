@@ -204,7 +204,21 @@ class RegenerationResponse(ApiResponse):
         description="True when the previous resource went to discarded with reason `regenerado`; false when it was edited meanwhile and both stay in review."
     )
     new_resource_ids: list[str] = Field(description="Resources created by Generation, waiting for review.")
-    status: Literal["succeeded", "running"] = Field(description="`succeeded`, or `running` when the same request is still in progress.")
+    status: Literal["succeeded", "running"] = Field(
+        description="`succeeded`, or `running` while Generation works in the background: ask `GET …/regeneration` until it ends."
+    )
+
+
+class RegenerationStatusResponse(RegenerationResponse):
+    """D10: state of the last regeneration request of the resource."""
+
+    status: Literal["succeeded", "running", "failed"] = Field(  # type: ignore[assignment]
+        description="`running` while Generation works; `succeeded` (the previous one is discarded only if unchanged) or `failed`."
+    )
+    reason: str | None = Field(default=None, description="Why it failed, in Spanish. Only for `failed`.")
+    code: str | None = Field(
+        default=None, description="Generation code of the rejection (for example NO_PROCESSED_MATERIAL). Only for `failed`."
+    )
 
 
 class VerificationRetryInput(ApiRequest):

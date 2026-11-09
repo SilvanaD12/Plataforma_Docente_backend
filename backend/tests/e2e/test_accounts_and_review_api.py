@@ -377,3 +377,21 @@ def test_regenerating_a_resource_from_review(server: str):
         # Otra cuenta no puede regenerar en la unidad ajena.
         other = {"Authorization": "Bearer " + api.post("/api/v1/accounts", json={**ACCOUNT, "email": "otra-f@correo.pe"}).json()["token"]}
         assert api.post(f"{base}/{new_id}/regenerations", headers=other, json={"expectedVersion": new["version"]}).status_code == 404
+
+def test_the_regeneration_status_route(server: str):
+    """D10 confirmada por Yan: la ruta de estado consulta el último pedido de regeneración del recurso."""
+    with httpx.Client(base_url=server, timeout=60) as api:
+        h, unit, document, resource = _unit_with_an_explanation(api, "estado-regeneracion@correo.pe")
+        base = f"/api/v1/units/{unit['id']}/resources/{resource['id']}"
+
+        missing = api.get(f"{base}/regeneration", headers=h)
+        assert missing.status_code == 404 and missing.json()["error"]["code"] == "REGENERATION_NOT_FOUND"
+
+        regenerated = api.post(f"{base}/regenerations", headers=h, json={"expectedVersion": 1})
+        assert regenerated.status_code == 200, regenerated.text
+        status = api.get(f"{base}/regeneration", headers=h)
+        assert status.status_code == 200, status.text
+        assert status.json() == {**regenerated.json(), "reason": None, "code": None}
+
+        other = {"Authorization": "Bearer " + api.post("/api/v1/accounts", json={**ACCOUNT, "email": "otra-estado@correo.pe"}).json()["token"]}
+        assert api.get(f"{base}/regeneration", headers=other).status_code == 404

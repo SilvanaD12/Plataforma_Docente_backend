@@ -9,7 +9,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from platform5e.application.ports.outbound.resource_regeneration_port import ResourceRegenerationPort
+from platform5e.application.ports.outbound.resource_regeneration_port import (
+    RegenerationStatus,
+    ResourceRegenerationPort,
+)
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.domain.review.errors import RegenerationFailedError
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
@@ -432,17 +435,67 @@ class ResourceReviewService:
 
         params = {**(existing.get("params") or {}), "unitId": unit_id}
         outcome = self._regeneration.request_regeneration(teacher_id, resource_id, expected_version, params)
-        record = {**record, "requestId": outcome.request_id, "status": outcome.status,
-                  "newResourceIds": list(outcome.new_resource_ids)}
+        return self._apply_regeneration_outcome(teacher_id, unit_id, resource_id, record, outcome, raise_on_failure=True)
+
+    def get_regeneration_status(self, teacher_id: str, unit_id: str, resource_id: str) -> dict[str, Any]:
+        """D10 (confirmada por Yan): estado del último pedido de regeneración del recurso.
+
+        Si sigue en curso, consulta a Generación con `get_regeneration`: al ver `succeeded` hace el descarte condicional
+        del anterior (REV-C12) y al ver `failed` registra el motivo y libera la reserva (REV-C13). Consultar otra vez
+        un pedido terminado devuelve lo mismo sin repetir nada.
+        """
+        existing = self._get_resource_or_fail(teacher_id, unit_id, resource_id)
+        record = existing.get("regeneration") or {}
+        if not record:
+            raise AccountConfigurationError(
+                "REGENERATION_NOT_FOUND", "Este recurso no tiene una regeneración pedida.", 404
+            )
+        if record.get("status") in ("pending", "running") and record.get("requestId") and self._regeneration:
+            outcome = self._regeneration.get_regeneration(teacher_id, record["requestId"])
+            if outcome is None:
+                outcome = RegenerationStatus(
+                    record["requestId"], "failed", (), "Generación ya no tiene este pedido. Pide la regeneración otra vez."
+                )
+            record = self._apply_regeneration_outcome(
+                teacher_id, unit_id, resource_id, record, outcome, raise_on_failure=False, as_record=True
+            )
+        return {**_regeneration_response(resource_id, record), "reason": record.get("reason"), "code": record.get("code")}
+
+    def _apply_regeneration_outcome(
+        self,
+        teacher_id: str,
+        unit_id: str,
+        resource_id: str,
+        record: dict[str, Any],
+        outcome: RegenerationStatus,
+        raise_on_failure: bool,
+        as_record: bool = False,
+    ) -> dict[str, Any]:
+        """Aplica el estado que devolvió Generación al pedido registrado en el recurso anterior.
+
+        - `pending` o `running`: el pedido sigue en curso; se guarda su id y se conserva la reserva.
+        - `failed`: se registra el motivo y se libera la reserva; el anterior queda como estaba (REV-C13).
+        - `succeeded`: los nuevos guardan `regeneratedFrom` y el anterior se descarta solo si sigue en la versión de
+          partida; si no, los dos quedan en Revisión (REV-C12).
+        """
+        expected_version = record["fromVersion"]
+        record = {**record, "requestId": outcome.request_id, "newResourceIds": list(outcome.new_resource_ids)}
+
+        if outcome.status in ("pending", "running"):
+            record = {**record, "status": "running"}
+            self._record_regeneration(teacher_id, unit_id, resource_id, record)
+            return record if as_record else _regeneration_response(resource_id, record)
 
         if outcome.status != "succeeded":
             reason = outcome.reason or "La regeneración no terminó bien."
-            self._record_regeneration(
-                teacher_id, unit_id, resource_id, {**record, "status": "failed", "reason": reason, "code": outcome.code}
-            )
+            record = {**record, "status": "failed", "reason": reason, "code": outcome.code}
+            self._record_regeneration(teacher_id, unit_id, resource_id, record)
             self._review_repository.release_regeneration(teacher_id, unit_id, resource_id, expected_version)
-            raise RegenerationFailedError(reason, outcome.code)
+            if raise_on_failure:
+                raise RegenerationFailedError(reason, outcome.code)
+            return record if as_record else _regeneration_response(resource_id, record)
 
+        record = {**record, "status": "succeeded"}
         for new_id in outcome.new_resource_ids:
             new = self._review_repository.get_resource_by_id(teacher_id, new_id)
             if new is not None:
@@ -452,18 +505,18 @@ class ResourceReviewService:
                     new.get("version", 1), increment=False,
                 )
 
-        latest = self._review_repository.get_resource_by_id(teacher_id, resource_id) or existing
+        latest = self._review_repository.get_resource_by_id(teacher_id, resource_id) or {}
         now = datetime.now(timezone.utc).isoformat()
         discarded = {**latest, "status": "descartado", "discardReason": "regenerado", "decidedAt": now,
                      "updatedAt": now, "regeneration": {**record, "previousDiscarded": True}}
         if latest.get("version", 1) == expected_version and self._review_repository.save_resource_if_version(
             teacher_id, unit_id, discarded, expected_version
         ):
-            return _regeneration_response(resource_id, discarded["regeneration"])
-
-        record = {**record, "previousDiscarded": False}
-        self._record_regeneration(teacher_id, unit_id, resource_id, record)
-        return _regeneration_response(resource_id, record)
+            record = discarded["regeneration"]
+        else:
+            record = {**record, "previousDiscarded": False}
+            self._record_regeneration(teacher_id, unit_id, resource_id, record)
+        return record if as_record else _regeneration_response(resource_id, record)
 
     def _record_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, record: dict[str, Any]) -> None:
         """Guarda el estado del pedido en el recurso anterior sin cambiar su versión ni su contenido."""

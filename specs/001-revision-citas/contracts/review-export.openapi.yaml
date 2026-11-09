@@ -44,12 +44,13 @@ paths:
         '409': { description: 'VERSION_CONFLICT, VERIFICATION_NOT_PENDING or REGENERATION_REQUIRED (incomplete evidence copy)' }
   /api/v1/units/{unit_id}/resources/{resource_id}/regenerations:
     post:
-      summary: Regenerate a resource (provisional decision D10, not yet confirmed by Generation)
+      summary: Regenerate a resource (decision D10, confirmed by Generation on 2026-11-09)
       description: >
         Asks Generation for a new resource with the stored parameters and the current evidence of the material.
         On success the previous one is discarded with reason `regenerado` only if it is still at `expectedVersion`;
         otherwise both stay in review. On failure the previous one is unchanged: a rejection for the teacher's data keeps
-        Generation's code (409 or 422) and 502 is left for provider failures.
+        Generation's code (409 or 422) and 502 is left for provider failures. If Generation does not finish within its
+        time limit the answer is `status: running`; ask `GET .../regeneration` until it ends.
       requestBody:
         required: true
         content:
@@ -66,6 +67,16 @@ paths:
         '422': { description: 'Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING); the previous resource is unchanged' }
         '502': { description: 'REGENERATION_FAILED: only for provider or unexpected failures; the previous resource is unchanged' }
         '503': { description: REGENERATION_UNAVAILABLE }
+  /api/v1/units/{unit_id}/resources/{resource_id}/regeneration:
+    get:
+      summary: State of the last regeneration of a resource (D10)
+      description: >
+        While the request is running it asks Generation for its state. On `succeeded` the previous resource is
+        discarded with reason `regenerado` only if it is still at the version of the request; on `failed` the reason
+        and code are returned and the regeneration can be asked again. A finished request returns the same answer.
+      responses:
+        '200': { description: State of the request, content: { application/json: { schema: { $ref: '#/components/schemas/RegenerationStatusResponse' } } } }
+        '404': { description: 'UNIT_NOT_FOUND, RESOURCE_NOT_FOUND or REGENERATION_NOT_FOUND' }
   /api/v1/units/{unit_id}/exports:
     post:
       summary: Export the eligible resources of a unit
@@ -147,7 +158,17 @@ components:
         previousResourceId: { type: string }
         previousDiscarded: { type: boolean, description: false when the previous one was edited meanwhile. }
         newResourceIds: { type: array, items: { type: string } }
-        status: { type: string, enum: [succeeded, running], description: 'running only when the same request is still in progress.' }
+        status: { type: string, enum: [succeeded, running], description: 'running while Generation works in the background.' }
+    RegenerationStatusResponse:
+      type: object
+      required: [previousResourceId, previousDiscarded, newResourceIds, status]
+      properties:
+        previousResourceId: { type: string }
+        previousDiscarded: { type: boolean }
+        newResourceIds: { type: array, items: { type: string } }
+        status: { type: string, enum: [succeeded, running, failed] }
+        reason: { type: [string, 'null'], description: Only for failed. }
+        code: { type: [string, 'null'], description: 'Generation code of the rejection, only for failed.' }
     DownloadResponse:
       description: Existing fields plus the course and unit at export time.
       type: object

@@ -100,6 +100,6 @@ Estado de revisión (status)        Verificación (verification.status)
 | Operación | Entrada | Salida |
 |---|---|---|
 | `request_regeneration` | `teacher_id`, `resource_id`, `resource_version` y `params` (con `unitId`) | `RegenerationStatus(request_id, status, new_resource_ids, reason, code)`; `status`: `pending`, `running`, `succeeded` o `failed`; `code` solo en `failed` por los datos del docente (`None` si falló el proveedor) |
-| `get_regeneration` | `teacher_id` y `request_id` | `RegenerationStatus` o `None` si no existe o es de otro docente |
+| `get_regeneration` | `teacher_id` y `request_id` | `RegenerationStatus` o `None` si no existe o es de otro docente. Revisión lo consulta desde `GET …/regeneration` mientras el pedido está en curso (D10 confirmada) |
 
 En el recurso anterior, Revisión guarda `regeneration: {fromVersion, requestId, status, newResourceIds, previousDiscarded}`. En cada recurso nuevo guarda `regeneratedFrom: {resourceId, version}`.

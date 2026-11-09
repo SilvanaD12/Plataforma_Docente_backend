@@ -1585,7 +1585,7 @@
           "resources"
         ],
         "summary": "Regenerate a resource from review",
-        "description": "REV-C12 and REV-C13 (provisional decision D10, not yet confirmed by Generation): asks Generation for a new\nresource with the stored parameters and the current evidence of the material. The request is synchronous.\n\nOn success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the\nprevious one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it\nwas edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version\nreturns the same result without generating again. On failure the previous resource is unchanged and `message`\ngives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the\nunit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME); 502\nREGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409\nVERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource of your unit with its current version. Expected 200.",
+        "description": "REV-C12 and REV-C13 (decision D10, confirmed by Generation): asks Generation for a new resource with the\nstored parameters and the current evidence of the material. If Generation does not finish within its time\nlimit, the answer is `status: running` and the request goes on in the background: ask\n`GET …/resources/{resource_id}/regeneration` until it ends.\n\nOn success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the\nprevious one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it\nwas edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version\nreturns the same result without generating again. On failure the previous resource is unchanged and `message`\ngives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the\nunit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME); 502\nREGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409\nVERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource of your unit with its current version. Expected 200.",
         "operationId": "regenerate_resource_api_v1_units__unit_id__resources__resource_id__regenerations_post",
         "security": [
           {
@@ -1689,6 +1689,83 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/resources/{resource_id}/regeneration": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Get the state of the last regeneration of a resource",
+        "description": "D10: while the request is `running`, this asks Generation for its state. When it sees `succeeded`, the\nprevious resource goes to discarded with reason `regenerado` only if it is still at the version of the request;\nwhen it sees `failed`, `reason` and `code` say why and the regeneration can be asked again. Asking again for a\nfinished request returns the same answer. Without a regeneration request: 404 REGENERATION_NOT_FOUND.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regeneration\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nUse a resource whose regeneration you asked for. Expected 200.",
+        "operationId": "get_regeneration_status_api_v1_units__unit_id__resources__resource_id__regeneration_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegenerationStatusResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
                 }
               }
             }
@@ -3684,7 +3761,7 @@
               "running"
             ],
             "title": "Status",
-            "description": "`succeeded`, or `running` when the same request is still in progress."
+            "description": "`succeeded`, or `running` while Generation works in the background: ask `GET …/regeneration` until it ends."
           }
         },
         "additionalProperties": true,
@@ -3696,6 +3773,71 @@
           "status"
         ],
         "title": "RegenerationResponse"
+      },
+      "RegenerationStatusResponse": {
+        "properties": {
+          "previousResourceId": {
+            "type": "string",
+            "title": "Previousresourceid"
+          },
+          "previousDiscarded": {
+            "type": "boolean",
+            "title": "Previousdiscarded",
+            "description": "True when the previous resource went to discarded with reason `regenerado`; false when it was edited meanwhile and both stay in review."
+          },
+          "newResourceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Newresourceids",
+            "description": "Resources created by Generation, waiting for review."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "running",
+              "failed"
+            ],
+            "title": "Status",
+            "description": "`running` while Generation works; `succeeded` (the previous one is discarded only if unchanged) or `failed`."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why it failed, in Spanish. Only for `failed`."
+          },
+          "code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code",
+            "description": "Generation code of the rejection (for example NO_PROCESSED_MATERIAL). Only for `failed`."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "previousResourceId",
+          "previousDiscarded",
+          "newResourceIds",
+          "status"
+        ],
+        "title": "RegenerationStatusResponse",
+        "description": "D10: state of the last regeneration request of the resource."
       },
       "RegistrationRequest": {
         "properties": {

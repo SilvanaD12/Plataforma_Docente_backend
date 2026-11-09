@@ -228,9 +228,17 @@ acordarla en el equipo y actualizar antes la ficha (REV-C8 y REV-R8).**
 
 ## D10. Regeneración (REV-R10 · REV-C12, C13)
 
-**Estado: decisión provisional, implementada sin confirmación de Generación (2026-11-08).** Yan no respondió a la
-propuesta del contrato. El equipo decidió avanzar con las opciones recomendadas y comunicárselas después. Si Generación
-prefiere otra cosa, el cambio se concentra en el adaptador (ver «Qué cambiaría» abajo).
+**Estado: confirmada por Yan (2026-11-09), con pedido en segundo plano.** Se implementó primero como decisión
+provisional y síncrona (2026-11-08). Yan confirmó el puerto y el pedido en segundo plano:
+- su adaptador (T029 de Generación) reemplaza al síncrono en `main.py` sin tocar Revisión;
+- `request_regeneration` crea un pedido en modo regeneración, con clave `regen-{resourceId}-v{version}` por docente,
+  y devuelve `pending` o `running` cuando no termina en su tiempo límite;
+- `get_regeneration` traduce `queued → pending`, `running → running`, `succeeded → succeeded`, y
+  `failed`/`interrupted → failed` con `reason` y `code`, y devuelve `None` para otro docente o un pedido inexistente;
+- Generación guarda los recursos nuevos con `verification`, `version = 1`, `evidence[].retrievedAt` y
+  `regeneratedFrom`, y nunca toca el recurso anterior: el descarte condicional es de Revisión.
+
+Mientras T029 no se integre, el adaptador síncrono sigue en `main.py`.
 
 **Lo implementado.**
 - **Puerto** `application/ports/outbound/resource_regeneration_port.py`, el que se propuso a Yan:
@@ -273,13 +281,14 @@ prefiere otra cosa, el cambio se concentra en el adaptador (ver «Qué cambiarí
 - Si el servidor se cae a mitad de un pedido, la reserva y `status: "running"` quedan para esa versión y el mismo
   pedido no se repite. Editar el recurso cambia su versión y permite volver a pedirlo.
 
-**Qué cambiaría si Generación prefiere otra cosa.**
-- **Pedido en segundo plano (GEN-R6):** el adaptador devuelve `pending` o `running` con el id del pedido y Revisión
-  consulta `get_regeneration`. El servicio ya responde `running` sin generar otra vez; faltaría completar el descarte
-  la primera vez que la consulta vea `succeeded`, y que el frontend consulte el estado.
-- **Generación guarda `regeneratedFrom` o `verification` al crear:** Revisión deja de agregarlos y conserva los suyos.
-- **Otro nombre o firma del puerto:** se ajustan el puerto, el adaptador y sus pruebas; la ruta y el servicio no
-  cambian.
+**Pedido en segundo plano (implementado en Revisión, 2026-11-09).**
+- `pending` y `running` dejan el pedido «en curso» (`regeneration.status = running`, con su `requestId`), sin marcar
+  fallo y conservando la reserva. El `POST` responde `status: running`.
+- `GET /units/{unit_id}/resources/{resource_id}/regeneration` consulta `get_regeneration`. Si ve `succeeded`, hace el
+  descarte condicional (REV-C12); si ve `failed` o `None`, registra el motivo y libera la reserva (REV-C13).
+  Consultar otra vez un pedido terminado devuelve lo mismo.
+- Revisión guarda `regeneratedFrom` también. Si Generación ya lo guardó, queda igual.
+- El frontend consulta el estado hasta que el pedido termina.
 
 ## D12. Frontend en la misma carpeta de especificación
 

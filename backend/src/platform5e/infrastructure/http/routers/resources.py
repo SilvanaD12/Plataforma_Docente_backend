@@ -17,6 +17,7 @@ from platform5e.infrastructure.http.schemas.common import ErrorResponse, error_r
 from platform5e.infrastructure.http.schemas.resources import (
     RegenerationInput,
     RegenerationResponse,
+    RegenerationStatusResponse,
     ResourceResponse,
     ReviewedResourceInput,
     UnitSummaryResponse,
@@ -143,8 +144,10 @@ def create_resources_router(
     def regenerate_resource(
         unit_id: str, resource_id: str, body: RegenerationInput, teacher_id: str = Depends(current_teacher)
     ) -> dict[str, Any]:
-        """REV-C12 and REV-C13 (provisional decision D10, not yet confirmed by Generation): asks Generation for a new
-        resource with the stored parameters and the current evidence of the material. The request is synchronous.
+        """REV-C12 and REV-C13 (decision D10, confirmed by Generation): asks Generation for a new resource with the
+        stored parameters and the current evidence of the material. If Generation does not finish within its time
+        limit, the answer is `status: running` and the request goes on in the background: ask
+        `GET …/resources/{resource_id}/regeneration` until it ends.
 
         On success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the
         previous one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it
@@ -164,6 +167,30 @@ def create_resources_router(
 
         Use a resource of your unit with its current version. Expected 200."""
         return review_service.regenerate_resource(teacher_id, unit_id, resource_id, body.expected_version)
+
+    @router.get(
+        "/units/{unit_id}/resources/{resource_id}/regeneration",
+        response_model=RegenerationStatusResponse,
+        summary="Get the state of the last regeneration of a resource",
+        responses=error_responses(401, 404),
+    )
+    def get_regeneration_status(
+        unit_id: str, resource_id: str, teacher_id: str = Depends(current_teacher)
+    ) -> dict[str, Any]:
+        """D10: while the request is `running`, this asks Generation for its state. When it sees `succeeded`, the
+        previous resource goes to discarded with reason `regenerado` only if it is still at the version of the request;
+        when it sees `failed`, `reason` and `code` say why and the regeneration can be asked again. Asking again for a
+        finished request returns the same answer. Without a regeneration request: 404 REGENERATION_NOT_FOUND.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regeneration" -H "Authorization: Bearer $TOKEN"
+        ```
+
+        Use a resource whose regeneration you asked for. Expected 200."""
+        return review_service.get_regeneration_status(teacher_id, unit_id, resource_id)
 
     @router.get(
         "/units/{unit_id}/resources/{resource_id}/media",
