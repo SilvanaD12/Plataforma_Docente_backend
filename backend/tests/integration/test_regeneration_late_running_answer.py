@@ -1,10 +1,12 @@
 """PR #17 sobre el #18 de REV-01: una respuesta tardía `running` del mismo intento no reabre un intento fallido.
 
-Orden que pidió Silvana, con el mismo `attemptId`:
-1. Una consulta de estado guarda `failed` y libera la reserva.
-2. Después llega, para ese mismo intento, una respuesta tardía de otra consulta con `running`.
-3. Debe quedar `failed` (sin volver a `running` ni retomar la reserva), y el docente puede pedir la regeneración otra
-   vez desde la misma versión: Generación crea el intento `-r2`.
+Dos órdenes que encontró Silvana, con el mismo `attemptId`:
+- La respuesta `running` de Generación llega tarde, después de que otra consulta guardó `failed` y liberó la reserva.
+- La consulta lenta ya leyó el registro `running` y va a escribir `running`; otra consulta guarda `failed` y libera la
+  reserva; recién entonces se ejecuta la escritura de la consulta lenta.
+
+En los dos debe quedar `failed` (sin volver a `running` ni retomar la reserva), y el docente puede pedir la
+regeneración otra vez desde la misma versión: Generación crea el intento `-r2`.
 
 Usa los repositorios reales de Cuentas, Revisión y Generación sobre un SQLite temporal, el adaptador real de Generación
 (T029) y un adaptador de prueba que lo envuelve para controlar el orden de las respuestas.
@@ -13,7 +15,10 @@ Usa los repositorios reales de Cuentas, Revisión y Generación sobre un SQLite 
 from __future__ import annotations
 
 import threading
+from dataclasses import dataclass
 from typing import Any
+
+import pytest
 
 from sqlalchemy import URL, create_engine, select
 from sqlalchemy.orm import sessionmaker
@@ -167,3 +172,140 @@ def test_a_late_running_answer_keeps_failed_and_the_same_version_can_be_regenera
     finished = service.get_regeneration_status(TEACHER, unit_id, "viejo")
     assert finished["status"] == "succeeded" and finished["previousDiscarded"] is True
     assert review_repository.get_resource_by_id(TEACHER, "viejo")["status"] == "descartado"
+
+
+# Variante: la escritura de la consulta lenta se ejecuta después de que otra guardó `failed`.
+
+
+class PauseBeforeWriting:
+    """El repositorio real de recursos. En el hilo de la consulta lenta, la escritura del registro `running` espera
+    a que la prueba la suelte: la lectura ya ocurrió y la escritura queda pendiente."""
+
+    def __init__(self, inner: resources.SQLAlchemyResourceRepository, thread_name: str) -> None:
+        self._inner = inner
+        self._thread_name = thread_name
+        self.about_to_write = threading.Event()
+        self.release_write = threading.Event()
+
+    def save_resource_if_attempt(self, teacher_id, unit_id, resource, expected_version, attempt_id, increment=False):
+        regeneration = resource.get("regeneration") or {}
+        if threading.current_thread().name == self._thread_name and regeneration.get("status") == "running":
+            self.about_to_write.set()
+            assert self.release_write.wait(10), "la prueba no soltó la escritura pendiente"
+        return self._inner.save_resource_if_attempt(
+            teacher_id, unit_id, resource, expected_version, attempt_id, increment
+        )
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
+@dataclass
+class World:
+    unit_id: str
+    version: int
+    review_repository: resources.SQLAlchemyResourceRepository
+    generation_requests: SQLAlchemyGenerationRequestRepository
+    membership: AccountUnitMembershipAdapter
+    evidence: FakeEvidence
+    adapter: GenerationRegenerationAdapter
+    sessions: Any
+    account_repository: Any
+
+    def stored(self) -> tuple[dict[str, Any], int | None, str | None]:
+        with self.sessions() as session:
+            row = session.execute(
+                select(resources.TeacherResourceORM.regeneration_claim, resources.TeacherResourceORM.regeneration_attempt)
+                .where(resources.TeacherResourceORM.id == "viejo")
+            ).one()
+        return self.review_repository.get_resource_by_id(TEACHER, "viejo")["regeneration"], row[0], row[1]
+
+
+def build_world(tmp_path, monkeypatch, request) -> World:
+    engine = create_engine(
+        URL.create("sqlite", database=str(tmp_path / "escritura-tardia.db")), connect_args={"check_same_thread": False}
+    )
+    request.addfinalizer(engine.dispose)
+    sessions = sessionmaker(bind=engine)
+    monkeypatch.setattr(accounts, "engine", engine)
+    monkeypatch.setattr(accounts, "SessionLocal", sessions)
+    monkeypatch.setattr(generations, "engine", engine)
+    monkeypatch.setattr(resources, "engine", engine)
+    monkeypatch.setattr(resources, "SessionLocal", sessions)
+
+    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    course = AccountService(account_repository, "", "").save_course(
+        TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
+    )
+    unit_id = course["units"][0]["id"]
+    review_repository = resources.SQLAlchemyResourceRepository()
+    review_repository.save_resources(TEACHER, unit_id, [explanation("viejo", unit_id)])
+    ResourceReviewService(account_repository, review_repository).list_resources(TEACHER, unit_id)  # D7
+    generation_requests = SQLAlchemyGenerationRequestRepository(engine)
+    membership = AccountUnitMembershipAdapter(account_repository)
+    evidence = FakeEvidence()
+    adapter = GenerationRegenerationAdapter(
+        StartRegeneration(StartGenerationRequest(membership, evidence, generation_requests, FakeRunner())),
+        GetGenerationRequest(generation_requests, membership, review_repository),
+        wait_seconds=0,
+    )
+    return World(
+        unit_id=unit_id,
+        version=review_repository.get_resource_by_id(TEACHER, "viejo")["version"],
+        review_repository=review_repository,
+        generation_requests=generation_requests,
+        membership=membership,
+        evidence=evidence,
+        adapter=adapter,
+        sessions=sessions,
+        account_repository=account_repository,
+    )
+
+
+@pytest.mark.xfail(strict=True, reason="pendiente del PR de REV-01 que compara el estado del intento en el UPDATE")
+def test_a_pending_running_write_after_failed_keeps_failed_and_the_same_version_can_be_regenerated_again(
+    tmp_path, monkeypatch, request
+):
+    world = build_world(tmp_path, monkeypatch, request)
+    slow_name = "consulta-lenta"
+    repository = PauseBeforeWriting(world.review_repository, slow_name)
+    service = ResourceReviewService(world.account_repository, repository, world.adapter)
+    unit_id, version = world.unit_id, world.version
+
+    # Primer intento: queda en curso (el pedido sigue en cola en Generación).
+    assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
+    first, _, _ = world.stored()
+    first_attempt, first_request = first["attemptId"], first["requestId"]
+
+    # 1. La consulta lenta lee el registro `running`, Generación le responde `pending` y va a escribir `running`.
+    slow_result: list[dict[str, Any]] = []
+    slow = threading.Thread(
+        target=lambda: slow_result.append(service.get_regeneration_status(TEACHER, unit_id, "viejo")), name=slow_name
+    )
+    slow.start()
+    assert repository.about_to_write.wait(10), "la consulta lenta no llegó a escribir"
+
+    # 2. El pedido falla en Generación y otra consulta guarda `failed` y libera la reserva.
+    world.generation_requests.finish(first_request, RequestStatus.FAILED, FAILURE)
+    failed = service.get_regeneration_status(TEACHER, unit_id, "viejo")
+    assert failed["status"] == "failed"
+    record, claim, attempt = world.stored()
+    assert record["status"] == "failed" and claim is None and attempt == first_attempt
+
+    # 3. Recién ahora se ejecuta la escritura pendiente de la consulta lenta.
+    repository.release_write.set()
+    slow.join(timeout=10)
+    assert not slow.is_alive()
+
+    # Debe seguir `failed`, con la reserva libre.
+    record, claim, attempt = world.stored()
+    assert record["status"] == "failed", "la escritura tardía de `running` pisó el `failed` del mismo intento"
+    assert record["attemptId"] == first_attempt and record["reason"] == FAILURE.message
+    assert claim is None and attempt == first_attempt
+
+    # Un pedido nuevo desde la misma versión crea el intento `-r2` en Generación.
+    assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
+    second, claim, attempt = world.stored()
+    assert second["attemptId"] != first_attempt and (claim, attempt) == (version, second["attemptId"])
+    retry = world.generation_requests.get(TEACHER, second["requestId"])
+    assert retry.idempotency_key == f"regen-viejo-v{version}-r2"
