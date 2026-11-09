@@ -240,6 +240,15 @@ provisional y síncrona (2026-11-08). Yan confirmó el puerto y el pedido en seg
 
 Mientras T029 no se integre, el adaptador síncrono sigue en `main.py`.
 
+**Alcance de los PR #13 (backend) y #7 (frontend), anotado para la integración (2026-11-09).**
+- **El adaptador sigue síncrono.** `main.py` usa `GenerationRegenerationAdapter`, que llama a `GenerationService.generate`
+  y siempre devuelve `succeeded` o `failed`.
+- **Revisión ya maneja `pending` y `running`.** Es el último commit de cada PR: el pedido queda «en curso», la ruta
+  `GET …/regeneration` hace el descarte al ver `succeeded`, y la revisión consulta ese estado. Hoy solo lo ejercitan
+  pruebas con dobles, porque el adaptador síncrono nunca devuelve esos estados.
+- **Para un PR posterior con Yan (T064):** el adaptador asíncrono de Generación (su T029) y una prueba e2e con un pedido
+  que pase por `running`.
+
 **Lo implementado.**
 - **Puerto** `application/ports/outbound/resource_regeneration_port.py`, el que se propuso a Yan:
   `request_regeneration(teacher_id, resource_id, resource_version, params) -> RegenerationStatus` y

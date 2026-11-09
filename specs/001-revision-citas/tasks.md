@@ -293,6 +293,14 @@ el pedido conserva ambos y un fallo deja el anterior igual.
   Depende de T042, de la tarea T009 de CC-01 (confirmación de borrado en la interfaz) y de T057.
 - [ ] T062 [BE] Recorrer [quickstart.md](quickstart.md) completo, incluido el aislamiento con la cuenta B, y repetir `tests/e2e` con PostgreSQL (`E2E_DATABASE_URL` en una base desechable). Anotar todos los resultados en el registro de avance y en los PR.
 
+### Seguimiento después de integrar los PR #13 (backend) y #7 (frontend)
+
+Acordado con Silvana en la revisión de los PR (2026-11-09). Ninguna bloquea la integración.
+
+- [ ] T063 [BE] **Limpiar el archivo multimedia sin referencia.** Si «Generar de nuevo» responde 409 `VERSION_CONFLICT` porque el docente guardó otra versión mientras tanto, el archivo recién generado queda guardado sin uso: `MediaRepositoryPort` no tiene forma de borrarlo. Agregar el borrado al puerto y al adaptador, o un barrido de archivos sin recurso, con su prueba.
+- [ ] T064 [Yan] **Adaptador de regeneración en segundo plano (T029 de Generación).** Reemplaza en `main.py` el adaptador síncrono por el de Generación, sin tocar Revisión (D10). Revisión ya trata `pending` y `running` como «en curso», tiene `GET …/resources/{resource_id}/regeneration` y la revisión consulta ese estado, probado hoy solo con dobles. Ese PR debe agregar una prueba e2e con un pedido que pase por `running`.
+- [ ] T065 [BE] **Publicación del PR #13 y del #7.** En Render, Juan comprueba que se aplicó la migración `20261109000001_regeneration_claim.sql` (columna `regeneration_claim` en `ep002_recursos`) y que `GET /api/v1/downloads` responde. Después, Yan comprueba «Mis descargas» en Vercel. Anotar los resultados, sin tokens, en el registro y en los PR.
+
 ## Dependencias y orden
 
 ```text
