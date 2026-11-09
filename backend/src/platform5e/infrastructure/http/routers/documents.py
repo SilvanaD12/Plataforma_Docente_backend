@@ -39,7 +39,7 @@ def create_documents_router(account_service: AccountService, material_service: M
 
     @router.get(
         "/search",
-        response_model=list[dict[str, Any]],
+        response_model=list[dict[str, Any]],  
         summary="Hybrid search of evidence across documents",
         responses=error_responses(401, 404),
     )
