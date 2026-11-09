@@ -15,10 +15,13 @@ fragmentos recuperados: el contexto es la copia histórica de la evidencia que s
 
 Si un pedido falla, vence el tiempo o un paso se rechaza sin recursos, el motivo se registra en
 evaluation/results/failures.jsonl (no en samples.jsonl, porque run_ragas.py exige contexto en cada muestra) y se sigue
-con el caso siguiente. Los rechazos de un pedido que sí entregó recursos van en el campo `problems` de cada muestra.
+con el caso siguiente. Si el servidor rechaza el pedido o su consulta de forma definitiva (4xx salvo 429), se deja de
+consultar y se registran su código HTTP (`status`), su `code` y su `message`; los 429, los 5xx y los fallos de red se
+reintentan hasta --timeout. Los rechazos de un pedido que sí entregó recursos van en el campo `problems` de cada muestra.
 
 La clave de cada pedido sale de una marca de la corrida (--run-id), del id del caso y del intento, así que repetir la
-corrida con la misma marca no duplica pedidos.
+corrida con la misma marca no duplica pedidos. El caso y el intento siempre quedan completos: si la clave pasa de 128
+caracteres, solo se recorta el run-id y se le agrega un hash corto del run-id completo.
 
 Con el plan gratuito de Gemini, varias generaciones seguidas superan el límite por minuto y el backend
 responde con el generador por reglas (fallback). Para que todas las muestras sean de la IA:
@@ -30,6 +33,7 @@ plataforma), para que la recuperación tenga varios fragmentos entre los que ele
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -144,10 +148,31 @@ def cites_material(resource: dict) -> bool:
     return bool(cited)
 
 
+MAX_KEY_LENGTH = 128
+RUN_HASH_LENGTH = 12
+
+
+def _key_part(value: str) -> str:
+    return re.sub(r'[^A-Za-z0-9_-]', '-', value)
+
+
 def idempotency_key(run_id: str, case_id: str, attempt: int) -> str:
-    """Clave del pedido (8 a 128 caracteres: letras, números, «-» y «_»), estable para la misma corrida y caso."""
-    raw = f'eval-{run_id}-{case_id}-{attempt}'
-    return re.sub(r'[^A-Za-z0-9_-]', '-', raw)[:128]
+    """Clave del pedido: `eval-{run-id}-{caso}-{intento}`, de 8 a 128 caracteres (letras, números, «-» y «_»).
+
+    El caso y el intento siempre quedan completos. Si no cabe todo, solo se recorta el run-id y se le agrega un hash
+    corto del run-id completo, para que dos run-id largos con el mismo comienzo no den la misma clave. La misma corrida
+    da siempre las mismas claves.
+    """
+    tail = f'-{_key_part(case_id)}-{attempt}'
+    run = _key_part(run_id)
+    room = MAX_KEY_LENGTH - len('eval-') - len(tail)
+    if len(run) > room:
+        digest = hashlib.sha256(run_id.encode('utf-8')).hexdigest()[:RUN_HASH_LENGTH]
+        if room < RUN_HASH_LENGTH:
+            raise ValueError(f'el id del caso «{case_id}» es demasiado largo para la clave del pedido')
+        keep = room - RUN_HASH_LENGTH - 1
+        run = f'{run[:keep]}-{digest}' if keep > 0 else digest
+    return f'eval-{run}{tail}'
 
 
 def start_request(client: httpx.Client, headers: dict, key: str, body: dict, deadline: float) -> httpx.Response:
@@ -161,14 +186,39 @@ def start_request(client: httpx.Client, headers: dict, key: str, body: dict, dea
         time.sleep(min(wait, max(0.0, deadline - time.monotonic())))
 
 
-def wait_until_final(client: httpx.Client, headers: dict, request_id: str, poll: float, deadline: float) -> dict | None:
-    """Consulta el pedido cada `poll` segundos hasta un estado final. None si se acaba el tiempo."""
+def server_problem(response: httpx.Response) -> dict:
+    """El rechazo del servidor como lo registra failures.jsonl: código HTTP, `code` y `message`."""
+    try:
+        error = response.json().get('error') or {}
+    except (ValueError, AttributeError):
+        error = {}
+    return {'status': response.status_code, 'code': error.get('code') or f'HTTP_{response.status_code}',
+            'message': error.get('message') or response.text[:200]}
+
+
+def is_definitive_rejection(response: httpx.Response) -> bool:
+    """4xx salvo 429: repetir la consulta no cambia la respuesta."""
+    return 400 <= response.status_code < 500 and response.status_code != 429
+
+
+def wait_until_final(
+    client: httpx.Client, headers: dict, request_id: str, poll: float, deadline: float
+) -> tuple[dict | None, dict | None]:
+    """Consulta el pedido cada `poll` segundos hasta un estado final. Devuelve (estado, None) si terminó, o (None,
+    rechazo) si el servidor lo rechaza de forma definitiva (4xx salvo 429) o se acaba el tiempo. Los 429, los 5xx y
+    los fallos de red se reintentan hasta el tiempo máximo."""
     while True:
-        response = request(client, 'GET', f'{REQUESTS_PATH}/{request_id}', headers=headers)
-        if response.status_code == 200 and response.json().get('status') in FINAL_STATUSES:
-            return response.json()
+        try:
+            response = request(client, 'GET', f'{REQUESTS_PATH}/{request_id}', headers=headers)
+        except httpx.TransportError:
+            response = None
+        if response is not None:
+            if response.status_code == 200 and response.json().get('status') in FINAL_STATUSES:
+                return response.json(), None
+            if is_definitive_rejection(response):
+                return None, {**server_problem(response), 'requestId': request_id}
         if time.monotonic() >= deadline:
-            return None
+            return None, None
         time.sleep(poll)
 
 
@@ -200,15 +250,11 @@ def run_case(client: httpx.Client, headers: dict, unit: dict, case: dict, args: 
     deadline = time.monotonic() + args.timeout
     response = start_request(client, headers, key, body, deadline)
     if response.status_code not in (200, 202):
-        try:
-            error = response.json().get('error') or {}
-        except ValueError:
-            error = {}
-        failure = {'code': error.get('code') or f'HTTP_{response.status_code}',
-                   'message': error.get('message') or response.text[:200]}
-        return None, failure, round(time.perf_counter() - started, 2)
-    status = wait_until_final(client, headers, response.json()['id'], args.poll, deadline)
+        return None, server_problem(response), round(time.perf_counter() - started, 2)
+    status, rejected = wait_until_final(client, headers, response.json()['id'], args.poll, deadline)
     elapsed = round(time.perf_counter() - started, 2)
+    if rejected is not None:
+        return None, rejected, elapsed
     if status is None:
         return None, {'code': 'TIMEOUT', 'message': f'el pedido no terminó en {args.timeout:.0f} s',
                       'requestId': response.json()['id']}, elapsed
