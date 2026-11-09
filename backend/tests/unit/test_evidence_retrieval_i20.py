@@ -238,3 +238,45 @@ def test_hybrid_retrieval_meets_indicator_i20_recall_at_10():
     assert (
         recall_at_10 >= 0.80
     ), f"El indicador I20 no alcanzó la meta mínima: {recall_at_10:.2f} < 0.80"
+
+def test_vector_search_failure_degrades_to_lexical_with_strict_teacher_isolation():
+    """Valida que un fallo en la búsqueda vectorial no reintente sin teacher_id y degrade a BM25 propio."""
+    mock_chunk_repo = MagicMock()
+    mock_embedding_gen = MagicMock()
+
+    mock_chunk_repo.vector_store_available.return_value = True
+    mock_embedding_gen.embed_query.return_value = [0.1] * 768
+
+    # Simular TypeError al recibir teacher_id para reproducir el fallo del adaptador
+    mock_chunk_repo.search_similar_chunks.side_effect = TypeError("Unexpected argument: teacher_id")
+
+    # Fragmentos con identificadores y variables en inglés
+    own_chunk = {
+        "id": "chunk_teacher_one",
+        "teacher_id": "teacher_alpha",
+        "text": "Algoritmos avanzados de redes y sistemas distribuidos",
+        "location": "sección 1",
+    }
+    foreign_chunk = {
+        "id": "chunk_teacher_two",
+        "teacher_id": "teacher_beta",
+        "text": "Algoritmos avanzados de redes y telecomunicaciones ajenas",
+        "location": "sección 1",
+    }
+
+    retriever = HybridEvidenceRetriever(
+        chunk_repository=mock_chunk_repo,
+        embedding_generator=mock_embedding_gen,
+    )
+
+    results = retriever.retrieve(
+        query="redes algoritmos",
+        chunks=[own_chunk, foreign_chunk],
+        top_k=5,
+        teacher_id="teacher_alpha",
+    )
+
+    result_ids = [item["id"] for item in results]
+    assert "chunk_teacher_one" in result_ids
+    assert "chunk_teacher_two" not in result_ids
+    assert all((item.get("teacher_id") or "teacher_alpha") == "teacher_alpha" for item in results)

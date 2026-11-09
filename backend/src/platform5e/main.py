@@ -26,6 +26,7 @@ from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.domain.generation.errors import GenerationError
 from platform5e.domain.materials.chunking import MaterialError
 from platform5e.domain.shared.errors import DuplicateRecordError, EntityNotFoundError, PersistenceUnavailableError
+from platform5e.infrastructure.adapters.account_unit_membership_adapter import AccountUnitMembershipAdapter
 from platform5e.infrastructure.exporters.moodle_xml_exporter import MoodleXmlExporter
 from platform5e.infrastructure.exporters.unit_document_exporter import UnitDocumentExporter
 from platform5e.infrastructure.exporters.scorm_package_exporter import ScormPackageExporter
@@ -140,14 +141,16 @@ def create_application() -> FastAPI:
         ChunkEmbeddingService(chunk_repository, embedding_generator) if embedding_generator is not None else None
     )
     
-    # AQUÍ ESTÁ LA INYECCIÓN CLAVE DEL PUERTO DE PERTENENCIA Y EL RECUPERADOR DE EVIDENCIA
+    # Adaptador T007 para validación de pertenencia de unidades y resultados
+    unit_membership_adapter = AccountUnitMembershipAdapter(account_repository)
+
     material_service = MaterialService(
         teacher_repository=account_repository,
         chunk_repository=chunk_repository,
         text_extractor=DocumentTextExtractor(),
         open_resource_port=open_source,
         embedding_service=embedding_service,
-        unit_membership_port=account_repository,
+        unit_membership_port=unit_membership_adapter,
         evidence_retriever=evidence_retriever,
     )
 

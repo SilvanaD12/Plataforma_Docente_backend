@@ -46,7 +46,7 @@ class HybridEvidenceRetriever:
         teacher_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Recupera fragmentos aplicando RRF sobre los rankings de BM25 y búsqueda vectorial con aislamiento por docente."""
-        # 1. Cargar fragmentos base para el filtrado léxico (BM25)
+        # 1. Resolver fragmentos base para el filtrado léxico (BM25)
         target_chunks = list(chunks) if chunks is not None else []
 
         if not target_chunks:
@@ -57,20 +57,19 @@ class HybridEvidenceRetriever:
             elif hasattr(self._chunk_repository, "get_chunks_by_unit"):
                 target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", unit_id or "")
 
-        # Filtro estricto por docente
+        # Filtro estricto por docente en memoria
         if teacher_id:
             filtered: list[dict[str, Any]] = []
-            for c in target_chunks:
-                owner = c.get("teacher_id") or c.get("teacherId")
-                # Si el chunk incluye información del docente, debe coincidir; si viene de un mock sin docente, se conserva
+            for item in target_chunks:
+                owner = item.get("teacher_id") or item.get("teacherId")
                 if owner is None or owner == teacher_id:
-                    filtered.append(c)
+                    filtered.append(item)
             target_chunks = filtered
 
-        # Filtro por unidad
+        # Filtro por unidad temática
         if unit_id:
             target_chunks = [
-                c for c in target_chunks if (c.get("unit_id") or c.get("unitId")) == unit_id
+                item for item in target_chunks if (item.get("unit_id") or item.get("unitId")) == unit_id
             ]
 
         # 2. Ranking Léxico (BM25)
@@ -97,10 +96,14 @@ class HybridEvidenceRetriever:
 
                     try:
                         semantic_results = self._chunk_repository.search_similar_chunks(**search_kwargs)
-                    except TypeError:
-                        # Si el repositorio o mock no acepta teacher_id, se retira de los argumentos
-                        search_kwargs.pop("teacher_id", None)
-                        semantic_results = self._chunk_repository.search_similar_chunks(**search_kwargs)
+                    except Exception as error:
+                        # Si la búsqueda vectorial falla o rechaza teacher_id, NUNCA reintentar sin teacher_id
+                        # Se degrada limpiamente a BM25 para preservar el aislamiento
+                        logger.warning(
+                            "Fallo o incompatibilidad en búsqueda vectorial (%s). Degradando a búsqueda léxica.",
+                            error,
+                        )
+                        semantic_results = []
 
             except Exception as exc:
                 logger.warning(
@@ -109,22 +112,22 @@ class HybridEvidenceRetriever:
                 )
                 semantic_results = []
 
-        # Filtrado estricto post-consulta por seguridad en memoria
+        # Filtrado estricto post-consulta por seguridad
         if teacher_id and semantic_results:
-            filtered_sem: list[dict[str, Any]] = []
-            for c in semantic_results:
-                owner = c.get("teacher_id") or c.get("teacherId")
+            filtered_semantic: list[dict[str, Any]] = []
+            for item in semantic_results:
+                owner = item.get("teacher_id") or item.get("teacherId")
                 if owner is None or owner == teacher_id:
-                    filtered_sem.append(c)
-            semantic_results = filtered_sem
+                    filtered_semantic.append(item)
+            semantic_results = filtered_semantic
 
-        # Si no hubo resultados vectoriales disponibles, degradación directa a BM25
+        # Si la vectorial falló o no está disponible, degradación directa a BM25
         if not semantic_results:
             results: list[dict[str, Any]] = []
-            for chunk in lexical_results[:top_k]:
-                item = dict(chunk)
-                raw_rel = float(item.get("relevance", item.get("relevancia", 1.0)))
-                item["relevance"] = round(min(1.0, max(0.0, raw_rel)), 4)
+            for item_chunk in lexical_results[:top_k]:
+                item = dict(item_chunk)
+                raw_relevance = float(item.get("relevance", item.get("relevancia", 1.0)))
+                item["relevance"] = round(min(1.0, max(0.0, raw_relevance)), 4)
                 results.append(item)
             return results
 
@@ -133,30 +136,30 @@ class HybridEvidenceRetriever:
         chunk_map: dict[str, dict[str, Any]] = {}
 
         for rank, chunk in enumerate(lexical_results):
-            cid = str(chunk["id"])
-            chunk_map[cid] = chunk
-            scores[cid] = scores.get(cid, 0.0) + (1.0 / (self._rrf_k + rank + 1))
+            chunk_id = str(chunk["id"])
+            chunk_map[chunk_id] = chunk
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + (1.0 / (self._rrf_k + rank + 1))
 
         for rank, chunk in enumerate(semantic_results):
-            cid = str(chunk["id"])
-            if cid not in chunk_map:
-                chunk_map[cid] = {
+            chunk_id = str(chunk["id"])
+            if chunk_id not in chunk_map:
+                chunk_map[chunk_id] = {
                     "id": chunk["id"],
                     "documentId": chunk.get("documentId") or chunk.get("documento") or chunk.get("documento_id"),
                     "location": chunk.get("location") or chunk.get("ubicacion"),
                     "text": chunk.get("text") or chunk.get("texto"),
                     "unitId": chunk.get("unitId") or chunk.get("unit_id") or unit_id,
                 }
-            scores[cid] = scores.get(cid, 0.0) + (1.0 / (self._rrf_k + rank + 1))
+            scores[chunk_id] = scores.get(chunk_id, 0.0) + (1.0 / (self._rrf_k + rank + 1))
 
-        # 5. Ordenar por score RRF descendente y normalizar relevancia
+        # 5. Ordenar por score RRF acumulado descendente y normalizar
         max_possible_rrf = 2.0 / (self._rrf_k + 1.0)
         sorted_ids = sorted(scores.keys(), key=lambda cid: scores[cid], reverse=True)
 
         results = []
-        for cid in sorted_ids[:top_k]:
-            item = dict(chunk_map[cid])
-            normalized_score = scores[cid] / max_possible_rrf
+        for chunk_id in sorted_ids[:top_k]:
+            item = dict(chunk_map[chunk_id])
+            normalized_score = scores[chunk_id] / max_possible_rrf
             item["relevance"] = round(min(1.0, max(0.0, normalized_score)), 4)
             results.append(item)
 

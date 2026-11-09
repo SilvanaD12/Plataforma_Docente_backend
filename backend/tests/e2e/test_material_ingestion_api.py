@@ -240,7 +240,7 @@ def test_search_evidence_isolation_and_t007_strict(server: str):
         assert all("docente A" in item["text"] for item in items_a_no_unit)
         assert not any("docente B" in item["text"] for item in items_a_no_unit)
 
-        # 6. T007 / MAT-C2 estricto: unidad ajena real vs. unidad inexistente devuelven el mismo 404 y cuerpo
+        # 6. T007 / MAT-C2 estricto en subida de documento: unidad ajena vs inexistente retornan mismo 404
         payload_ajena = {
             "unitId": unit_b_id,
             "outcomeIds": [outcome_b_id],
@@ -273,7 +273,22 @@ def test_search_evidence_isolation_and_t007_strict(server: str):
         assert res_inexistente.status_code == 404
         assert res_ajena.json() == res_inexistente.json()
 
-        # Verificar que ninguno de los dos intentos guardó material
+        # 7. T007 estricto en búsqueda por tema (/from-topic): unidad ajena vs inexistente retornan mismo 404
+        topic_ajena = api.post(
+            "/api/v1/documents/from-topic",
+            headers=h_a,
+            json={"unitId": unit_b_id, "topic": "Redes de computadoras"},
+        )
+        topic_inexistente = api.post(
+            "/api/v1/documents/from-topic",
+            headers=h_a,
+            json={"unitId": "unidad-no-existe-999", "topic": "Redes de computadoras"},
+        )
+        assert topic_ajena.status_code == 404
+        assert topic_inexistente.status_code == 404
+        assert topic_ajena.json() == topic_inexistente.json()
+
+        # Verificar que ningún intento inválido guardó material
         docs_a = api.get("/api/v1/documents", headers=h_a).json()
         assert len(docs_a) == 1
         assert docs_a[0]["fileName"] == "protocolo_a.txt"

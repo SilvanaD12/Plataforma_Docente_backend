@@ -98,36 +98,49 @@ class MaterialService:
         return []
 
     def validate_unit_membership_secure(self, teacher_id: str, unit_id: str, outcome_ids: list[str]) -> None:
-        """
-        Valida que el docente tenga acceso a la unidad y que los outcomes pertenezcan a ella.
-        Implementa MAT-C2: Unidad ajena o inexistente devuelven el mismo 404 Not Found.
-        """
-        if not self._unit_membership_port:
-            return
+            """
+            Valida que el docente tenga acceso a la unidad y que los outcomes pertenezcan a ella.
+            Implementa MAT-C2 / T007: Unidad ajena o inexistente devuelven el mismo 404 Not Found.
+            """
+            if self._unit_membership_port is not None:
+                context = self._unit_membership_port.get_unit_context(teacher_id, unit_id)
+                if context is None:
+                    raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
 
-        context = self._unit_membership_port.get_unit_context(teacher_id, unit_id)
-        
-        if context is None:
-            raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
+                if outcome_ids:
+                    if isinstance(context, dict):
+                        outcomes = context.get("outcomes", [])
+                    else:
+                        outcomes = getattr(context, "outcomes", [])
 
-        if outcome_ids:
-            if isinstance(context, dict):
-                outcomes = context.get("outcomes", [])
+                    valid_ids = {
+                        outcome.id if hasattr(outcome, "id") else outcome.get("id") if isinstance(outcome, dict) else str(outcome)
+                        for outcome in outcomes
+                    }
+                    invalid_ids = set(outcome_ids) - valid_ids
+                    
+                    if invalid_ids:
+                        raise MaterialError(
+                            "INVALID_OUTCOMES", 
+                            "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.", 
+                            400
+                        )
             else:
-                outcomes = getattr(context, "outcomes", [])
-
-            valid_ids = {
-                o.id if hasattr(o, "id") else o.get("id") if isinstance(o, dict) else str(o)
-                for o in outcomes
-            }
-            invalid_ids = set(outcome_ids) - valid_ids
-            
-            if invalid_ids:
-                raise MaterialError(
-                    "INVALID_OUTCOMES", 
-                    "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.", 
-                    400
-                )
+                # Fallback para pruebas unitarias donde no se inyecta unit_membership_port
+                unit = self._get_unit(teacher_id, unit_id)
+                if outcome_ids:
+                    valid_ids = {
+                        outcome.get("id")
+                        for outcome in unit.get("outcomes", [])
+                        if isinstance(outcome, dict) and outcome.get("id")
+                    }
+                    invalid_ids = set(outcome_ids) - valid_ids
+                    if invalid_ids:
+                        raise MaterialError(
+                            "INVALID_OUTCOMES",
+                            "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.",
+                            400,
+                        )
 
     def process_material(self, teacher_id: str, document_id: str) -> dict[str, Any]:
         """Extrae el texto del documento, lo divide en fragmentos y persiste el resultado."""
@@ -221,7 +234,9 @@ class MaterialService:
         if not 3 <= len(cleaned_topic) <= 120:
             raise MaterialError("INVALID_TOPIC", "Escribe un tema de 3 a 120 caracteres.")
 
-        unit = self._get_unit(teacher_id, unit_id)
+        # T007: Validación segura contra unidad ajena o inexistente
+        self.validate_unit_membership_secure(teacher_id, unit_id, [])
+
         if self._open_resource_port is None:
             raise MaterialError(
                 "TOPIC_SEARCH_UNAVAILABLE",
@@ -250,7 +265,7 @@ class MaterialService:
         existing_docs = {
             d["fileName"].casefold(): d
             for d in self._teacher_repository.get_documents(teacher_id)
-            if d["unitId"] == unit["id"]
+            if d.get("unitId") == unit_id
         }
         results: list[dict[str, Any]] = []
 
@@ -264,7 +279,7 @@ class MaterialService:
 
             content_bytes = f"{article['titulo']}\n\n{article['texto']}".encode("utf-8")
             doc_data: dict[str, Any] = {
-                "unitId": unit["id"],
+                "unitId": unit_id,
                 "outcomeIds": [],
                 "documentType": OPEN_EDUCATIONAL_RESOURCE_TYPE,
                 "suggestedStage": None,
