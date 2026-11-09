@@ -22,6 +22,7 @@ from platform5e.application.ports.outbound.generation_request_repository_port im
     ActiveRequestLimitReached,
     GenerationRequestRepositoryPort,
     IdempotencyKeyTaken,
+    UnitNoLongerOwned,
 )
 from platform5e.application.ports.outbound.unit_membership_port import UnitMembershipPort
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
@@ -122,7 +123,8 @@ class StartGenerationRequest:
 
         # 7 y 8. Límite de pedidos activos por docente y registro, en una sola operación atómica del repositorio
         #    (research R4): dos envíos simultáneos no pueden superar el límite. Si otro envío con la misma clave ganó
-        #    la carrera, se aplica la regla 3.
+        #    la carrera, se aplica la regla 3. Con el bloqueo del docente tomado se vuelve a comprobar la unidad: si
+        #    el curso se borró después del paso 2, el pedido no se guarda (T047).
         request = GenerationRequest(
             id=self._new_id(),
             teacher_id=command.teacher_id,
@@ -137,13 +139,20 @@ class StartGenerationRequest:
             regeneration=command.regeneration,
         )
         try:
-            created = self._repository.create_within_limit(request, MAX_ACTIVE_REQUESTS)
+            created = self._repository.create_within_limit(
+                request, MAX_ACTIVE_REQUESTS, unit_still_owned=lambda: self._unit_still_owned(command)
+            )
         except IdempotencyKeyTaken as taken:
             return self._replay(taken.existing, content_hash)
+        except UnitNoLongerOwned:
+            raise GenerationError(GenerationErrorCode.UNIT_NOT_FOUND, UNIT_NOT_FOUND_MESSAGE) from None
         except ActiveRequestLimitReached:
             raise GenerationError(GenerationErrorCode.TOO_MANY_ACTIVE_REQUESTS, TOO_MANY_ACTIVE_MESSAGE) from None
         self._runner.submit(created.id)
         return StartGenerationResult(request=created, created=True)
+
+    def _unit_still_owned(self, command: StartGenerationCommand) -> bool:
+        return self._membership.get_unit_context(command.teacher_id, command.unit_id) is not None
 
     @staticmethod
     def _replay(existing: GenerationRequest, content_hash: str) -> StartGenerationResult:

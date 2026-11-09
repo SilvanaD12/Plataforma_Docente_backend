@@ -33,6 +33,7 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_reposit
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     GenerationRequestORM,
     GenerationStepORM,
+    lock_teacher_generation_requests,
 )
 
 
@@ -260,6 +261,8 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     @translate_persistence_errors
     def delete_course(self, teacher_id: str, course_id: str, unit_ids: list[str]) -> None:
         with SessionLocal() as session:
+            # GEN-01 (T047): en PostgreSQL, el mismo bloqueo por docente que el alta de pedidos de generación.
+            lock_teacher_generation_requests(session, teacher_id)
             resource_ids = select(TeacherResourceORM.id).where(
                 TeacherResourceORM.teacher_id == teacher_id,
                 TeacherResourceORM.unit_id.in_(unit_ids),

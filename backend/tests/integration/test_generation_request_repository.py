@@ -342,6 +342,36 @@ def test_create_within_limit_keeps_the_idempotency_answer(repository):
         repository.create_within_limit(make_request(key="clave-nueva"), max_active=1)
 
 
+def test_create_within_limit_checks_the_unit_inside_the_lock(repository):
+    """T047: si la unidad ya no es del docente, no inserta nada; la clave existente se sigue devolviendo antes."""
+    from platform5e.application.ports.outbound.generation_request_repository_port import (
+        ActiveRequestLimitReached,
+        UnitNoLongerOwned,
+    )
+
+    checks: list[str] = []
+
+    def gone() -> bool:
+        checks.append("unidad")
+        return False
+
+    with pytest.raises(UnitNoLongerOwned):
+        repository.create_within_limit(make_request(key="clave-sin-unidad"), max_active=2, unit_still_owned=gone)
+    assert checks == ["unidad"] and repository.find_by_key("docente-a", "clave-sin-unidad") is None
+    assert repository.count_active("docente-a") == 0
+
+    original = repository.create_within_limit(
+        make_request(key="clave-guardada"), max_active=1, unit_still_owned=lambda: True
+    )
+    with pytest.raises(IdempotencyKeyTaken) as taken:  # la clave va primero, aunque la unidad ya no exista
+        repository.create_within_limit(make_request(key="clave-guardada"), max_active=1, unit_still_owned=gone)
+    assert taken.value.existing.id == original.id and checks == ["unidad"]
+    with pytest.raises(UnitNoLongerOwned):  # la unidad va antes que el cupo lleno
+        repository.create_within_limit(make_request(key="clave-otra"), max_active=1, unit_still_owned=gone)
+    with pytest.raises(ActiveRequestLimitReached):
+        repository.create_within_limit(make_request(key="clave-otra"), max_active=1, unit_still_owned=lambda: True)
+
+
 def test_two_simultaneous_starts_with_one_active_request_accept_only_one(repository):
     """Reproduce el error: con un pedido activo, dos envíos simultáneos con claves distintas dejaban tres activos."""
     from platform5e.application.use_cases.generation.start_generation_request import (
@@ -363,9 +393,9 @@ def test_two_simultaneous_starts_with_one_active_request_accept_only_one(reposit
             barrier.wait()
             return repository.count_active(teacher_id)
 
-        def create_within_limit(self, request, max_active: int):
+        def create_within_limit(self, request, max_active: int, unit_still_owned=None):
             barrier.wait()
-            return repository.create_within_limit(request, max_active)
+            return repository.create_within_limit(request, max_active, unit_still_owned)
 
     start = StartGenerationRequest(FakeMembership(), FakeEvidence(), BothCheckTogether(), FakeRunner())
 

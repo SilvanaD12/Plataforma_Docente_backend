@@ -4,6 +4,7 @@ Puerto de persistencia del pedido de generación en segundo plano (GEN-01) y de 
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime
 from typing import Protocol
 
@@ -33,6 +34,13 @@ class ActiveRequestLimitReached(DomainError):
         self.max_active = max_active
 
 
+class UnitNoLongerOwned(DomainError):
+    """Dentro del bloqueo del docente, la unidad ya no le pertenece (se borró su curso): el pedido no se registró."""
+
+    def __init__(self) -> None:
+        super().__init__("La unidad ya no pertenece al docente.")
+
+
 class GenerationRequestRepositoryPort(Protocol):
     """Operaciones de persistencia del pedido. Las consultas del docente siempre filtran por `teacher_id`."""
 
@@ -43,12 +51,21 @@ class GenerationRequestRepositoryPort(Protocol):
         """
         ...
 
-    def create_within_limit(self, request: GenerationRequest, max_active: int) -> GenerationRequest:
+    def create_within_limit(
+        self,
+        request: GenerationRequest,
+        max_active: int,
+        unit_still_owned: Callable[[], bool] | None = None,
+    ) -> GenerationRequest:
         """Como `create`, pero comprueba el cupo y registra el pedido de forma atómica para el docente: dos envíos
         simultáneos no pueden superar `max_active` pedidos activos (research R4).
 
-        Primero aplica la clave: si (teacher_id, idempotency_key) ya existe lanza IdempotencyKeyTaken(existing),
-        aunque el cupo esté lleno. Si no, lanza ActiveRequestLimitReached cuando el docente ya tiene `max_active`.
+        Todo ocurre con el bloqueo por docente tomado, el mismo que toma el borrado de un curso (T047). En orden:
+        1. Si (teacher_id, idempotency_key) ya existe lanza IdempotencyKeyTaken(existing), aunque el cupo esté lleno o
+           la unidad ya no exista.
+        2. Si `unit_still_owned()` devuelve False (el curso se borró después de validar la unidad), lanza
+           UnitNoLongerOwned sin insertar nada.
+        3. Si el docente ya tiene `max_active` pedidos activos, lanza ActiveRequestLimitReached.
         """
         ...
 

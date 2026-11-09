@@ -12,6 +12,7 @@ insertan nada y devuelven False. El alta con cupo (`create_within_limit`) serial
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -40,6 +41,7 @@ from platform5e.application.ports.outbound.generation_request_repository_port im
     ActiveRequestLimitReached,
     GenerationRequestRepositoryPort,
     IdempotencyKeyTaken,
+    UnitNoLongerOwned,
 )
 from platform5e.domain.generation.generation_request import (
     FINAL_REQUEST_STATUSES,
@@ -249,6 +251,16 @@ def _request_from_orm(row: GenerationRequestORM, steps: list[GenerationStepORM])
     )
 
 
+def lock_teacher_generation_requests(session: Session, teacher_id: str) -> None:
+    """En PostgreSQL toma el bloqueo por docente de los pedidos de generación hasta el final de la transacción
+    (`pg_advisory_xact_lock`). Lo usan el alta de pedidos y el borrado de cursos (T047), para que no se crucen. En
+    otros motores no hace nada: en SQLite la transacción de escritura ya serializa."""
+    if session.get_bind().dialect.name == "postgresql":
+        session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+            {"key": f"gen_generation_requests:{teacher_id}"},
+        )
+
 class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
     """Adaptador de infraestructura del pedido de generación.
 
@@ -342,14 +354,23 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
             return self._load(session, session.get(GenerationRequestORM, request.id))  # type: ignore[return-value]
 
     @translate_persistence_errors
-    def create_within_limit(self, request: GenerationRequest, max_active: int) -> GenerationRequest:
+    def create_within_limit(
+        self,
+        request: GenerationRequest,
+        max_active: int,
+        unit_still_owned: Callable[[], bool] | None = None,
+    ) -> GenerationRequest:
         with self._sessions() as session:
-            # Mientras dura la transacción, ningún otro envío del docente cuenta ni registra pedidos.
+            # Mientras dura la transacción, ningún otro envío del docente cuenta ni registra pedidos, y el borrado de
+            # un curso del docente espera (T047).
             self._lock_teacher(session, request.teacher_id)
             existing = self._find_by_key(session, request.teacher_id, request.idempotency_key)
             if existing is not None:
                 session.rollback()
                 raise IdempotencyKeyTaken(existing)
+            if unit_still_owned is not None and not unit_still_owned():
+                session.rollback()
+                raise UnitNoLongerOwned()
             active = session.scalar(
                 select(func.count())
                 .select_from(GenerationRequestORM)
@@ -378,10 +399,7 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
         """Bloqueo por docente hasta el final de la transacción (research R4)."""
         dialect = session.get_bind().dialect.name
         if dialect == "postgresql":
-            session.execute(
-                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
-                {"key": f"gen_generation_requests:{teacher_id}"},
-            )
+            lock_teacher_generation_requests(session, teacher_id)
         elif dialect == "sqlite":
             # Toma el bloqueo de escritura antes de contar: otro envío espera (busy timeout) en vez de leer lo mismo.
             session.connection().exec_driver_sql("BEGIN IMMEDIATE")

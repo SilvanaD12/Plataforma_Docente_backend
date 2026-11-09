@@ -111,15 +111,19 @@ get_regeneration(teacher_id: str, request_id: str) -> RegenerationStatus
 ```python
 class IdempotencyKeyTaken(DomainError): existing: GenerationRequest
 class ActiveRequestLimitReached(DomainError): max_active: int
+class UnitNoLongerOwned(DomainError): ...
 
 class GenerationRequestRepositoryPort(Protocol):
     def create(self, request: GenerationRequest) -> GenerationRequest:
         """Guarda el pedido con sus pasos (request.steps) en una sola transacción.
         Lanza IdempotencyKeyTaken(existing) si (teacher_id, idempotency_key) ya existe."""
-    def create_within_limit(self, request: GenerationRequest, max_active: int) -> GenerationRequest:
+    def create_within_limit(
+        self, request: GenerationRequest, max_active: int, unit_still_owned: Callable[[], bool] | None = None
+    ) -> GenerationRequest:
         """Como create, pero comprueba el cupo y registra el pedido de forma atómica por docente.
-        Lanza IdempotencyKeyTaken(existing) si la clave ya existe, aunque el cupo esté lleno, y
-        ActiveRequestLimitReached si el docente ya tiene max_active pedidos queued o running."""
+        Con el bloqueo del docente tomado, en este orden: lanza IdempotencyKeyTaken(existing) si la clave ya existe,
+        aunque el cupo esté lleno o la unidad ya no exista; UnitNoLongerOwned si unit_still_owned() devuelve False;
+        y ActiveRequestLimitReached si el docente ya tiene max_active pedidos queued o running."""
     def find_by_key(self, teacher_id: str, idempotency_key: str) -> GenerationRequest | None: ...
     def get(self, teacher_id: str, request_id: str) -> GenerationRequest | None:
         """Filtra por docente. Un pedido ajeno devuelve None."""
@@ -139,7 +143,7 @@ class GenerationRequestRepositoryPort(Protocol):
 ```
 
 - `GenerationRequest` ya incluye sus pasos (`steps`), así que `create` no los recibe aparte.
-- `StartGenerationRequest` registra con `create_within_limit(request, MAX_ACTIVE_REQUESTS)`, no con `count_active` seguido de `create`. El adaptador SQLAlchemy serializa por docente con `pg_advisory_xact_lock` en PostgreSQL y con `BEGIN IMMEDIATE` en SQLite ([research R4](../research.md#r4-límites-de-carga)).
+- `StartGenerationRequest` registra con `create_within_limit(request, MAX_ACTIVE_REQUESTS, unit_still_owned=…)`, no con `count_active` seguido de `create`. `unit_still_owned` vuelve a consultar `UnitMembershipPort.get_unit_context`; si la unidad ya no es del docente, el caso de uso responde `UNIT_NOT_FOUND`. El adaptador SQLAlchemy serializa por docente con `pg_advisory_xact_lock` en PostgreSQL y con `BEGIN IMMEDIATE` en SQLite ([research R4](../research.md#r4-límites-de-carga)). `delete_course` toma el mismo bloqueo en PostgreSQL (`lock_teacher_generation_requests`), así que el alta y el borrado de un curso del mismo docente no se cruzan.
 - `save_evidence`, `update_step`, `heartbeat` y `finish` solo actualizan filas existentes; nunca insertan. Devuelven si el pedido existía (`update_step`, si existen el pedido y el paso). Si el curso se borró durante la ejecución, devuelven `False` y no dejan filas huérfanas ([research R3](../research.md#r3-ejecución-en-segundo-plano-y-reinicio)).
 - `finish` cierra también los pasos que quedaron en `pending` o `running`: pasan a `interrupted` si el pedido se cierra como `interrupted`, y a `failed` en los demás casos, con el mismo `failure` como motivo. Así un pedido terminado nunca tiene pasos en curso. Los pasos ya terminados y sus recursos no cambian.
 
