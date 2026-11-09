@@ -34,5 +34,9 @@ class FragmentCitationModel(BaseModel):
         ...,
         ge=0.0,
         le=1.0,
-        description="Coeficiente de similitud semántica coseno entre el texto generado y el fragmento.",
+        description=(
+            "Proporción (0 a 1) de las palabras útiles de la afirmación que aparecen en el fragmento, con la misma raíz "
+            "o los mismos seis primeros caracteres. Es una coincidencia por palabras (grounding.py), no una similitud "
+            "semántica coseno."
+        ),
     )

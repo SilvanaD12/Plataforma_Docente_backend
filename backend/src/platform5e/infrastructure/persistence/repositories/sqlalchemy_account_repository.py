@@ -117,6 +117,8 @@ class TeacherResourceORM(Base):
     unit_id = Column("unidad", String, nullable=False, index=True)
     created_at = Column("creado", String, nullable=False)
     resource_data = Column("datos", JSON, nullable=False)
+    # REV-01 (REV-R12): guardado condicional por versión. Migración 20261108000001_resource_version.sql.
+    version = Column(Integer, nullable=False, default=1, server_default="1")
 
 
 class DownloadORM(Base):

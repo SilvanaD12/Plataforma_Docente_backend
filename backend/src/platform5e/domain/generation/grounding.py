@@ -19,6 +19,10 @@ from typing import Any
 from platform5e.domain.materials.text_analysis import extract_terms
 
 DEFAULT_THRESHOLD: float = 0.6
+# REV-01: versión de la regla de verificación que se guarda con cada resultado. Se incrementa en 1 cuando cambia algún
+# umbral o mínimo de este archivo (afirmaciones, párrafos, pasos, predicciones o criterios). Un recurso que no se edita
+# conserva su resultado aunque cambie la versión; al editarlo se verifica con la regla vigente.
+VERIFICATION_RULE_VERSION: int = 1
 SHARED_PREFIX: int = 6
 # Un recurso se rechaza si menos de esta proporción de sus afirmaciones tiene respaldo.
 MIN_SUPPORTED_SHARE: float = 0.5

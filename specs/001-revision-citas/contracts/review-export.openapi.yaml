@@ -1,0 +1,154 @@
+# Cambios de contrato de REV-01 sobre docs/api/openapi.json (OpenAPI 3.1).
+# Solo incluye rutas y esquemas nuevos o que cambian. El contrato oficial se regenera con
+# `python scripts/export_openapi.py` en el mismo cambio que la implementación (Constitución II).
+openapi: 3.1.0
+info:
+  title: Platform 5E API · cambios REV-01
+  version: 2.1.0-rev01
+paths:
+  /api/v1/units/{unit_id}/resources/{resource_id}:
+    put:
+      summary: Save the review of a resource
+      description: >
+        Requires `expectedVersion`. If the verifiable content changed, the resource is checked again against its
+        stored evidence copy (no external services). An approved resource whose content changed goes back to
+        `pendiente` (`reviewReset: true`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReviewedResourceInput' }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceResponse' } } } }
+        '404': { description: UNIT_NOT_FOUND or RESOURCE_NOT_FOUND }
+        '409': { description: 'VERSION_CONFLICT (reload the resource) or APPROVAL_BLOCKED' }
+        '422': { description: Invalid parameters }
+  /api/v1/units/{unit_id}/resources/{resource_id}/verification:
+    post:
+      summary: Retry the verification of a pending resource
+      description: >
+        Checks the same content again with the current rule and the stored `evidenceThreshold`, using only the
+        stored evidence copy. Only when `verification.status = pending` and `retryAvailable = true`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Checked again, content: { application/json: { schema: { $ref: '#/components/schemas/ResourceResponse' } } } }
+        '404': { description: UNIT_NOT_FOUND or RESOURCE_NOT_FOUND }
+        '409': { description: 'VERSION_CONFLICT, VERIFICATION_NOT_PENDING or REGENERATION_REQUIRED (incomplete evidence copy)' }
+  /api/v1/units/{unit_id}/resources/{resource_id}/regenerations:
+    post:
+      summary: Regenerate a resource (pending agreement with Generation, GEN-R6)
+      description: >
+        Asks Generation for a new resource with the stored parameters and the current evidence of the material.
+        On success the previous one is discarded with reason `regenerado` only if it is still at `expectedVersion`;
+        otherwise both stay in review. On failure the previous one is unchanged.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        '200': { description: Regeneration result, content: { application/json: { schema: { $ref: '#/components/schemas/RegenerationResponse' } } } }
+        '404': { description: UNIT_NOT_FOUND or RESOURCE_NOT_FOUND }
+        '409': { description: VERSION_CONFLICT }
+        '502': { description: 'REGENERATION_FAILED: the previous resource is unchanged; `message` gives the reason' }
+  /api/v1/units/{unit_id}/exports:
+    post:
+      summary: Export the eligible resources of a unit
+      description: >
+        Includes only resources that are approved, with a current verification and supported by the format.
+        Records the download once.
+      responses:
+        '200': { description: The exported file }
+        '422':
+          description: >
+            NO_APPROVED_RESOURCES. `details` lists, per reason, how many resources were left out
+            (for example `{"reason": "verification_pending", "count": 2}`).
+  /api/v1/downloads:
+    get:
+      summary: List my downloads
+      description: Download history of the signed-in teacher, newest first. It is kept after a course is deleted.
+      responses:
+        '200':
+          description: History
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/DownloadResponse' } }
+        '401': { description: Missing, invalid or expired session token }
+  /api/v1/units/{unit_id}/downloads:
+    get:
+      summary: List the downloads of a unit (unchanged path; response gains course and unit names)
+    post:
+      deprecated: true
+      description: REMOVED in this delivery. Exports record themselves (single record).
+  /api/v1/units/{unit_id}/downloads/{download_id}:
+    get:
+      deprecated: true
+      description: REMOVED in this delivery. Re-downloading is out of scope and this route exported the current state.
+components:
+  schemas:
+    ReviewedResourceInput:
+      description: Existing fields (title, body, bodyHtml, structure, status, discardReason, edited, options) plus expectedVersion.
+      type: object
+      required: [title, body, status, expectedVersion]
+      properties:
+        expectedVersion: { type: integer, minimum: 1, description: Version the edit starts from. }
+    VerificationResult:
+      type: object
+      required: [status, fingerprint, evidenceThreshold, ruleVersion, checkedAt, retryAvailable]
+      properties:
+        status: { type: string, enum: [current, insufficient, pending], description: 'Shown as vigente, insuficiente, pendiente.' }
+        reason: { type: [string, 'null'], description: Reason in Spanish; required unless current. }
+        fingerprint: { type: string, pattern: '^sha256:[0-9a-f]{64}$' }
+        verifiedVersion: { type: integer }
+        evidenceThreshold: { type: number, minimum: 0, maximum: 1 }
+        ruleVersion: { type: integer, minimum: 1 }
+        checkedAt: { type: string, format: date-time }
+        retryAvailable: { type: boolean }
+        summary: { $ref: '#/components/schemas/ResourceGrounding' }
+    EvidenceResponse:
+      description: Existing fields plus retrievedAt.
+      type: object
+      properties:
+        retrievedAt: { type: [string, 'null'], format: date-time, description: 'null means unknown (migrated resources).' }
+    MediaResponse:
+      description: Existing fields plus invalidated.
+      type: object
+      properties:
+        invalidated: { type: boolean, default: false, description: 'The file was dropped because the prompt or script changed; generate it again to approve.' }
+    ResourceResponse:
+      description: Existing fields plus version, verification and reviewReset. `approvalBlockers` also lists verification and media reasons.
+      type: object
+      properties:
+        version: { type: integer, minimum: 1 }
+        verification: { $ref: '#/components/schemas/VerificationResult' }
+        reviewReset: { type: boolean, description: 'Only in the PUT response: an approved resource went back to review.' }
+    RegenerationResponse:
+      type: object
+      required: [previousResourceId, previousDiscarded, newResourceIds]
+      properties:
+        previousResourceId: { type: string }
+        previousDiscarded: { type: boolean, description: false when the previous one was edited meanwhile. }
+        newResourceIds: { type: array, items: { type: string } }
+    DownloadResponse:
+      description: Existing fields plus the course and unit at export time.
+      type: object
+      properties:
+        courseId: { type: [string, 'null'] }
+        courseName: { type: [string, 'null'], description: null for records saved before this change. }
+        unitName: { type: [string, 'null'] }
+        unitNumber: { type: [integer, 'null'] }
+    ResourceGrounding:
+      description: Unchanged (see docs/api/openapi.json).
+      type: object

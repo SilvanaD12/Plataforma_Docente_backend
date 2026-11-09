@@ -6,7 +6,7 @@ from typing import Any, Literal
 
 from pydantic import Field, computed_field, field_validator
 
-from platform5e.application.services.review.resource_review_service import validate_approval_blockers
+from platform5e.application.services.review.resource_review_service import approval_blockers
 from platform5e.infrastructure.html_sanitizer import clean_html
 from platform5e.infrastructure.http.schemas.common import ApiRequest, ApiResponse
 
@@ -31,6 +31,9 @@ class EvidenceResponse(ApiResponse):
     document_name: str
     source_url: str | None = None
     license: str | None = None
+    retrieved_at: str | None = Field(
+        default=None, description="When the chunk was retrieved (ISO 8601). `null` means unknown, as in migrated resources."
+    )
 
 
 class ResourceOptionResponse(ApiResponse):
@@ -103,6 +106,24 @@ class ResourceGrounding(ApiResponse):
     )
 
 
+class VerificationResult(ApiResponse):
+    """REV-01: result of checking the current content against the stored evidence copy (REV-R4, REV-R5)."""
+
+    status: Literal["current", "insufficient", "pending"] = Field(
+        description="Shown as vigente, insuficiente or pendiente. Only `current` with the current fingerprint counts."
+    )
+    reason: str | None = Field(default=None, description="Why it is not current, in Spanish. Set unless `current`.")
+    fingerprint: str = Field(description="Fingerprint of the verified content: `sha256:<hex>`.")
+    verified_version: int = Field(description="Resource version whose content was verified.")
+    evidence_threshold: float = Field(ge=0, le=1, description="Threshold of the original request, reused on every check.")
+    rule_version: int = Field(ge=1, description="VERIFICATION_RULE_VERSION used for this check.")
+    checked_at: str = Field(description="When it was checked (ISO 8601).")
+    retry_available: bool = Field(
+        description="True only for `pending` with a complete evidence copy: «Reintentar comprobación» is offered."
+    )
+    summary: dict[str, Any] = Field(default_factory=dict, description="What was checked, kept or removed.")
+
+
 class ResourceResponse(ApiResponse):
     id: str
     unit_id: str
@@ -133,17 +154,33 @@ class ResourceResponse(ApiResponse):
     grounding: ResourceGrounding | None = Field(
         default=None, description="Grounding check of its claims against the retrieved evidence (HU-016)."
     )
+    version: int = Field(default=1, ge=1, description="Current version. Send it back as `expectedVersion` when saving.")
+    verification: VerificationResult | None = Field(
+        default=None, description="Last check against the stored evidence copy (REV-01). None until it is checked."
+    )
+    review_reset: bool | None = Field(
+        default=None,
+        description="Only in the save response: true when an approved resource changed its content and went back to review.",
+    )
 
     @computed_field(description="Reasons that block approval, computed by the same rule that validates approval.")
     @property
     def approval_blockers(self) -> list[str]:
-        return validate_approval_blockers({
+        return approval_blockers({
             "body": self.body,
             "type": self.type,
             "structure": self.structure,
             "media": self.media.model_dump(by_alias=True) if self.media else None,
             "options": [option.model_dump(by_alias=True) for option in self.options] if self.options else None,
+            "citations": [citation.model_dump(by_alias=True) for citation in self.citations],
+            "verification": self.verification.model_dump(by_alias=True) if self.verification else None,
         })
+
+
+class VerificationRetryInput(ApiRequest):
+    """«Reintentar comprobación» de un recurso con verificación pendiente (REV-C3)."""
+
+    expected_version: int = Field(ge=1, description="Version you read. The retry does not change it.", examples=[1])
 
 
 class ReviewedOptionInput(ApiRequest):
@@ -156,12 +193,21 @@ class ReviewedOptionInput(ApiRequest):
 
 
 class ReviewedResourceInput(ApiRequest):
-    """The teacher's review. Approval is blocked while distractors are pending (409 APPROVAL_BLOCKED)."""
+    """The teacher's review. Approval is blocked while distractors are pending (409 APPROVAL_BLOCKED). A save that
+    starts from an outdated version is rejected (409 VERSION_CONFLICT)."""
 
+    expected_version: int = Field(
+        ge=1, description="Version the edit starts from (the `version` you read). Required (REV-R12).", examples=[1]
+    )
     title: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=8000)
     body_html: str | None = Field(
-        default=None, max_length=20000, description="HTML from the editor; only text formatting and web links are kept."
+        default=None,
+        max_length=20000,
+        description=(
+            "HTML from the editor; only text formatting and web links are kept. If `body` changes and no new `bodyHtml` "
+            "is sent (missing or equal to the stored one), the stored HTML is cleared and `body` is used."
+        ),
     )
     structure: dict[str, Any] | None = Field(default=None, description="Edited items of the activity or graphic.")
     status: ReviewStatus
