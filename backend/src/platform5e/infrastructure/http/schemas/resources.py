@@ -232,7 +232,12 @@ class ReviewedResourceInput(ApiRequest):
     title: str = Field(min_length=1, max_length=160)
     body: str = Field(min_length=1, max_length=8000)
     body_html: str | None = Field(
-        default=None, max_length=20000, description="HTML from the editor; only text formatting and web links are kept."
+        default=None,
+        max_length=20000,
+        description=(
+            "HTML from the editor; only text formatting and web links are kept. If `body` changes and no new `bodyHtml` "
+            "is sent (missing or equal to the stored one), the stored HTML is cleared and `body` is used."
+        ),
     )
     structure: dict[str, Any] | None = Field(default=None, description="Edited items of the activity or graphic.")
     status: ReviewStatus

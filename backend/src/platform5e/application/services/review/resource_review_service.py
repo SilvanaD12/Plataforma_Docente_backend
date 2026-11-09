@@ -197,6 +197,19 @@ class ResourceReviewService:
     ) -> dict[str, Any]:
         """Aplica y persiste las modificaciones y decisiones del docente sobre el recurso."""
         existing = self._get_resource_or_fail(teacher_id, unit_id, resource_id)
+        # REV-C14: la versión de partida se compara primero con la guardada, antes de validar y de evaluar la
+        # aprobación, para que una pestaña desactualizada reciba VERSION_CONFLICT y no un bloqueo de su contenido
+        # viejo. El UPDATE condicional del final sigue cubriendo un guardado de otra pestaña entre lectura y escritura.
+        expected_version = changes.get("expectedVersion")
+        if not isinstance(expected_version, int) or isinstance(expected_version, bool):
+            raise AccountConfigurationError(
+                "VERSION_REQUIRED", "Indica la versión del recurso de la que parte el guardado.", 422
+            )
+        if expected_version != existing.get("version", 1):
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de guardar.", 409
+            )
+
         status = changes["status"]
         if status not in ALLOWED_REVIEW_STATUSES:
             raise AccountConfigurationError(
@@ -213,9 +226,14 @@ class ResourceReviewService:
             "body": changes["body"],
             "edited": bool(changes.get("edited")),
         }
-        if "bodyHtml" in changes:
+        incoming_html = changes.get("bodyHtml")
+        if changes["body"] != existing.get("body") and incoming_html in (None, existing.get("bodyHtml")):
+            # El cuerpo cambió y no llegó un HTML nuevo: el guardado es del texto anterior. Se borra para que la
+            # revisión y los exportadores (SCORM, documento) usen el cuerpo vigente.
+            updated_resource["bodyHtml"] = None
+        elif "bodyHtml" in changes:
             # Ya llega limpio (sin scripts ni atributos peligrosos) desde el adaptador HTTP.
-            updated_resource["bodyHtml"] = changes["bodyHtml"] or None
+            updated_resource["bodyHtml"] = incoming_html or None
         if changes.get("structure") is not None:
             if not needs_structure(existing.get("type", "")):
                 raise AccountConfigurationError(
@@ -292,11 +310,6 @@ class ResourceReviewService:
         if review_reset:
             status = "pendiente"
 
-        expected_version = changes.get("expectedVersion")
-        if not isinstance(expected_version, int) or isinstance(expected_version, bool):
-            raise AccountConfigurationError(
-                "VERSION_REQUIRED", "Indica la versión del recurso de la que parte el guardado.", 422
-            )
         updated_resource["version"] = expected_version + 1
 
         stored = existing.get("verification")

@@ -4442,7 +4442,7 @@
               }
             ],
             "title": "Bodyhtml",
-            "description": "HTML from the editor; only text formatting and web links are kept."
+            "description": "HTML from the editor; only text formatting and web links are kept. If `body` changes and no new `bodyHtml` is sent (missing or equal to the stored one), the stored HTML is cleared and `body` is used."
           },
           "structure": {
             "anyOf": [
