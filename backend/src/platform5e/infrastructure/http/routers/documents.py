@@ -8,7 +8,7 @@ import json
 from typing import Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Response, UploadFile, status, Query
 from pydantic import ValidationError
 
 from platform5e.application.services.accounts.account_service import MAX_FILE_SIZE, AccountService
@@ -53,30 +53,26 @@ def create_documents_router(account_service: AccountService, material_service: M
 
     @router.get(
         "/search",
-        response_model=list[EvidenceSearchResponse],  
+        response_model=list[EvidenceSearchResponse],
         summary="Hybrid search of evidence across documents",
+        description=(
+            "Hybrid search of evidence across documents.\n\n"
+            "Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\n"
+            "Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n"
+            "```bash\n"
+            'curl --fail-with-body -i -X GET "$BASE_URL/api/v1/documents/search?query=redes" -H "Authorization: Bearer $TOKEN"\n'
+            "```\n\n"
+            "Expected 200. See the response schema below for the returned fields."
+        ),
         responses=error_responses(401, 404),
     )
     def search_evidence(
-        query: str,
-        unit_id: str | None = None,
-        top_k: int = 5,
+        query: str = Query(..., description="Términos de búsqueda"),
+        unit_id: str | None = Query(None, alias="unitId", description="ID de la unidad"),
+        top_k: int = Query(5, alias="topK", ge=1, le=50, description="Cantidad máxima de resultados"),
         teacher_id: str = Depends(current_teacher),
     ) -> list[EvidenceSearchResponse]:
-        """Hybrid search of evidence across documents.
-
-        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
-        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
-
-        ```bash
-        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/documents/search?query=redes" -H "Authorization: Bearer $TOKEN"
-        ```
-
-        Expected 200. See the response schema below for the returned fields.
-        """
-        results = material_service.search_evidence(teacher_id, query, top_k=top_k, unit_id=unit_id)
-        # Opcional: Asegúrate de que los resultados devueltos por el service se adapten o retornen como instancias/dicts compatibles con el modelo.
-        return results
+        return material_service.search_evidence(teacher_id, query, top_k=top_k, unit_id=unit_id)
     
     @router.get("", response_model=list[DocumentResponse], summary="List my documents", responses=error_responses(401))
     def list_documents(teacher_id: str = Depends(current_teacher)) -> list[dict[str, Any]]:

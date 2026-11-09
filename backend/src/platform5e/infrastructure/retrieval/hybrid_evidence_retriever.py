@@ -18,8 +18,8 @@ from platform5e.domain.materials.text_analysis import retrieve_relevant_chunks
 
 logger = logging.getLogger("platform5e.retrieval")
 
-# Timeout estricto de 1.5 segundos para no bloquear la consulta si el modelo responde lento
-EMBEDDING_QUERY_TIMEOUT_SECONDS: float = 1.5
+# Timeout estricto de 10.0 segundos para no bloquear la consulta si el modelo responde lento
+EMBEDDING_QUERY_TIMEOUT_SECONDS: float = 10.0
 
 
 class HybridEvidenceRetriever:
@@ -43,42 +43,46 @@ class HybridEvidenceRetriever:
         chunks: list[dict[str, Any]] | None = None,
         top_k: int = 5,
         unit_id: str | None = None,
-        teacher_id: str | None = None,
+        teacher_id: str = "",
     ) -> list[dict[str, Any]]:
         """Recupera fragmentos aplicando RRF sobre los rankings de BM25 y búsqueda vectorial con aislamiento por docente."""
-        # 1. Resolver fragmentos base para el filtrado léxico (BM25)
-        target_chunks = list(chunks) if chunks is not None else []
-
-        if not target_chunks:
+        # 1. Si no se pasaron fragmentos en memoria, teacher_id es estrictamente obligatorio para consultar la base de datos
+        if chunks is None:
+            if not teacher_id or not teacher_id.strip():
+                raise ValueError("teacher_id is required for evidence retrieval")
+            
+            target_chunks: list[dict[str, Any]] = []
             if unit_id and hasattr(self._chunk_repository, "get_chunks_by_unit"):
-                target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", unit_id)
-            elif teacher_id and hasattr(self._chunk_repository, "get_chunks_by_teacher"):
+                target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id, unit_id)
+            elif hasattr(self._chunk_repository, "get_chunks_by_teacher"):
                 target_chunks = self._chunk_repository.get_chunks_by_teacher(teacher_id)
-            elif hasattr(self._chunk_repository, "get_chunks_by_unit"):
-                target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", unit_id or "")
+        else:
+            target_chunks = list(chunks)
 
-        # Filtro estricto por docente en memoria
-        if teacher_id:
-            filtered: list[dict[str, Any]] = []
-            for item in target_chunks:
-                owner = item.get("teacher_id") or item.get("teacherId")
-                if owner is None or owner == teacher_id:
-                    filtered.append(item)
-            target_chunks = filtered
+        # 2. Filtrado estricto por docente:
+        # Si se especificó un teacher_id, descarta fragmentos ajenos y fragmentos huérfanos/sin dueño
+        if teacher_id and teacher_id.strip():
+            target_chunks = [
+                item for item in target_chunks
+                if (item.get("teacher_id") or item.get("teacherId")) == teacher_id
+            ]
 
         # Filtro por unidad temática
         if unit_id:
             target_chunks = [
-                item for item in target_chunks if (item.get("unit_id") or item.get("unitId")) == unit_id
+                item for item in target_chunks
+                if (item.get("unit_id") or item.get("unitId")) == unit_id
             ]
 
-        # 2. Ranking Léxico (BM25)
+        # 3. Ranking Léxico (BM25)
         lexical_results = retrieve_relevant_chunks(query, target_chunks, top_k=max(top_k * 2, 20))
 
-        # 3. Ranking Semántico (pgvector HNSW) con aislamiento de teacher_id
+        # 4. Ranking Semántico (pgvector HNSW) con aislamiento de teacher_id
         semantic_results: list[dict[str, Any]] = []
         if (
-            self._embedding_generator is not None
+            teacher_id
+            and teacher_id.strip()
+            and self._embedding_generator is not None
             and hasattr(self._chunk_repository, "vector_store_available")
             and self._chunk_repository.vector_store_available()
             and hasattr(self._chunk_repository, "search_similar_chunks")
@@ -90,21 +94,16 @@ class HybridEvidenceRetriever:
                         "vector": query_vector,
                         "limit": max(top_k * 2, 20),
                         "unit_id": unit_id,
+                        "teacher_id": teacher_id,
                     }
-                    if teacher_id:
-                        search_kwargs["teacher_id"] = teacher_id
-
                     try:
                         semantic_results = self._chunk_repository.search_similar_chunks(**search_kwargs)
                     except Exception as error:
-                        # Si la búsqueda vectorial falla o rechaza teacher_id, NUNCA reintentar sin teacher_id
-                        # Se degrada limpiamente a BM25 para preservar el aislamiento
                         logger.warning(
                             "Fallo o incompatibilidad en búsqueda vectorial (%s). Degradando a búsqueda léxica.",
                             error,
                         )
                         semantic_results = []
-
             except Exception as exc:
                 logger.warning(
                     "Error o timeout al generar embedding para búsqueda semántica (%s). Degradando a BM25.",
@@ -112,14 +111,12 @@ class HybridEvidenceRetriever:
                 )
                 semantic_results = []
 
-        # Filtrado estricto post-consulta por seguridad
-        if teacher_id and semantic_results:
-            filtered_semantic: list[dict[str, Any]] = []
-            for item in semantic_results:
-                owner = item.get("teacher_id") or item.get("teacherId")
-                if owner is None or owner == teacher_id:
-                    filtered_semantic.append(item)
-            semantic_results = filtered_semantic
+        # Filtrado estricto post-consulta semántica
+        if semantic_results and teacher_id and teacher_id.strip():
+            semantic_results = [
+                item for item in semantic_results
+                if (item.get("teacher_id") or item.get("teacherId")) == teacher_id
+            ]
 
         # Si la vectorial falló o no está disponible, degradación directa a BM25
         if not semantic_results:
@@ -128,10 +125,12 @@ class HybridEvidenceRetriever:
                 item = dict(item_chunk)
                 raw_relevance = float(item.get("relevance", item.get("relevancia", 1.0)))
                 item["relevance"] = round(min(1.0, max(0.0, raw_relevance)), 4)
+                item["retrieval_mode"] = "bm25_fallback"
+                item["retrievalMode"] = "bm25_fallback"
                 results.append(item)
             return results
 
-        # 4. Fusión mediante Reciprocal Rank Fusion (RRF k=60)
+        # 5. Fusión mediante Reciprocal Rank Fusion (RRF k=60)
         scores: dict[str, float] = {}
         chunk_map: dict[str, dict[str, Any]] = {}
 
@@ -152,7 +151,7 @@ class HybridEvidenceRetriever:
                 }
             scores[chunk_id] = scores.get(chunk_id, 0.0) + (1.0 / (self._rrf_k + rank + 1))
 
-        # 5. Ordenar por score RRF acumulado descendente y normalizar
+        # 6. Ordenar por score RRF acumulado descendente y normalizar
         max_possible_rrf = 2.0 / (self._rrf_k + 1.0)
         sorted_ids = sorted(scores.keys(), key=lambda cid: scores[cid], reverse=True)
 
@@ -161,6 +160,8 @@ class HybridEvidenceRetriever:
             item = dict(chunk_map[chunk_id])
             normalized_score = scores[chunk_id] / max_possible_rrf
             item["relevance"] = round(min(1.0, max(0.0, normalized_score)), 4)
+            item["retrieval_mode"] = "hybrid"
+            item["retrievalMode"] = "hybrid"
             results.append(item)
 
         return results

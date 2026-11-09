@@ -19,8 +19,6 @@ from sqlalchemy import (
     select,
 )
 
-from pgvector.sqlalchemy import Vector
-
 from platform5e.application.ports.outbound.generation_repository_port import GenerationRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine
@@ -109,10 +107,6 @@ class ChunkORM(Base):
     order_index = Column("orden", Integer, nullable=False)
     location = Column("ubicacion", String, nullable=False)
     text_content = Column("texto", Text, nullable=False)
-    # Campos para soporte de vectores de 768 dimensiones (pgvector)
-    embedding = Column(Vector(768), nullable=True)
-    model_name = Column("modelo_embedding", String, nullable=True)
-
 
 class TeacherResourceORM(Base):
     """Recursos pedagógicos generados para una unidad y su revisión."""
@@ -348,12 +342,3 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
         with SessionLocal() as session:
             entity = session.get(TeacherGenerationORM, generation_id)
             return entity.teacher_id if entity else None
-
-    @translate_persistence_errors
-    def get_unit_context(self, teacher_id: str, unit_id: str) -> dict[str, Any] | None:
-        """Recupera el contexto de la unidad (curso, unidad y outcomes) asegurando pertenencia del docente."""
-        courses = self.get_courses(teacher_id)
-        match = find_course_and_unit(courses, unit_id)
-        if match is None:
-            return None
-        return match[1]

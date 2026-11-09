@@ -15,7 +15,7 @@ from typing import Any
 from platform5e.domain.shared.errors import DomainError
 
 # Parámetros y constantes de fragmentación
-WORDS_PER_CHUNK: int = 512  # Límite objetivo de 512 tokens/palabras por chunk
+WORDS_PER_CHUNK: int = 220  # Límite objetivo de 512 tokens/palabras por chunk
 MAX_OVERLAP: int = 50       # Solapamiento de 50 tokens entre chunks consecutivos
 MAX_CHUNKS: int = 3000      # Tope por document
 

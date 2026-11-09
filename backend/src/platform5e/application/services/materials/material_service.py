@@ -16,6 +16,7 @@ from platform5e.application.ports.outbound.open_educational_resource_port import
 from platform5e.application.ports.outbound.text_extractor_port import TextExtractorPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.application.ports.outbound.unit_membership_port import UnitMembershipPort
+from platform5e.application.ports.outbound.evidence_retriever_port import EvidenceRetrieverPort
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.domain.materials.chunking import MaterialError, chunk_pages
@@ -44,6 +45,7 @@ class MaterialService:
     """Servicio de aplicación para coordinar la ingesta y extracción de fragmentos de material."""
 
     _unit_membership_port: UnitMembershipPort | None
+    _evidence_retriever: EvidenceRetrieverPort | None
 
     def __init__(
         self,
@@ -53,7 +55,7 @@ class MaterialService:
         open_resource_port: OpenEducationalResourcePort | None = None,
         embedding_service: ChunkEmbeddingService | None = None,
         unit_membership_port: UnitMembershipPort | None = None,
-        evidence_retriever: Any | None = None,
+        evidence_retriever: EvidenceRetrieverPort | None = None,
     ) -> None:
         self._teacher_repository = teacher_repository
         self._chunk_repository = chunk_repository
@@ -87,44 +89,49 @@ class MaterialService:
         if not self._evidence_retriever:
             return []
 
-        if hasattr(self._evidence_retriever, "retrieve"):
-            return self._evidence_retriever.retrieve(
-                teacher_id=teacher_id, query=query, top_k=top_k, unit_id=unit_id
-            )
-        elif hasattr(self._evidence_retriever, "search"):
-            return self._evidence_retriever.search(
-                teacher_id=teacher_id, query=query, top_k=top_k, unit_id=unit_id
-            )
-        return []
+        return self._evidence_retriever.retrieve(
+            query=query,
+            top_k=top_k,
+            unit_id=unit_id,
+            teacher_id=teacher_id,
+        )
 
     def validate_unit_membership_secure(self, teacher_id: str, unit_id: str, outcome_ids: list[str]) -> None:
-            """
-            Valida que el docente tenga acceso a la unidad y que los outcomes pertenezcan a ella.
-            Implementa MAT-C2 / T007: Unidad ajena o inexistente devuelven el mismo 404 Not Found.
-            """
-            if self._unit_membership_port is not None:
-                context = self._unit_membership_port.get_unit_context(teacher_id, unit_id)
-                if context is None:
-                    raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
+        """
+        Valida que el docente tenga acceso a la unidad y que los outcomes pertenezcan a ella.
+        Implementa MAT-C2 / T007: Unidad ajena o inexistente devuelven el mismo 404 Not Found.
+        """
+        if self._unit_membership_port is not None:
+            context = self._unit_membership_port.get_unit_context(teacher_id, unit_id)
+            if context is None:
+                raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
 
-                if outcome_ids:
-                    if isinstance(context, dict):
-                        outcomes = context.get("outcomes", [])
-                    else:
-                        outcomes = getattr(context, "outcomes", [])
-
-                    valid_ids = {
-                        outcome.id if hasattr(outcome, "id") else outcome.get("id") if isinstance(outcome, dict) else str(outcome)
-                        for outcome in outcomes
-                    }
-                    invalid_ids = set(outcome_ids) - valid_ids
-                    
-                    if invalid_ids:
-                        raise MaterialError(
-                            "INVALID_OUTCOMES", 
-                            "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.", 
-                            400
-                        )
+            if outcome_ids:
+                valid_ids = {outcome.id for outcome in context.outcomes if outcome.id}
+                invalid_ids = set(outcome_ids) - valid_ids
+                if invalid_ids:
+                    raise MaterialError(
+                        "INVALID_OUTCOMES",
+                        "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.",
+                        400,
+                    )
+        else:
+            # Fallback cuando no se inyecta el puerto (ej. pruebas unitarias aisladas)
+            unit = self._get_unit(teacher_id, unit_id)
+            if outcome_ids:
+                valid_ids = {
+                    outcome.get("id")
+                    for outcome in unit.get("outcomes", [])
+                    if isinstance(outcome, dict) and outcome.get("id")
+                }
+                invalid_ids = set(outcome_ids) - valid_ids
+                if invalid_ids:
+                    raise MaterialError(
+                        "INVALID_OUTCOMES",
+                        "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.",
+                        400,
+                    )
+                
             else:
                 # Fallback para pruebas unitarias donde no se inyecta unit_membership_port
                 unit = self._get_unit(teacher_id, unit_id)

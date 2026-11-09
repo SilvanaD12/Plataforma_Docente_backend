@@ -19,21 +19,19 @@ from platform5e.infrastructure.retrieval import hybrid_evidence_retriever
 def _create_mock_chunk(
     chunk_id: str,
     unit_id: str = "u_redes_01",
-    text: str = "",
-    location: str = "Página 1",
-    document_id: str = "doc_01",
+    text: str = "texto de prueba",
+    teacher_id: str = "teacher_test",
 ) -> dict[str, Any]:
     return {
         "id": chunk_id,
-        "documentId": document_id,
-        "documento": document_id,
+        "documentId": "doc_01",
+        "documento": "doc_01",
         "unitId": unit_id,
         "unit_id": unit_id,
-        "location": location,
-        "ubicacion": location,
-        "text": text or f"Contenido pedagógico detallado para el fragmento {chunk_id}",
-        "texto": text or f"Contenido pedagógico detallado para el fragmento {chunk_id}",
-        "relevance": 0.0,
+        "location": "Página 1",
+        "text": text,
+        "teacher_id": teacher_id,
+        "teacherId": teacher_id,
     }
 
 
@@ -66,11 +64,12 @@ def test_rrf_fusion_promotes_semantic_candidate_when_lexical_ranks_it_last():
     )
 
     results = retriever.retrieve(
-        query="palabra clave comun",
-        chunks=lexical_candidates,
-        top_k=5,
-        unit_id="u_redes_01",
-    )
+            query="palabra clave comun",
+            chunks=lexical_candidates,
+            top_k=5,
+            unit_id="u_redes_01",
+            teacher_id="teacher_test",
+        )
 
     top_ids = [c["id"] for c in results]
     assert target_id in top_ids[:2], (
@@ -108,11 +107,12 @@ def test_hybrid_retrieval_filters_strictly_by_unit_id():
     )
 
     results = retriever.retrieve(
-        query="TCP ventana deslizante",
-        chunks=chunks,
-        top_k=5,
-        unit_id="u_redes_01",
-    )
+            query="TCP ventana deslizante",
+            chunks=chunks,
+            top_k=5,
+            unit_id="u_redes_01",
+            teacher_id="teacher_test",
+        )
 
     result_ids = {c["id"] for c in results}
     assert "chunk_u2_c" not in result_ids, "Se filtró un fragmento de una unidad ajena"
@@ -139,11 +139,12 @@ def test_fallback_to_bm25_when_embed_query_fails():
     )
 
     results = retriever.retrieve(
-        query="datagramas UDP",
-        chunks=chunks,
-        top_k=2,
-        unit_id="u_redes_01",
-    )
+            query="datagramas UDP",
+            chunks=chunks,
+            top_k=2,
+            unit_id="u_redes_01",
+            teacher_id="teacher_test",
+        )
 
     assert len(results) > 0
     assert results[0]["id"] == "c1"
@@ -177,11 +178,12 @@ def test_fallback_to_bm25_when_embed_query_times_out(monkeypatch: pytest.MonkeyP
     # 3. Medir el tiempo de ejecución de retrieve
     start = time.perf_counter()
     results = retriever.retrieve(
-        query="léxico",
-        chunks=chunks,
-        top_k=1,
-        unit_id="u_redes_01",
-    )
+            query="léxico",
+            chunks=chunks,
+            top_k=1,
+            unit_id="u_redes_01",
+            teacher_id="teacher_test",
+        )
     elapsed = time.perf_counter() - start
 
     # 4. Validar resultado de fallback y corte rápido
@@ -224,11 +226,12 @@ def test_hybrid_retrieval_meets_indicator_i20_recall_at_10():
         )
 
         results = retriever.retrieve(
-            query=item["query"],
-            chunks=lexical_candidates,
-            top_k=10,
-            unit_id="u_redes_01",
-        )
+                query=item["query"],
+                chunks=lexical_candidates,
+                top_k=10,
+                unit_id="u_redes_01",
+                teacher_id="teacher_test",
+            )
 
         retrieved_ids = {c["id"] for c in results}
         if target_id in retrieved_ids:
@@ -280,3 +283,38 @@ def test_vector_search_failure_degrades_to_lexical_with_strict_teacher_isolation
     assert "chunk_teacher_one" in result_ids
     assert "chunk_teacher_two" not in result_ids
     assert all((item.get("teacher_id") or "teacher_alpha") == "teacher_alpha" for item in results)
+
+def test_retriever_discards_orphan_chunks_without_teacher_id():
+    """Valida que los fragmentos que no poseen teacher_id (None o ausente) sean descartados."""
+    mock_chunk_repo = MagicMock()
+    mock_embedding_gen = MagicMock()
+    mock_chunk_repo.vector_store_available.return_value = False
+
+    orphan_chunk = {
+        "id": "chunk_orphan",
+        "teacher_id": None,
+        "text": "Texto sin propietario o huérfano",
+        "location": "sección 1",
+    }
+    valid_chunk = {
+        "id": "chunk_valid",
+        "teacher_id": "teacher_sergio",
+        "text": "Texto legítimo del docente",
+        "location": "sección 1",
+    }
+
+    retriever = HybridEvidenceRetriever(
+        chunk_repository=mock_chunk_repo,
+        embedding_generator=mock_embedding_gen,
+    )
+
+    results = retriever.retrieve(
+        query="texto",
+        chunks=[orphan_chunk, valid_chunk],
+        top_k=5,
+        teacher_id="teacher_sergio",
+    )
+
+    result_ids = [item["id"] for item in results]
+    assert "chunk_valid" in result_ids
+    assert "chunk_orphan" not in result_ids
