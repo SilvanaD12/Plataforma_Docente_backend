@@ -1,5 +1,5 @@
-"""GEN-01 (T009, T010 y T011): ejecutor en segundo plano y adaptadores iniciales de Cuentas y Material, con puertos
-falsos. Sin red y sin base de datos."""
+"""GEN-01 (T009 y T011): ejecutor en segundo plano y adaptador inicial de Material, con puertos falsos. Sin red y sin
+base de datos. Las pruebas del adaptador de pertenencia (T010) están en test_unit_membership_adapter.py."""
 
 from __future__ import annotations
 
@@ -13,74 +13,20 @@ from platform5e.application.ports.outbound.evidence_provider_port import (
     EvidenceUnavailable,
     NoProcessedMaterial,
 )
-from platform5e.application.ports.outbound.unit_membership_port import OutcomeRef, UnitContext
 from platform5e.domain.generation.errors import GenerationErrorCode
 from platform5e.domain.generation.generation_request import Problem, RequestStatus
-from platform5e.infrastructure.adapters.account_unit_membership_adapter import AccountUnitMembershipAdapter
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
 from platform5e.infrastructure.jobs.thread_pool_generation_runner import ThreadPoolGenerationRunner
 from platform5e.infrastructure.settings import generation_max_workers, generation_request_deadline_seconds
 
-COURSES: dict[str, list[dict[str, Any]]] = {
-    "docente-a": [
-        {
-            "id": "curso-1",
-            "code": "RED-302",
-            "name": "Redes",
-            "summary": "Fundamentos de redes.",
-            "learningGoal": "Diseña redes pequeñas.",
-            "units": [
-                {
-                    "id": "u1",
-                    "number": 1,
-                    "title": "Protocolos",
-                    "outcomes": [{"id": "ra-1", "code": "RA1.1", "text": "Distingue TCP y UDP"}],
-                }
-            ],
-        }
-    ],
-    "docente-b": [{"id": "curso-2", "code": "BD-1", "name": "Datos", "units": [{"id": "u9", "title": "SQL"}]}],
-}
-
-
 class FakeTeacherRepository:
+    """Solo lo que usa el adaptador de Material: los documentos del docente."""
+
     def __init__(self, documents: dict[str, list[dict[str, Any]]] | None = None) -> None:
         self.documents = documents or {}
 
-    def get_courses(self, teacher_id: str) -> list[dict[str, Any]]:
-        return COURSES.get(teacher_id, [])
-
     def get_documents(self, teacher_id: str) -> list[dict[str, Any]]:
         return self.documents.get(teacher_id, [])
-
-
-# T010 · Pertenencia de unidad
-
-
-def test_the_membership_adapter_returns_the_context_of_an_own_unit():
-    context = AccountUnitMembershipAdapter(FakeTeacherRepository()).get_unit_context("docente-a", "u1")
-    assert context == UnitContext(
-        course_id="curso-1",
-        course_name="Redes",
-        course_summary="Fundamentos de redes.",
-        learning_goal="Diseña redes pequeñas.",
-        unit_id="u1",
-        unit_number=1,
-        unit_title="Protocolos",
-        outcomes=(OutcomeRef("ra-1", "RA1.1", "Distingue TCP y UDP"),),
-    )
-
-
-def test_a_foreign_and_a_missing_unit_give_the_same_answer():
-    adapter = AccountUnitMembershipAdapter(FakeTeacherRepository())
-    assert adapter.get_unit_context("docente-a", "u9") is None  # unidad de docente-b
-    assert adapter.get_unit_context("docente-a", "no-existe") is None
-    assert adapter.get_unit_context("", "u1") is None
-
-
-def test_missing_optional_course_fields_become_empty():
-    context = AccountUnitMembershipAdapter(FakeTeacherRepository()).get_unit_context("docente-b", "u9")
-    assert (context.course_summary, context.learning_goal, context.unit_number, context.outcomes) == ("", "", None, ())
 
 
 # T011 · Evidencia de Material
