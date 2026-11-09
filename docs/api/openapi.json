@@ -2799,7 +2799,7 @@
             "type": "string",
             "title": "Id"
           },
-          "document_id": {
+          "documentId": {
             "anyOf": [
               {
                 "type": "string"
@@ -2808,7 +2808,7 @@
                 "type": "null"
               }
             ],
-            "title": "Document Id"
+            "title": "Documentid"
           },
           "name": {
             "anyOf": [
@@ -2840,7 +2840,7 @@
             "type": "number",
             "title": "Relevance"
           },
-          "retrieval_mode": {
+          "retrievalMode": {
             "anyOf": [
               {
                 "type": "string"
@@ -2849,7 +2849,7 @@
                 "type": "null"
               }
             ],
-            "title": "Retrieval Mode"
+            "title": "Retrievalmode"
           }
         },
         "type": "object",

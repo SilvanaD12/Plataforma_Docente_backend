@@ -27,12 +27,15 @@ from pydantic import BaseModel, Field
 
 class EvidenceSearchResponse(BaseModel):
     id: str
-    document_id: str | None = None
+    document_id: str | None = Field(default=None, alias="documentId")
     name: str | None = None
     location: str | None = None
     text: str
     relevance: float
-    retrieval_mode: str | None = None
+    retrieval_mode: str | None = Field(default=None, alias="retrievalMode")
+
+    class Config:
+        populate_by_name = True
 
 MEDIA_TYPES: dict[str, str] = {
     "txt": "text/plain; charset=utf-8",
