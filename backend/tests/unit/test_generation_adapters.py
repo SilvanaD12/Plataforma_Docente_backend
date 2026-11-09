@@ -62,16 +62,24 @@ class FakeChunkRepository:
 class FakeRetriever:
     description = "búsqueda falsa"
 
-    def __init__(self, extra_results: list[dict[str, Any]] | None = None, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        extra_results: list[dict[str, Any]] | None = None,
+        error: Exception | None = None,
+        mode: str | None = "hybrid",
+    ) -> None:
         self.extra_results = extra_results or []
         self.error = error
+        self.mode = mode
         self.received: dict[str, Any] = {}
 
-    def retrieve(self, query, chunks=None, top_k=5, unit_id=None):
-        self.received = {"query": query, "chunks": chunks, "top_k": top_k, "unit_id": unit_id}
+    def retrieve(self, query, chunks=None, top_k=5, unit_id=None, teacher_id=""):
+        self.received = {"query": query, "chunks": chunks, "top_k": top_k, "unit_id": unit_id, "teacher_id": teacher_id}
         if self.error:
             raise self.error
         ranked = [{**c, "relevance": 1.0 - i * 0.25} for i, c in enumerate(reversed(chunks or []))]
+        if self.mode is not None:  # como HybridEvidenceRetriever, que marca cada fragmento
+            ranked = [{**c, "retrieval_mode": self.mode, "retrievalMode": self.mode} for c in ranked]
         return (self.extra_results + ranked)[:top_k]
 
 
@@ -115,7 +123,8 @@ def test_retrieve_passes_the_teacher_chunks_and_adds_provenance():
     assert chunks.calls == [("docente-a", "u1")]  # nunca get_chunks_by_unit("", …)
     assert [c["id"] for c in retriever.received["chunks"]] == ["frag-1", "frag-2"]
     assert (retriever.received["top_k"], retriever.received["unit_id"]) == (5, "u1")
-    assert retrieval.retrieval_mode is None  # hasta T031
+    assert retriever.received["teacher_id"] == "docente-a"  # T031: la búsqueda vectorial filtra por docente
+    assert retrieval.retrieval_mode == "hybrid"
 
     by_id = {f.chunk_id: f for f in retrieval.fragments}
     assert [f.chunk_id for f in retrieval.fragments] == ["frag-2", "frag-1"]  # orden del buscador
@@ -135,6 +144,31 @@ def test_results_outside_the_teacher_chunks_are_dropped():
     adapter, _ = make_adapter(FakeRetriever(extra_results=[intruder]))
     retrieval = adapter.retrieve(EvidenceQuery("docente-a", "u1", "TCP", limit=5))
     assert "frag-ajeno" not in {f.chunk_id for f in retrieval.fragments}
+
+
+@pytest.mark.parametrize("mode", ["hybrid", "bm25_fallback"])
+def test_the_request_takes_the_retrieval_mode_of_the_fragments(mode):
+    """T031: el modo del pedido es el que el buscador marcó en los fragmentos que se usan."""
+    adapter, _ = make_adapter(FakeRetriever(mode=mode))
+    assert adapter.retrieve(EvidenceQuery("docente-a", "u1", "TCP", limit=5)).retrieval_mode == mode
+
+
+def test_the_retrieval_mode_is_none_without_fragments_or_an_unknown_mode(caplog):
+    """T031: sin fragmentos no hay de dónde tomar el modo; un modo desconocido o ausente tampoco se inventa."""
+    nothing, _ = make_adapter(FakeRetriever())
+    empty = nothing.retrieve(EvidenceQuery("docente-a", "u1", "TCP", limit=0))
+    assert empty.fragments == () and empty.retrieval_mode is None
+
+    # Solo el fragmento ajeno trae modo, y se descarta: el modo sale de los fragmentos que se usan.
+    intruder = {**chunk("frag-ajeno"), "relevance": 0.99, "retrieval_mode": "hybrid"}
+    unmarked, _ = make_adapter(FakeRetriever(extra_results=[intruder], mode=None))
+    with caplog.at_level("WARNING", logger="platform5e.generation.evidence"):
+        retrieval = unmarked.retrieve(EvidenceQuery("docente-a", "u1", "TCP", limit=5))
+    assert retrieval.fragments and retrieval.retrieval_mode is None
+    assert "modo de recuperación" in caplog.text
+
+    unknown, _ = make_adapter(FakeRetriever(mode="vector_only"))
+    assert unknown.retrieve(EvidenceQuery("docente-a", "u1", "TCP", limit=5)).retrieval_mode is None
 
 
 def test_retrieve_without_material_or_with_a_failing_search():

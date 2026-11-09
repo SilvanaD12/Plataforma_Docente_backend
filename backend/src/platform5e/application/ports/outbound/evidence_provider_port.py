@@ -10,7 +10,10 @@ from typing import Any, Literal, Protocol
 
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
 
-# T031: queda en None hasta que Material informe si la búsqueda híbrida degradó a BM25.
+# T031: modo que informa la búsqueda de Material: `hybrid` (BM25 + vectores) o `bm25_fallback` (solo BM25, porque no hay
+# embeddings o la búsqueda vectorial falló). Conserva None porque no siempre puede determinarse: si la búsqueda no
+# devuelve ningún fragmento del docente, no hay de dónde tomar el modo, y los pedidos guardados antes de T031 no lo
+# tienen. El contrato HTTP ya lo admite como `retrievalMode: null`.
 RetrievalMode = Literal["hybrid", "bm25_fallback"] | None
 
 NO_PROCESSED_MATERIAL_MESSAGE: str = (

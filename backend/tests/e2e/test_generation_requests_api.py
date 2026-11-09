@@ -251,3 +251,34 @@ def test_two_simultaneous_requests_with_one_active_get_exactly_one_429(single_wo
         for accepted in [first, *responses]:
             if accepted.status_code == 202:
                 _wait_until_final(api, headers, accepted.json()["id"], timeout=120)
+
+
+@pytest.fixture
+def server_without_embeddings(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> Iterator[str]:
+    """Servidor sin embeddings: la búsqueda de Material solo puede usar BM25."""
+    monkeypatch.setenv("EMBEDDINGS_ENABLED", "false")
+    yield request.getfixturevalue("server")
+
+
+def test_without_embeddings_the_request_reports_the_bm25_fallback_apart_from_the_generator(
+    server_without_embeddings: str,
+):
+    """T032 (GEN-C9): con EMBEDDINGS_ENABLED=false el pedido informa `retrievalMode = bm25_fallback`, y
+    `steps[].generator.fallback` sigue en false porque redactó el generador principal: solo refleja el respaldo de
+    redacción, no el de búsqueda."""
+    with httpx.Client(base_url=server_without_embeddings, timeout=60) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        body = {"mode": "sequence", "unitId": unit["id"], "resourceTypes": ["pregunta_detonante", "explicacion"]}
+        response = _start(api, headers, body)
+        assert response.status_code == 202, response.text
+
+        finished = _wait_until_final(api, headers, response.json()["id"])
+        assert finished["status"] == "succeeded", finished
+        assert finished["retrievalMode"] == "bm25_fallback"
+        assert len(finished["steps"]) == 2
+        for step in finished["steps"]:
+            assert step["status"] == "succeeded"
+            assert step["generator"]["fallback"] is False
+            assert step["generator"]["description"]
+

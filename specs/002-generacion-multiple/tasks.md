@@ -157,9 +157,9 @@ Dependencias externas que bloquean tareas:
   - **Repetición:** no crea otro pedido ni recursos.
   - **Edición durante el pedido:** conserva los dos recursos.
   - **Fallo:** no toca el recurso anterior.
-- [ ] T031 [BE] **Depende de MAT-01 retrieval_mode.** Mapear en `material_evidence_adapter.py` el modo que informa el recuperador, quitar `None` del tipo en `evidence_provider_port.py` y guardar `retrieval_mode` en el pedido. Caso GEN-C9.
-- [ ] T032 [E2E] **Depende de T031.** Con `EMBEDDINGS_ENABLED=false`, comprobar `retrievalMode = bm25_fallback` y que `steps[].generator.fallback` solo refleja el respaldo de redacción. Caso GEN-C9.
-- [ ] T033 [BE] **Depende de MAT-01 retrieval_mode (filtro por docente).** Agregar una prueba de integración con dos docentes en `backend/tests/integration/test_generation_evidence_isolation.py`: la recuperación híbrida de un docente no devuelve fragmentos del otro, aunque compartan `unit_id` en los datos de prueba. Constitución IV.
+- [x] T031 [BE] **Depende de MAT-01 retrieval_mode.** Mapear en `material_evidence_adapter.py` el modo que informa el recuperador, quitar `None` del tipo en `evidence_provider_port.py` y guardar `retrieval_mode` en el pedido. Caso GEN-C9. [PR #14 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/14).
+- [x] T032 [E2E] **Depende de T031.** Con `EMBEDDINGS_ENABLED=false`, comprobar `retrievalMode = bm25_fallback` y que `steps[].generator.fallback` solo refleja el respaldo de redacción. Caso GEN-C9. [PR #14 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/14).
+- [x] T033 [BE] **Depende de MAT-01 retrieval_mode (filtro por docente).** Agregar una prueba de integración con dos docentes en `backend/tests/integration/test_generation_evidence_isolation.py`: la recuperación híbrida de un docente no devuelve fragmentos del otro, aunque compartan `unit_id` en los datos de prueba. Constitución IV. [PR #14 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/14).
 
 ## 5. Frontend
 

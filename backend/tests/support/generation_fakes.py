@@ -72,10 +72,12 @@ class FakeEvidence:
         fragments: tuple[EvidenceFragment, ...] = FRAGMENTS,
         material: bool = True,
         error: Exception | None = None,
+        retrieval_mode: str | None = None,
     ) -> None:
         self.fragments = fragments
         self.material = material
         self.error = error
+        self.retrieval_mode = retrieval_mode
         self.queries: list[EvidenceQuery] = []
 
     def has_processed_material(self, teacher_id: str, unit_id: str) -> bool:
@@ -87,7 +89,7 @@ class FakeEvidence:
             raise self.error
         if not self.material:
             raise NoProcessedMaterial()
-        return EvidenceRetrieval(fragments=self.fragments, retrieval_mode=None)
+        return EvidenceRetrieval(fragments=self.fragments, retrieval_mode=self.retrieval_mode)
 
 
 class FakeReviewRepository:

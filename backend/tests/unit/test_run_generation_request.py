@@ -177,6 +177,22 @@ def test_if_the_ai_fails_the_rule_based_generator_answers_and_it_is_reported(set
     assert setup.review.all()[0]["generatorKind"] == "respaldo"
 
 
+@pytest.mark.parametrize("retrieval_mode", ["hybrid", "bm25_fallback"])
+@pytest.mark.parametrize("ai_fails", [False, True], ids=["redacta-ia", "redacta-respaldo"])
+def test_the_search_fallback_and_the_drafting_fallback_are_reported_separately(setup, retrieval_mode, ai_fails):
+    """T031/T032 (GEN-C9): el pedido guarda el modo de búsqueda; `generator.fallback` solo dice si redactó el respaldo."""
+    setup.evidence.retrieval_mode = retrieval_mode
+    request_id = setup.start("explicacion", mode=GenerationMode.INDIVIDUAL)
+    rules = StageAwareGenerator()
+    rules.description, rules.uses_ai = "generador por reglas", False
+    request = setup.run(request_id, FailingGenerator() if ai_fails else StageAwareGenerator(), rules)
+
+    [step] = request.steps
+    assert request.status == RequestStatus.SUCCEEDED
+    assert request.retrieval_mode == retrieval_mode
+    assert step.generator["fallback"] is ai_fails
+
+
 def test_a_repeated_resource_is_asked_again_and_rejected_if_it_still_repeats(setup):
     request_id = setup.start("pregunta_detonante", "explicacion")
     generator = StageAwareGenerator({"pregunta_detonante": REPEATED_RESOURCE, "explicacion": REPEATED_RESOURCE})
