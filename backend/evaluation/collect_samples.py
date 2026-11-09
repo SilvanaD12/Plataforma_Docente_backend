@@ -17,7 +17,8 @@ Si un pedido falla, vence el tiempo o un paso se rechaza sin recursos, el motivo
 evaluation/results/failures.jsonl (no en samples.jsonl, porque run_ragas.py exige contexto en cada muestra) y se sigue
 con el caso siguiente. Si el servidor rechaza el pedido o su consulta de forma definitiva (4xx salvo 429), se deja de
 consultar y se registran su código HTTP (`status`), su `code` y su `message`; los 429, los 5xx y los fallos de red se
-reintentan hasta --timeout. Los rechazos de un pedido que sí entregó recursos van en el campo `problems` de cada muestra.
+reintentan hasta --timeout, al crear el pedido y al consultarlo. Ninguna espera interna (Retry-After, reintentos ni
+--poll) pasa del tiempo que queda: al agotarse se registra TIMEOUT. Los rechazos de un pedido que sí entregó recursos van en el campo `problems` de cada muestra.
 
 La clave de cada pedido sale de una marca de la corrida (--run-id), del id del caso y del intento, así que repetir la
 corrida con la misma marca no duplica pedidos. El caso y el intento siempre quedan completos: si la clave pasa de 128
@@ -61,17 +62,32 @@ def fail(message: str) -> None:
     sys.exit(1)
 
 
-def request(client: httpx.Client, method: str, path: str, retries: int = 3, **kwargs) -> httpx.Response:
-    """Reintenta errores 502/503/504 y de conexión (Render tarda en despertar)."""
+def remaining(deadline: float | None) -> float:
+    """Segundos que quedan hasta `deadline` (infinito si no hay límite)."""
+    return float('inf') if deadline is None else max(0.0, deadline - time.monotonic())
+
+
+def pause(seconds: float, deadline: float | None = None) -> None:
+    """Espera `seconds`, pero nunca más de lo que queda hasta `deadline`."""
+    wait = min(seconds, remaining(deadline))
+    if wait > 0:
+        time.sleep(wait)
+
+
+def request(
+    client: httpx.Client, method: str, path: str, retries: int = 3, deadline: float | None = None, **kwargs
+) -> httpx.Response:
+    """Reintenta errores 502/503/504 y de conexión (Render tarda en despertar). Con `deadline`, ninguna espera pasa de
+    lo que queda y, al agotarse, devuelve la última respuesta (o relanza el error de red) sin esperar más."""
     for attempt in range(retries + 1):
         try:
             response = client.request(method, path, **kwargs)
-            if response.status_code not in (502, 503, 504) or attempt == retries:
+            if response.status_code not in (502, 503, 504) or attempt == retries or remaining(deadline) <= 0:
                 return response
         except httpx.TransportError:
-            if attempt == retries:
+            if attempt == retries or remaining(deadline) <= 0:
                 raise
-        time.sleep(5 * (attempt + 1))
+        pause(5 * (attempt + 1), deadline)
     raise RuntimeError('unreachable')
 
 
@@ -175,15 +191,33 @@ def idempotency_key(run_id: str, case_id: str, attempt: int) -> str:
     return f'eval-{run}{tail}'
 
 
-def start_request(client: httpx.Client, headers: dict, key: str, body: dict, deadline: float) -> httpx.Response:
-    """Crea el pedido. Si el docente ya tiene dos pedidos activos (429), espera lo que indica Retry-After."""
+def is_transient(response: httpx.Response | None) -> bool:
+    """Sin respuesta (fallo de red), 429 o 5xx: puede cambiar si se vuelve a intentar."""
+    return response is None or response.status_code == 429 or response.status_code >= 500
+
+
+def start_request(
+    client: httpx.Client, headers: dict, key: str, body: dict, deadline: float
+) -> httpx.Response | None:
+    """Crea el pedido. Reintenta los 429 (con Retry-After), los 5xx y los fallos de red con la misma clave hasta
+    `deadline`; ninguna espera pasa de lo que queda. Devuelve None si se acaba el tiempo."""
     while True:
-        response = request(client, 'POST', REQUESTS_PATH, headers={**headers, 'Idempotency-Key': key}, json=body)
-        if response.status_code != 429 or time.monotonic() >= deadline:
+        try:
+            response = request(client, 'POST', REQUESTS_PATH, deadline=deadline,
+                               headers={**headers, 'Idempotency-Key': key}, json=body)
+        except httpx.TransportError:
+            response = None
+        if not is_transient(response):
             return response
-        wait = float(response.headers.get('Retry-After') or 5)
-        print(f'  hay pedidos en curso; nuevo intento en {wait:.0f} s')
-        time.sleep(min(wait, max(0.0, deadline - time.monotonic())))
+        if remaining(deadline) <= 0:
+            return None
+        wait = 5.0
+        if response is not None and response.status_code == 429:
+            wait = float(response.headers.get('Retry-After') or 5)
+            print(f'  hay pedidos en curso; nuevo intento en {min(wait, remaining(deadline)):.0f} s')
+        pause(wait, deadline)
+        if remaining(deadline) <= 0:
+            return None
 
 
 def server_problem(response: httpx.Response) -> dict:
@@ -209,7 +243,7 @@ def wait_until_final(
     los fallos de red se reintentan hasta el tiempo máximo."""
     while True:
         try:
-            response = request(client, 'GET', f'{REQUESTS_PATH}/{request_id}', headers=headers)
+            response = request(client, 'GET', f'{REQUESTS_PATH}/{request_id}', deadline=deadline, headers=headers)
         except httpx.TransportError:
             response = None
         if response is not None:
@@ -217,9 +251,11 @@ def wait_until_final(
                 return response.json(), None
             if is_definitive_rejection(response):
                 return None, {**server_problem(response), 'requestId': request_id}
-        if time.monotonic() >= deadline:
+        if remaining(deadline) <= 0:
             return None, None
-        time.sleep(poll)
+        pause(poll, deadline)
+        if remaining(deadline) <= 0:
+            return None, None
 
 
 def step_problems(status: dict) -> list[dict]:
@@ -249,6 +285,9 @@ def run_case(client: httpx.Client, headers: dict, unit: dict, case: dict, args: 
     started = time.perf_counter()
     deadline = time.monotonic() + args.timeout
     response = start_request(client, headers, key, body, deadline)
+    if response is None:
+        timeout = {'code': 'TIMEOUT', 'message': f'no se pudo crear el pedido en {args.timeout:g} s'}
+        return None, timeout, round(time.perf_counter() - started, 2)
     if response.status_code not in (200, 202):
         return None, server_problem(response), round(time.perf_counter() - started, 2)
     status, rejected = wait_until_final(client, headers, response.json()['id'], args.poll, deadline)
@@ -256,7 +295,7 @@ def run_case(client: httpx.Client, headers: dict, unit: dict, case: dict, args: 
     if rejected is not None:
         return None, rejected, elapsed
     if status is None:
-        return None, {'code': 'TIMEOUT', 'message': f'el pedido no terminó en {args.timeout:.0f} s',
+        return None, {'code': 'TIMEOUT', 'message': f'el pedido no terminó en {args.timeout:g} s',
                       'requestId': response.json()['id']}, elapsed
     return status, None, elapsed
 

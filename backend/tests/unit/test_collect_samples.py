@@ -140,3 +140,65 @@ def test_the_same_run_id_gives_the_same_keys_and_different_run_ids_do_not_collid
     assert collect.idempotency_key("20261109T120000", "c01", 0) == "eval-20261109T120000-c01-0"
     assert KEY_PATTERN.fullmatch(collect.idempotency_key("", "c01", 0))
     assert KEY_PATTERN.fullmatch(collect.idempotency_key("corrida con espacios/y:raros", "c01", 0))
+
+
+# 3. Las esperas internas respetan el --timeout (reloj simulado)
+
+
+class SimulatedClock:
+    """`time.monotonic` y `time.sleep` del script: dormir solo avanza el reloj."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+        self.start = self.now
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        assert seconds >= 0
+        self.now += seconds
+
+    @property
+    def elapsed(self) -> float:
+        return self.now - self.start
+
+
+@pytest.fixture
+def clock(collect, monkeypatch) -> SimulatedClock:
+    simulated = SimulatedClock()
+    monkeypatch.setattr(collect.time, "monotonic", simulated.monotonic)
+    monkeypatch.setattr(collect.time, "sleep", simulated.sleep)
+    return simulated
+
+
+def _always(answer: Callable[[], httpx.Response | Exception], post: Callable[[], httpx.Response] | None = None):
+    def handler(request: httpx.Request) -> httpx.Response:
+        result = post() if (post is not None and request.method == "POST") else answer()
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    return handler
+
+
+@pytest.mark.parametrize(
+    ("label", "handler"),
+    [
+        ("503 al crear", _always(lambda: httpx.Response(503))),
+        ("red al crear", _always(lambda: httpx.ConnectError("sin red"))),
+        ("429 al crear", _always(lambda: httpx.Response(429, headers={"Retry-After": "30"}))),
+        ("503 al consultar", _always(lambda: httpx.Response(503), post=lambda: httpx.Response(202, json=ACCEPTED))),
+        ("red al consultar", _always(lambda: httpx.ConnectError("sin red"), post=lambda: httpx.Response(202, json=ACCEPTED))),
+        (
+            "en curso al consultar",
+            _always(lambda: httpx.Response(200, json={**ACCEPTED, "status": "running"}),
+                    post=lambda: httpx.Response(202, json=ACCEPTED)),
+        ),
+    ],
+)
+def test_with_timeout_1_the_case_ends_as_timeout_within_about_one_second(collect, clock, label, handler):
+    with client_for(handler) as client:
+        status, failure, _ = collect.run_case(client, {}, UNIT, CASE, args(timeout=1, poll=2), 0)
+    assert status is None and failure["code"] == "TIMEOUT", (label, failure)
+    assert clock.elapsed <= 1.0 + 1e-6, f"{label}: el reloj avanzó {clock.elapsed} s"
