@@ -44,9 +44,16 @@ def test_collect_samples_writes_samples_from_generation_requests(server: str, tm
             "--poll", "0.2", "--timeout", "60", "--retries", "0", "--run-id", "e2e-t045",
         ],
         cwd=BACKEND_ROOT,
-        env={**os.environ, "EVAL_EMAIL": "evaluacion.rag@correo.pe", "EVAL_PASSWORD": "clave-segura-9"},
+        # El script escribe en UTF-8 («·», tildes) aunque la configuración regional del sistema sea otra (Windows).
+        env={
+            **os.environ,
+            "EVAL_EMAIL": "evaluacion.rag@correo.pe",
+            "EVAL_PASSWORD": "clave-segura-9",
+            "PYTHONIOENCODING": "utf-8",
+        },
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=180,
     )
     assert result.returncode == 0, result.stdout + result.stderr
