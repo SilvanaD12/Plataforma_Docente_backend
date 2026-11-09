@@ -14,7 +14,18 @@ from platform5e.application.ports.outbound.resource_repository_port import Resou
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
 from platform5e.application.services.media.media_attachment import EDITED_NOTES, fallback_media
+from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION
 from platform5e.domain.generation.resource_formats import needs_structure, normalize_structure, structure_problems
+from platform5e.domain.review.content_fingerprint import content_fingerprint
+from platform5e.application.services.review.legacy_verification import upgrade_resource_verification
+from platform5e.domain.review.resource_verification import (
+    INSUFFICIENT,
+    PENDING,
+    assess_edited_distractors,
+    incomplete_copy_reason,
+    stored_threshold,
+    verify_resource,
+)
 
 MIN_ACCEPTED_DISTRACTORS: int = 2
 ALLOWED_REVIEW_STATUSES: set[str] = {"pendiente", "aprobado", "descartado"}
@@ -62,6 +73,30 @@ def validate_approval_blockers(resource_data: dict[str, Any]) -> list[str]:
     return reasons
 
 
+def verification_blockers(resource_data: dict[str, Any]) -> list[str]:
+    """REV-C3, C5 y C11: motivo por el que la verificación no permite aprobar.
+
+    Sin `verification` no hay bloqueo que mostrar: el guardado verifica la versión editada antes de evaluar la
+    aprobación, así que al aprobar siempre existe (opción A del bloque c).
+    """
+    verification = resource_data.get("verification")
+    if not isinstance(verification, dict):
+        return []
+    if verification.get("fingerprint") != content_fingerprint(resource_data):
+        return ["La comprobación del respaldo corresponde a otra versión del contenido: guarda el recurso para comprobarlo de nuevo."]
+    reason = verification.get("reason") or ""
+    if verification.get("status") == INSUFFICIENT:
+        return [f"El respaldo es insuficiente: {reason}".strip()]
+    if verification.get("status") == PENDING:
+        return [f"La comprobación del respaldo está pendiente: {reason}".strip()]
+    return []
+
+
+def approval_blockers(resource_data: dict[str, Any]) -> list[str]:
+    """Todos los motivos que impiden aprobar: las reglas pedagógicas y la verificación vigente."""
+    return validate_approval_blockers(resource_data) + verification_blockers(resource_data)
+
+
 class ResourceReviewService:
     """Servicio de aplicación para la gestión del ciclo de vida de revisión y descargas."""
 
@@ -95,16 +130,49 @@ class ResourceReviewService:
             raise AccountConfigurationError(
                 "RESOURCE_NOT_FOUND", "El recurso no existe.", 404
             )
-        return resource
+        return upgrade_resource_verification(self._review_repository, teacher_id, unit_id, resource)
 
     def list_resources(self, teacher_id: str, unit_id: str) -> list[dict[str, Any]]:
         """Lista los recursos de una unidad ordenados por fecha de creación descendente."""
         self._verify_unit_access(teacher_id, unit_id)
-        return sorted(
-            self._review_repository.get_resources_by_unit(teacher_id, unit_id),
-            key=lambda r: r.get("createdAt", ""),
-            reverse=True,
-        )
+        resources = [
+            upgrade_resource_verification(self._review_repository, teacher_id, unit_id, resource)
+            for resource in self._review_repository.get_resources_by_unit(teacher_id, unit_id)
+        ]
+        return sorted(resources, key=lambda r: r.get("createdAt", ""), reverse=True)
+
+    def retry_verification(
+        self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int
+    ) -> dict[str, Any]:
+        """REV-C3: «Reintentar comprobación» de una comprobación pendiente, sobre la misma versión y sin editar.
+
+        Usa la regla vigente, el `evidenceThreshold` guardado y solo la copia histórica. No cambia la versión.
+        """
+        existing = self._get_resource_or_fail(teacher_id, unit_id, resource_id)
+        verification = existing.get("verification") or {}
+        if verification.get("status") != PENDING:
+            raise AccountConfigurationError(
+                "VERIFICATION_NOT_PENDING", "Solo se puede reintentar una comprobación pendiente.", 409
+            )
+        if not verification.get("retryAvailable") or incomplete_copy_reason(existing):
+            raise AccountConfigurationError(
+                "REGENERATION_REQUIRED",
+                incomplete_copy_reason(existing) or "La comprobación no se puede reintentar: regenera el recurso.",
+                409,
+            )
+        checked = {
+            **existing,
+            "verification": verify_resource(
+                existing, stored_threshold(existing), VERIFICATION_RULE_VERSION, previous=verification
+            ),
+        }
+        if not self._review_repository.save_resource_if_version(
+            teacher_id, unit_id, checked, expected_version, increment=False
+        ):
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de reintentar.", 409
+            )
+        return checked
 
     def update_resource(
         self,
@@ -115,6 +183,19 @@ class ResourceReviewService:
     ) -> dict[str, Any]:
         """Aplica y persiste las modificaciones y decisiones del docente sobre el recurso."""
         existing = self._get_resource_or_fail(teacher_id, unit_id, resource_id)
+        # REV-C14: la versión de partida se compara primero con la guardada, antes de validar y de evaluar la
+        # aprobación, para que una pestaña desactualizada reciba VERSION_CONFLICT y no un bloqueo de su contenido
+        # viejo. El UPDATE condicional del final sigue cubriendo un guardado de otra pestaña entre lectura y escritura.
+        expected_version = changes.get("expectedVersion")
+        if not isinstance(expected_version, int) or isinstance(expected_version, bool):
+            raise AccountConfigurationError(
+                "VERSION_REQUIRED", "Indica la versión del recurso de la que parte el guardado.", 422
+            )
+        if expected_version != existing.get("version", 1):
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de guardar.", 409
+            )
+
         status = changes["status"]
         if status not in ALLOWED_REVIEW_STATUSES:
             raise AccountConfigurationError(
@@ -131,9 +212,14 @@ class ResourceReviewService:
             "body": changes["body"],
             "edited": bool(changes.get("edited")),
         }
-        if "bodyHtml" in changes:
+        incoming_html = changes.get("bodyHtml")
+        if changes["body"] != existing.get("body") and incoming_html in (None, existing.get("bodyHtml")):
+            # El cuerpo cambió y no llegó un HTML nuevo: el guardado es del texto anterior. Se borra para que la
+            # revisión y los exportadores (SCORM, documento) usen el cuerpo vigente.
+            updated_resource["bodyHtml"] = None
+        elif "bodyHtml" in changes:
             # Ya llega limpio (sin scripts ni atributos peligrosos) desde el adaptador HTTP.
-            updated_resource["bodyHtml"] = changes["bodyHtml"] or None
+            updated_resource["bodyHtml"] = incoming_html or None
         if changes.get("structure") is not None:
             if not needs_structure(existing.get("type", "")):
                 raise AccountConfigurationError(
@@ -189,9 +275,35 @@ class ResourceReviewService:
                     }
                 )
             updated_resource["options"] = updated_options
+            # REV-C4: un distractor cuyo texto cambió se evalúa de nuevo contra la copia histórica.
+            edited_ids = {
+                o["id"] for o in options if not o.get("isCorrect") and options_by_id[o["id"]]["text"] != o.get("text")
+            }
+            warnings = assess_edited_distractors(updated_resource, edited_ids)
+            updated_resource["options"] = [
+                {**o, "reliabilityWarning": warnings[o["id"]]} if o["id"] in warnings else o for o in updated_options
+            ]
 
+        # REV-C1, C2 y C5: se verifica de nuevo solo si cambió el contenido verificable o si el resultado guardado es de
+        # otra versión. Un recurso aprobado cuyo contenido cambió vuelve a revisión y necesita otra aprobación manual.
+        fingerprint = content_fingerprint(updated_resource)
+        review_reset = existing.get("status") == "aprobado" and fingerprint != content_fingerprint(existing)
+        if review_reset:
+            status = "pendiente"
+
+        updated_resource["version"] = expected_version + 1
+
+        stored = existing.get("verification")
+        if isinstance(stored, dict) and stored.get("fingerprint") == fingerprint:
+            updated_resource["verification"] = stored
+        else:
+            updated_resource["verification"] = verify_resource(
+                updated_resource, stored_threshold(existing), VERIFICATION_RULE_VERSION, previous=stored
+            )
+
+        # La aprobación se evalúa con la verificación de la versión editada, ya calculada.
         if status == "aprobado":
-            blockers = validate_approval_blockers(updated_resource)
+            blockers = approval_blockers(updated_resource)
             if blockers:
                 raise AccountConfigurationError("APPROVAL_BLOCKED", blockers[0], 409)
 
@@ -203,8 +315,11 @@ class ResourceReviewService:
         updated_resource["discardReason"] = discard_reason if status == "descartado" else None
         updated_resource["updatedAt"] = current_time
 
-        self._review_repository.save_resources(teacher_id, unit_id, [updated_resource])
-        return updated_resource
+        if not self._review_repository.save_resource_if_version(teacher_id, unit_id, updated_resource, expected_version):
+            raise AccountConfigurationError(
+                "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de guardar.", 409
+            )
+        return {**updated_resource, "reviewReset": review_reset}
 
     def delete_resource(self, teacher_id: str, unit_id: str, resource_id: str) -> None:
         """Elimina un recurso del repositorio."""

@@ -57,6 +57,7 @@ def test_multimodal_resources_from_generation_to_scorm(server):
         pairs = matching['structure']['pairs']
         edited = api.put(f"{base}/{matching['id']}", headers=h, json={
             'title': matching['title'], 'body': 'Relaciona cada término.', 'status': 'pendiente', 'edited': True,
+            'expectedVersion': matching['version'],
             'bodyHtml': '<h2>Consigna</h2><p onclick="x()">Relaciona <strong>cada</strong> término.</p><script>alert(1)</script>',
             'structure': {'pairs': [{**pairs[0], 'term': 'TCP (editado)'}, *pairs[1:]]}})
         assert edited.status_code == 200, edited.text
@@ -64,12 +65,14 @@ def test_multimodal_resources_from_generation_to_scorm(server):
         assert saved['bodyHtml'] == '<h2>Consigna</h2><p>Relaciona <strong>cada</strong> término.</p>'
         assert saved['structure']['pairs'][0]['term'] == 'TCP (editado)'
         too_few = api.put(f"{base}/{matching['id']}", headers=h, json={
-            'title': matching['title'], 'body': 'x', 'status': 'pendiente', 'structure': {'pairs': pairs[:1]}})
+            'title': matching['title'], 'body': 'x', 'status': 'pendiente', 'structure': {'pairs': pairs[:1]},
+            'expectedVersion': saved['version']})
         assert too_few.status_code == 422 and too_few.json()['error']['code'] == 'INVALID_STRUCTURE'
 
         for resource in (concept_map, podcast, illustration, saved):
             approved = api.put(f"{base}/{resource['id']}", headers=h, json={
-                'title': resource['title'], 'body': resource['body'], 'status': 'aprobado'})
+                'title': resource['title'], 'body': resource['body'], 'status': 'aprobado',
+                'expectedVersion': resource['version']})
             assert approved.status_code == 200, approved.text
             assert approved.json().get('bodyHtml') == resource.get('bodyHtml')  # aprobar no borra el formato
 

@@ -18,6 +18,7 @@ from platform5e.infrastructure.http.schemas.resources import (
     ResourceResponse,
     ReviewedResourceInput,
     UnitSummaryResponse,
+    VerificationRetryInput,
 )
 
 
@@ -80,17 +81,50 @@ def create_resources_router(
         """Saves edits and decisions. `aprobado` needs a key, no pending distractors and at least two accepted
         (409 APPROVAL_BLOCKED otherwise): the same rule the review screen shows.
 
+        Send `expectedVersion` with the `version` you read. If the resource changed meanwhile (another tab), the save
+        is rejected with 409 VERSION_CONFLICT and nothing changes: reload the resource. When the verifiable content
+        changes, it is checked again against the stored evidence copy, without external services, and the result
+        comes in `verification`. An approved resource whose content changed goes back to `pendiente`
+        (`reviewReset: true`) and needs a new approval.
+
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
 
         ```bash
-        curl --fail-with-body -i -X PUT "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"title":"Glosario de transporte","body":"TCP confirma la recepción de datos.","status":"pendiente","edited":true}'
+        curl --fail-with-body -i -X PUT "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"expectedVersion":1,"title":"Glosario de transporte","body":"TCP confirma la recepción de datos.","status":"pendiente","edited":true}'
         ```
 
-        Use a resource in your unit; copy its actual title and content before saving. This example saves an edit as pendiente, not an approval. Expected 200."""
+        Use a resource in your unit; copy its actual title, content and version before saving. This example saves an edit as pendiente, not an approval. Expected 200."""
         return review_service.update_resource(
             teacher_id, unit_id, resource_id, body.model_dump(by_alias=True, exclude_unset=True)
         )
+
+    @router.post(
+        "/units/{unit_id}/resources/{resource_id}/verification",
+        response_model=ResourceResponse,
+        summary="Retry the verification of a pending resource",
+        responses=error_responses(401, 404, 409, 422),
+    )
+    def retry_verification(
+        unit_id: str, resource_id: str, body: VerificationRetryInput, teacher_id: str = Depends(current_teacher)
+    ) -> dict[str, Any]:
+        """«Reintentar comprobación» (REV-C3): checks the same version again with the current rule and the stored
+        `evidenceThreshold`, using only the evidence copy saved in the resource (no external services). The version
+        does not change.
+
+        Only for `verification.status = pending` (409 VERIFICATION_NOT_PENDING). Without an evidence copy, or with a
+        referenced chunk missing from it, the retry is not offered: regenerate the resource (409 REGENERATION_REQUIRED).
+        An outdated `expectedVersion` returns 409 VERSION_CONFLICT.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X POST "$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/verification" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"expectedVersion":1}'
+        ```
+
+        Use a resource whose verification is pending and send its current version. Expected 200."""
+        return review_service.retry_verification(teacher_id, unit_id, resource_id, body.expected_version)
 
     @router.get(
         "/units/{unit_id}/resources/{resource_id}/media",

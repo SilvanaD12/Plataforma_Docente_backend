@@ -1313,7 +1313,7 @@
           "resources"
         ],
         "summary": "Save the review of a resource",
-        "description": "Saves edits and decisions. `aprobado` needs a key, no pending distractors and at least two accepted\n(409 APPROVAL_BLOCKED otherwise): the same rule the review screen shows.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X PUT \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"title\":\"Glosario de transporte\",\"body\":\"TCP confirma la recepción de datos.\",\"status\":\"pendiente\",\"edited\":true}'\n```\n\nUse a resource in your unit; copy its actual title and content before saving. This example saves an edit as pendiente, not an approval. Expected 200.",
+        "description": "Saves edits and decisions. `aprobado` needs a key, no pending distractors and at least two accepted\n(409 APPROVAL_BLOCKED otherwise): the same rule the review screen shows.\n\nSend `expectedVersion` with the `version` you read. If the resource changed meanwhile (another tab), the save\nis rejected with 409 VERSION_CONFLICT and nothing changes: reload the resource. When the verifiable content\nchanges, it is checked again against the stored evidence copy, without external services, and the result\ncomes in `verification`. An approved resource whose content changed goes back to `pendiente`\n(`reviewReset: true`) and needs a new approval.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X PUT \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1,\"title\":\"Glosario de transporte\",\"body\":\"TCP confirma la recepción de datos.\",\"status\":\"pendiente\",\"edited\":true}'\n```\n\nUse a resource in your unit; copy its actual title, content and version before saving. This example saves an edit as pendiente, not an approval. Expected 200.",
         "operationId": "update_resource_api_v1_units__unit_id__resources__resource_id__put",
         "security": [
           {
@@ -1475,6 +1475,103 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/resources/{resource_id}/verification": {
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Retry the verification of a pending resource",
+        "description": "«Reintentar comprobación» (REV-C3): checks the same version again with the current rule and the stored\n`evidenceThreshold`, using only the evidence copy saved in the resource (no external services). The version\ndoes not change.\n\nOnly for `verification.status = pending` (409 VERIFICATION_NOT_PENDING). Without an evidence copy, or with a\nreferenced chunk missing from it, the retry is not offered: regenerate the resource (409 REGENERATION_REQUIRED).\nAn outdated `expectedVersion` returns 409 VERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/verification\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource whose verification is pending and send its current version. Expected 200.",
+        "operationId": "retry_verification_api_v1_units__unit_id__resources__resource_id__verification_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "resource_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Resource Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerificationRetryInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResourceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict with the current state (duplicate or blocked approval).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -2681,6 +2778,18 @@
               }
             ],
             "title": "License"
+          },
+          "retrievedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievedat",
+            "description": "When the chunk was retrieved (ISO 8601). `null` means unknown, as in migrated resources."
           }
         },
         "additionalProperties": true,
@@ -3994,6 +4103,36 @@
             ],
             "description": "Grounding check of its claims against the retrieved evidence (HU-016)."
           },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version",
+            "description": "Current version. Send it back as `expectedVersion` when saving.",
+            "default": 1
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerificationResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Last check against the stored evidence copy (REV-01). None until it is checked."
+          },
+          "reviewReset": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewreset",
+            "description": "Only in the save response: true when an approved resource changed its content and went back to review."
+          },
           "approvalBlockers": {
             "items": {
               "type": "string"
@@ -4157,6 +4296,15 @@
       },
       "ReviewedResourceInput": {
         "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "description": "Version the edit starts from (the `version` you read). Required (REV-R12).",
+            "examples": [
+              1
+            ]
+          },
           "title": {
             "type": "string",
             "maxLength": 160,
@@ -4180,7 +4328,7 @@
               }
             ],
             "title": "Bodyhtml",
-            "description": "HTML from the editor; only text formatting and web links are kept."
+            "description": "HTML from the editor; only text formatting and web links are kept. If `body` changes and no new `bodyHtml` is sent (missing or equal to the stored one), the stored HTML is cleared and `body` is used."
           },
           "structure": {
             "anyOf": [
@@ -4247,12 +4395,13 @@
         "additionalProperties": false,
         "type": "object",
         "required": [
+          "expectedVersion",
           "title",
           "body",
           "status"
         ],
         "title": "ReviewedResourceInput",
-        "description": "The teacher's review. Approval is blocked while distractors are pending (409 APPROVAL_BLOCKED)."
+        "description": "The teacher's review. Approval is blocked while distractors are pending (409 APPROVAL_BLOCKED). A save that\nstarts from an outdated version is rejected (409 VERSION_CONFLICT)."
       },
       "SequenceStep": {
         "properties": {
@@ -4481,6 +4630,104 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerificationResult": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "insufficient",
+              "pending"
+            ],
+            "title": "Status",
+            "description": "Shown as vigente, insuficiente or pendiente. Only `current` with the current fingerprint counts."
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Why it is not current, in Spanish. Set unless `current`."
+          },
+          "fingerprint": {
+            "type": "string",
+            "title": "Fingerprint",
+            "description": "Fingerprint of the verified content: `sha256:<hex>`."
+          },
+          "verifiedVersion": {
+            "type": "integer",
+            "title": "Verifiedversion",
+            "description": "Resource version whose content was verified."
+          },
+          "evidenceThreshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Evidencethreshold",
+            "description": "Threshold of the original request, reused on every check."
+          },
+          "ruleVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Ruleversion",
+            "description": "VERIFICATION_RULE_VERSION used for this check."
+          },
+          "checkedAt": {
+            "type": "string",
+            "title": "Checkedat",
+            "description": "When it was checked (ISO 8601)."
+          },
+          "retryAvailable": {
+            "type": "boolean",
+            "title": "Retryavailable",
+            "description": "True only for `pending` with a complete evidence copy: «Reintentar comprobación» is offered."
+          },
+          "summary": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Summary",
+            "description": "What was checked, kept or removed."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "status",
+          "fingerprint",
+          "verifiedVersion",
+          "evidenceThreshold",
+          "ruleVersion",
+          "checkedAt",
+          "retryAvailable"
+        ],
+        "title": "VerificationResult",
+        "description": "REV-01: result of checking the current content against the stored evidence copy (REV-R4, REV-R5)."
+      },
+      "VerificationRetryInput": {
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "description": "Version you read. The retry does not change it.",
+            "examples": [
+              1
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expectedVersion"
+        ],
+        "title": "VerificationRetryInput",
+        "description": "«Reintentar comprobación» de un recurso con verificación pendiente (REV-C3)."
       }
     },
     "securitySchemes": {

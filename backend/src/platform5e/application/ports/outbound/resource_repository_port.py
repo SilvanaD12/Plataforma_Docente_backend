@@ -24,6 +24,21 @@ class ResourceReviewRepositoryPort(Protocol):
         """Guarda o actualiza un lote de recursos para una unidad."""
         ...
 
+    def save_resource_if_version(
+        self,
+        teacher_id: str,
+        unit_id: str,
+        resource: dict[str, Any],
+        expected_version: int,
+        increment: bool = True,
+    ) -> bool:
+        """REV-R12: guarda el recurso solo si su versión vigente es `expected_version`.
+
+        Devuelve False, sin modificar nada, si la versión ya no es la vigente. Con `increment` la versión avanza en 1;
+        sin él se conserva (actualizaciones que no cambian el contenido, como la de recursos antiguos de REV-R11).
+        """
+        ...
+
     def delete_resource(self, teacher_id: str, resource_id: str) -> None:
         """Elimina un recurso del repositorio."""
         ...
