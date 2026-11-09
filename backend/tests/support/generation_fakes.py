@@ -100,6 +100,11 @@ class FakeReviewRepository:
     def get_resources_by_unit(self, teacher_id: str, unit_id: str) -> list[dict[str, Any]]:
         return list(self.saved.get((teacher_id, unit_id), []))
 
+    def delete_resource(self, teacher_id: str, resource_id: str) -> None:
+        for (owner, unit_id), resources in self.saved.items():
+            if owner == teacher_id:
+                self.saved[(owner, unit_id)] = [r for r in resources if r.get("id") != resource_id]
+
     def all(self) -> list[dict[str, Any]]:
         return [resource for resources in self.saved.values() for resource in resources]
 

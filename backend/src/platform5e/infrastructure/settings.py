@@ -59,6 +59,11 @@ def read_flag(name: str, default: bool, environment: Mapping[str, str] | None = 
 
 DEFAULT_GENERATION_MAX_WORKERS: int = 2
 DEFAULT_GENERATION_REQUEST_DEADLINE_SECONDS: int = 900
+# Research R3: el ejecutor renueva el latido de sus pedidos cada 15 s y el barrido periódico interrumpe, cada 30 s, los
+# que llevan más de 60 s sin latido.
+DEFAULT_GENERATION_HEARTBEAT_SECONDS: float = 15.0
+DEFAULT_GENERATION_SWEEP_INTERVAL_SECONDS: int = 30
+GENERATION_STALE_REQUEST_SECONDS: int = 60
 
 
 def read_positive_int(name: str, default: int, environment: Mapping[str, str] | None = None) -> int:
@@ -78,4 +83,10 @@ def generation_max_workers(environment: Mapping[str, str] | None = None) -> int:
 def generation_request_deadline_seconds(environment: Mapping[str, str] | None = None) -> int:
     return read_positive_int(
         "GENERATION_REQUEST_DEADLINE_SECONDS", DEFAULT_GENERATION_REQUEST_DEADLINE_SECONDS, environment
+    )
+
+
+def generation_sweep_interval_seconds(environment: Mapping[str, str] | None = None) -> int:
+    return read_positive_int(
+        "GENERATION_SWEEP_INTERVAL_SECONDS", DEFAULT_GENERATION_SWEEP_INTERVAL_SECONDS, environment
     )

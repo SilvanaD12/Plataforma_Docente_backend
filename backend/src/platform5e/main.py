@@ -64,6 +64,7 @@ from platform5e.infrastructure.llm.language_model_factory import (
     create_media_generator,
     describe_generator,
 )
+from platform5e.infrastructure.jobs.stale_request_sweeper import StaleRequestSweeper
 from platform5e.infrastructure.jobs.thread_pool_generation_runner import ThreadPoolGenerationRunner
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_account_repository import SQLAlchemyAccountRepository
 from platform5e.infrastructure.retrieval.bm25_evidence_retriever import Bm25EvidenceRetriever
@@ -80,8 +81,10 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_resource_repo
     SQLAlchemyResourceRepository,
 )
 from platform5e.infrastructure.settings import (
+    GENERATION_STALE_REQUEST_SECONDS,
     generation_max_workers,
     generation_request_deadline_seconds,
+    generation_sweep_interval_seconds,
     read_flag,
     read_setting,
 )
@@ -115,27 +118,35 @@ OPENAPI_TAGS = [
     {"name": "system", "description": "Health check and active generator."},
 ]
 
-# Research R3: al arrancar, un pedido activo sin latido en este tiempo quedó de un proceso anterior.
-STALE_REQUEST_SECONDS = 60
+# Research R3: un pedido activo sin latido en este tiempo no tiene dueño (quedó de un proceso anterior o detenido).
+STALE_REQUEST_SECONDS = GENERATION_STALE_REQUEST_SECONDS
 
 
 def create_application() -> FastAPI:
     """Crea la aplicación con sus dependencias. Las variables de entorno se leen solo aquí y en los adaptadores."""
     generation_request_repository = SQLAlchemyGenerationRequestRepository()
     generation_runner: ThreadPoolGenerationRunner | None = None  # se crea abajo, con sus casos de uso
+    stale_request_sweeper = StaleRequestSweeper(
+        generation_request_repository,
+        interval_seconds=generation_sweep_interval_seconds(),
+        stale_seconds=STALE_REQUEST_SECONDS,
+    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-        """GEN-01 (research R3): antes de aceptar tráfico, marca como interrumpidos los pedidos que quedaron a medias
-        y crea el grupo de hilos; al apagar, lo cierra sin esperar los pedidos que todavía están en cola."""
+        """GEN-01 (research R3): antes de aceptar tráfico, marca como interrumpidos los pedidos que quedaron a medias,
+        crea el grupo de hilos e inicia el barrido periódico; al apagar, detiene el barrido y cierra el grupo sin
+        esperar los pedidos que todavía están en cola."""
         generation_request_repository.mark_interrupted(
             datetime.now(timezone.utc) - timedelta(seconds=STALE_REQUEST_SECONDS)
         )
         assert generation_runner is not None
         generation_runner.start()
+        stale_request_sweeper.start()
         try:
             yield
         finally:
+            stale_request_sweeper.stop()
             generation_runner.shutdown(wait=False)
 
     app = FastAPI(

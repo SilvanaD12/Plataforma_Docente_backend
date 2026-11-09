@@ -57,10 +57,22 @@ Otros archivos afectados:
 1. Pasa el pedido a `running` y registra `started_at` y `worker_boot_id`.
 2. Recupera la evidencia una vez y la guarda en el pedido (GEN-R2).
 3. Ejecuta los pasos en orden 5E. Antes de cada paso lo marca `running` y al terminar lo marca `succeeded`, `rejected` o `failed`. Guarda los recursos en Revisión y confirma el paso, en ese orden. Así, el progreso que ve el cliente siempre lo confirmó el servidor (GEN-R3).
-4. Actualiza `heartbeat_at` cada 15 s mientras trabaja.
-5. Calcula el estado final del pedido ([data-model](data-model.md#reglas-de-transición)).
+4. Calcula el estado final del pedido ([data-model](data-model.md#reglas-de-transición)).
 
-**Reinicio.** Al arrancar, antes de aceptar tráfico, `main.py` llama a `GenerationRequestRepositoryPort.mark_interrupted(before=now - 60 s)`. Este marca como `interrupted` los pedidos en `queued` o `running` cuyo `heartbeat_at` (o `created_at`, si no tienen latido) sea anterior al límite, y marca como `interrupted` sus pasos no terminados. Los recursos ya guardados se conservan. El límite por latido, en lugar de «todo lo que no terminó», evita que un segundo proceso de uvicorn interrumpa los pedidos vivos de otro.
+**Pedido borrado durante la ejecución.** Si el docente borra el curso mientras se genera, `delete_course` elimina el pedido y sus pasos (T047). El ejecutor no debe recrearlos ni dejar recursos sueltos:
+
+- `save_evidence`, `update_step`, `heartbeat` y `finish` solo actualizan filas existentes (`UPDATE`, nunca `INSERT`) y devuelven si el pedido existía. `update_step` exige que existan el pedido y el paso.
+- Antes de generar los medios y antes de guardar los recursos de cada paso, `RunGenerationRequest` comprueba que el pedido sigue existiendo y que la unidad sigue siendo del docente. Si el pedido ya no existe, se detiene sin escribir nada más. Si existe pero la unidad ya no es del docente, lo cierra como `failed` con `UNIT_NOT_FOUND`, sin guardar recursos.
+- Si confirmar el paso falla porque el pedido desapareció entre la comprobación y la confirmación, quita de Revisión los recursos recién guardados de ese paso y se detiene.
+
+**Latido.** El ejecutor (`ThreadPoolGenerationRunner`) renueva `heartbeat_at` cada 15 s de **todos** los pedidos que tiene en su cola o en ejecución, y lo hace también al recibirlos. Así un pedido que espera un hilo libre tiene dueño, aunque todavía no haya empezado.
+
+**Reinicio y pedidos sin dueño.** Un pedido activo sin latido reciente no tiene dueño: lo dejó un proceso que se reinició o se detuvo. `GenerationRequestRepositoryPort.mark_interrupted(stale_before)` marca como `interrupted` los pedidos en `queued` o `running` cuyo `heartbeat_at` (o `created_at`, si no tienen latido) sea anterior al límite, y marca como `interrupted` sus pasos no terminados. Los recursos ya guardados se conservan. Se llama en dos momentos, siempre con `stale_before = ahora − 60 s`:
+
+- **Barrido de arranque:** en el `lifespan`, antes de aceptar tráfico.
+- **Barrido periódico:** `StaleRequestSweeper`, cada `GENERATION_SWEEP_INTERVAL_SECONDS` (30 s por defecto), mientras la API está en marcha. Se inicia en el `lifespan` junto al ejecutor y se detiene al apagar. Cubre el pedido que el barrido de arranque no alcanza: uno que quedó en cola menos de 60 s antes del arranque se interrumpe en cuanto vence su plazo, sin otro reinicio.
+
+El límite por latido, en lugar de «todo lo que no terminó», evita que un proceso de uvicorn interrumpa los pedidos vivos de otro: el ejecutor dueño renueva su latido cada 15 s, muy por debajo de los 60 s.
 
 Un pedido interrumpido no se reanuda. Reenviar su clave lo devuelve tal como quedó. Para reintentar, el docente crea un pedido nuevo, con otra clave, desde la interfaz.
 
@@ -82,6 +94,13 @@ Un pedido interrumpido no se reanuda. Reenviar su clave lo devuelve tal como que
 | Pedidos activos por docente | 2 (`queued` o `running`) | `429 TOO_MANY_ACTIVE_REQUESTS` |
 | Hilos de ejecución por proceso | 2 (`GENERATION_MAX_WORKERS`) | los pedidos esperan en `queued` |
 | Duración máxima de un pedido | 15 min (`GENERATION_REQUEST_DEADLINE_SECONDS`) | los pasos restantes pasan a `failed` con `DEADLINE_EXCEEDED` |
+
+**Cupo atómico.** Contar los pedidos activos y después guardar el nuevo deja una carrera: con un pedido activo, dos envíos simultáneos con claves distintas cuentan 1 los dos y se aceptan los dos (tres activos). Por eso el repositorio comprueba el cupo y registra el pedido en una sola operación, `create_within_limit(request, max_active)`, serializada por docente:
+
+- **PostgreSQL:** `pg_advisory_xact_lock(hashtextextended('gen_generation_requests:' || teacher_id, 0))` al empezar la transacción. El bloqueo dura hasta el `COMMIT` y solo afecta a los envíos del mismo docente.
+- **SQLite:** la transacción empieza con `BEGIN IMMEDIATE`, que toma el bloqueo de escritura antes de contar. El otro envío espera el `busy timeout` en vez de leer el mismo recuento.
+
+Dentro de la transacción se aplica primero la clave: si `(teacher_id, idempotency_key)` ya existe, lanza `IdempotencyKeyTaken(existing)` aunque el cupo esté lleno, y el reenvío devuelve el pedido como siempre. Si no, cuenta los pedidos en `queued` o `running`. Si llegan a `max_active`, lanza `ActiveRequestLimitReached`, que `StartGenerationRequest` traduce a `429 TOO_MANY_ACTIVE_REQUESTS`. Si no, inserta el pedido con sus pasos. La violación de la clave única sigue tratándose como `IdempotencyKeyTaken`.
 
 **Validación.** [quickstart.md](quickstart.md#v11--carga) mide una secuencia de 8 tipos × 5 recursos con Gemini y con el generador por reglas. Los límites se confirman si el p95 queda bajo 10 minutos con Gemini. Si no, se baja el tope a 20 recursos por pedido (`quantity × tipos ≤ 20`) y se registra el cambio en la spec.
 

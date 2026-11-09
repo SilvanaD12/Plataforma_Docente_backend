@@ -109,10 +109,17 @@ get_regeneration(teacher_id: str, request_id: str) -> RegenerationStatus
 ### GenerationRequestRepositoryPort
 
 ```python
+class IdempotencyKeyTaken(DomainError): existing: GenerationRequest
+class ActiveRequestLimitReached(DomainError): max_active: int
+
 class GenerationRequestRepositoryPort(Protocol):
     def create(self, request: GenerationRequest) -> GenerationRequest:
         """Guarda el pedido con sus pasos (request.steps) en una sola transacción.
         Lanza IdempotencyKeyTaken(existing) si (teacher_id, idempotency_key) ya existe."""
+    def create_within_limit(self, request: GenerationRequest, max_active: int) -> GenerationRequest:
+        """Como create, pero comprueba el cupo y registra el pedido de forma atómica por docente.
+        Lanza IdempotencyKeyTaken(existing) si la clave ya existe, aunque el cupo esté lleno, y
+        ActiveRequestLimitReached si el docente ya tiene max_active pedidos queued o running."""
     def find_by_key(self, teacher_id: str, idempotency_key: str) -> GenerationRequest | None: ...
     def get(self, teacher_id: str, request_id: str) -> GenerationRequest | None:
         """Filtra por docente. Un pedido ajeno devuelve None."""
@@ -120,16 +127,20 @@ class GenerationRequestRepositoryPort(Protocol):
     def list_by_unit(self, teacher_id: str, unit_id: str, active_only: bool, limit: int) -> list[GenerationRequest]: ...
     def count_active(self, teacher_id: str) -> int: ...
     def mark_running(self, request_id: str, worker_boot_id: str) -> None: ...
-    def save_evidence(self, request_id: str, retrieval: EvidenceRetrieval, retrieved_at: str) -> None: ...
-    def update_step(self, request_id: str, step: GenerationStep) -> None: ...
-    def heartbeat(self, request_id: str) -> None: ...
-    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> None:
+    def save_evidence(self, request_id: str, retrieval: EvidenceRetrieval, retrieved_at: str) -> bool: ...
+    def update_step(self, request_id: str, step: GenerationStep) -> bool: ...
+    def heartbeat(self, request_id: str) -> bool:
+        """Renueva el latido de un pedido queued o running."""
+    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> bool:
         """Cierra el pedido y sus pasos sin terminar. Un pedido ya terminado no cambia."""
     def mark_interrupted(self, stale_before: datetime) -> int:
-        """Pasa a interrupted los pedidos queued o running con el latido vencido. Devuelve cuántos cambió."""
+        """Pasa a interrupted los pedidos queued o running con el latido (o la creación) anterior a stale_before.
+        Lo usan el barrido de arranque y el barrido periódico. Devuelve cuántos cambió."""
 ```
 
 - `GenerationRequest` ya incluye sus pasos (`steps`), así que `create` no los recibe aparte.
+- `StartGenerationRequest` registra con `create_within_limit(request, MAX_ACTIVE_REQUESTS)`, no con `count_active` seguido de `create`. El adaptador SQLAlchemy serializa por docente con `pg_advisory_xact_lock` en PostgreSQL y con `BEGIN IMMEDIATE` en SQLite ([research R4](../research.md#r4-límites-de-carga)).
+- `save_evidence`, `update_step`, `heartbeat` y `finish` solo actualizan filas existentes; nunca insertan. Devuelven si el pedido existía (`update_step`, si existen el pedido y el paso). Si el curso se borró durante la ejecución, devuelven `False` y no dejan filas huérfanas ([research R3](../research.md#r3-ejecución-en-segundo-plano-y-reinicio)).
 - `finish` cierra también los pasos que quedaron en `pending` o `running`: pasan a `interrupted` si el pedido se cierra como `interrupted`, y a `failed` en los demás casos, con el mismo `failure` como motivo. Así un pedido terminado nunca tiene pasos en curso. Los pasos ya terminados y sus recursos no cambian.
 
 ### GenerationJobRunnerPort
@@ -140,6 +151,9 @@ class GenerationJobRunnerPort(Protocol):
         """Encola la ejecución. No bloquea. El adaptador inicial es ThreadPoolGenerationRunner."""
     def shutdown(self, wait: bool) -> None: ...
 ```
+
+- `ThreadPoolGenerationRunner` renueva cada 15 s el latido de todos los pedidos que tiene en cola o en ejecución, y lo renueva también al recibir cada uno.
+- `StaleRequestSweeper` (infraestructura, sin puerto propio) llama a `mark_interrupted(ahora − 60 s)` cada `GENERATION_SWEEP_INTERVAL_SECONDS` (30 s por defecto). El `lifespan` lo inicia después del barrido de arranque, junto al ejecutor, y lo detiene al apagar.
 
 ### Se conservan sin cambios
 

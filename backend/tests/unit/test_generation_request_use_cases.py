@@ -191,7 +191,7 @@ def test_a_lost_race_returns_the_winner_request(parts):
         def find_by_key(self, teacher_id: str, key: str):
             return None  # todavía no lo veía
 
-        def create(self, request):
+        def create_within_limit(self, request, max_active):
             raise IdempotencyKeyTaken(winner)
 
     racing = StartGenerationRequest(FakeMembership(), FakeEvidence(), RacingRepository(), FakeRunner())

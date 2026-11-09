@@ -5,6 +5,10 @@ Recupera la evidencia una sola vez y la comparte entre los pasos (GEN-R2). Cada 
 recursos, aplica el control de repetición contra los pasos anteriores, guarda en cada recurso la copia histórica de los
 fragmentos que referencia y su verificación (research R6 y R7), los entrega a Revisión y recién entonces confirma su
 estado, para que el progreso que ve el docente siempre lo haya confirmado el servidor (GEN-R3).
+
+Si el curso se borra mientras se genera, el pedido desaparece: antes de guardar los recursos de cada paso se comprueba
+que el pedido sigue existiendo y que la unidad sigue siendo del docente, y si confirmar el paso falla porque el pedido
+ya no existe, se quitan de Revisión los recursos recién guardados. El ejecutor se detiene sin guardar nada más.
 Solo depende de puertos, de los servicios de redacción de Generación y del dominio de Generación.
 """
 
@@ -90,6 +94,14 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+class _RequestGone(Exception):
+    """El pedido ya no existe (se borró su curso): el ejecutor se detiene sin escribir nada más."""
+
+
+class _UnitGone(Exception):
+    """La unidad ya no pertenece al docente, aunque el pedido siga guardado."""
+
+
 class _Heartbeat:
     """Renueva el latido del pedido cada `interval` segundos en un hilo aparte mientras se ejecuta."""
 
@@ -167,12 +179,16 @@ class RunGenerationRequest:
         if request is None or request.status != RequestStatus.RUNNING:
             return  # se interrumpió o terminó mientras esperaba en la cola
         with _Heartbeat(lambda: self._repository.heartbeat(request_id), self._heartbeat_seconds):
-            status, failure = self._run(request)
-        self._repository.finish(request_id, status, failure)
+            outcome = self._run(request)
+        if outcome is None:
+            logger.info("El pedido de generación %s se eliminó mientras se ejecutaba.", request_id)
+            return
+        self._repository.finish(request_id, *outcome)
 
     # Pedido
 
-    def _run(self, request: GenerationRequest) -> tuple[RequestStatus, Problem | None]:
+    def _run(self, request: GenerationRequest) -> tuple[RequestStatus, Problem | None] | None:
+        """Estado final y motivo del pedido, o None si el pedido se eliminó mientras se ejecutaba."""
         deadline = self._monotonic() + self._deadline_seconds
         unit = self._membership.get_unit_context(request.teacher_id, request.unit_id)
         if unit is None:  # el curso se borró mientras el pedido esperaba
@@ -191,7 +207,8 @@ class RunGenerationRequest:
         except GenerationError as error:
             return RequestStatus.FAILED, Problem(error.code, error.message)
         retrieved_at = self._clock()
-        self._repository.save_evidence(request.id, retrieval, retrieved_at)
+        if not self._repository.save_evidence(request.id, retrieval, retrieved_at):
+            return None
 
         outcome_id = parameters.outcome_id or (unit.outcomes[0].id if unit.outcomes else "")
         accepted: list[dict[str, Any]] = []  # recursos aceptados (formato del generador), con su etapa
@@ -203,11 +220,17 @@ class RunGenerationRequest:
                 self._fail_remaining(request.id, steps, index)
                 break
             running = replace(step, status=StepStatus.RUNNING, started_at=self._clock())
-            self._repository.update_step(request.id, running)
+            if not self._repository.update_step(request.id, running):
+                return None
             try:
                 finished = self._run_step(
                     request, running, unit, retrieval.fragments, retrieved_at, outcome_id, accepted
                 )
+            except _RequestGone:
+                return None
+            except _UnitGone:
+                # Lo que quede sin terminar se cierra como fallido al finalizar el pedido.
+                return RequestStatus.FAILED, Problem(GenerationErrorCode.UNIT_NOT_FOUND, UNIT_NOT_FOUND_MESSAGE)
             except Exception:
                 logger.exception("Falló el paso %s del pedido de generación %s.", step.position, request.id)
                 finished = replace(
@@ -217,10 +240,27 @@ class RunGenerationRequest:
                     finished_at=self._clock(),
                 )
             steps[index] = finished
-            self._repository.update_step(request.id, finished)
+            if not self._repository.update_step(request.id, finished):
+                # El pedido desapareció entre la comprobación y la confirmación: no quedan recursos sueltos.
+                self._remove_resources(request.teacher_id, finished.resource_ids)
+                return None
 
         status = final_status(steps)
         return status, (self._failure_summary(steps) if status == RequestStatus.FAILED else None)
+
+    def _ensure_still_owned(self, request: GenerationRequest) -> None:
+        """El pedido sigue guardado y la unidad sigue siendo del docente; si no, se detiene el pedido."""
+        if self._repository.get_for_runner(request.id) is None:
+            raise _RequestGone()
+        if self._membership.get_unit_context(request.teacher_id, request.unit_id) is None:
+            raise _UnitGone()
+
+    def _remove_resources(self, teacher_id: str, resource_ids: Sequence[str]) -> None:
+        for resource_id in resource_ids:
+            try:
+                self._review_repository.delete_resource(teacher_id, resource_id)
+            except Exception:
+                logger.exception("No se pudo quitar el recurso %s de un pedido eliminado.", resource_id)
 
     def _fail_remaining(self, request_id: str, steps: list[GenerationStep], start: int) -> None:
         problem = Problem(GenerationErrorCode.DEADLINE_EXCEEDED, DEADLINE_MESSAGE)
@@ -276,6 +316,8 @@ class RunGenerationRequest:
                 finished_at=self._clock(),
             )
 
+        # Antes de generar medios y de guardar: el curso pudo borrarse mientras se redactaba.
+        self._ensure_still_owned(request)
         timestamp = self._clock()
         uses_ai = bool(getattr(generator, "uses_ai", False))
         frozen_parameters = saved_parameters(step_request)
@@ -321,6 +363,7 @@ class RunGenerationRequest:
         accepted.extend({**draft, "etapa": step.stage} for draft in delivered_drafts)
 
         if resources:
+            self._ensure_still_owned(request)  # los medios pudieron tardar
             self._review_repository.save_resources(request.teacher_id, request.unit_id, resources)
 
         rejections = [

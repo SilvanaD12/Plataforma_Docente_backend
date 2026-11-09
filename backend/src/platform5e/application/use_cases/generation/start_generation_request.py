@@ -2,8 +2,8 @@
 Caso de uso GEN-01 (T015): inicia un pedido de generación individual o de secuencia en segundo plano.
 
 Valida la clave y la unidad; si la clave ya tiene un pedido, lo devuelve (o informa el conflicto) sin aplicar las demás
-reglas. Si no, valida el resultado de aprendizaje, el plan de pasos, el material y el límite de pedidos activos, guarda
-el pedido y lo encola. Solo depende de puertos y del dominio.
+reglas. Si no, valida el resultado de aprendizaje, el plan de pasos y el material; el repositorio comprueba el límite de
+pedidos activos y guarda el pedido de forma atómica, y el caso de uso lo encola. Solo depende de puertos y del dominio.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from platform5e.application.ports.outbound.evidence_provider_port import (
 )
 from platform5e.application.ports.outbound.generation_job_runner_port import GenerationJobRunnerPort
 from platform5e.application.ports.outbound.generation_request_repository_port import (
+    ActiveRequestLimitReached,
     GenerationRequestRepositoryPort,
     IdempotencyKeyTaken,
 )
@@ -119,11 +120,9 @@ class StartGenerationRequest:
         if not self._evidence.has_processed_material(command.teacher_id, command.unit_id):
             raise NoProcessedMaterial()
 
-        # 7. Límite de pedidos activos por docente (research R4).
-        if self._repository.count_active(command.teacher_id) >= MAX_ACTIVE_REQUESTS:
-            raise GenerationError(GenerationErrorCode.TOO_MANY_ACTIVE_REQUESTS, TOO_MANY_ACTIVE_MESSAGE)
-
-        # 8. Guardar y encolar. Si otro envío con la misma clave ganó la carrera, se aplica la regla 3.
+        # 7 y 8. Límite de pedidos activos por docente y registro, en una sola operación atómica del repositorio
+        #    (research R4): dos envíos simultáneos no pueden superar el límite. Si otro envío con la misma clave ganó
+        #    la carrera, se aplica la regla 3.
         request = GenerationRequest(
             id=self._new_id(),
             teacher_id=command.teacher_id,
@@ -138,9 +137,11 @@ class StartGenerationRequest:
             regeneration=command.regeneration,
         )
         try:
-            created = self._repository.create(request)
+            created = self._repository.create_within_limit(request, MAX_ACTIVE_REQUESTS)
         except IdempotencyKeyTaken as taken:
             return self._replay(taken.existing, content_hash)
+        except ActiveRequestLimitReached:
+            raise GenerationError(GenerationErrorCode.TOO_MANY_ACTIVE_REQUESTS, TOO_MANY_ACTIVE_MESSAGE) from None
         self._runner.submit(created.id)
         return StartGenerationResult(request=created, created=True)
 

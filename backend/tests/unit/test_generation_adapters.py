@@ -17,7 +17,11 @@ from platform5e.domain.generation.errors import GenerationErrorCode
 from platform5e.domain.generation.generation_request import Problem, RequestStatus
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
 from platform5e.infrastructure.jobs.thread_pool_generation_runner import ThreadPoolGenerationRunner
-from platform5e.infrastructure.settings import generation_max_workers, generation_request_deadline_seconds
+from platform5e.infrastructure.settings import (
+    generation_max_workers,
+    generation_request_deadline_seconds,
+    generation_sweep_interval_seconds,
+)
 
 class FakeTeacherRepository:
     """Solo lo que usa el adaptador de Material: los documentos del docente."""
@@ -154,10 +158,14 @@ class FakeRequestRepository:
         self.finished: list[tuple[str, RequestStatus, Problem | None]] = []
         self.fail_on_finish = fail_on_finish
 
-    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> None:
+    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> bool:
         if self.fail_on_finish:
             raise ConnectionError("base caída")
         self.finished.append((request_id, status, failure))
+        return True
+
+    def heartbeat(self, request_id: str) -> bool:
+        return True
 
 
 def test_the_runner_executes_requests_in_background_threads():
@@ -217,3 +225,6 @@ def test_generation_settings_have_safe_defaults():
     for invalid in ("0", "-1", "dos", ""):
         assert generation_max_workers({"GENERATION_MAX_WORKERS": invalid}) == 2
     assert generation_request_deadline_seconds({"GENERATION_REQUEST_DEADLINE_SECONDS": "60"}) == 60
+    assert generation_sweep_interval_seconds({}) == 30
+    assert generation_sweep_interval_seconds({"GENERATION_SWEEP_INTERVAL_SECONDS": "10"}) == 10
+    assert generation_sweep_interval_seconds({"GENERATION_SWEEP_INTERVAL_SECONDS": "0"}) == 30

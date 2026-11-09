@@ -13,6 +13,7 @@ from dataclasses import replace
 from typing import Any
 
 import pytest
+from sqlalchemy import text
 
 from platform5e.application.ports.outbound.evidence_provider_port import EvidenceUnavailable
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest, _Heartbeat
@@ -361,6 +362,56 @@ def test_a_resource_is_delivered_pending_even_if_its_fingerprint_also_fails(setu
     )
     [resource] = setup.review.all()
     assert resource["verification"]["status"] == "pending" and resource["verification"]["fingerprint"] == ""
+
+
+# Corrección 1 del PR #14: el pedido o la unidad desaparecen mientras se genera.
+
+
+def _delete_request(setup: Setup, request_id: str) -> None:
+    """Como `delete_course`: se borran los pasos y el pedido."""
+    with setup.repository._engine.begin() as connection:  # noqa: SLF001 - simula el borrado del curso
+        connection.execute(text("DELETE FROM gen_generation_steps WHERE request_id = :id"), {"id": request_id})
+        connection.execute(text("DELETE FROM gen_generation_requests WHERE id = :id"), {"id": request_id})
+
+
+def test_if_the_request_disappears_while_saving_the_new_resources_are_removed(setup):
+    """El curso se borra entre la comprobación y la confirmación del paso: los recursos recién guardados se quitan."""
+    request_id = setup.start("pregunta_detonante", "explicacion")
+    review = setup.review
+
+    class DeletedWhileSaving:
+        def __getattr__(self, name: str):
+            return getattr(review, name)
+
+        def save_resources(self, teacher_id, unit_id, resources):
+            review.save_resources(teacher_id, unit_id, resources)
+            _delete_request(setup, request_id)
+
+    setup.review = DeletedWhileSaving()
+    generator = StageAwareGenerator()
+    assert setup.run(request_id, generator) is None
+
+    assert review.all() == []
+    assert len(generator.contexts) == 1  # no siguió con el segundo paso
+    with setup.repository._engine.connect() as connection:  # noqa: SLF001
+        assert connection.execute(text("SELECT COUNT(*) FROM gen_generation_steps")).scalar() == 0
+
+
+def test_if_the_unit_stops_belonging_to_the_teacher_nothing_else_is_saved(setup):
+    request_id = setup.start("pregunta_detonante", "explicacion")
+    membership = setup.membership
+
+    class UnitRemovedWhileDrafting(StageAwareGenerator):
+        def generate(self, context):
+            membership.units.clear()  # la unidad se quitó del curso mientras se redactaba
+            return super().generate(context)
+
+    generator = UnitRemovedWhileDrafting()
+    request = setup.run(request_id, generator)
+
+    assert setup.review.all() == [] and len(generator.contexts) == 1
+    assert request.status == RequestStatus.FAILED and request.failure.code == "UNIT_NOT_FOUND"
+    assert all(step.status == StepStatus.FAILED and step.resource_ids == () for step in request.steps)
 
 
 def test_the_heartbeat_beats_while_the_request_runs():

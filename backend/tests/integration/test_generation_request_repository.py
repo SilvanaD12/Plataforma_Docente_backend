@@ -257,3 +257,138 @@ def _set_heartbeat(repository: SQLAlchemyGenerationRequestRepository, request_id
             text("UPDATE gen_generation_requests SET heartbeat_at = :at WHERE id = :id"),
             {"at": utc_text(moment), "id": request_id},
         )
+
+
+# Corrección 1 del PR #14: el ejecutor no recrea filas de un pedido que se borró.
+
+
+def test_runner_writes_only_update_existing_rows_and_say_if_the_request_existed(repository):
+    request = repository.create(make_request())
+    fragment = EvidenceFragment("frag-1", "doc-1", "apuntes.pdf", "p. 1", "Texto", 0.8, None, None)
+    step = replace(request.steps[0], status=StepStatus.SUCCEEDED, resource_ids=("rec-1",))
+
+    assert repository.update_step(request.id, step) is True
+    assert repository.save_evidence(request.id, EvidenceRetrieval((fragment,), None), "2026-11-10T12:00:00+00:00")
+    assert repository.heartbeat(request.id) is True
+    assert repository.finish(request.id, RequestStatus.SUCCEEDED, None) is True
+
+    _delete_request(repository, request.id)  # el curso se borró mientras el pedido corría
+    assert repository.update_step(request.id, step) is False
+    assert repository.save_evidence(request.id, EvidenceRetrieval((fragment,), None), "2026-11-10T12:00:00+00:00") is False
+    assert repository.heartbeat(request.id) is False
+    assert repository.finish(request.id, RequestStatus.FAILED, None) is False
+    with repository._engine.connect() as connection:  # noqa: SLF001
+        assert connection.execute(text("SELECT COUNT(*) FROM gen_generation_steps")).scalar() == 0
+        assert connection.execute(text("SELECT COUNT(*) FROM gen_generation_requests")).scalar() == 0
+
+
+def test_an_unknown_step_position_is_not_inserted(repository):
+    request = repository.create(make_request())
+    extra = replace(request.steps[0], position=9)
+    assert repository.update_step(request.id, extra) is False
+    assert [s.position for s in repository.get("docente-a", request.id).steps] == [0, 1]
+
+
+def _delete_request(repository: SQLAlchemyGenerationRequestRepository, request_id: str) -> None:
+    """Como `delete_course`: en SQLite sin cascada se borran los pasos antes del pedido."""
+    with repository._engine.begin() as connection:  # noqa: SLF001
+        connection.execute(text("DELETE FROM gen_generation_steps WHERE request_id = :id"), {"id": request_id})
+        connection.execute(text("DELETE FROM gen_generation_requests WHERE id = :id"), {"id": request_id})
+
+
+# Corrección 2 del PR #14: el cupo de pedidos activos se comprueba y se registra de forma atómica.
+
+
+def test_create_within_limit_checks_the_quota_atomically(repository):
+    from platform5e.application.ports.outbound.generation_request_repository_port import ActiveRequestLimitReached
+
+    repository.create_within_limit(make_request(key="clave-activa-1"), max_active=2)
+    outcomes: list[str] = []
+    barrier = threading.Barrier(2)
+
+    def submit(key: str) -> None:
+        barrier.wait()
+        try:
+            repository.create_within_limit(make_request(key=key), max_active=2)
+            outcomes.append("created")
+        except ActiveRequestLimitReached:
+            outcomes.append("limit")
+
+    threads = [threading.Thread(target=submit, args=(f"clave-simultanea-{n}",)) for n in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert sorted(outcomes) == ["created", "limit"]
+    assert repository.count_active("docente-a") == 2
+    # Otro docente tiene su propio cupo, y un pedido terminado no cuenta.
+    repository.create_within_limit(make_request(teacher_id="docente-b", key="clave-otro-docente"), max_active=2)
+    first = repository.list_by_unit("docente-a", "u1", active_only=True, limit=10)[0]
+    repository.finish(first.id, RequestStatus.SUCCEEDED, None)
+    repository.create_within_limit(make_request(key="clave-tras-terminar"), max_active=2)
+    assert repository.count_active("docente-a") == 2
+
+
+def test_create_within_limit_keeps_the_idempotency_answer(repository):
+    from platform5e.application.ports.outbound.generation_request_repository_port import ActiveRequestLimitReached
+
+    original = repository.create_within_limit(make_request(key="clave-repetida"), max_active=1)
+    # Con el cupo lleno, la misma clave sigue devolviendo el pedido existente y no el error de cupo.
+    with pytest.raises(IdempotencyKeyTaken) as taken:
+        repository.create_within_limit(make_request(key="clave-repetida"), max_active=1)
+    assert taken.value.existing.id == original.id
+    with pytest.raises(ActiveRequestLimitReached):
+        repository.create_within_limit(make_request(key="clave-nueva"), max_active=1)
+
+
+def test_two_simultaneous_starts_with_one_active_request_accept_only_one(repository):
+    """Reproduce el error: con un pedido activo, dos envíos simultáneos con claves distintas dejaban tres activos."""
+    from platform5e.application.use_cases.generation.start_generation_request import (
+        StartGenerationCommand,
+        StartGenerationRequest,
+    )
+    from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
+    from tests.support.generation_fakes import FakeEvidence, FakeMembership, FakeRunner
+
+    barrier = threading.Barrier(2, timeout=10)
+
+    class BothCheckTogether:
+        """El repositorio real; los dos envíos llegan juntos a la comprobación del cupo."""
+
+        def __getattr__(self, name: str):
+            return getattr(repository, name)
+
+        def count_active(self, teacher_id: str) -> int:
+            barrier.wait()
+            return repository.count_active(teacher_id)
+
+        def create_within_limit(self, request, max_active: int):
+            barrier.wait()
+            return repository.create_within_limit(request, max_active)
+
+    start = StartGenerationRequest(FakeMembership(), FakeEvidence(), BothCheckTogether(), FakeRunner())
+
+    def command(key: str) -> StartGenerationCommand:
+        return StartGenerationCommand(
+            "docente-a", "u1", GenerationMode.INDIVIDUAL, key, GenerationParameters(("pregunta_detonante",))
+        )
+
+    repository.create(make_request(key="clave-ya-activa"))
+    outcomes: list[str] = []
+
+    def submit(key: str) -> None:
+        try:
+            start.execute(command(key))
+            outcomes.append("accepted")
+        except GenerationError as error:
+            outcomes.append(error.code)
+
+    threads = [threading.Thread(target=submit, args=(f"clave-envio-{n}",)) for n in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=30)
+
+    assert sorted(outcomes) == sorted(["accepted", GenerationErrorCode.TOO_MANY_ACTIVE_REQUESTS])
+    assert repository.count_active("docente-a") == 2

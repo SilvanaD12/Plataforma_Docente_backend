@@ -25,6 +25,14 @@ class IdempotencyKeyTaken(DomainError):
         self.existing = existing
 
 
+class ActiveRequestLimitReached(DomainError):
+    """El docente ya tiene `max_active` pedidos en `queued` o `running`: el pedido nuevo no se registró."""
+
+    def __init__(self, max_active: int) -> None:
+        super().__init__("El docente alcanzó el límite de pedidos activos.")
+        self.max_active = max_active
+
+
 class GenerationRequestRepositoryPort(Protocol):
     """Operaciones de persistencia del pedido. Las consultas del docente siempre filtran por `teacher_id`."""
 
@@ -32,6 +40,15 @@ class GenerationRequestRepositoryPort(Protocol):
         """Guarda el pedido con sus pasos (`request.steps`) en una sola transacción.
 
         Lanza IdempotencyKeyTaken(existing) si (teacher_id, idempotency_key) ya existe.
+        """
+        ...
+
+    def create_within_limit(self, request: GenerationRequest, max_active: int) -> GenerationRequest:
+        """Como `create`, pero comprueba el cupo y registra el pedido de forma atómica para el docente: dos envíos
+        simultáneos no pueden superar `max_active` pedidos activos (research R4).
+
+        Primero aplica la clave: si (teacher_id, idempotency_key) ya existe lanza IdempotencyKeyTaken(existing),
+        aunque el cupo esté lleno. Si no, lanza ActiveRequestLimitReached cuando el docente ya tiene `max_active`.
         """
         ...
 
@@ -57,16 +74,26 @@ class GenerationRequestRepositoryPort(Protocol):
 
     def mark_running(self, request_id: str, worker_boot_id: str) -> None: ...
 
-    def save_evidence(self, request_id: str, retrieval: EvidenceRetrieval, retrieved_at: str) -> None: ...
+    # Las escrituras del ejecutor solo actualizan filas existentes, nunca las insertan: si el pedido se borró (por
+    # ejemplo, con su curso) devuelven False y no dejan filas huérfanas.
 
-    def update_step(self, request_id: str, step: GenerationStep) -> None: ...
+    def save_evidence(self, request_id: str, retrieval: EvidenceRetrieval, retrieved_at: str) -> bool:
+        """Guarda la evidencia recuperada. Devuelve si el pedido existía."""
+        ...
 
-    def heartbeat(self, request_id: str) -> None: ...
+    def update_step(self, request_id: str, step: GenerationStep) -> bool:
+        """Actualiza un paso existente del pedido. Devuelve False si el pedido o el paso ya no existen."""
+        ...
 
-    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> None:
-        """Cierra el pedido. Un pedido que ya está en un estado final no cambia."""
+    def heartbeat(self, request_id: str) -> bool:
+        """Renueva el latido de un pedido en `queued` o `running`. Devuelve si el pedido existía."""
+        ...
+
+    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> bool:
+        """Cierra el pedido. Un pedido que ya está en un estado final no cambia. Devuelve si el pedido existía."""
         ...
 
     def mark_interrupted(self, stale_before: datetime) -> int:
-        """Pasa a interrupted los pedidos queued o running con el latido vencido. Devuelve cuántos cambió."""
+        """Pasa a interrupted los pedidos queued o running cuyo latido (o su creación, si nunca latieron) es anterior a
+        `stale_before`. Lo usan el barrido de arranque y el barrido periódico. Devuelve cuántos cambió."""
         ...

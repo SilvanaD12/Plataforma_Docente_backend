@@ -6,6 +6,7 @@ Casos GEN-C1, GEN-C4, GEN-C5, GEN-C6 y GEN-C8, y V10 (aislamiento entre dos doce
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Iterator
 from uuid import uuid4
 
@@ -207,5 +208,46 @@ def test_a_third_active_request_gets_429_with_retry_after(single_worker_server: 
         assert int(limited[0].headers["Retry-After"]) > 0
 
         for accepted in responses:
+            if accepted.status_code == 202:
+                _wait_until_final(api, headers, accepted.json()["id"], timeout=120)
+
+
+def test_two_simultaneous_requests_with_one_active_get_exactly_one_429(single_worker_server: str):
+    """Corrección 2 del PR #14: con un pedido activo, dos envíos simultáneos con claves distintas no dejan tres
+    pedidos activos: exactamente uno recibe 429 TOO_MANY_ACTIVE_REQUESTS."""
+    with httpx.Client(base_url=single_worker_server, timeout=60) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        all_types = [
+            "pregunta_detonante", "sondeo_diagnostico", "guia_exploracion", "caso_indagacion",
+            "explicacion", "glosario", "ejercicio_aplicacion", "item_opcion_multiple",
+        ]
+        big = {"mode": "sequence", "unitId": unit["id"], "resourceTypes": all_types, "quantity": 5}
+        first = _start(api, headers, big)
+        assert first.status_code == 202, first.text
+
+        barrier = threading.Barrier(2)
+        responses: list[httpx.Response] = []
+
+        def submit() -> None:
+            with httpx.Client(base_url=single_worker_server, timeout=60) as own:
+                barrier.wait()
+                responses.append(_start(own, headers, big))
+
+        threads = [threading.Thread(target=submit) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=60)
+
+        assert sorted(r.status_code for r in responses) == [202, 429], [r.text for r in responses]
+        [limited] = [r for r in responses if r.status_code == 429]
+        assert limited.json()["error"]["code"] == "TOO_MANY_ACTIVE_REQUESTS" and int(limited.headers["Retry-After"]) > 0
+        active = api.get(
+            "/api/v1/generation-requests", headers=headers, params={"unitId": unit["id"], "active": "true"}
+        ).json()
+        assert len(active) <= 2
+
+        for accepted in [first, *responses]:
             if accepted.status_code == 202:
                 _wait_until_final(api, headers, accepted.json()["id"], timeout=120)

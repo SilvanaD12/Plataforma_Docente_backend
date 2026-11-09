@@ -4,6 +4,10 @@ Persistencia de los pedidos de generación en segundo plano (GEN-01) y de sus pa
 En PostgreSQL las tablas las crea la migración `20261110000001_generation_requests.sql`; en SQLite (desarrollo y
 pruebas) las crea este repositorio, como hacen los demás. Las fechas se guardan como texto ISO 8601 en UTC con
 microsegundos, para que el orden alfabético coincida con el orden temporal.
+
+Las escrituras del ejecutor son `UPDATE` sobre filas existentes: si el curso se borró mientras se generaba, no
+insertan nada y devuelven False. El alta con cupo (`create_within_limit`) serializa los envíos de un mismo docente con
+`pg_advisory_xact_lock` en PostgreSQL y con `BEGIN IMMEDIATE` en SQLite.
 """
 
 from __future__ import annotations
@@ -20,9 +24,12 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     and_,
+    exists,
     func,
     or_,
     select,
+    text,
+    update,
 )
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +37,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from platform5e.application.ports.outbound.evidence_provider_port import EvidenceRetrieval
 from platform5e.application.ports.outbound.generation_request_repository_port import (
+    ActiveRequestLimitReached,
     GenerationRequestRepositoryPort,
     IdempotencyKeyTaken,
 )
@@ -152,19 +160,27 @@ def _step_to_orm(request_id: str, step: GenerationStep) -> GenerationStepORM:
     return row
 
 
+def _step_values(step: GenerationStep) -> dict[str, Any]:
+    """Columnas del paso que cambian durante la ejecución."""
+    return {
+        "stage": step.stage,
+        "resource_type": step.resource_type,
+        "agent": step.agent,
+        "status": StepStatus(step.status).value,
+        "resource_ids": list(step.resource_ids),
+        "rejections": list(step.rejections),
+        "generator": step.generator,
+        "grounding": step.grounding,
+        "distractor_reliability": step.distractor_reliability,
+        "error": _problem_to_json(step.error),
+        "started_at": utc_text(step.started_at) if step.started_at else None,
+        "finished_at": utc_text(step.finished_at) if step.finished_at else None,
+    }
+
+
 def _copy_step(step: GenerationStep, row: GenerationStepORM) -> None:
-    row.stage = step.stage
-    row.resource_type = step.resource_type
-    row.agent = step.agent
-    row.status = StepStatus(step.status).value
-    row.resource_ids = list(step.resource_ids)
-    row.rejections = list(step.rejections)
-    row.generator = step.generator
-    row.grounding = step.grounding
-    row.distractor_reliability = step.distractor_reliability
-    row.error = _problem_to_json(step.error)
-    row.started_at = utc_text(step.started_at) if step.started_at else None
-    row.finished_at = utc_text(step.finished_at) if step.finished_at else None
+    for column, value in _step_values(step).items():
+        setattr(row, column, value)
 
 
 def _step_from_orm(row: GenerationStepORM) -> GenerationStep:
@@ -326,76 +342,150 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
             return self._load(session, session.get(GenerationRequestORM, request.id))  # type: ignore[return-value]
 
     @translate_persistence_errors
-    def mark_running(self, request_id: str, worker_boot_id: str) -> None:
-        """Solo un pedido en cola pasa a ejecución; uno interrumpido o terminado no cambia."""
+    def create_within_limit(self, request: GenerationRequest, max_active: int) -> GenerationRequest:
         with self._sessions() as session:
-            row = session.get(GenerationRequestORM, request_id)
-            if row is None or row.status != RequestStatus.QUEUED.value:
-                return
-            now = utc_text()
-            row.status = RequestStatus.RUNNING.value
-            row.started_at = now
-            row.heartbeat_at = now
-            row.worker_boot_id = worker_boot_id
-            session.commit()
-
-    @translate_persistence_errors
-    def save_evidence(self, request_id: str, retrieval: EvidenceRetrieval, retrieved_at: str) -> None:
-        with self._sessions() as session:
-            row = session.get(GenerationRequestORM, request_id)
-            if row is None:
-                return
-            row.evidence = [fragment.to_dict(retrieved_at) for fragment in retrieval.fragments]
-            row.retrieval_mode = retrieval.retrieval_mode
-            session.commit()
-
-    @translate_persistence_errors
-    def update_step(self, request_id: str, step: GenerationStep) -> None:
-        with self._sessions() as session:
-            row = session.get(GenerationStepORM, (request_id, step.position))
-            if row is None:
-                session.add(_step_to_orm(request_id, step))
-            else:
-                _copy_step(step, row)
-            session.commit()
-
-    @translate_persistence_errors
-    def heartbeat(self, request_id: str) -> None:
-        with self._sessions() as session:
-            row = session.get(GenerationRequestORM, request_id)
-            if row is not None and row.status == RequestStatus.RUNNING.value:
-                row.heartbeat_at = utc_text()
+            # Mientras dura la transacción, ningún otro envío del docente cuenta ni registra pedidos.
+            self._lock_teacher(session, request.teacher_id)
+            existing = self._find_by_key(session, request.teacher_id, request.idempotency_key)
+            if existing is not None:
+                session.rollback()
+                raise IdempotencyKeyTaken(existing)
+            active = session.scalar(
+                select(func.count())
+                .select_from(GenerationRequestORM)
+                .where(
+                    GenerationRequestORM.teacher_id == request.teacher_id,
+                    GenerationRequestORM.status.in_(ACTIVE_STATUSES),
+                )
+            ) or 0
+            if active >= max_active:
+                session.rollback()
+                raise ActiveRequestLimitReached(max_active)
+            session.add(_request_to_orm(request))
+            session.add_all(_step_to_orm(request.id, step) for step in request.steps)
+            try:
                 session.commit()
+            except IntegrityError:
+                session.rollback()
+                existing = self._find_by_key(session, request.teacher_id, request.idempotency_key)
+                if existing is None:
+                    raise
+                raise IdempotencyKeyTaken(existing) from None
+            return self._load(session, session.get(GenerationRequestORM, request.id))  # type: ignore[return-value]
+
+    @staticmethod
+    def _lock_teacher(session: Session, teacher_id: str) -> None:
+        """Bloqueo por docente hasta el final de la transacción (research R4)."""
+        dialect = session.get_bind().dialect.name
+        if dialect == "postgresql":
+            session.execute(
+                text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+                {"key": f"gen_generation_requests:{teacher_id}"},
+            )
+        elif dialect == "sqlite":
+            # Toma el bloqueo de escritura antes de contar: otro envío espera (busy timeout) en vez de leer lo mismo.
+            session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+
+    @staticmethod
+    def _exists(session: Session, request_id: str) -> bool:
+        return bool(session.scalar(select(exists().where(GenerationRequestORM.id == request_id))))
 
     @translate_persistence_errors
-    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> None:
-        """Cierra el pedido. Los pasos sin terminar pasan a `interrupted` si el pedido se interrumpe y a `failed`
-        en los demás casos, con el mismo motivo. Un pedido ya terminado no cambia."""
+    def mark_running(self, request_id: str, worker_boot_id: str) -> None:
+        """Solo un pedido en cola pasa a ejecución; uno interrumpido, terminado o borrado no cambia."""
+        now = utc_text()
         with self._sessions() as session:
-            row = session.get(GenerationRequestORM, request_id)
-            if row is None or RequestStatus(row.status) in FINAL_REQUEST_STATUSES:
-                return
-            now = utc_text()
-            row.status = RequestStatus(status).value
-            row.failure = _problem_to_json(failure)
-            row.finished_at = now
-            step_status = StepStatus.INTERRUPTED if status == RequestStatus.INTERRUPTED else StepStatus.FAILED
-            unfinished = session.scalars(
-                select(GenerationStepORM).where(
-                    GenerationStepORM.request_id == request_id,
-                    GenerationStepORM.status.in_((StepStatus.PENDING.value, StepStatus.RUNNING.value)),
+            session.execute(
+                update(GenerationRequestORM)
+                .where(
+                    GenerationRequestORM.id == request_id,
+                    GenerationRequestORM.status == RequestStatus.QUEUED.value,
+                )
+                .values(
+                    status=RequestStatus.RUNNING.value,
+                    started_at=now,
+                    heartbeat_at=now,
+                    worker_boot_id=worker_boot_id,
                 )
             )
-            for step in unfinished:
-                step.status = step_status.value
-                step.error = _problem_to_json(failure)
-                step.finished_at = now
             session.commit()
+
+    @translate_persistence_errors
+    def save_evidence(self, request_id: str, retrieval: EvidenceRetrieval, retrieved_at: str) -> bool:
+        with self._sessions() as session:
+            result = session.execute(
+                update(GenerationRequestORM)
+                .where(GenerationRequestORM.id == request_id)
+                .values(
+                    evidence=[fragment.to_dict(retrieved_at) for fragment in retrieval.fragments],
+                    retrieval_mode=retrieval.retrieval_mode,
+                )
+            )
+            session.commit()
+            return result.rowcount > 0
+
+    @translate_persistence_errors
+    def update_step(self, request_id: str, step: GenerationStep) -> bool:
+        """Actualiza el paso solo si el pedido y el paso existen; nunca lo inserta (no deja pasos huérfanos)."""
+        with self._sessions() as session:
+            result = session.execute(
+                update(GenerationStepORM)
+                .where(
+                    GenerationStepORM.request_id == request_id,
+                    GenerationStepORM.position == step.position,
+                    exists().where(GenerationRequestORM.id == request_id),
+                )
+                .values(**_step_values(step))
+            )
+            session.commit()
+            return result.rowcount > 0
+
+    @translate_persistence_errors
+    def heartbeat(self, request_id: str) -> bool:
+        """Renueva el latido de un pedido en cola o en ejecución (el ejecutor lo hace con todos los que tiene)."""
+        with self._sessions() as session:
+            result = session.execute(
+                update(GenerationRequestORM)
+                .where(
+                    GenerationRequestORM.id == request_id,
+                    GenerationRequestORM.status.in_(ACTIVE_STATUSES),
+                )
+                .values(heartbeat_at=utc_text())
+            )
+            session.commit()
+            return result.rowcount > 0 or self._exists(session, request_id)
+
+    @translate_persistence_errors
+    def finish(self, request_id: str, status: RequestStatus, failure: Problem | None) -> bool:
+        """Cierra el pedido. Los pasos sin terminar pasan a `interrupted` si el pedido se interrumpe y a `failed`
+        en los demás casos, con el mismo motivo. Un pedido ya terminado no cambia."""
+        now = utc_text()
+        step_status = StepStatus.INTERRUPTED if status == RequestStatus.INTERRUPTED else StepStatus.FAILED
+        with self._sessions() as session:
+            closed = session.execute(
+                update(GenerationRequestORM)
+                .where(
+                    GenerationRequestORM.id == request_id,
+                    GenerationRequestORM.status.not_in([s.value for s in FINAL_REQUEST_STATUSES]),
+                )
+                .values(status=RequestStatus(status).value, failure=_problem_to_json(failure), finished_at=now)
+            )
+            if closed.rowcount:
+                session.execute(
+                    update(GenerationStepORM)
+                    .where(
+                        GenerationStepORM.request_id == request_id,
+                        GenerationStepORM.status.in_((StepStatus.PENDING.value, StepStatus.RUNNING.value)),
+                    )
+                    .values(status=step_status.value, error=_problem_to_json(failure), finished_at=now)
+                )
+            session.commit()
+            return closed.rowcount > 0 or self._exists(session, request_id)
 
     @translate_persistence_errors
     def mark_interrupted(self, stale_before: datetime) -> int:
-        """Barrido de arranque (research R3): interrumpe los pedidos activos cuyo último latido, o su creación si
-        nunca latieron, es anterior a `stale_before`. Los pasos terminados y sus recursos se conservan."""
+        """Barridos de arranque y periódico (research R3): interrumpe los pedidos activos cuyo último latido, o su
+        creación si nunca latieron, es anterior a `stale_before`. Los pasos terminados y sus recursos se conservan."""
         limit = utc_text(stale_before)
         now = utc_text()
         with self._sessions() as session:
