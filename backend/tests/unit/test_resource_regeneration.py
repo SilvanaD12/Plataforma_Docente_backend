@@ -43,6 +43,7 @@ class Resources:
     def __init__(self, *resources: dict[str, Any]) -> None:
         self.by_id = {r["id"]: copy.deepcopy(r) for r in resources}
         self.claims: dict[str, int] = {}
+        self.attempts: dict[str, str | None] = {}
 
     def get_resource_by_id(self, teacher_id: str, resource_id: str) -> dict[str, Any] | None:
         return copy.deepcopy(self.by_id.get(resource_id)) if teacher_id == "ana" else None
@@ -68,12 +69,20 @@ class Resources:
         if self.claims.get(resource["id"]) == expected_version:
             return False
         self.claims[resource["id"]] = expected_version
+        self.attempts[resource["id"]] = (resource.get("regeneration") or {}).get("attemptId")
         self.by_id[resource["id"]] = {**copy.deepcopy(resource), "version": expected_version}
         return True
 
-    def release_regeneration(self, teacher_id, unit_id, resource_id, expected_version) -> None:
-        if self.claims.get(resource_id) == expected_version:
-            del self.claims[resource_id]
+    def save_resource_if_attempt(
+        self, teacher_id, unit_id, resource, expected_version, attempt_id, increment=False
+    ) -> bool:
+        if self.attempts.get(resource["id"]) != attempt_id:
+            return False
+        return self.save_resource_if_version(teacher_id, unit_id, resource, expected_version, increment)
+
+    def release_regeneration(self, teacher_id, unit_id, resource_id, attempt_id) -> None:
+        if self.attempts.get(resource_id) == attempt_id:
+            self.claims.pop(resource_id, None)
 
 
 class FakeGeneration:

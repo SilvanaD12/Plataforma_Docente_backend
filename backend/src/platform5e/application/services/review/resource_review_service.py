@@ -500,8 +500,8 @@ class ResourceReviewService:
             reason = outcome.reason or "La regeneración no terminó bien."
             failed = {**record, "status": "failed", "reason": reason, "code": outcome.code}
             record = self._record_regeneration(teacher_id, unit_id, resource_id, failed)
-            if record is failed:  # si otra consulta ya cerró este intento, se devuelve lo guardado
-                self._review_repository.release_regeneration(teacher_id, unit_id, resource_id, expected_version)
+            if record is failed:  # si otra consulta ya cerró este intento, o hay uno nuevo, se devuelve lo guardado
+                self._review_repository.release_regeneration(teacher_id, unit_id, resource_id, failed["attemptId"])
                 if raise_on_failure:
                     raise RegenerationFailedError(reason, outcome.code)
             return record if as_record else _regeneration_response(resource_id, record)
@@ -520,13 +520,13 @@ class ResourceReviewService:
         now = datetime.now(timezone.utc).isoformat()
         discarded = {**latest, "status": "descartado", "discardReason": "regenerado", "decidedAt": now,
                      "updatedAt": now, "regeneration": {**record, "previousDiscarded": True}}
-        if latest.get("version", 1) == expected_version and self._review_repository.save_resource_if_version(
-            teacher_id, unit_id, discarded, expected_version
+        if latest.get("version", 1) == expected_version and self._review_repository.save_resource_if_attempt(
+            teacher_id, unit_id, discarded, expected_version, record["attemptId"], increment=True
         ):
             record = discarded["regeneration"]
         else:
-            # No se descartó: o el docente lo editó, o otra consulta ya terminó este intento y lo descartó. En el
-            # segundo caso se devuelve lo guardado (`previousDiscarded: true`) en lugar de sobrescribirlo.
+            # No se descartó: el docente lo editó, otra consulta ya terminó este intento y lo descartó, o hay un intento
+            # más nuevo. En los dos últimos casos se devuelve lo guardado en lugar de sobrescribirlo.
             record = self._record_regeneration(teacher_id, unit_id, resource_id, {**record, "previousDiscarded": False})
         return record if as_record else _regeneration_response(resource_id, record)
 
@@ -536,18 +536,19 @@ class ResourceReviewService:
         """Guarda el estado del pedido en el recurso anterior sin cambiar su versión ni su contenido.
 
         No sobrescribe un intento que ya terminó (`succeeded` o `failed`): si dos consultas del mismo pedido se solapan,
-        la segunda devuelve lo que guardó la primera. La escritura es condicional por versión; si la versión cambió
-        entre la lectura y la escritura, se vuelve a leer. Devuelve el registro que quedó guardado.
+        la segunda devuelve lo que guardó la primera. Tampoco escribe sobre un intento más nuevo (revisión de Silvana en
+        el PR #17): la escritura compara la versión y el `attemptId` vigente en el mismo UPDATE; si alguno cambió entre
+        la lectura y la escritura, se vuelve a leer. Devuelve el registro que quedó guardado.
         """
         for _ in range(5):
             latest = self._review_repository.get_resource_by_id(teacher_id, resource_id)
             if latest is None:
                 return record
             stored = latest.get("regeneration") or {}
-            if _same_finished_attempt(stored, record):
+            if stored.get("attemptId") != record.get("attemptId") or _same_finished_attempt(stored, record):
                 return stored
-            if self._review_repository.save_resource_if_version(
-                teacher_id, unit_id, {**latest, "regeneration": record}, latest.get("version", 1), increment=False
+            if self._review_repository.save_resource_if_attempt(
+                teacher_id, unit_id, {**latest, "regeneration": record}, latest.get("version", 1), record["attemptId"]
             ):
                 return record
         return record

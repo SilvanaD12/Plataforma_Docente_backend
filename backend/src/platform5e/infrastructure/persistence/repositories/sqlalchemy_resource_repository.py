@@ -32,6 +32,8 @@ def _ensure_version_column_in_sqlite() -> None:
             connection.execute(text(f"ALTER TABLE {table} ADD COLUMN version INTEGER NOT NULL DEFAULT 1"))
         if "regeneration_claim" not in columns:
             connection.execute(text(f"ALTER TABLE {table} ADD COLUMN regeneration_claim INTEGER NULL"))
+        if "regeneration_attempt" not in columns:
+            connection.execute(text(f"ALTER TABLE {table} ADD COLUMN regeneration_attempt VARCHAR NULL"))
 
 
 def _with_version(entity: TeacherResourceORM) -> dict[str, Any]:
@@ -128,13 +130,40 @@ class SQLAlchemyResourceRepository(ResourceReviewRepositoryPort):
                 .values(
                     resource_data={**resource, "version": expected_version},
                     regeneration_claim=expected_version,
+                    regeneration_attempt=(resource.get("regeneration") or {}).get("attemptId"),
                 )
             )
             session.commit()
             return result.rowcount == 1
 
     @translate_persistence_errors
-    def release_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int) -> None:
+    def save_resource_if_attempt(
+        self,
+        teacher_id: str,
+        unit_id: str,
+        resource: dict[str, Any],
+        expected_version: int,
+        attempt_id: str,
+        increment: bool = False,
+    ) -> bool:
+        new_version = expected_version + 1 if increment else expected_version
+        with SessionLocal() as session:
+            result = session.execute(
+                update(TeacherResourceORM)
+                .where(
+                    TeacherResourceORM.id == resource["id"],
+                    TeacherResourceORM.teacher_id == teacher_id,
+                    TeacherResourceORM.unit_id == unit_id,
+                    TeacherResourceORM.version == expected_version,
+                    TeacherResourceORM.regeneration_attempt == attempt_id,
+                )
+                .values(resource_data={**resource, "version": new_version}, version=new_version)
+            )
+            session.commit()
+            return result.rowcount == 1
+
+    @translate_persistence_errors
+    def release_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, attempt_id: str) -> None:
         with SessionLocal() as session:
             session.execute(
                 update(TeacherResourceORM)
@@ -142,7 +171,7 @@ class SQLAlchemyResourceRepository(ResourceReviewRepositoryPort):
                     TeacherResourceORM.id == resource_id,
                     TeacherResourceORM.teacher_id == teacher_id,
                     TeacherResourceORM.unit_id == unit_id,
-                    TeacherResourceORM.regeneration_claim == expected_version,
+                    TeacherResourceORM.regeneration_attempt == attempt_id,
                 )
                 .values(regeneration_claim=None)
             )
