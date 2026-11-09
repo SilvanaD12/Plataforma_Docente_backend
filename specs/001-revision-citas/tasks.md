@@ -137,12 +137,14 @@ sin una verificación vigente.
 - [x] T022 [BE] [US1] Agregar `retry_verification(teacher_id, unit_id, resource_id, expected_version)` en `backend/src/platform5e/application/services/review/resource_review_service.py`. Solo actúa si el estado es `pending` y `retryAvailable` es verdadero. Usa `verify_resource` con el umbral guardado y guarda con `save_resource_if_version`.
 - [x] T023 [BE] [US1] En `verify_resource` (`backend/src/platform5e/domain/review/resource_verification.py`): si el resultado nuevo difiere del anterior y la `ruleVersion` guardada es otra, el motivo debe decir «la regla de verificación cambió (vN → vM)» (REV-C10).
 - [x] T024 [BE] [US1] Agregar `POST /api/v1/units/{unit_id}/resources/{resource_id}/verification` en `backend/src/platform5e/infrastructure/http/routers/resources.py`. Recibe `{expectedVersion}` y documenta los errores 404 y 409 (`VERSION_CONFLICT`, `VERIFICATION_NOT_PENDING`, `REGENERATION_REQUIRED`), según [contracts/](contracts/review-export.openapi.yaml).
-- [ ] T025 [BE] [US1] Cierre del bloque c): correr las pruebas y `scripts/export_openapi.py`, y hacer el **commit c)** y el **PR 1** del backend. El PR debe:
+- [x] T025 [BE] [US1] Cierre del bloque c): correr las pruebas y `scripts/export_openapi.py`, y hacer el **commit c)** y el **PR 1** del backend. El PR debe:
   - enlazar la ficha y las tareas T003 a T025;
   - avisar del cambio incompatible del PUT;
   - enlazar el PR del frontend de T033.
 
   **No se integra ni se despliega en Render** hasta que el PR FE-1 esté listo (mensaje 3 a Silvana).
+
+  **Hecho (2026-11-08):** el PR 1 es el [#6 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/6), con las correcciones de la revisión de Silvana (`becc1df` y `277ce9b`). Silvana lo integró en `main` (`5f5281b`) junto con el PR FE-1.
 
 ### FE-1 · Pestaña de revisión (REV-C1, C3, C11, C14)
 
@@ -159,7 +161,7 @@ sin una verificación vigente.
 - [x] T030 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/components/VerificationBadge.tsx`, que muestra el estado en español y `reason`, el botón «Reintentar comprobación» si `retryAvailable` o el aviso «Regenera el recurso» si no. Incluir su prueba `VerificationBadge.test.tsx` (REV-C3, C11).
 - [x] T031 [FE] [US1] Crear `Plataforma_Docente_frontend/src/features/review/components/ResourceEditor.tsx`. Edita título, cuerpo, opciones y estructura, guarda con la `version` leída y muestra los `approvalBlockers` del servidor sin repetir reglas. Ante un 409 `VERSION_CONFLICT`, pide recargar sin perder lo escrito hasta que el docente confirme (REV-C14). Con `reviewReset`, avisa que el recurso volvió a revisión (REV-C1).
 - [x] T032 [FE] [US1] Reemplazar el marcador de `Plataforma_Docente_frontend/src/features/review/pages/ReviewPage.tsx` (hoy `UnitModulePlaceholder`), conservando el nombre `ReviewPage` y su exportación. Lee `const { course, unit } = useOutletContext<UnitContext>()`, lista los recursos de `unit.id` con carga, vacío y error, y usa `ResourceEditor` y `VerificationBadge`.
-- [x] T033 [FE] [US1] Cierre de FE-1: **Hecho (2026-11-08):** recorrido en el navegador correcto (pasos 1 a 8) y PR FE-1 abierto como [#4 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/4), enlazado al [PR #6 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/6); se integran juntos. con el backend local del PR 1, correr `npm run lint`, `npm test` y `npm run build`, revisar la pestaña en el navegador y abrir el **PR FE-1** enlazado al PR 1 del backend, con capturas.
+- [x] T033 [FE] [US1] Cierre de FE-1: con el backend local del PR 1, correr `npm run lint`, `npm test` y `npm run build`, revisar la pestaña en el navegador y abrir el **PR FE-1** enlazado al PR 1 del backend, con capturas. **Hecho (2026-11-08):** recorrido en el navegador correcto (pasos 1 a 8) y PR FE-1 abierto como [#4 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/4), enlazado al [PR #6 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/6), con las correcciones de la revisión de Silvana. Silvana integró los dos en `main` (frontend `d4bfbbc`).
 
 ## Fase 4 · Historia 3: exportar solo lo verificado y consultar lo descargado (prioridad 3)
 
@@ -256,16 +258,20 @@ el pedido conserva ambos y un fallo deja el anterior igual.
 
 ## Fase 6 · FE-2: exportación, multimedia y regeneración (REV-C7, C8, C9, C12, C13)
 
-- [ ] T056 [P] [FE] [US3] Crear `Plataforma_Docente_frontend/src/features/export/api/exportApi.test.ts`:
+- [x] T056 [P] [FE] [US3] Crear `Plataforma_Docente_frontend/src/features/export/api/exportApi.test.ts`:
   - el 422 `NO_APPROVED_RESOURCES` expone los motivos de `details`;
   - el historial de `GET /api/v1/downloads` muestra «Curso eliminado» cuando `courseName` es `null`.
-- [ ] T057 [FE] [US3] Crear `Plataforma_Docente_frontend/src/features/export/api/exportApi.ts` (exportar con descarga del archivo, e historial por docente) y reemplazar el marcador de `src/features/export/pages/ExportPage.tsx` (hoy `UnitModulePlaceholder`), conservando el nombre `ExportPage` y su exportación. La página lee `useOutletContext<UnitContext>()`, ofrece los formatos, muestra el motivo sin elegibles y lista el historial con fecha, formato, archivo, curso y unidad (REV-C7, C9). Si el 422 llega sin `details`, se muestra el `message` de la API (acordado con Silvana el 2026-11-08). Adaptar lo que sirva de `feca57c` (`src/features/export`).
-- [ ] T058 [FE] [US2] Completar `Plataforma_Docente_frontend/src/features/review/pages/ReviewPage.tsx` y `components/ResourceEditor.tsx`:
+
+  **Hecho (2026-11-08):** en la rama FE-2 (`4a34887`), con pruebas del modelo (`model/exportView.test.ts`), de la página y de `requestFile` en `src/shared/api/httpClient.test.ts`.
+- [x] T057 [FE] [US3] Crear `Plataforma_Docente_frontend/src/features/export/api/exportApi.ts` (exportar con descarga del archivo, e historial por docente) y reemplazar el marcador de `src/features/export/pages/ExportPage.tsx` (hoy `UnitModulePlaceholder`), conservando el nombre `ExportPage` y su exportación. La página lee `useOutletContext<UnitContext>()`, ofrece los formatos, muestra el motivo sin elegibles y lista el historial con fecha, formato, archivo, curso y unidad (REV-C7, C9). Si el 422 llega sin `details`, se muestra el `message` de la API (acordado con Silvana el 2026-11-08). Adaptar lo que sirva de `feca57c` (`src/features/export`). **Hecho (2026-11-08):** en la rama FE-2 (`4a34887`): tres formatos, descarga con el nombre de `Content-Disposition` (`requestFile` en el cliente HTTP compartido), motivos de `details` o el `message` de la API, e historial del docente.
+- [x] T058 [FE] [US2] Completar `Plataforma_Docente_frontend/src/features/review/pages/ReviewPage.tsx` y `components/ResourceEditor.tsx`:
   - **Pasa de FE-1 a FE-2 (acordado el 2026-11-08):** editar la `structure` de imagen, audio y actividades, y descartar con motivo (`discardReason`);
   - aviso de multimedia invalidada con el botón «Generar de nuevo» (REV-C8);
   - botón de regenerar con `expectedVersion`;
   - resultado con el anterior descartado o conservado (REV-C12);
   - motivo del fallo (REV-C13).
+
+  **Hecho (2026-11-08):** en la rama FE-2, en cuatro commits: descarte con motivo y vuelta a revisión (`84a3f87`); editor de la estructura con los mínimos del backend (`0c7d3e6`); aviso de multimedia invalidada con «Generar de nuevo» (`c33cbc4`); y «Regenerar» con el resultado y el motivo del fallo (`439c971`). Las reglas están en `src/features/review/model/` con sus pruebas.
 - [ ] T059 [FE] Cierre de FE-2: correr `npm run lint`, `npm test` y `npm run build`, y abrir el **PR FE-2** enlazado al PR 2 del backend, con capturas.
 
 ## Fase 7 · Recorridos de extremo a extremo y cierre
