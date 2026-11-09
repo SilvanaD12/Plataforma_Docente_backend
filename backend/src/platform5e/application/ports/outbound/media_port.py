@@ -35,6 +35,11 @@ class MediaRepositoryPort(Protocol):
 
     def get_media(self, teacher_id: str, media_id: str) -> tuple[dict[str, Any], bytes] | None: ...
 
+    def delete_media(self, teacher_id: str, media_id: str) -> None:
+        """Borra un archivo del docente. Si no existe, no hace nada. Lo usa GEN-01 para quitar la multimedia de un
+        paso cuyo pedido se borró antes de confirmarse."""
+        ...
+
 
 class VisualRendererPort(Protocol):
     """Dibuja como SVG los recursos visuales (mapa conceptual, infografía, diagrama) y la tarjeta de respaldo."""

@@ -7,8 +7,11 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from typing import Any
 
+from platform5e.application.ports.outbound.evidence_provider_port import EvidenceFragment
+from platform5e.application.ports.outbound.unit_membership_port import UnitContext
 from platform5e.domain.generation.distractor_reliability import assess_distractor
 from platform5e.domain.generation.grounding import (
     DEFAULT_THRESHOLD,
@@ -251,6 +254,35 @@ def build_generation_context(
             for i, chunk in enumerate(chunks)
         ],
     }
+
+
+def build_step_context(
+    unit_context: UnitContext,
+    request_data: dict[str, Any],
+    fragments: Sequence[EvidenceFragment],
+) -> dict[str, Any]:
+    """GEN-01 (T014): el mismo contexto de `build_generation_context`, a partir de los puertos de Cuentas y Material.
+
+    Traduce `UnitContext` y `EvidenceFragment` a la forma que ya usa la generación, así las etiquetas F1…Fn, el
+    pedido y `secuenciaPrevia` (que agrega quien llama) no cambian.
+    """
+    course = {
+        "id": unit_context.course_id,
+        "name": unit_context.course_name,
+        "summary": unit_context.course_summary,
+        "learningGoal": unit_context.learning_goal,
+    }
+    unit = {
+        "id": unit_context.unit_id,
+        "number": unit_context.unit_number,
+        "title": unit_context.unit_title,
+        "outcomes": [{"id": o.id, "code": o.code, "text": o.text} for o in unit_context.outcomes],
+    }
+    chunks = [
+        {"id": f.chunk_id, "documentId": f.document_id, "location": f.location, "text": f.text} for f in fragments
+    ]
+    documents = {f.document_id: f.document_name for f in fragments}
+    return build_generation_context(course, unit, request_data, chunks, documents)
 
 
 def build_prompt_instructions(context: dict[str, Any]) -> tuple[str, str]:
@@ -534,6 +566,7 @@ def normalize_generated_resources(
                         "title": title,
                         "reason": grounding.rejection_reason(title),
                         "grounding": grounding.summary(),
+                        "kind": "grounding",
                     }
                 )
             continue
@@ -548,7 +581,12 @@ def normalize_generated_resources(
             if not statements.accepted:
                 if rejections is not None:
                     rejections.append(
-                        {"title": title, "reason": statements.rejection_reason(title), "grounding": verification}
+                        {
+                            "title": title,
+                            "reason": statements.rejection_reason(title),
+                            "grounding": verification,
+                            "kind": "grounding",
+                        }
                     )
                 continue
             body = statements.kept_body()
@@ -572,6 +610,7 @@ def normalize_generated_resources(
                                     f"la exploración necesita al menos {MIN_ITEMS['exploracion_guiada']}."
                                 ),
                                 "grounding": verification,
+                                "kind": "grounding",
                             }
                         )
                     continue
@@ -590,6 +629,7 @@ def normalize_generated_resources(
                                     f"en el material; el reto necesita al menos {MIN_ITEMS['reto_prediccion']}."
                                 ),
                                 "grounding": verification,
+                                "kind": "grounding",
                             }
                         )
                     continue
@@ -608,6 +648,7 @@ def normalize_generated_resources(
                                     f"material; el caso necesita al menos {MIN_ITEMS['caso_aplicado']}."
                                 ),
                                 "grounding": verification,
+                                "kind": "grounding",
                             }
                         )
                     continue
@@ -634,6 +675,7 @@ def normalize_generated_resources(
                                 f"«{title}»: solo {reliable} distractor(es) fiable(s); el material muestra como "
                                 "correctos los demás."
                             ),
+                            "kind": "distractor",
                         }
                     )
                 continue

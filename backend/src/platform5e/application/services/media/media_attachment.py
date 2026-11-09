@@ -6,6 +6,7 @@ respaldo (tarjeta con la descripción o voz del navegador). Lo usan la generaci�
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
@@ -32,19 +33,23 @@ def fallback_media(kind: str, note: str | None = None) -> dict[str, Any]:
     return {"status": "fallback", "note": note or FALLBACK_NOTES[kind]}
 
 
-def attach_generated_media(
-    teacher_id: str,
-    resource: dict[str, Any],
-    generator: MediaGeneratorPort | None,
-    repository: MediaRepositoryPort | None,
-) -> bool:
-    """Deja en `resource["media"]` el archivo generado o el respaldo. Devuelve True si se generó el archivo."""
+@dataclass(frozen=True)
+class PendingMedia:
+    """Archivo ya generado que todavía no se guardó: `media` es su descripción (la que queda en el recurso)."""
+
+    media: dict[str, Any]
+    content: bytes
+
+
+def generate_media(resource: dict[str, Any], generator: MediaGeneratorPort | None) -> PendingMedia | None:
+    """Genera la imagen o el audio del recurso sin guardarlo. Deja en `resource["media"]` la descripción del archivo o
+    el respaldo, y devuelve el archivo pendiente de guardar (None si no hay archivo)."""
     kind = resource.get("format")
     if kind not in (IMAGE, AUDIO):
-        return False
+        return None
     resource["media"] = fallback_media(kind)
-    if generator is None or repository is None:
-        return False
+    if generator is None:
+        return None
     structure = resource.get("structure") or {}
     try:
         generated = (
@@ -53,7 +58,7 @@ def attach_generated_media(
     except Exception as exc:  # el recurso se conserva con su respaldo
         logger.warning("Medio no generado para %s: %s", resource.get("id"), str(exc)[:200])
         resource["media"]["note"] += f" ({str(exc)[:120]})"
-        return False
+        return None
     media = {
         "id": f"media-{uuid4()}",
         "resourceId": resource["id"],
@@ -63,6 +68,19 @@ def attach_generated_media(
         "sizeBytes": len(generated.content),
         "generator": generator.description,
     }
-    repository.save_media(teacher_id, media, generated.content)
     resource["media"] = media
+    return PendingMedia(media=media, content=generated.content)
+
+
+def attach_generated_media(
+    teacher_id: str,
+    resource: dict[str, Any],
+    generator: MediaGeneratorPort | None,
+    repository: MediaRepositoryPort | None,
+) -> bool:
+    """Deja en `resource["media"]` el archivo generado o el respaldo. Devuelve True si se generó el archivo."""
+    pending = generate_media(resource, generator if repository is not None else None)
+    if pending is None or repository is None:
+        return False
+    repository.save_media(teacher_id, pending.media, pending.content)
     return True

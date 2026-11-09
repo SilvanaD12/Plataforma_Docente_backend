@@ -16,7 +16,9 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     delete,
+    inspect,
     select,
+    text,
 )
 
 from platform5e.application.ports.outbound.generation_repository_port import GenerationRepositoryPort
@@ -28,6 +30,11 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_re
     TeacherGenerationORM,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
+    GenerationRequestORM,
+    GenerationStepORM,
+    lock_teacher_generation_requests,
+)
 
 
 # Cursos y documentos guardados antes del contrato en inglés (octubre de 2026) traen claves en español.
@@ -254,6 +261,8 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     @translate_persistence_errors
     def delete_course(self, teacher_id: str, course_id: str, unit_ids: list[str]) -> None:
         with SessionLocal() as session:
+            # GEN-01 (T047): en PostgreSQL, el mismo bloqueo por docente que el alta de pedidos de generación.
+            lock_teacher_generation_requests(session, teacher_id)
             resource_ids = select(TeacherResourceORM.id).where(
                 TeacherResourceORM.teacher_id == teacher_id,
                 TeacherResourceORM.unit_id.in_(unit_ids),
@@ -268,6 +277,21 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
                 session.execute(
                     delete(table).where(
                         table.teacher_id == teacher_id, table.unit_id.in_(unit_ids)
+                    )
+                )
+            # GEN-01 (T047): pedidos de generación de las unidades del curso. Sus pasos se borran por la clave foránea
+            # con ON DELETE CASCADE; en SQLite, si la cascada no está activa, se borran antes de los pedidos.
+            connection = session.connection()
+            if inspect(connection).has_table(GenerationRequestORM.__tablename__):
+                request_ids = select(GenerationRequestORM.id).where(
+                    GenerationRequestORM.teacher_id == teacher_id,
+                    GenerationRequestORM.unit_id.in_(unit_ids),
+                )
+                if connection.dialect.name == "sqlite" and not connection.execute(text("PRAGMA foreign_keys")).scalar():
+                    session.execute(delete(GenerationStepORM).where(GenerationStepORM.request_id.in_(request_ids)))
+                session.execute(
+                    delete(GenerationRequestORM).where(
+                        GenerationRequestORM.teacher_id == teacher_id, GenerationRequestORM.unit_id.in_(unit_ids)
                     )
                 )
             session.execute(
