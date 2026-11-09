@@ -395,8 +395,9 @@ class ResourceReviewService:
         """REV-C12 y REV-C13: pide a Generación un recurso nuevo y descarta el anterior solo si sigue en la versión
         registrada. Decisión provisional D10 (sin confirmación de Generación).
 
-        - Antes de pedirlo, registra en el anterior `regeneration` con la versión de partida. Pedirlo otra vez desde la
-          misma versión devuelve el mismo resultado sin generar de nuevo (salvo que el pedido anterior haya fallado).
+        - Antes de pedirlo, reserva el pedido de forma atómica y registra en el anterior `regeneration` con la versión
+          de partida. Pedirlo otra vez desde la misma versión, incluso al mismo tiempo, devuelve el mismo resultado sin
+          generar de nuevo (salvo que el pedido anterior haya fallado, que libera la reserva).
         - Si termina bien, los recursos nuevos guardan `regeneratedFrom` y se verifican al leerlos, como los antiguos.
           El anterior pasa a `descartado` con `discardReason = "regenerado"` con un guardado condicional: si el
           docente lo editó mientras tanto, no se toca y los dos quedan en Revisión.
@@ -415,10 +416,16 @@ class ResourceReviewService:
                 "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de regenerarlo.", 409
             )
 
+        # La reserva es atómica: si dos solicitudes llegan a la vez desde la misma versión, solo una la consigue y
+        # la otra devuelve el pedido en curso sin generar otro recurso.
         record = {"fromVersion": expected_version, "requestId": None, "status": "running", "newResourceIds": []}
-        if not self._review_repository.save_resource_if_version(
-            teacher_id, unit_id, {**existing, "regeneration": record}, expected_version, increment=False
+        if not self._review_repository.claim_regeneration(
+            teacher_id, unit_id, {**existing, "regeneration": record}, expected_version
         ):
+            latest = self._review_repository.get_resource_by_id(teacher_id, resource_id) or {}
+            claimed = latest.get("regeneration") or {}
+            if claimed.get("fromVersion") == expected_version and claimed.get("status") in ("running", "succeeded"):
+                return _regeneration_response(resource_id, claimed)
             raise AccountConfigurationError(
                 "VERSION_CONFLICT", "El recurso cambió en otra pestaña. Recárgalo antes de regenerarlo.", 409
             )
@@ -433,6 +440,7 @@ class ResourceReviewService:
             self._record_regeneration(
                 teacher_id, unit_id, resource_id, {**record, "status": "failed", "reason": reason, "code": outcome.code}
             )
+            self._review_repository.release_regeneration(teacher_id, unit_id, resource_id, expected_version)
             raise RegenerationFailedError(reason, outcome.code)
 
         for new_id in outcome.new_resource_ids:

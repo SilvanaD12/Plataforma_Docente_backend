@@ -245,9 +245,14 @@ prefiere otra cosa, el cambio se concentra en el adaptador (ver «Qué cambiarí
   guardados incompletos, ningún recurso con respaldo o un error inesperado). **No se modificó ningún archivo de
   Generación.** `main.py` crea el servicio de revisión después del de generación para pasarle el adaptador.
 - **Servicio** `ResourceReviewService.regenerate_resource(teacher_id, unit_id, resource_id, expected_version)`:
-  - Antes de pedirlo, guarda en el anterior `regeneration: {fromVersion, requestId, status: "running", newResourceIds}`
-    sin cambiar su versión. Si llega otra vez el mismo pedido (misma `fromVersion`, estado `running` o `succeeded`),
-    devuelve el mismo resultado **sin generar de nuevo**. Después de un fallo, se puede volver a pedir.
+  - Antes de pedirlo, **reserva el pedido de forma atómica** con `claim_regeneration`: un solo `UPDATE` condicional
+    que exige la versión esperada y que no haya reserva para esa versión (columna `regeneration_claim`, migración
+    `20261109000001_regeneration_claim.sql`), y que en la misma sentencia guarda en el anterior
+    `regeneration: {fromVersion, requestId, status: "running", newResourceIds}` sin cambiar su versión. Si llega otra
+    vez el mismo pedido, incluso al mismo tiempo (misma `fromVersion`, estado `running` o `succeeded`), devuelve el
+    mismo resultado **sin generar de nuevo**. Después de un fallo se libera la reserva y se puede volver a pedir.
+    Corrección pedida por Silvana en la revisión del PR #13 (2026-11-09), con una prueba concurrente
+    (`tests/integration/test_regeneration_concurrency.py`).
   - Si termina bien, cada recurso nuevo guarda `regeneratedFrom: {resourceId, version}` y se verifica al leerlo, como
     los recursos antiguos (D7). El anterior pasa a `descartado` con `discardReason = "regenerado"` con un guardado
     condicional por versión. Si el docente lo editó mientras tanto, no se toca, los dos quedan en Revisión y la
@@ -263,10 +268,9 @@ prefiere otra cosa, el cambio se concentra en el adaptador (ver «Qué cambiarí
   `REGENERATION_UNAVAILABLE`.
 
 **Límites conocidos.**
-- Dos pedidos **simultáneos** desde la misma versión, en el mismo milisegundo, podrían pasar los dos antes de que
-  cualquiera registre `running`. El caso real (doble clic o reintento después de la respuesta) sí queda cubierto.
-  Cerrarlo del todo requiere una restricción en la base o un pedido en segundo plano con clave de idempotencia.
-- Si el servidor se cae a mitad de un pedido, el anterior queda con `status: "running"` para esa versión y el mismo
+- ~~Dos pedidos simultáneos desde la misma versión podían pasar los dos.~~ Cerrado con la reserva atómica
+  (2026-11-09).
+- Si el servidor se cae a mitad de un pedido, la reserva y `status: "running"` quedan para esa versión y el mismo
   pedido no se repite. Editar el recurso cambia su versión y permite volver a pedirlo.
 
 **Qué cambiaría si Generación prefiere otra cosa.**

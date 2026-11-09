@@ -42,6 +42,7 @@ class Resources:
 
     def __init__(self, *resources: dict[str, Any]) -> None:
         self.by_id = {r["id"]: copy.deepcopy(r) for r in resources}
+        self.claims: dict[str, int] = {}
 
     def get_resource_by_id(self, teacher_id: str, resource_id: str) -> dict[str, Any] | None:
         return copy.deepcopy(self.by_id.get(resource_id)) if teacher_id == "ana" else None
@@ -59,6 +60,20 @@ class Resources:
             return False
         self.by_id[resource["id"]] = {**copy.deepcopy(resource), "version": expected_version + 1 if increment else expected_version}
         return True
+
+    def claim_regeneration(self, teacher_id, unit_id, resource, expected_version) -> bool:
+        current = self.by_id.get(resource["id"])
+        if current is None or current.get("version", 1) != expected_version:
+            return False
+        if self.claims.get(resource["id"]) == expected_version:
+            return False
+        self.claims[resource["id"]] = expected_version
+        self.by_id[resource["id"]] = {**copy.deepcopy(resource), "version": expected_version}
+        return True
+
+    def release_regeneration(self, teacher_id, unit_id, resource_id, expected_version) -> None:
+        if self.claims.get(resource_id) == expected_version:
+            del self.claims[resource_id]
 
 
 class FakeGeneration:
