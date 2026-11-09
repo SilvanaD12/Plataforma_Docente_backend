@@ -30,6 +30,7 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_re
     TeacherGenerationORM,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
+from platform5e.domain.accounts.teacher_account import find_course_and_unit
 
 
 # Cursos y documentos guardados antes del contrato en inglés (octubre de 2026) traen claves en español.
@@ -347,3 +348,12 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
         with SessionLocal() as session:
             entity = session.get(TeacherGenerationORM, generation_id)
             return entity.teacher_id if entity else None
+
+    @translate_persistence_errors
+    def get_unit_context(self, teacher_id: str, unit_id: str) -> dict[str, Any] | None:
+        """Recupera el contexto de la unidad (curso, unidad y outcomes) asegurando pertenencia del docente."""
+        courses = self.get_courses(teacher_id)
+        match = find_course_and_unit(courses, unit_id)
+        if match is None:
+            return None
+        return match[1]

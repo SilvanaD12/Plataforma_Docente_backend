@@ -43,7 +43,6 @@ def build_article_filename(title: str, source_label: str = "") -> str:
 class MaterialService:
     """Servicio de aplicación para coordinar la ingesta y extracción de fragmentos de material."""
 
-    # Declaración explícita para que Pylance la reconozca en toda la clase
     _unit_membership_port: UnitMembershipPort | None
 
     def __init__(
@@ -112,7 +111,11 @@ class MaterialService:
             raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
 
         if outcome_ids:
-            outcomes = getattr(context, "outcomes", [])
+            if isinstance(context, dict):
+                outcomes = context.get("outcomes", [])
+            else:
+                outcomes = getattr(context, "outcomes", [])
+
             valid_ids = {
                 o.id if hasattr(o, "id") else o.get("id") if isinstance(o, dict) else str(o)
                 for o in outcomes
