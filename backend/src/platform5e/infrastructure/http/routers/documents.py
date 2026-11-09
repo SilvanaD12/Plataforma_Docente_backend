@@ -39,6 +39,7 @@ def create_documents_router(account_service: AccountService, material_service: M
 
     @router.get(
         "/search",
+        response_model=list[dict[str, Any]],
         summary="Hybrid search of evidence across documents",
         responses=error_responses(401, 404),
     )
@@ -48,8 +49,17 @@ def create_documents_router(account_service: AccountService, material_service: M
         top_k: int = 5,
         teacher_id: str = Depends(current_teacher),
     ) -> list[dict[str, Any]]:
-        """Realiza una búsqueda híbrida (BM25 + pgvector HNSW) para recuperar fragmentos relevantes."""
-        # Aquí puedes invocar tu HybridEvidenceRetriever configurado a través del material_service o repositorio correspondiente
+        """Hybrid search of evidence across documents.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/documents/search?query=redes" -H "Authorization: Bearer $TOKEN"
+        ```
+
+        Expected 200. See the response schema below for the returned fields.
+        """
         return material_service.search_evidence(teacher_id, query, top_k=top_k, unit_id=unit_id)
     
     @router.get("", response_model=list[DocumentResponse], summary="List my documents", responses=error_responses(401))
