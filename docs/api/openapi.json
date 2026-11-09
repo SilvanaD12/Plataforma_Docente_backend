@@ -504,11 +504,13 @@
             "required": true,
             "schema": {
               "type": "string",
+              "description": "Términos de búsqueda",
               "title": "Query"
-            }
+            },
+            "description": "Términos de búsqueda"
           },
           {
-            "name": "unit_id",
+            "name": "unitId",
             "in": "query",
             "required": false,
             "schema": {
@@ -520,18 +522,24 @@
                   "type": "null"
                 }
               ],
-              "title": "Unit Id"
-            }
+              "description": "ID de la unidad",
+              "title": "Unitid"
+            },
+            "description": "ID de la unidad"
           },
           {
-            "name": "top_k",
+            "name": "topK",
             "in": "query",
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "description": "Cantidad máxima de resultados",
               "default": 5,
-              "title": "Top K"
-            }
+              "title": "Topk"
+            },
+            "description": "Cantidad máxima de resultados"
           }
         ],
         "responses": {
