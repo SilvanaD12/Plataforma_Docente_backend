@@ -28,7 +28,6 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_re
     TeacherGenerationORM,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
-from platform5e.domain.accounts.teacher_account import find_course_and_unit
 
 
 # Cursos y documentos guardados antes del contrato en inglés (octubre de 2026) traen claves en español.

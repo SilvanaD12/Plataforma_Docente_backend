@@ -15,8 +15,8 @@ from typing import Any
 from platform5e.domain.shared.errors import DomainError
 
 # Parámetros y constantes de fragmentación
-WORDS_PER_CHUNK: int = 220  # Límite objetivo de 512 tokens/palabras por chunk
-MAX_OVERLAP: int = 50       # Solapamiento de 50 tokens entre chunks consecutivos
+WORDS_PER_CHUNK: int = 220  # Límite objetivo de 220 tokens/palabras por chunk
+MAX_OVERLAP: int = 40       # Solapamiento de 40 tokens entre chunks consecutivos
 MAX_CHUNKS: int = 3000      # Tope por document
 
 _CONTROL_CHARS: re.Pattern[str] = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")

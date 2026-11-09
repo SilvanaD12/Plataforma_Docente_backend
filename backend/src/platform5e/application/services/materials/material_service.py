@@ -116,7 +116,7 @@ class MaterialService:
                         400,
                     )
         else:
-            # Fallback cuando no se inyecta el puerto (ej. pruebas unitarias aisladas)
+            # Fallback limpio sin llamadas duplicadas para pruebas unitarias sin puerto
             unit = self._get_unit(teacher_id, unit_id)
             if outcome_ids:
                 valid_ids = {
