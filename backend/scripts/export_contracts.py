@@ -10,7 +10,7 @@ from platform5e.infrastructure.http.schemas.engage import ResourceEngageItemMode
 from platform5e.infrastructure.http.schemas.evaluate import ResourceEvaluateItemModel
 from platform5e.infrastructure.http.schemas.explain import ResourceExplainItemModel
 from platform5e.infrastructure.http.schemas.explore import ResourceExploreItemModel
-from platform5e.infrastructure.http.schemas.generations import GenerationRequest
+from platform5e.infrastructure.http.schemas.generation_requests import StartGenerationRequest
 
 # Determina la raíz del repositorio y el directorio de documentación compartido
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -22,7 +22,8 @@ def export_all_contracts() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     
     contract_catalog = {
-        "generation-request.v1.json": GenerationRequest.model_json_schema(by_alias=True),
+        # GEN-01 (T045): cuerpo de POST /api/v1/generation-requests. La clave va en la cabecera Idempotency-Key.
+        "generation-request.v1.json": StartGenerationRequest.model_json_schema(by_alias=True),
         "resource-engage.v1.json": ResourceEngageItemModel.model_json_schema(),
         "resource-explore.v1.json": ResourceExploreItemModel.model_json_schema(),
         "resource-explain.v1.json": ResourceExplainItemModel.model_json_schema(),
