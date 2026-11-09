@@ -54,6 +54,7 @@ class MaterialService:
         open_resource_port: OpenEducationalResourcePort | None = None,
         embedding_service: ChunkEmbeddingService | None = None,
         unit_membership_port: UnitMembershipPort | None = None,
+        evidence_retriever: Any | None = None,
     ) -> None:
         self._teacher_repository = teacher_repository
         self._chunk_repository = chunk_repository
@@ -61,6 +62,7 @@ class MaterialService:
         self._open_resource_port = open_resource_port
         self._embedding_service = embedding_service
         self._unit_membership_port = unit_membership_port
+        self._evidence_retriever = evidence_retriever
 
     def _get_document(self, teacher_id: str, document_id: str) -> tuple[dict[str, Any], bytes]:
         """Recupera los metadatos y bytes del documento validando existencia."""
@@ -76,29 +78,53 @@ class MaterialService:
             raise MaterialError("UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404)
         return match[1]
 
+    def search_evidence(
+        self, teacher_id: str, query: str, top_k: int = 5, unit_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Búsqueda híbrida de evidencia across documents con aislamiento por docente y unidad."""
+        if unit_id:
+            self.validate_unit_membership_secure(teacher_id, unit_id, [])
+
+        if not self._evidence_retriever:
+            return []
+
+        if hasattr(self._evidence_retriever, "retrieve"):
+            return self._evidence_retriever.retrieve(
+                teacher_id=teacher_id, query=query, top_k=top_k, unit_id=unit_id
+            )
+        elif hasattr(self._evidence_retriever, "search"):
+            return self._evidence_retriever.search(
+                teacher_id=teacher_id, query=query, top_k=top_k, unit_id=unit_id
+            )
+        return []
+
     def validate_unit_membership_secure(self, teacher_id: str, unit_id: str, outcome_ids: list[str]) -> None:
-            """
-            Valida que el docente tenga acceso a la unidad y que los outcomes pertenezcan a ella.
-            Implementa MAT-C2: Unidad ajena o inexistente devuelven el mismo 404 Not Found.
-            """
-            if not self._unit_membership_port:
-                return
+        """
+        Valida que el docente tenga acceso a la unidad y que los outcomes pertenezcan a ella.
+        Implementa MAT-C2: Unidad ajena o inexistente devuelven el mismo 404 Not Found.
+        """
+        if not self._unit_membership_port:
+            return
 
-            context = self._unit_membership_port.get_unit_context(teacher_id, unit_id)
+        context = self._unit_membership_port.get_unit_context(teacher_id, unit_id)
+        
+        if context is None:
+            raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
+
+        if outcome_ids:
+            outcomes = getattr(context, "outcomes", [])
+            valid_ids = {
+                o.id if hasattr(o, "id") else o.get("id") if isinstance(o, dict) else str(o)
+                for o in outcomes
+            }
+            invalid_ids = set(outcome_ids) - valid_ids
             
-            if context is None:
-                raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
-
-            if outcome_ids:
-                valid_ids = {out["id"] for out in context.get("outcomes", [])}
-                invalid_ids = set(outcome_ids) - valid_ids
-                
-                if invalid_ids:
-                    raise MaterialError(
-                        "INVALID_OUTCOMES", 
-                        "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.", 
-                        400
-                    )
+            if invalid_ids:
+                raise MaterialError(
+                    "INVALID_OUTCOMES", 
+                    "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.", 
+                    400
+                )
 
     def process_material(self, teacher_id: str, document_id: str) -> dict[str, Any]:
         """Extrae el texto del documento, lo divide en fragmentos y persiste el resultado."""
@@ -138,7 +164,7 @@ class MaterialService:
             return {}
         try:
             run = self._embedding_service.embed_pending(document_id=document_id)
-        except Exception as exc:  # el material no se pierde por un fallo del modelo de embeddings
+        except Exception as exc:
             logger.warning("No se pudieron generar los embeddings de %s: %s", document_id, exc)
             return {
                 "embeddedFragmentCount": 0,
