@@ -139,3 +139,141 @@ def test_secure_404_on_unauthorized_unit_access(server: str):
         assert response.status_code in (404, 422)
         error_data = response.json()
         assert "error" in error_data
+
+def test_search_evidence_isolation_and_t007_strict(server: str):
+    """Valida aislamiento estricto entre dos docentes (con y sin unit_id) y MAT-C2 / T007."""
+    with httpx.Client(base_url=server, timeout=30) as api:
+        # 1. Crear docente A y su curso/unidad con resultado de aprendizaje
+        reg_a = api.post(
+            "/api/v1/accounts",
+            json={"name": "Docente A", "email": "docente_a@test.pe", "password": "Password123!"},
+        )
+        assert reg_a.status_code == 201
+        h_a = {"Authorization": f"Bearer {reg_a.json()['token']}"}
+
+        curso_a = api.post(
+            "/api/v1/courses",
+            headers=h_a,
+            json={
+                "code": "CUR-A",
+                "name": "Curso A",
+                "term": "2026-II",
+                "summary": "Resumen curso A",
+                "learningGoal": "Objetivo curso A",
+                "units": [{"title": "Unidad A", "outcomes": [{"text": "Resultado A"}]}],
+            },
+        ).json()
+        unit_a_id = curso_a["units"][0]["id"]
+        outcome_a_id = curso_a["units"][0]["outcomes"][0]["id"]
+
+        # 2. Crear docente B y su curso/unidad con resultado de aprendizaje
+        reg_b = api.post(
+            "/api/v1/accounts",
+            json={"name": "Docente B", "email": "docente_b@test.pe", "password": "Password123!"},
+        )
+        assert reg_b.status_code == 201
+        h_b = {"Authorization": f"Bearer {reg_b.json()['token']}"}
+
+        curso_b = api.post(
+            "/api/v1/courses",
+            headers=h_b,
+            json={
+                "code": "CUR-B",
+                "name": "Curso B",
+                "term": "2026-II",
+                "summary": "Resumen curso B",
+                "learningGoal": "Objetivo curso B",
+                "units": [{"title": "Unidad B", "outcomes": [{"text": "Resultado B"}]}],
+            },
+        ).json()
+        unit_b_id = curso_b["units"][0]["id"]
+        outcome_b_id = curso_b["units"][0]["outcomes"][0]["id"]
+
+        # 3. Subir y procesar material para Docente A
+        doc_a_payload = {
+            "unitId": unit_a_id,
+            "outcomeIds": [outcome_a_id],
+            "documentType": "Separata o apuntes de clase",
+            "suggestedStage": None,
+            "usePermission": True,
+        }
+        res_doc_a = api.post(
+            "/api/v1/documents",
+            headers=h_a,
+            files={"file": ("protocolo_a.txt", b"Texto exclusivo del docente A sobre arquitectura de software TCP/IP")},
+            data={"context": json.dumps(doc_a_payload)},
+        )
+        assert res_doc_a.status_code == 201, res_doc_a.text
+        doc_a_id = res_doc_a.json()["id"]
+        assert api.post(f"/api/v1/documents/{doc_a_id}/process", headers=h_a).status_code == 200
+
+        # 4. Subir y procesar material para Docente B
+        doc_b_payload = {
+            "unitId": unit_b_id,
+            "outcomeIds": [outcome_b_id],
+            "documentType": "Separata o apuntes de clase",
+            "suggestedStage": None,
+            "usePermission": True,
+        }
+        res_doc_b = api.post(
+            "/api/v1/documents",
+            headers=h_b,
+            files={"file": ("protocolo_b.txt", b"Texto exclusivo del docente B sobre redes avanzadas UDP")},
+            data={"context": json.dumps(doc_b_payload)},
+        )
+        assert res_doc_b.status_code == 201, res_doc_b.text
+        doc_b_id = res_doc_b.json()["id"]
+        assert api.post(f"/api/v1/documents/{doc_b_id}/process", headers=h_b).status_code == 200
+
+        # 5. Búsqueda con y sin unit_id para Docente A (aislamiento estricto)
+        res_a_unit = api.get("/api/v1/documents/search", headers=h_a, params={"query": "docente", "unit_id": unit_a_id})
+        assert res_a_unit.status_code == 200
+        items_a_unit = res_a_unit.json()
+        assert len(items_a_unit) > 0
+        assert all("docente A" in item["text"] for item in items_a_unit)
+        assert not any("docente B" in item["text"] for item in items_a_unit)
+
+        res_a_no_unit = api.get("/api/v1/documents/search", headers=h_a, params={"query": "docente"})
+        assert res_a_no_unit.status_code == 200
+        items_a_no_unit = res_a_no_unit.json()
+        assert len(items_a_no_unit) > 0
+        assert all("docente A" in item["text"] for item in items_a_no_unit)
+        assert not any("docente B" in item["text"] for item in items_a_no_unit)
+
+        # 6. T007 / MAT-C2 estricto: unidad ajena real vs. unidad inexistente devuelven el mismo 404 y cuerpo
+        payload_ajena = {
+            "unitId": unit_b_id,
+            "outcomeIds": [outcome_b_id],
+            "documentType": "Separata o apuntes de clase",
+            "suggestedStage": None,
+            "usePermission": True,
+        }
+        res_ajena = api.post(
+            "/api/v1/documents",
+            headers=h_a,
+            files={"file": ("invalido.txt", b"Contenido de prueba")},
+            data={"context": json.dumps(payload_ajena)},
+        )
+
+        payload_inexistente = {
+            "unitId": "unidad-no-existe-999",
+            "outcomeIds": [outcome_a_id],
+            "documentType": "Separata o apuntes de clase",
+            "suggestedStage": None,
+            "usePermission": True,
+        }
+        res_inexistente = api.post(
+            "/api/v1/documents",
+            headers=h_a,
+            files={"file": ("invalido.txt", b"Contenido de prueba")},
+            data={"context": json.dumps(payload_inexistente)},
+        )
+
+        assert res_ajena.status_code == 404
+        assert res_inexistente.status_code == 404
+        assert res_ajena.json() == res_inexistente.json()
+
+        # Verificar que ninguno de los dos intentos guardó material
+        docs_a = api.get("/api/v1/documents", headers=h_a).json()
+        assert len(docs_a) == 1
+        assert docs_a[0]["fileName"] == "protocolo_a.txt"

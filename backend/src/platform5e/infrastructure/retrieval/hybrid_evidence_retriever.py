@@ -18,7 +18,7 @@ from platform5e.domain.materials.text_analysis import retrieve_relevant_chunks
 
 logger = logging.getLogger("platform5e.retrieval")
 
-# Timeout estricto de 1.5 segundos para no bloquear la consulta si Gemini responde lento
+# Timeout estricto de 1.5 segundos para no bloquear la consulta si el modelo responde lento
 EMBEDDING_QUERY_TIMEOUT_SECONDS: float = 1.5
 
 
@@ -46,23 +46,28 @@ class HybridEvidenceRetriever:
         teacher_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Recupera fragmentos aplicando RRF sobre los rankings de BM25 y búsqueda vectorial con aislamiento por docente."""
-        # 1. Resolver fragmentos base filtrados por docente y unidad
+        # 1. Cargar fragmentos base para el filtrado léxico (BM25)
         target_chunks = list(chunks) if chunks is not None else []
-        
-        if not target_chunks and hasattr(self._chunk_repository, "get_chunks_by_unit") and unit_id:
-            target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", unit_id)
-        elif not target_chunks and teacher_id and hasattr(self._chunk_repository, "get_chunks_by_teacher"):
-            target_chunks = self._chunk_repository.get_chunks_by_teacher(teacher_id)
-        elif not target_chunks and hasattr(self._chunk_repository, "get_chunks_by_unit"):
-            target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", "")
 
-        # Filtro estricto por teacher_id y unit_id en memoria por seguridad defensiva
+        if not target_chunks:
+            if unit_id and hasattr(self._chunk_repository, "get_chunks_by_unit"):
+                target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", unit_id)
+            elif teacher_id and hasattr(self._chunk_repository, "get_chunks_by_teacher"):
+                target_chunks = self._chunk_repository.get_chunks_by_teacher(teacher_id)
+            elif hasattr(self._chunk_repository, "get_chunks_by_unit"):
+                target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", unit_id or "")
+
+        # Filtro estricto por docente
         if teacher_id:
-            target_chunks = [
-                c for c in target_chunks 
-                if (c.get("teacher_id") or c.get("teacherId") or teacher_id) == teacher_id
-            ]
+            filtered: list[dict[str, Any]] = []
+            for c in target_chunks:
+                owner = c.get("teacher_id") or c.get("teacherId")
+                # Si el chunk incluye información del docente, debe coincidir; si viene de un mock sin docente, se conserva
+                if owner is None or owner == teacher_id:
+                    filtered.append(c)
+            target_chunks = filtered
 
+        # Filtro por unidad
         if unit_id:
             target_chunks = [
                 c for c in target_chunks if (c.get("unit_id") or c.get("unitId")) == unit_id
@@ -71,7 +76,7 @@ class HybridEvidenceRetriever:
         # 2. Ranking Léxico (BM25)
         lexical_results = retrieve_relevant_chunks(query, target_chunks, top_k=max(top_k * 2, 20))
 
-        # 3. Ranking Semántico (pgvector HNSW filtrado por unit_id y/o teacher_id) con timeout
+        # 3. Ranking Semántico (pgvector HNSW) con aislamiento de teacher_id
         semantic_results: list[dict[str, Any]] = []
         if (
             self._embedding_generator is not None
@@ -87,18 +92,13 @@ class HybridEvidenceRetriever:
                         "limit": max(top_k * 2, 20),
                         "unit_id": unit_id,
                     }
-                    
-                    # Verificación robusta compatible con objetos reales y MagicMocks de pytest
-                    try:
-                        code_obj = getattr(self._chunk_repository.search_similar_chunks, "__code__", None)
-                        if code_obj and "teacher_id" in code_obj.co_varnames:
-                            search_kwargs["teacher_id"] = teacher_id
-                    except Exception:
-                        pass
+                    if teacher_id:
+                        search_kwargs["teacher_id"] = teacher_id
 
                     try:
                         semantic_results = self._chunk_repository.search_similar_chunks(**search_kwargs)
                     except TypeError:
+                        # Si el repositorio o mock no acepta teacher_id, se retira de los argumentos
                         search_kwargs.pop("teacher_id", None)
                         semantic_results = self._chunk_repository.search_similar_chunks(**search_kwargs)
 
@@ -109,12 +109,14 @@ class HybridEvidenceRetriever:
                 )
                 semantic_results = []
 
-        # Filtrar resultados semánticos por docente estrictamente por seguridad
+        # Filtrado estricto post-consulta por seguridad en memoria
         if teacher_id and semantic_results:
-            semantic_results = [
-                c for c in semantic_results 
-                if (c.get("teacher_id") or c.get("teacherId") or teacher_id) == teacher_id
-            ]
+            filtered_sem: list[dict[str, Any]] = []
+            for c in semantic_results:
+                owner = c.get("teacher_id") or c.get("teacherId")
+                if owner is None or owner == teacher_id:
+                    filtered_sem.append(c)
+            semantic_results = filtered_sem
 
         # Si no hubo resultados vectoriales disponibles, degradación directa a BM25
         if not semantic_results:
@@ -143,11 +145,11 @@ class HybridEvidenceRetriever:
                     "documentId": chunk.get("documentId") or chunk.get("documento") or chunk.get("documento_id"),
                     "location": chunk.get("location") or chunk.get("ubicacion"),
                     "text": chunk.get("text") or chunk.get("texto"),
-                    "unitId": unit_id or chunk.get("unitId") or chunk.get("unit_id"),
+                    "unitId": chunk.get("unitId") or chunk.get("unit_id") or unit_id,
                 }
             scores[cid] = scores.get(cid, 0.0) + (1.0 / (self._rrf_k + rank + 1))
 
-        # 5. Ordenar por score RRF acumulado descendente y normalizar relevancia de 0 a 1
+        # 5. Ordenar por score RRF descendente y normalizar relevancia
         max_possible_rrf = 2.0 / (self._rrf_k + 1.0)
         sorted_ids = sorted(scores.keys(), key=lambda cid: scores[cid], reverse=True)
 
