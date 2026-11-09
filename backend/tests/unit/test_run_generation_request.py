@@ -1,7 +1,7 @@
-"""GEN-01 (T022): ejecución en segundo plano de un pedido con generadores falsos.
+"""GEN-01 (T022 y T026): ejecución en segundo plano de un pedido con generadores falsos.
 
-Usa el repositorio real de pedidos sobre un SQLite temporal y puertos falsos para Cuentas, Material y Revisión.
-Casos GEN-C2, GEN-C3 y GEN-C6.
+Usa el repositorio real de pedidos sobre un SQLite temporal, puertos falsos para Cuentas, Material y Revisión, y el
+adaptador real de verificación de Revisión. Casos GEN-C2, GEN-C3, GEN-C6 y GEN-C8.
 """
 
 from __future__ import annotations
@@ -20,6 +20,7 @@ from platform5e.application.use_cases.generation.start_generation_request import
     StartGenerationCommand,
     StartGenerationRequest,
 )
+from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION
 from platform5e.domain.generation.generation_request import (
     GenerationMode,
     GenerationParameters,
@@ -27,6 +28,7 @@ from platform5e.domain.generation.generation_request import (
     StepStatus,
 )
 from platform5e.application.services.generation.step_drafting import NO_REPEAT_INSTRUCTION
+from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from tests.support.generation_fakes import (
     INVENTED_RESOURCE,
     FailingGenerator,
@@ -68,6 +70,7 @@ class Setup:
             self.membership,
             self.evidence,
             self.review,
+            options.pop("verification", ReviewVerificationAdapter()),
             primary,
             fallback,
             heartbeat_seconds=options.pop("heartbeat_seconds", 0),
@@ -101,7 +104,8 @@ def test_a_sequence_runs_in_class_order_and_delivers_resources_to_review(setup):
         assert resource["requestId"] == request_id and resource["agent"] == step.agent
         assert resource["params"]["resourceType"] == step.resource_type and resource["generatorKind"] == "ia"
         assert resource["evidence"] and all(item["retrievedAt"] for item in resource["evidence"])
-        assert "verification" not in resource  # TODO(T026)
+        assert resource["version"] == 1 and resource["verification"]["status"] == "current"
+        assert resource["verification"]["verifiedVersion"] == 1 and resource["verification"]["ruleVersion"] >= 1
     # Cada agente ve lo que redactaron los anteriores.
     assert [p["titulo"] for p in generator.contexts[2]["secuenciaPrevia"]] == [
         "Video en vivo sin esperas",
@@ -219,7 +223,7 @@ def test_a_request_that_is_not_queued_is_not_run(setup):
 
 
 def test_structure_fragments_are_copied_to_the_resource_evidence(setup):
-    """Ajuste conocido (provisional hasta T026): la copia incluye los fragmentos de la estructura."""
+    """Ajuste conocido: la copia incluye los fragmentos de la estructura, con los ids del puerto de Revisión."""
     request_id = setup.start("exploracion_guiada", mode=GenerationMode.INDIVIDUAL)
     guided = {
         "titulo": "Explora TCP y UDP",
@@ -255,6 +259,108 @@ def test_structure_fragments_are_copied_to_the_resource_evidence(setup):
     assert request.status == RequestStatus.SUCCEEDED
     assert [s["fragmentIds"] for s in resource["structure"]["guidedSteps"]] == [["f1"], ["f2"], ["f2"]]
     assert [item["id"] for item in resource["evidence"]] == ["f1", "f2"]
+
+
+# T026 · Verificación antes de entregar
+
+
+class StubVerification(ReviewVerificationAdapter):
+    """Verificación real de Revisión, salvo para los tipos indicados: insuficiente o con error."""
+
+    def __init__(self, insufficient: set[str] = frozenset(), failing: set[str] = frozenset(), fingerprint_fails=False):
+        self.insufficient, self.failing, self.fingerprint_fails = insufficient, failing, fingerprint_fails
+
+    def verify(self, resource, threshold):
+        if resource["type"] in self.failing:
+            raise RuntimeError("detalle interno de la verificación")
+        result = super().verify(resource, threshold)
+        if resource["type"] in self.insufficient:
+            return {**result, "status": "insufficient", "reason": "Solo 1 de 4 afirmaciones se apoyan en el material."}
+        return result
+
+    def fingerprint(self, resource):
+        if self.fingerprint_fails:
+            raise RuntimeError("sin huella")
+        return super().fingerprint(resource)
+
+
+def test_every_delivered_resource_has_its_verification_version_and_dated_copy(setup):
+    request_id = setup.start("pregunta_detonante", "item_opcion_multiple")
+    request = setup.run(request_id, StageAwareGenerator())
+    adapter = ReviewVerificationAdapter()
+
+    assert request.status == RequestStatus.SUCCEEDED
+    for resource in setup.review.all():
+        verification = resource["verification"]
+        assert resource["version"] == 1 and "regeneratedFrom" not in resource
+        assert set(verification) == {
+            "status", "reason", "fingerprint", "verifiedVersion", "evidenceThreshold", "ruleVersion", "checkedAt",
+            "retryAvailable", "summary",
+        }
+        assert (verification["status"], verification["reason"], verification["retryAvailable"]) == (
+            "current", None, False
+        )
+        assert verification["fingerprint"] == adapter.fingerprint(resource)
+        assert (verification["verifiedVersion"], verification["ruleVersion"]) == (1, VERIFICATION_RULE_VERSION)
+        assert verification["evidenceThreshold"] == 0.6 and verification["summary"]
+        # La copia tiene exactamente los fragmentos que Revisión exigirá, fechados al recuperar la evidencia.
+        assert [item["id"] for item in resource["evidence"]] == adapter.referenced_fragment_ids(resource)
+        assert {item["retrievedAt"] for item in resource["evidence"]} == {request.evidence[0]["retrievedAt"]}
+
+
+def test_the_threshold_of_the_request_is_the_one_verified(setup):
+    request_id = setup.start("pregunta_detonante", mode=GenerationMode.INDIVIDUAL, evidence_threshold=0.4)
+    setup.run(request_id, StageAwareGenerator())
+    [resource] = setup.review.all()
+    assert resource["verification"]["evidenceThreshold"] == 0.4 == resource["params"]["evidenceThreshold"]
+
+
+def test_an_insufficient_draft_is_rejected_as_grounding_and_not_delivered(setup):
+    """GEN-C8: un borrador que la verificación de Revisión deja insuficiente no llega a Revisión."""
+    request_id = setup.start("pregunta_detonante", "explicacion")
+    generator = StageAwareGenerator()
+    request = setup.run(request_id, generator, verification=StubVerification(insufficient={"pregunta_detonante"}))
+
+    engage, explain = request.steps
+    assert request.status == RequestStatus.PARTIALLY_SUCCEEDED
+    assert engage.status == StepStatus.REJECTED and engage.resource_ids == ()
+    assert engage.rejections == (
+        {"title": "Video en vivo sin esperas", "reason": "Solo 1 de 4 afirmaciones se apoyan en el material.",
+         "kind": "grounding"},
+    )
+    assert engage.grounding["rejectedResources"][0]["title"] == "Video en vivo sin esperas"
+    assert engage.grounding["checkedClaims"] > 0  # sus afirmaciones se cuentan en el informe (I21)
+    assert [r["type"] for r in setup.review.all()] == ["explicacion"]
+    assert generator.contexts[1]["secuenciaPrevia"] == []  # el siguiente agente no ve el recurso rechazado
+
+
+def test_if_verification_fails_the_resource_is_delivered_pending_with_the_reason(setup, caplog):
+    request_id = setup.start("pregunta_detonante", mode=GenerationMode.INDIVIDUAL)
+    with caplog.at_level("ERROR", logger="platform5e.generation.run"):
+        request = setup.run(request_id, StageAwareGenerator(), verification=StubVerification(failing={"pregunta_detonante"}))
+
+    [step] = request.steps
+    [resource] = setup.review.all()
+    verification = resource["verification"]
+    assert request.status == RequestStatus.SUCCEEDED and step.resource_ids == (resource["id"],)
+    assert verification["status"] == "pending" and "Reintenta la comprobación" in verification["reason"]
+    assert "detalle interno" not in verification["reason"] and "detalle interno" in caplog.text
+    assert verification["retryAvailable"] is True  # la copia está completa: Revisión ofrece reintentar
+    assert verification["fingerprint"] == ReviewVerificationAdapter().fingerprint(resource)
+    assert (verification["verifiedVersion"], verification["ruleVersion"]) == (1, VERIFICATION_RULE_VERSION)
+    assert verification["evidenceThreshold"] == 0.6 and verification["summary"] == {} and verification["checkedAt"]
+    assert resource["version"] == 1
+
+
+def test_a_resource_is_delivered_pending_even_if_its_fingerprint_also_fails(setup):
+    request_id = setup.start("pregunta_detonante", mode=GenerationMode.INDIVIDUAL)
+    setup.run(
+        request_id,
+        StageAwareGenerator(),
+        verification=StubVerification(failing={"pregunta_detonante"}, fingerprint_fails=True),
+    )
+    [resource] = setup.review.all()
+    assert resource["verification"]["status"] == "pending" and resource["verification"]["fingerprint"] == ""
 
 
 def test_the_heartbeat_beats_while_the_request_runs():

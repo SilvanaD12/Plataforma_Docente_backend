@@ -1,15 +1,17 @@
-"""GEN-01 (T024): contrato HTTP del pedido de generación de punta a punta, con el servidor real.
+"""GEN-01 (T024 y T026): contrato HTTP del pedido de generación de punta a punta, con el servidor real.
 
-Casos GEN-C1, GEN-C4, GEN-C5 y GEN-C6, y V10 (aislamiento entre dos docentes).
+Casos GEN-C1, GEN-C4, GEN-C5, GEN-C6 y GEN-C8, y V10 (aislamiento entre dos docentes).
 """
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterator
 from uuid import uuid4
 
 import httpx
 import pytest
+from sqlalchemy import create_engine, text
 
 from tests.e2e.test_sequence_api import _unit_with_material, _wait_until_final
 
@@ -52,6 +54,56 @@ def test_an_individual_request_is_created_and_finishes(server: str):
         assert [r["id"] for r in step["resources"]] == step["resourceIds"]
         [resource] = [r for r in _unit_resources(api, headers, unit["id"]) if r["id"] in step["resourceIds"]]
         assert resource["requestId"] == finished["id"] and resource["status"] == "pendiente"
+
+
+def _stored_resource(database_url: str, resource_id: str) -> tuple[dict, int]:
+    """El recurso tal como quedó en la base, sin pasar por Revisión."""
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            data, version = connection.execute(
+                text("SELECT datos, version FROM ep002_recursos WHERE id = :id"), {"id": resource_id}
+            ).one()
+    finally:
+        engine.dispose()
+    return (json.loads(data) if isinstance(data, str) else data), version
+
+
+def test_review_reads_and_edits_a_generated_resource_without_verifying_it_again(server: str, e2e_database_url: str):
+    """GEN-C8 con REV-01: el recurso llega con `version = 1` y su verificación; Revisión lo muestra vigente con el
+    resultado que guardó Generación y acepta el primer guardado con `expectedVersion = 1`."""
+    with httpx.Client(base_url=server, timeout=60) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        body = {"mode": "individual", "resourceTypes": ["pregunta_detonante"], "unitId": unit["id"]}
+        finished = _wait_until_final(api, headers, _start(api, headers, body).json()["id"])
+        [step] = finished["steps"]
+        [summary] = step["resources"]
+        assert finished["status"] == "succeeded" and summary["verificationStatus"] == "current"
+
+        stored, stored_version = _stored_resource(e2e_database_url, summary["id"])
+        verification = stored["verification"]
+        assert stored_version == stored["version"] == 1
+        assert verification["status"] == "current" and verification["verifiedVersion"] == 1
+        assert stored["evidence"] and all(item["retrievedAt"] for item in stored["evidence"])
+
+        # Lectura de Revisión: el mismo resultado (misma hora de comprobación) y la fila sin cambios.
+        [read] = [r for r in _unit_resources(api, headers, unit["id"]) if r["id"] == summary["id"]]
+        assert read["version"] == 1 and read["verification"] == verification
+        assert _stored_resource(e2e_database_url, summary["id"]) == (stored, 1)
+
+        # Primer guardado con expectedVersion = 1: cambiar el título no cambia la huella, así que no se verifica de
+        # nuevo y se conserva el resultado de Generación.
+        url = f"/api/v1/units/{unit['id']}/resources/{summary['id']}"
+        edit = {"expectedVersion": 1, "title": "Título revisado", "body": read["body"], "status": "pendiente",
+                "edited": True, "discardReason": None}
+        saved = api.put(url, headers=headers, json=edit)
+        assert saved.status_code == 200, saved.text
+        assert saved.json()["version"] == 2 and saved.json()["title"] == "Título revisado"
+        assert saved.json()["verification"] == verification
+
+        stale = api.put(url, headers=headers, json=edit)
+        assert stale.status_code == 409 and stale.json()["error"]["code"] == "VERSION_CONFLICT"
 
 
 def test_the_same_key_returns_the_same_request_and_other_content_conflicts(server: str):

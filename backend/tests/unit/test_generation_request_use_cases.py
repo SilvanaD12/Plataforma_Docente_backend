@@ -214,16 +214,26 @@ def test_get_shows_each_step_with_a_short_view_of_its_resources(parts):
         "u1",
         [
             {"id": "rec-1", "title": "Video en vivo", "verification": {"status": "current"}},
-            {"id": "rec-2", "title": "Sin verificación todavía"},
+            {"id": "rec-2", "title": "Sin comprobar", "verification": {"status": "pending"}},
+            # Editado en Revisión hasta quedar sin respaldo: se muestra el estado real. Sin verificación: pendiente.
+            {"id": "rec-3", "title": "Editado", "verification": {"status": "insufficient"}},
+            {"id": "rec-4", "title": "Sin verificación"},
         ],
     )
-    engage = replace(request.steps[0], status=StepStatus.SUCCEEDED, resource_ids=("rec-1", "rec-2", "rec-borrado"))
+    engage = replace(
+        request.steps[0], status=StepStatus.SUCCEEDED, resource_ids=("rec-1", "rec-2", "rec-3", "rec-4", "rec-borrado")
+    )
     repository.update_step(request.id, engage)
 
     view = GetGenerationRequest(repository, membership, review).get("docente-a", request.id)
     assert view.request.id == request.id
     assert view.resources_by_step == {
-        0: (ResourceSummary("rec-1", "Video en vivo", "current"), ResourceSummary("rec-2", "Sin verificación todavía", None)),
+        0: (
+            ResourceSummary("rec-1", "Video en vivo", "current"),
+            ResourceSummary("rec-2", "Sin comprobar", "pending"),
+            ResourceSummary("rec-3", "Editado", "insufficient"),
+            ResourceSummary("rec-4", "Sin verificación", "pending"),
+        ),
         1: (),
     }
 

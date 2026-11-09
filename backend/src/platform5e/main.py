@@ -35,6 +35,7 @@ from platform5e.domain.materials.chunking import MaterialError
 from platform5e.domain.shared.errors import DuplicateRecordError, EntityNotFoundError, PersistenceUnavailableError
 from platform5e.infrastructure.adapters.account_unit_membership_adapter import AccountUnitMembershipAdapter
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
+from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from platform5e.infrastructure.exporters.moodle_xml_exporter import MoodleXmlExporter
 from platform5e.infrastructure.exporters.unit_document_exporter import UnitDocumentExporter
 from platform5e.infrastructure.exporters.scorm_package_exporter import ScormPackageExporter
@@ -204,7 +205,7 @@ def create_application() -> FastAPI:
         media_generator=media_generator,
         media_repository=media_repository,
     )
-    # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas y Material.
+    # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
     unit_membership = AccountUnitMembershipAdapter(account_repository)
     evidence_provider = MaterialEvidenceAdapter(chunk_repository, evidence_retriever, account_repository)
     run_generation = RunGenerationRequest(
@@ -212,6 +213,7 @@ def create_application() -> FastAPI:
         unit_membership,
         evidence_provider,
         resource_repository,
+        ReviewVerificationAdapter(),
         primary_generator,
         fallback_generator,
         media_generator=media_generator,

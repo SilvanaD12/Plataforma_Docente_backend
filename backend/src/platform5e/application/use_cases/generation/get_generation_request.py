@@ -24,13 +24,17 @@ MIN_LIST_LIMIT: int = 1
 MAX_LIST_LIMIT: int = 50
 
 
+VERIFICATION_STATUSES: frozenset[str] = frozenset({"current", "insufficient", "pending"})
+VERIFICATION_PENDING: str = "pending"
+
+
 @dataclass(frozen=True)
 class ResourceSummary:
-    """Vista corta de un recurso entregado. `verification_status` es None hasta que exista la verificación (T026)."""
+    """Vista corta de un recurso entregado: `current`, `insufficient` o `pending`."""
 
     id: str
     title: str
-    verification_status: str | None
+    verification_status: str
 
 
 @dataclass(frozen=True)
@@ -42,11 +46,14 @@ class GenerationRequestView:
 
 
 def _summary(resource: dict[str, Any]) -> ResourceSummary:
+    """El estado real de la verificación en Revisión. Generación entrega `current` o `pending`, pero el docente puede
+    editar el recurso hasta dejarlo `insufficient`. Solo un recurso sin verificación se muestra `pending`."""
     verification = resource.get("verification") if isinstance(resource.get("verification"), dict) else {}
+    status = verification.get("status")
     return ResourceSummary(
         id=str(resource.get("id", "")),
         title=str(resource.get("title") or ""),
-        verification_status=verification.get("status"),
+        verification_status=status if status in VERIFICATION_STATUSES else VERIFICATION_PENDING,
     )
 
 

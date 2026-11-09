@@ -5596,27 +5596,22 @@
             "title": "Title"
           },
           "verificationStatus": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "current",
-                  "pending"
-                ]
-              },
-              {
-                "type": "null"
-              }
+            "type": "string",
+            "enum": [
+              "current",
+              "insufficient",
+              "pending"
             ],
             "title": "Verificationstatus",
-            "description": "Same values as `verification.status` of REV-01. Null until the verification block is stored."
+            "description": "Current `verification.status` of the resource in Review (REV-01). Generation delivers `current` or `pending`; `insufficient` appears after an edit in Review. `pending` if the resource has no verification."
           }
         },
         "additionalProperties": true,
         "type": "object",
         "required": [
           "id",
-          "title"
+          "title",
+          "verificationStatus"
         ],
         "title": "StepResource",
         "description": "Vista corta de un recurso entregado a Revisión."

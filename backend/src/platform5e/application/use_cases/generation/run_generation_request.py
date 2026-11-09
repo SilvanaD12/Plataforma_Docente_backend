@@ -2,9 +2,10 @@
 Caso de uso GEN-01 (T016): ejecuta en segundo plano un pedido de generación ya guardado.
 
 Recupera la evidencia una sola vez y la comparte entre los pasos (GEN-R2). Cada paso, en orden 5E, redacta sus
-recursos, aplica el control de repetición contra los pasos anteriores, los entrega a Revisión y recién entonces
-confirma su estado, para que el progreso que ve el docente siempre lo haya confirmado el servidor (GEN-R3).
-Solo depende de puertos, de los servicios de redacción de Generación y del dominio.
+recursos, aplica el control de repetición contra los pasos anteriores, guarda en cada recurso la copia histórica de los
+fragmentos que referencia y su verificación (research R6 y R7), los entrega a Revisión y recién entonces confirma su
+estado, para que el progreso que ve el docente siempre lo haya confirmado el servidor (GEN-R3).
+Solo depende de puertos, de los servicios de redacción de Generación y del dominio de Generación.
 """
 
 from __future__ import annotations
@@ -30,6 +31,7 @@ from platform5e.application.ports.outbound.generation_request_repository_port im
 from platform5e.application.ports.outbound.language_model_port import ResourceGeneratorPort
 from platform5e.application.ports.outbound.media_port import MediaGeneratorPort, MediaRepositoryPort
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
+from platform5e.application.ports.outbound.resource_verification_port import ResourceVerificationPort
 from platform5e.application.ports.outbound.unit_membership_port import UnitContext, UnitMembershipPort
 from platform5e.application.services.generation.prompt_drafting import build_step_context
 from platform5e.application.services.generation.step_drafting import (
@@ -53,6 +55,7 @@ from platform5e.domain.generation.generation_request import (
     StepStatus,
     final_status,
 )
+from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION
 
 logger = logging.getLogger("platform5e.generation.run")
 
@@ -61,6 +64,10 @@ PROCESS_BOOT_ID: str = uuid4().hex
 DEFAULT_DEADLINE_SECONDS: int = 900
 DEFAULT_HEARTBEAT_SECONDS: float = 15.0
 MAX_REASONS_IN_FAILURE: int = 3
+# Versión con la que Revisión recibe un recurso nuevo; el PUT de Revisión parte de ella (`expectedVersion = 1`).
+INITIAL_RESOURCE_VERSION: int = 1
+VERIFICATION_INSUFFICIENT: str = "insufficient"
+VERIFICATION_PENDING: str = "pending"
 
 UNIT_NOT_FOUND_MESSAGE: str = "La unidad ya no existe o no pertenece a tus cursos."
 DEADLINE_MESSAGE: str = (
@@ -69,6 +76,10 @@ DEADLINE_MESSAGE: str = (
 STEP_FAILED_MESSAGE: str = "No se pudo generar este paso por un error del servidor o del generador."
 NO_GENERATOR_MESSAGE: str = "El generador no respondió y no hay un generador de respaldo disponible."
 NO_RESOURCES_MESSAGE: str = "El generador no devolvió recursos válidos para este tipo de recurso."
+VERIFICATION_FAILED_MESSAGE: str = (
+    "La comprobación del respaldo no pudo completarse al generar el recurso. Reintenta la comprobación en la revisión."
+)
+VERIFICATION_INSUFFICIENT_MESSAGE: str = "El material no respalda lo suficiente el contenido del recurso."
 INSUFFICIENT_EVIDENCE_MESSAGE: str = (
     "No se pudieron redactar recursos que citen el material sin repetirse. "
     "Prueba con otros tipos de recurso o agrega más material a la unidad."
@@ -77,20 +88,6 @@ INSUFFICIENT_EVIDENCE_MESSAGE: str = (
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def _provisional_referenced_ids(resource: dict[str, Any]) -> list[str]:
-    """Fragmentos que referencia el recurso: citas, alternativas y estructura (pasos, predicciones y criterios).
-
-    TODO(T026): reemplazar por `ResourceVerificationPort.referenced_fragment_ids` de Revisión, para que Generación
-    copie exactamente los fragmentos que Revisión exigirá al verificar.
-    """
-    ids = [f_id for citation in resource.get("citations") or [] for f_id in citation.get("fragmentIds") or []]
-    ids += [f_id for option in resource.get("options") or [] for f_id in option.get("sourceFragmentIds") or []]
-    structure = resource.get("structure") or {}
-    for key in ("guidedSteps", "predictions", "criteria"):
-        ids += [f_id for item in structure.get(key) or [] for f_id in item.get("fragmentIds") or []]
-    return ids
 
 
 class _Heartbeat:
@@ -135,6 +132,7 @@ class RunGenerationRequest:
         membership: UnitMembershipPort,
         evidence: EvidenceProviderPort,
         review_repository: ResourceReviewRepositoryPort,
+        verification: ResourceVerificationPort,
         primary_generator: ResourceGeneratorPort | None,
         fallback_generator: ResourceGeneratorPort | None = None,
         media_generator: MediaGeneratorPort | None = None,
@@ -149,6 +147,7 @@ class RunGenerationRequest:
         self._membership = membership
         self._evidence = evidence
         self._review_repository = review_repository
+        self._verification = verification
         self._primary_generator = primary_generator
         self._fallback_generator = fallback_generator
         self._media_generator = media_generator
@@ -280,8 +279,10 @@ class RunGenerationRequest:
         timestamp = self._clock()
         uses_ai = bool(getattr(generator, "uses_ai", False))
         frozen_parameters = saved_parameters(step_request)
+        threshold = request.parameters.evidence_threshold
         evidence = [fragment.to_dict(retrieved_at) for fragment in fragments]
         resources: list[dict[str, Any]] = []
+        delivered_drafts: list[dict[str, Any]] = []
         for drafted_resource in drafted.kept:
             resource = {
                 **build_resource_dict(
@@ -289,16 +290,35 @@ class RunGenerationRequest:
                 ),
                 "agent": step.agent,
             }
-            attach_generated_media(request.teacher_id, resource, self._media_generator, self._media_repository)
-            snapshot = build_snapshot(_provisional_referenced_ids(resource), evidence, retrieved_at)
+            # Copia histórica de exactamente los fragmentos que Revisión exigirá al verificar (research R6).
+            snapshot = build_snapshot(self._verification.referenced_fragment_ids(resource), evidence, retrieved_at)
             resource["evidence"] = [item.to_dict() for item in snapshot.items]
             resource["params"] = frozen_parameters
             resource["generatorKind"] = "ia" if uses_ai else "respaldo"
-            # TODO(T026): calcular aquí el bloque `verification` con ResourceVerificationPort.verify (huella, umbral
-            # y ruleVersion), rechazar el borrador `insufficient` y guardar `version = 1`. Si la copia histórica
-            # está incompleta (snapshot.missing_ids), Revisión lo deja `pending`.
+            resource["version"] = INITIAL_RESOURCE_VERSION
+            if request.regeneration is not None:
+                resource["regeneratedFrom"] = {
+                    "resourceId": request.regeneration.resource_id,
+                    "version": request.regeneration.resource_version,
+                }
+            verification = self._verify(resource, threshold, snapshot.is_complete)
+            if verification.get("status") == VERIFICATION_INSUFFICIENT:
+                # El borrador no llega a Revisión: se informa como rechazo de anclaje (research R7).
+                grounding_rejections.append(
+                    {
+                        "title": resource["title"],
+                        "reason": verification.get("reason") or VERIFICATION_INSUFFICIENT_MESSAGE,
+                        "kind": "grounding",
+                        "grounding": resource.get("grounding"),
+                    }
+                )
+                continue
+            resource["verification"] = verification
+            # Los medios se generan solo para los recursos que se entregan.
+            attach_generated_media(request.teacher_id, resource, self._media_generator, self._media_repository)
             resources.append(resource)
-        accepted.extend({**resource, "etapa": step.stage} for resource in drafted.kept)
+            delivered_drafts.append(drafted_resource)
+        accepted.extend({**draft, "etapa": step.stage} for draft in delivered_drafts)
 
         if resources:
             self._review_repository.save_resources(request.teacher_id, request.unit_id, resources)
@@ -324,6 +344,30 @@ class RunGenerationRequest:
             distractor_reliability=reliability_report(resources),
             finished_at=self._clock(),
         )
+
+    def _verify(self, resource: dict[str, Any], threshold: float, copy_complete: bool) -> dict[str, Any]:
+        """Bloque `verification` del recurso. Si la verificación lanza un error, el recurso queda `pending` con el
+        motivo y se puede reintentar en Revisión si su copia histórica está completa (research R7)."""
+        try:
+            return self._verification.verify(resource, threshold)
+        except Exception:
+            logger.exception("No se pudo verificar el recurso %s.", resource.get("id"))
+        try:
+            fingerprint = self._verification.fingerprint(resource)
+        except Exception:
+            logger.exception("No se pudo calcular la huella del recurso %s.", resource.get("id"))
+            fingerprint = ""  # no coincide con ninguna huella: Revisión lo verifica de nuevo al guardarlo
+        return {
+            "status": VERIFICATION_PENDING,
+            "reason": VERIFICATION_FAILED_MESSAGE,
+            "fingerprint": fingerprint,
+            "verifiedVersion": resource.get("version", INITIAL_RESOURCE_VERSION),
+            "evidenceThreshold": threshold,
+            "ruleVersion": VERIFICATION_RULE_VERSION,
+            "checkedAt": self._clock(),
+            "retryAvailable": copy_complete,
+            "summary": {},
+        }
 
     def _is_fallback(self, generator: ResourceGeneratorPort) -> bool:
         """True si redactó el generador de respaldo porque el principal falló (research R8)."""

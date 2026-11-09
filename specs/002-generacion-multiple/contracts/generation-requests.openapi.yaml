@@ -250,15 +250,16 @@ components:
     StepResource:
       type: object
       description: Short view of a resource delivered to Review.
-      # T026: verificationStatus vuelve a ser obligatorio (current | pending) cuando se guarde el bloque verification.
-      required: [id, title]
+      required: [id, title, verificationStatus]
       properties:
         id: { type: string }
         title: { type: string }
         verificationStatus:
-          type: [string, 'null']
-          enum: [current, pending, null]
-          description: Same values as `verification.status` of REV-01. Null until the verification block is stored (T026).
+          type: string
+          enum: [current, insufficient, pending]
+          description: >-
+            Current `verification.status` of the resource in Review (REV-01). Generation delivers `current` or
+            `pending`; `insufficient` appears after an edit in Review. `pending` if the resource has no verification.
 
     StepGenerator:
       type: object

@@ -87,6 +87,7 @@ GENERATION_ISOLATED = [
     'application/ports/outbound/evidence_provider_port.py',
     'application/ports/outbound/generation_request_repository_port.py',
     'application/ports/outbound/generation_job_runner_port.py',
+    'application/ports/outbound/resource_verification_port.py',
 ]
 GENERATION_FORBIDDEN = (
     'platform5e.application.services.accounts',

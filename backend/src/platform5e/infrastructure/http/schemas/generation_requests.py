@@ -22,7 +22,7 @@ StoredMode = Literal["individual", "sequence", "regeneration"]
 RequestStatus = Literal["queued", "running", "succeeded", "partially_succeeded", "failed", "interrupted"]
 StepStatus = Literal["pending", "running", "succeeded", "rejected", "failed", "interrupted"]
 RejectionKind = Literal["grounding", "repetition", "structure", "distractor"]
-VerificationStatus = Literal["current", "pending"]
+VerificationStatus = Literal["current", "insufficient", "pending"]
 
 
 class StartGenerationRequest(ApiRequest):
@@ -110,10 +110,11 @@ class StepResource(ApiResponse):
 
     id: str
     title: str
-    # TODO(T026): obligatorio y sin null (`current` | `pending`) cuando se guarde el bloque verification.
-    verification_status: VerificationStatus | None = Field(
-        default=None,
-        description="Same values as `verification.status` of REV-01. Null until the verification block is stored.",
+    verification_status: VerificationStatus = Field(
+        description=(
+            "Current `verification.status` of the resource in Review (REV-01). Generation delivers `current` or "
+            "`pending`; `insufficient` appears after an edit in Review. `pending` if the resource has no verification."
+        ),
     )
 
 
