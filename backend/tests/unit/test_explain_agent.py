@@ -182,3 +182,51 @@ def test_when_the_whole_explanation_is_invented_the_service_refuses_and_explains
     assert error.value.code == "INSUFFICIENT_EVIDENCE"
     assert "Motivo: «Inventada»: 2 de 2 párrafos sin respaldo en el material" in error.value.message
     assert repo.saved_results == []
+
+
+# --- Glosario del generador por reglas: sin definiciones repetidas -------------------------------------------------
+
+PROTOCOLS_MATERIAL = (
+    "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de los datos. "
+    "El protocolo UDP no establece conexión ni confirma la entrega; por eso es más rápido. "
+    "El protocolo IP se encarga del direccionamiento y del enrutamiento de los paquetes. "
+    "El protocolo DNS traduce nombres de dominio en direcciones IP. "
+    "La encapsulación es el proceso por el cual cada capa agrega su propio encabezado a los datos."
+)
+
+
+def test_the_rule_based_glossary_does_not_repeat_definitions_or_nested_terms():
+    """Antes salían «Protocolo TCP: El protocolo TCP es…» y luego «TCP: El protocolo TCP es…» (igual con UDP e IP)."""
+    from platform5e.application.services.generation.rule_based_generator import RuleBasedGenerator
+    from platform5e.domain.materials.chunking import chunk_pages
+
+    chunks = chunk_pages([("1", PROTOCOLS_MATERIAL)])
+    glossary_context = {
+        "curso": {"nombre": "Redes", "sumilla": "", "logro": ""},
+        "unidad": {"numero": 1, "titulo": "Protocolos", "resultados": []},
+        "solicitud": {"etapa": "explain", "tipo": "glosario", "cantidad": 1, "dificultad": "intermedia",
+                      "alternativas": 4, "indicaciones": "", "publico": "", "competencia": "", "modalidades": []},
+        "fragmentos": [{"etiqueta": f"F{i + 1}", "id": f"c{i}", "ubicacion": "p. 1", "documento": "protocolos.txt",
+                        "texto": chunk.get("text") or chunk.get("texto")} for i, chunk in enumerate(chunks)],
+    }
+    [glossary] = RuleBasedGenerator().generate(glossary_context)["recursos"]
+
+    entries = [line.split(": ", 1) for line in glossary["contenido"].split("\n")]
+    terms = [term.lower() for term, _ in entries]
+    definitions = [definition for _, definition in entries]
+    assert len(entries) >= 3
+    assert len(set(definitions)) == len(definitions), glossary["contenido"]  # ninguna oración define a dos términos
+    for term in terms:  # ningún término está contenido en otro («tcp» en «protocolo tcp»)
+        assert not any(term != other and term in other.split() for other in terms), terms
+    assert {"protocolo tcp", "protocolo udp", "protocolo ip"} <= set(terms)
+    assert not {"tcp", "udp", "ip"} & set(terms)
+
+    # Cada entrada sigue citando su fragmento y el glosario pasa la verificación completo.
+    assert [citation["afirmacion"] for citation in glossary["citas"]] == definitions
+    assert all(citation["fragmentos"] for citation in glossary["citas"])
+    rejections: list[dict] = []
+    [verified] = normalize_generated_resources({"recursos": [glossary]}, glossary_context, rejections)
+    assert rejections == [] and verified["contenido"] == glossary["contenido"]
+    grounding = verified["verificacion"]
+    assert grounding["supportedClaims"] == grounding["checkedClaims"] == len(entries)
+    assert grounding["removedParagraphs"] == []
