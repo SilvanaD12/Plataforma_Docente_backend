@@ -207,3 +207,30 @@ def test_a_late_answer_of_an_old_attempt_leaves_the_new_attempt_intact(late_stat
     assert old["status"] == "pendiente" and old["version"] == 3, "la respuesta vieja descartó el recurso"
     assert answer["status"] == "running"
     assert len(generation.requests) == 2
+
+
+def test_a_running_write_does_not_overwrite_the_same_attempt_once_it_failed():
+    """Revisión de Silvana en el PR #17 de Yan: una consulta lee el intento en curso y, antes de escribir su
+    `running`, otra consulta del mismo intento guarda `failed` y libera la reserva. La primera no debe pisar `failed`:
+    si lo hiciera, el recurso quedaría «en curso» sin reserva y el pedido siguiente no crearía uno nuevo."""
+    service, resources, generation = build()
+    service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
+    original = resources.save_resource_if_attempt
+    inner: list[dict[str, Any]] = []
+
+    def racing(teacher_id, unit_id, resource, expected_version, attempt_id, increment=False):
+        if not inner and resource["regeneration"]["status"] == "running":
+            # Entre la lectura y la escritura de la primera consulta, el intento falla y otra consulta lo registra.
+            generation.fail("gen-req-1", "Generación no respondió a tiempo.", None)
+            inner.append(service.get_regeneration_status("ana", "u1", "viejo"))
+        return original(teacher_id, unit_id, resource, expected_version, attempt_id, increment)
+
+    resources.save_resource_if_attempt = racing
+    answer = service.get_regeneration_status("ana", "u1", "viejo")
+
+    assert inner[0]["status"] == "failed"
+    assert resources.by_id["viejo"]["regeneration"]["status"] == "failed", "la escritura vieja pisó `failed`"
+    assert answer["status"] == "failed"
+    assert "viejo" not in resources.claims
+    assert service.regenerate_resource("ana", "u1", "viejo", expected_version=3)["status"] == "running"
+    assert len(generation.requests) == 2, "el pedido siguiente respondió «en curso» sin crear uno nuevo"

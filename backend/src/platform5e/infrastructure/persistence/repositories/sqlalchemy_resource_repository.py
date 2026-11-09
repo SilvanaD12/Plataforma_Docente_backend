@@ -34,6 +34,8 @@ def _ensure_version_column_in_sqlite() -> None:
             connection.execute(text(f"ALTER TABLE {table} ADD COLUMN regeneration_claim INTEGER NULL"))
         if "regeneration_attempt" not in columns:
             connection.execute(text(f"ALTER TABLE {table} ADD COLUMN regeneration_attempt VARCHAR NULL"))
+        if "regeneration_status" not in columns:
+            connection.execute(text(f"ALTER TABLE {table} ADD COLUMN regeneration_status VARCHAR NULL"))
 
 
 def _with_version(entity: TeacherResourceORM) -> dict[str, Any]:
@@ -131,6 +133,7 @@ class SQLAlchemyResourceRepository(ResourceReviewRepositoryPort):
                     resource_data={**resource, "version": expected_version},
                     regeneration_claim=expected_version,
                     regeneration_attempt=(resource.get("regeneration") or {}).get("attemptId"),
+                    regeneration_status="running",
                 )
             )
             session.commit()
@@ -156,8 +159,13 @@ class SQLAlchemyResourceRepository(ResourceReviewRepositoryPort):
                     TeacherResourceORM.unit_id == unit_id,
                     TeacherResourceORM.version == expected_version,
                     TeacherResourceORM.regeneration_attempt == attempt_id,
+                    TeacherResourceORM.regeneration_status == "running",
                 )
-                .values(resource_data={**resource, "version": new_version}, version=new_version)
+                .values(
+                    resource_data={**resource, "version": new_version},
+                    version=new_version,
+                    regeneration_status=(resource.get("regeneration") or {}).get("status"),
+                )
             )
             session.commit()
             return result.rowcount == 1
