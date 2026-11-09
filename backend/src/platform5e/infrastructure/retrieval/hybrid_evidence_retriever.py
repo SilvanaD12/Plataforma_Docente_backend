@@ -43,19 +43,17 @@ class HybridEvidenceRetriever:
         chunks: list[dict[str, Any]] | None = None,
         top_k: int = 5,
         unit_id: str | None = None,
-        teacher_id: str | None = None,  # <--- Añadido teacher_id para cumplir con el contrato y aislamiento
+        teacher_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Recupera fragmentos aplicando RRF sobre los rankings de BM25 y búsqueda vectorial con aislamiento por docente."""
         # 1. Resolver fragmentos base filtrados por docente y unidad
         target_chunks = list(chunks) if chunks is not None else []
         
         if not target_chunks and hasattr(self._chunk_repository, "get_chunks_by_unit") and unit_id:
-            # Si hay unit_id, podemos buscar por unidad (asegurando el filtrado por teacher_id si el repositorio lo soporta)
             target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", unit_id)
         elif not target_chunks and teacher_id and hasattr(self._chunk_repository, "get_chunks_by_teacher"):
             target_chunks = self._chunk_repository.get_chunks_by_teacher(teacher_id)
         elif not target_chunks and hasattr(self._chunk_repository, "get_chunks_by_unit"):
-            # Si no hay unit_id ni chunks, intentamos obtener por unidad vacía o pasándole el teacher_id si aplica
             target_chunks = self._chunk_repository.get_chunks_by_unit(teacher_id or "", "")
 
         # Filtro estricto por teacher_id y unit_id en memoria por seguridad defensiva
@@ -84,16 +82,26 @@ class HybridEvidenceRetriever:
             try:
                 query_vector = self._embed_query_with_timeout(query)
                 if query_vector:
-                    # Pasamos teacher_id y unit_id al repositorio si soporta el aislamiento
                     search_kwargs: dict[str, Any] = {
                         "vector": query_vector,
                         "limit": max(top_k * 2, 20),
                         "unit_id": unit_id,
                     }
-                    if "teacher_id" in self._chunk_repository.search_similar_chunks.__code__.co_varnames:
-                        search_kwargs["teacher_id"] = teacher_id
+                    
+                    # Verificación robusta compatible con objetos reales y MagicMocks de pytest
+                    try:
+                        code_obj = getattr(self._chunk_repository.search_similar_chunks, "__code__", None)
+                        if code_obj and "teacher_id" in code_obj.co_varnames:
+                            search_kwargs["teacher_id"] = teacher_id
+                    except Exception:
+                        pass
 
-                    semantic_results = self._chunk_repository.search_similar_chunks(**search_kwargs)
+                    try:
+                        semantic_results = self._chunk_repository.search_similar_chunks(**search_kwargs)
+                    except TypeError:
+                        search_kwargs.pop("teacher_id", None)
+                        semantic_results = self._chunk_repository.search_similar_chunks(**search_kwargs)
+
             except Exception as exc:
                 logger.warning(
                     "Error o timeout al generar embedding para búsqueda semántica (%s). Degradando a BM25.",
