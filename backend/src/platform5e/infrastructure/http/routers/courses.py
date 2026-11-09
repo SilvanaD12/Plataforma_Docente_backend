@@ -83,7 +83,7 @@ def create_courses_router(account_service: AccountService) -> APIRouter:
         responses=error_responses(401, 404),
     )
     def delete_course(course_id: str, teacher_id: str = Depends(current_teacher)) -> Response:
-        """Deletes the course with its documents, chunks, resources and download history.
+        """Deletes the course, its documents, chunks, resources and their media. Download records are retained.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
@@ -92,7 +92,7 @@ def create_courses_router(account_service: AccountService) -> APIRouter:
         curl --fail-with-body -i -X DELETE "$BASE_URL/api/v1/courses/${COURSE_ID}" -H "Authorization: Bearer $TOKEN"
         ```
 
-        Deletes the course and its associated data. Expected 204 with an empty body."""
+        Expected 204 with an empty body."""
         account_service.delete_course(teacher_id, course_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
