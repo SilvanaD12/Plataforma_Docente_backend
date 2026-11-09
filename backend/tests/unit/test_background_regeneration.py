@@ -170,3 +170,40 @@ def test_two_overlapping_status_queries_keep_the_discarded_result():
     assert resources.by_id["viejo"]["regeneration"]["previousDiscarded"] is True
     assert service.get_regeneration_status("ana", "u1", "viejo")["previousDiscarded"] is True
     assert resources.by_id["viejo"]["status"] == "descartado" and resources.by_id["viejo"]["version"] == 4
+
+
+def _late_answer_after_a_retry(service, generation, late: RegenerationStatus) -> dict[str, Any]:
+    """Revisión de Silvana en el PR #17 de Yan: una consulta lee el primer intento (`gen-req-1`, en curso) y espera a
+    Generación. Mientras espera, ese intento falla, se libera la reserva y el docente pide otra vez la regeneración
+    desde la misma versión (`gen-req-2`). Después llega la respuesta tardía del primer intento."""
+    service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
+    original = generation.get_regeneration
+    waiting = True
+
+    def late_answer(teacher_id, request_id):
+        nonlocal waiting
+        if not waiting:
+            return original(teacher_id, request_id)
+        waiting = False
+        generation.fail("gen-req-1", "Generación no respondió a tiempo.", None)
+        assert service.get_regeneration_status("ana", "u1", "viejo")["status"] == "failed"
+        assert service.regenerate_resource("ana", "u1", "viejo", expected_version=3)["status"] == "running"
+        return late
+
+    generation.get_regeneration = late_answer
+    return service.get_regeneration_status("ana", "u1", "viejo")
+
+
+@pytest.mark.parametrize("late_status", ["failed", "succeeded"])
+def test_a_late_answer_of_an_old_attempt_leaves_the_new_attempt_intact(late_status):
+    service, resources, generation = build()
+    new_ids = ("nuevo-tardio",) if late_status == "succeeded" else ()
+    late = RegenerationStatus("gen-req-1", late_status, new_ids, "Respuesta tardía.", None)  # type: ignore[arg-type]
+    answer = _late_answer_after_a_retry(service, generation, late)
+
+    old = resources.by_id["viejo"]
+    assert old["regeneration"]["requestId"] == "gen-req-2" and old["regeneration"]["status"] == "running"
+    assert resources.claims["viejo"] == 3, "la respuesta vieja liberó la reserva del intento nuevo"
+    assert old["status"] == "pendiente" and old["version"] == 3, "la respuesta vieja descartó el recurso"
+    assert answer["status"] == "running"
+    assert len(generation.requests) == 2
