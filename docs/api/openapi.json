@@ -542,8 +542,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "additionalProperties": true
+                    "$ref": "#/components/schemas/EvidenceSearchResponse"
                   },
                   "title": "Response Search Evidence Api V1 Documents Search Get"
                 }
@@ -2793,6 +2792,73 @@
         ],
         "title": "EvidenceResponse",
         "description": "Copy of a cited chunk, saved with the resource when it was generated."
+      },
+      "EvidenceSearchResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Location"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "relevance": {
+            "type": "number",
+            "title": "Relevance"
+          },
+          "retrieval_mode": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrieval Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "relevance"
+        ],
+        "title": "EvidenceSearchResponse"
       },
       "ExportRequest": {
         "properties": {

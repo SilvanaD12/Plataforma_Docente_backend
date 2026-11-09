@@ -23,6 +23,17 @@ from platform5e.infrastructure.http.schemas.documents import (
     TopicSearchRequest,
 )
 
+from pydantic import BaseModel, Field
+
+class EvidenceSearchResponse(BaseModel):
+    id: str
+    document_id: str | None = None
+    name: str | None = None
+    location: str | None = None
+    text: str
+    relevance: float
+    retrieval_mode: str | None = None
+
 MEDIA_TYPES: dict[str, str] = {
     "txt": "text/plain; charset=utf-8",
     "pdf": "application/pdf",
@@ -39,7 +50,7 @@ def create_documents_router(account_service: AccountService, material_service: M
 
     @router.get(
         "/search",
-        response_model=list[dict[str, Any]],  
+        response_model=list[EvidenceSearchResponse],  
         summary="Hybrid search of evidence across documents",
         responses=error_responses(401, 404),
     )
@@ -48,7 +59,7 @@ def create_documents_router(account_service: AccountService, material_service: M
         unit_id: str | None = None,
         top_k: int = 5,
         teacher_id: str = Depends(current_teacher),
-    ) -> list[dict[str, Any]]:
+    ) -> list[EvidenceSearchResponse]:
         """Hybrid search of evidence across documents.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
@@ -60,7 +71,9 @@ def create_documents_router(account_service: AccountService, material_service: M
 
         Expected 200. See the response schema below for the returned fields.
         """
-        return material_service.search_evidence(teacher_id, query, top_k=top_k, unit_id=unit_id)
+        results = material_service.search_evidence(teacher_id, query, top_k=top_k, unit_id=unit_id)
+        # Opcional: Asegúrate de que los resultados devueltos por el service se adapten o retornen como instancias/dicts compatibles con el modelo.
+        return results
     
     @router.get("", response_model=list[DocumentResponse], summary="List my documents", responses=error_responses(401))
     def list_documents(teacher_id: str = Depends(current_teacher)) -> list[dict[str, Any]]:
