@@ -143,3 +143,30 @@ def test_another_teacher_cannot_read_the_status():
     with pytest.raises(AccountConfigurationError) as error:
         service.get_regeneration_status("beto", "u1", "viejo")
     assert error.value.status_code == 404
+
+
+def test_two_overlapping_status_queries_keep_the_discarded_result():
+    """Revisión de Silvana (PR #13): si dos consultas del mismo pedido se solapan, la segunda no sobrescribe
+    `previousDiscarded: true` con `false`; una vez terminado, todas devuelven el resultado guardado."""
+    service, resources, generation = build()
+    service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
+    new_id = generation.finish("gen-req-1")
+    inner: list[dict[str, Any]] = []
+    overlapped = False
+    original = generation.get_regeneration
+
+    def overlapping(teacher_id, request_id):
+        nonlocal overlapped
+        state = original(teacher_id, request_id)
+        if not overlapped:  # la primera consulta ve `succeeded`; antes de que siga, otra consulta termina el pedido
+            overlapped = True
+            inner.append(service.get_regeneration_status("ana", "u1", "viejo"))
+        return state
+
+    generation.get_regeneration = overlapping
+    outer = service.get_regeneration_status("ana", "u1", "viejo")
+    assert inner[0]["previousDiscarded"] is True and inner[0]["newResourceIds"] == [new_id]
+    assert outer["status"] == "succeeded" and outer["previousDiscarded"] is True
+    assert resources.by_id["viejo"]["regeneration"]["previousDiscarded"] is True
+    assert service.get_regeneration_status("ana", "u1", "viejo")["previousDiscarded"] is True
+    assert resources.by_id["viejo"]["status"] == "descartado" and resources.by_id["viejo"]["version"] == 4

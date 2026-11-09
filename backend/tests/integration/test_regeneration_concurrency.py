@@ -125,3 +125,59 @@ def test_two_simultaneous_regenerations_from_the_same_version_create_one_resourc
     assert len(new_resources) == 1
     statuses = sorted(r["status"] for r in results if isinstance(r, dict))
     assert statuses in (["running", "succeeded"], ["succeeded", "succeeded"])
+
+
+
+class BackgroundGeneration:
+    """Doble del adaptador en segundo plano: el pedido queda `running`; al consultarlo, las dos consultas esperan en una
+    barrera y las dos ven `succeeded`, como en el caso que reprodujo Silvana en el PR #13."""
+
+    def __init__(self, new_id: str) -> None:
+        self._new_id = new_id
+        self._barrier = threading.Barrier(2, timeout=10)
+
+    def request_regeneration(self, teacher_id, resource_id, resource_version, params) -> RegenerationStatus:
+        return RegenerationStatus("gen-req-1", "running")
+
+    def get_regeneration(self, teacher_id, request_id) -> RegenerationStatus | None:
+        self._barrier.wait()
+        return RegenerationStatus(request_id, "succeeded", (self._new_id,), None)
+
+
+def test_two_overlapping_status_queries_keep_the_discarded_result(tmp_path, monkeypatch, request):
+    engine = create_engine(URL.create("sqlite", database=str(tmp_path / "estado.db")))
+    request.addfinalizer(engine.dispose)
+    sessions = sessionmaker(bind=engine)
+    monkeypatch.setattr(accounts, "engine", engine)
+    monkeypatch.setattr(accounts, "SessionLocal", sessions)
+    monkeypatch.setattr(generations, "engine", engine)
+    monkeypatch.setattr(resources, "engine", engine)
+    monkeypatch.setattr(resources, "SessionLocal", sessions)
+
+    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    course = AccountService(account_repository, "", "").save_course(
+        TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
+    )
+    unit_id = course["units"][0]["id"]
+    repository = resources.SQLAlchemyResourceRepository()
+    repository.save_resources(TEACHER, unit_id, [explanation("viejo", unit_id)])
+    service = ResourceReviewService(account_repository, repository, BackgroundGeneration("nuevo"))
+    service.list_resources(TEACHER, unit_id)
+    version = repository.get_resource_by_id(TEACHER, "viejo")["version"]
+    assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
+    repository.save_resources(TEACHER, unit_id, [explanation("nuevo", unit_id)])  # Generación guardó el nuevo
+
+    results: list[Any] = []
+
+    def query() -> None:
+        results.append(service.get_regeneration_status(TEACHER, unit_id, "viejo"))
+
+    threads = [threading.Thread(target=query) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=20)
+
+    assert [r["previousDiscarded"] for r in results] == [True, True]
+    old = repository.get_resource_by_id(TEACHER, "viejo")
+    assert old["status"] == "descartado" and old["regeneration"]["previousDiscarded"] is True

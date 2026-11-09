@@ -295,7 +295,9 @@ Mientras T029 no se integre, el adaptador síncrono sigue en `main.py`.
   fallo y conservando la reserva. El `POST` responde `status: running`.
 - `GET /units/{unit_id}/resources/{resource_id}/regeneration` consulta `get_regeneration`. Si ve `succeeded`, hace el
   descarte condicional (REV-C12); si ve `failed` o `None`, registra el motivo y libera la reserva (REV-C13).
-  Consultar otra vez un pedido terminado devuelve lo mismo.
+  Consultar otra vez un pedido terminado devuelve lo mismo. Si dos consultas del mismo pedido se solapan, la que pierde
+  el descarte no sobrescribe el resultado: cada reserva lleva un `attemptId` y el registro de un intento terminado
+  (`succeeded` o `failed`) no se reemplaza (revisión de Silvana en el PR #13, con una prueba con dos hilos en SQLite).
 - Revisión guarda `regeneratedFrom` también. Si Generación ya lo guardó, queda igual.
 - El frontend consulta el estado hasta que el pedido termina.
 

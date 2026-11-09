@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from platform5e.application.ports.outbound.resource_regeneration_port import (
     RegenerationStatus,
@@ -101,6 +102,15 @@ def verification_blockers(resource_data: dict[str, Any]) -> list[str]:
 def approval_blockers(resource_data: dict[str, Any]) -> list[str]:
     """Todos los motivos que impiden aprobar: las reglas pedagógicas y la verificación vigente."""
     return validate_approval_blockers(resource_data) + verification_blockers(resource_data)
+
+
+def _same_finished_attempt(stored: dict[str, Any], record: dict[str, Any]) -> bool:
+    """El pedido guardado es el mismo intento y ya terminó: no se sobrescribe (revisión de Silvana en el PR #13)."""
+    if stored.get("status") not in ("succeeded", "failed"):
+        return False
+    if stored.get("attemptId") and record.get("attemptId"):
+        return stored["attemptId"] == record["attemptId"]
+    return bool(stored.get("requestId")) and stored.get("requestId") == record.get("requestId")
 
 
 def _regeneration_response(resource_id: str, record: dict[str, Any]) -> dict[str, Any]:
@@ -421,7 +431,8 @@ class ResourceReviewService:
 
         # La reserva es atómica: si dos solicitudes llegan a la vez desde la misma versión, solo una la consigue y
         # la otra devuelve el pedido en curso sin generar otro recurso.
-        record = {"fromVersion": expected_version, "requestId": None, "status": "running", "newResourceIds": []}
+        record = {"fromVersion": expected_version, "attemptId": f"intento-{uuid4()}", "requestId": None,
+                  "status": "running", "newResourceIds": []}
         if not self._review_repository.claim_regeneration(
             teacher_id, unit_id, {**existing, "regeneration": record}, expected_version
         ):
@@ -482,17 +493,17 @@ class ResourceReviewService:
         record = {**record, "requestId": outcome.request_id, "newResourceIds": list(outcome.new_resource_ids)}
 
         if outcome.status in ("pending", "running"):
-            record = {**record, "status": "running"}
-            self._record_regeneration(teacher_id, unit_id, resource_id, record)
+            record = self._record_regeneration(teacher_id, unit_id, resource_id, {**record, "status": "running"})
             return record if as_record else _regeneration_response(resource_id, record)
 
         if outcome.status != "succeeded":
             reason = outcome.reason or "La regeneración no terminó bien."
-            record = {**record, "status": "failed", "reason": reason, "code": outcome.code}
-            self._record_regeneration(teacher_id, unit_id, resource_id, record)
-            self._review_repository.release_regeneration(teacher_id, unit_id, resource_id, expected_version)
-            if raise_on_failure:
-                raise RegenerationFailedError(reason, outcome.code)
+            failed = {**record, "status": "failed", "reason": reason, "code": outcome.code}
+            record = self._record_regeneration(teacher_id, unit_id, resource_id, failed)
+            if record is failed:  # si otra consulta ya cerró este intento, se devuelve lo guardado
+                self._review_repository.release_regeneration(teacher_id, unit_id, resource_id, expected_version)
+                if raise_on_failure:
+                    raise RegenerationFailedError(reason, outcome.code)
             return record if as_record else _regeneration_response(resource_id, record)
 
         record = {**record, "status": "succeeded"}
@@ -514,17 +525,32 @@ class ResourceReviewService:
         ):
             record = discarded["regeneration"]
         else:
-            record = {**record, "previousDiscarded": False}
-            self._record_regeneration(teacher_id, unit_id, resource_id, record)
+            # No se descartó: o el docente lo editó, o otra consulta ya terminó este intento y lo descartó. En el
+            # segundo caso se devuelve lo guardado (`previousDiscarded: true`) en lugar de sobrescribirlo.
+            record = self._record_regeneration(teacher_id, unit_id, resource_id, {**record, "previousDiscarded": False})
         return record if as_record else _regeneration_response(resource_id, record)
 
-    def _record_regeneration(self, teacher_id: str, unit_id: str, resource_id: str, record: dict[str, Any]) -> None:
-        """Guarda el estado del pedido en el recurso anterior sin cambiar su versión ni su contenido."""
-        latest = self._review_repository.get_resource_by_id(teacher_id, resource_id)
-        if latest is not None:
-            self._review_repository.save_resource_if_version(
+    def _record_regeneration(
+        self, teacher_id: str, unit_id: str, resource_id: str, record: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Guarda el estado del pedido en el recurso anterior sin cambiar su versión ni su contenido.
+
+        No sobrescribe un intento que ya terminó (`succeeded` o `failed`): si dos consultas del mismo pedido se solapan,
+        la segunda devuelve lo que guardó la primera. La escritura es condicional por versión; si la versión cambió
+        entre la lectura y la escritura, se vuelve a leer. Devuelve el registro que quedó guardado.
+        """
+        for _ in range(5):
+            latest = self._review_repository.get_resource_by_id(teacher_id, resource_id)
+            if latest is None:
+                return record
+            stored = latest.get("regeneration") or {}
+            if _same_finished_attempt(stored, record):
+                return stored
+            if self._review_repository.save_resource_if_version(
                 teacher_id, unit_id, {**latest, "regeneration": record}, latest.get("version", 1), increment=False
-            )
+            ):
+                return record
+        return record
 
     def clear_downloads_history(self, teacher_id: str, unit_id: str) -> None:
         """Elimina el registro histórico de descargas de una unidad."""
