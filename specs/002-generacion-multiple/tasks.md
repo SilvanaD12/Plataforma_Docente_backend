@@ -149,11 +149,11 @@ Dependencias externas que bloquean tareas:
   - Si el último intento de esa versión terminó `failed` o `interrupted`, crea otro con la clave siguiente (`-r2`, `-r3`…). Si sigue en curso o terminó `succeeded`, devuelve ese mismo ([research R9](research.md#r9-regeneración-y-edición-durante-el-pedido)).
   - Un recurso sin `params` lanza `REGENERATION_UNAVAILABLE`.
   - Los recursos nuevos llevan `regeneratedFrom: {resourceId, version}`.
-- [ ] T029 [BE] **Depende de REV-01 PR 1 y T028.** Implementar `backend/src/platform5e/infrastructure/adapters/generation_regeneration_adapter.py` sobre `resource_regeneration_port.py`, y en `main.py` reemplazar con él el adaptador síncrono provisional de Revisión. Caso GEN-C7.
+- [x] T029 [BE] **Depende de REV-01 PR 1 y T028.** Implementar `backend/src/platform5e/infrastructure/adapters/generation_regeneration_adapter.py` sobre `resource_regeneration_port.py`, y en `main.py` reemplazar con él el adaptador síncrono provisional de Revisión. Caso GEN-C7. [PR #17 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/17).
   - `request_regeneration` llama a `StartRegeneration`.
   - `get_regeneration` traduce los estados: `queued` → `pending`, `running` → `running`, `succeeded` → `succeeded`, y `failed` o `interrupted` → `failed` con `reason`.
   - Devuelve `new_resource_ids`.
-- [ ] T030 [E2E] **Depende de T029.** Probar la regeneración en `backend/tests/e2e/test_generation_requests_api.py` por la ruta de Revisión `POST /api/v1/units/{unitId}/resources/{resourceId}/regenerations`. Caso GEN-C7.
+- [x] T030 [E2E] **Depende de T029.** Probar la regeneración en `backend/tests/e2e/test_generation_requests_api.py` por la ruta de Revisión `POST /api/v1/units/{unitId}/resources/{resourceId}/regenerations`. Caso GEN-C7. [PR #17 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/17).
   - **Éxito:** el recurso anterior queda `descartado`.
   - **Repetición:** no crea otro pedido ni recursos.
   - **Edición durante el pedido:** conserva los dos recursos.
