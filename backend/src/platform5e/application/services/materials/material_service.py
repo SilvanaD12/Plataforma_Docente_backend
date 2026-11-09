@@ -15,6 +15,8 @@ from platform5e.application.ports.outbound.chunk_repository_port import ChunkRep
 from platform5e.application.ports.outbound.open_educational_resource_port import OpenEducationalResourcePort
 from platform5e.application.ports.outbound.text_extractor_port import TextExtractorPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
+from platform5e.application.ports.outbound.unit_membership_port import UnitMembershipPort
+from platform5e.application.ports.outbound.evidence_retriever_port import EvidenceRetrieverPort
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.domain.materials.chunking import MaterialError, chunk_pages
@@ -42,6 +44,9 @@ def build_article_filename(title: str, source_label: str = "") -> str:
 class MaterialService:
     """Servicio de aplicación para coordinar la ingesta y extracción de fragmentos de material."""
 
+    _unit_membership_port: UnitMembershipPort | None
+    _evidence_retriever: EvidenceRetrieverPort | None
+
     def __init__(
         self,
         teacher_repository: TeacherRepositoryPort,
@@ -49,12 +54,16 @@ class MaterialService:
         text_extractor: TextExtractorPort,
         open_resource_port: OpenEducationalResourcePort | None = None,
         embedding_service: ChunkEmbeddingService | None = None,
+        unit_membership_port: UnitMembershipPort | None = None,
+        evidence_retriever: EvidenceRetrieverPort | None = None,
     ) -> None:
         self._teacher_repository = teacher_repository
         self._chunk_repository = chunk_repository
         self._text_extractor = text_extractor
         self._open_resource_port = open_resource_port
         self._embedding_service = embedding_service
+        self._unit_membership_port = unit_membership_port
+        self._evidence_retriever = evidence_retriever
 
     def _get_document(self, teacher_id: str, document_id: str) -> tuple[dict[str, Any], bytes]:
         """Recupera los metadatos y bytes del documento validando existencia."""
@@ -69,6 +78,76 @@ class MaterialService:
         if match is None:
             raise MaterialError("UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404)
         return match[1]
+
+    def search_evidence(
+        self, teacher_id: str, query: str, top_k: int = 5, unit_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Búsqueda híbrida de evidencia across documents con aislamiento por docente y unidad."""
+        if unit_id:
+            self.validate_unit_membership_secure(teacher_id, unit_id, [])
+
+        if not self._evidence_retriever:
+            return []
+
+        return self._evidence_retriever.retrieve(
+            query=query,
+            top_k=top_k,
+            unit_id=unit_id,
+            teacher_id=teacher_id,
+        )
+
+    def validate_unit_membership_secure(self, teacher_id: str, unit_id: str, outcome_ids: list[str]) -> None:
+        """
+        Valida que el docente tenga acceso a la unidad y que los outcomes pertenezcan a ella.
+        Implementa MAT-C2 / T007: Unidad ajena o inexistente devuelven el mismo 404 Not Found.
+        """
+        if self._unit_membership_port is not None:
+            context = self._unit_membership_port.get_unit_context(teacher_id, unit_id)
+            if context is None:
+                raise MaterialError("UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404)
+
+            if outcome_ids:
+                valid_ids = {outcome.id for outcome in context.outcomes if outcome.id}
+                invalid_ids = set(outcome_ids) - valid_ids
+                if invalid_ids:
+                    raise MaterialError(
+                        "INVALID_OUTCOMES",
+                        "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.",
+                        400,
+                    )
+        else:
+            # Fallback limpio sin llamadas duplicadas para pruebas unitarias sin puerto
+            unit = self._get_unit(teacher_id, unit_id)
+            if outcome_ids:
+                valid_ids = {
+                    outcome.get("id")
+                    for outcome in unit.get("outcomes", [])
+                    if isinstance(outcome, dict) and outcome.get("id")
+                }
+                invalid_ids = set(outcome_ids) - valid_ids
+                if invalid_ids:
+                    raise MaterialError(
+                        "INVALID_OUTCOMES",
+                        "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.",
+                        400,
+                    )
+                
+            else:
+                # Fallback para pruebas unitarias donde no se inyecta unit_membership_port
+                unit = self._get_unit(teacher_id, unit_id)
+                if outcome_ids:
+                    valid_ids = {
+                        outcome.get("id")
+                        for outcome in unit.get("outcomes", [])
+                        if isinstance(outcome, dict) and outcome.get("id")
+                    }
+                    invalid_ids = set(outcome_ids) - valid_ids
+                    if invalid_ids:
+                        raise MaterialError(
+                            "INVALID_OUTCOMES",
+                            "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.",
+                            400,
+                        )
 
     def process_material(self, teacher_id: str, document_id: str) -> dict[str, Any]:
         """Extrae el texto del documento, lo divide en fragmentos y persiste el resultado."""
@@ -108,7 +187,7 @@ class MaterialService:
             return {}
         try:
             run = self._embedding_service.embed_pending(document_id=document_id)
-        except Exception as exc:  # el material no se pierde por un fallo del modelo de embeddings
+        except Exception as exc:
             logger.warning("No se pudieron generar los embeddings de %s: %s", document_id, exc)
             return {
                 "embeddedFragmentCount": 0,
@@ -162,7 +241,9 @@ class MaterialService:
         if not 3 <= len(cleaned_topic) <= 120:
             raise MaterialError("INVALID_TOPIC", "Escribe un tema de 3 a 120 caracteres.")
 
-        unit = self._get_unit(teacher_id, unit_id)
+        # T007: Validación segura contra unidad ajena o inexistente
+        self.validate_unit_membership_secure(teacher_id, unit_id, [])
+
         if self._open_resource_port is None:
             raise MaterialError(
                 "TOPIC_SEARCH_UNAVAILABLE",
@@ -191,7 +272,7 @@ class MaterialService:
         existing_docs = {
             d["fileName"].casefold(): d
             for d in self._teacher_repository.get_documents(teacher_id)
-            if d["unitId"] == unit["id"]
+            if d.get("unitId") == unit_id
         }
         results: list[dict[str, Any]] = []
 
@@ -205,7 +286,7 @@ class MaterialService:
 
             content_bytes = f"{article['titulo']}\n\n{article['texto']}".encode("utf-8")
             doc_data: dict[str, Any] = {
-                "unitId": unit["id"],
+                "unitId": unit_id,
                 "outcomeIds": [],
                 "documentType": OPEN_EDUCATIONAL_RESOURCE_TYPE,
                 "suggestedStage": None,

@@ -20,6 +20,8 @@ from platform5e.domain.materials.text_analysis import (
     extract_terms,
 )
 
+from platform5e.infrastructure.retrieval.bm25_evidence_retriever import Bm25EvidenceRetriever
+
 SAMPLE_TEXT = (
     "Unidad 2: Protocolos de red\n\n"
     "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable. "
@@ -114,3 +116,19 @@ def test_key_terms_returns_frequent_forms():
         ["El protocolo TCP y el protocolo UDP son protocolos de transporte."], 3
     )
     assert key_terms[0] == "protocolo"
+
+def test_retriever_isolates_by_unit_id():
+    """Valida que el recuperador respete estrictamente el aislamiento por unidad temática (MAT-C3)."""
+    chunks = [
+        {"id": "c1", "unit_id": "unidad-1", "texto": "Contenido exclusivo de la unidad uno sobre redes y protocolos."},
+        {"id": "c2", "unit_id": "unidad-2", "texto": "Contenido exclusivo de la unidad dos sobre bases de datos."},
+    ]
+    
+    retriever = Bm25EvidenceRetriever()
+    
+    # Al filtrar por 'unidad-1', solo debe retornar fragmentos de dicha unidad
+    results_unit_1 = retriever.retrieve("protocolos bases", chunks=chunks, top_k=5, unit_id="unidad-1")
+    
+    assert len(results_unit_1) == 1
+    assert results_unit_1[0]["id"] == "c1"
+    assert results_unit_1[0]["unit_id"] == "unidad-1"

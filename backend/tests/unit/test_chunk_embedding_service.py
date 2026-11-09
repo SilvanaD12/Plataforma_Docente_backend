@@ -196,3 +196,17 @@ def test_without_embeddings_the_processing_result_does_not_change():
     service, _, _ = build_test_environment()
     data = service.process_material("d", "doc1")
     assert "embeddedFragmentCount" not in data
+
+def test_empty_batch_handling_prevents_infinite_loops():
+    """Valida que si el repositorio no devuelve fragmentos pendientes, el servicio se detiene de forma limpia."""
+    class EmptyVectorStore(InMemoryVectorStore):
+        def get_chunks_missing_embeddings(self, model: str, limit: int, document_id: str | None = None) -> list[dict]:
+            return []  # Simula que no hay nada pendiente
+
+    store = EmptyVectorStore(available=True)
+    embedder = FakeEmbedder()
+    run = ChunkEmbeddingService(store, embedder).embed_pending()
+    
+    assert run.embedded == 0
+    assert run.total == 0
+    assert embedder.batches == []
