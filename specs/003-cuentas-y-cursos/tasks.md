@@ -15,8 +15,8 @@
 - [x] T009 [FE] Agregar confirmación, resultado y manejo de errores de la eliminación después de verificar T008. Caso CC-C9. [PR #5 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/5).
 - [x] T010 [E2E] Registrar una cuenta, crear un curso, editarlo, reabrir su unidad, cerrar sesión y volver a entrar. Incluir evidencia de los casos CC-C1 a CC-C8 y de la conservación de IDs.
   - Validación (8 de noviembre de 2026). En navegador, la URL de la unidad pidió iniciar sesión tras el cierre. Al volver a entrar con la misma cuenta, esa URL abrió «Protocolos TCP/IP» con `RA1.1`. Las comprobaciones de API y persistencia en SQLite cubrieron CC-C1 a CC-C8 y confirmaron que el curso, la unidad y el resultado conservaron sus IDs en el JSON después de la edición.
-
+- [x] T011 [E2E] Eliminar un curso de prueba con datos asociados y comprobar que el registro de descarga sigue disponible para su docente. Depende de T008 y T009. Caso CC-C9.
 ## Pendientes de coordinación e integración
 
 - [ ] T007 [BE] Acordar e implementar el puerto de pertenencia con MAT-01 y GEN-01. Probar unidad propia, ajena e inexistente. Casos CC-C8 y CC-C10.
-- [ ] T011 [E2E] Eliminar un curso de prueba con datos asociados y comprobar que el registro de descarga sigue disponible para su docente. Depende de T008 y T009. Caso CC-C9.
+
