@@ -96,12 +96,8 @@ paths:
         '404': { $ref: '#/components/responses/RequestNotFound' }
         '422': { $ref: '#/components/responses/InvalidParameters' }
 
-  /generations:
-    post:
-      deprecated: true
-      tags: [generations]
-      summary: Synchronous generation (deprecated)
-      description: Replaced by `POST /generation-requests`. It is removed in this delivery once the evaluation scripts migrate.
+  # `POST /generations` (synchronous generation) was removed in T046. `GET /generations` and `GET /generations/{id}`
+  # remain only to read the history saved before GEN-01; they are outside this contract.
 
 components:
   securitySchemes:
@@ -271,7 +267,7 @@ components:
 
     GroundingReport:
       type: object
-      description: HU-016 grounding check. `hallucinationRate` is indicator I21. Same schema as in `POST /generations`.
+      description: HU-016 grounding check. `hallucinationRate` is indicator I21. Same schema as in the generation history (`GET /generations/{id}`).
       required: [checkedClaims, supportedClaims, unsupportedClaims]
       properties:
         checkedClaims: { type: integer }
@@ -290,7 +286,7 @@ components:
 
     DistractorReliability:
       type: object
-      description: HU-019 distractor reliability check (indicator I5). Same schema as in `POST /generations`.
+      description: HU-019 distractor reliability check (indicator I5). Same schema as in the generation history (`GET /generations/{id}`).
       required: [evaluatedDistractors, discardedAsCorrect]
       properties:
         evaluatedDistractors: { type: integer }

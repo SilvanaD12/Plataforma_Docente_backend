@@ -261,6 +261,9 @@ Mientras T029 no se integre, el adaptador síncrono sigue en `main.py`.
   vigente del material. Devuelve `succeeded` con los ids nuevos o `failed` con el motivo (`GenerationError`, parámetros
   guardados incompletos, ningún recurso con respaldo o un error inesperado). **No se modificó ningún archivo de
   Generación.** `main.py` crea el servicio de revisión después del de generación para pasarle el adaptador.
+  **Retirado.** Desde el PR #17 de GEN-01 (T029 y T064), `main.py` usa el adaptador en segundo plano de Generación
+  (`infrastructure/adapters/generation_regeneration_adapter.py`). T046 de GEN-01 borró este adaptador síncrono, su
+  prueba y `GenerationService`.
 - **Servicio** `ResourceReviewService.regenerate_resource(teacher_id, unit_id, resource_id, expected_version)`:
   - Antes de pedirlo, **reserva el pedido de forma atómica** con `claim_regeneration`: un solo `UPDATE` condicional
     que exige la versión esperada y que no haya reserva para esa versión (columna `regeneration_claim`, migración
