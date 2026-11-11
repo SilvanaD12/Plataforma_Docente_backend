@@ -146,7 +146,7 @@ def test_private_routes_require_a_session(server: str, route: str):
     assert httpx.get(server + route, headers={"Authorization": "Bearer inventado"}).status_code == 401
 
 
-def test_server_validation_does_not_save_invalid_data(server: str):
+def test_server_validation_does_not_save_invalid_data(server: str, e2e_database_url: str):
     with httpx.Client(base_url=server) as api:
         assert api.post("/api/v1/sessions", json={**CREDENTIALS, "password": "incorrecta"}).status_code == 401
         h = login(api)
@@ -168,9 +168,55 @@ def test_server_validation_does_not_save_invalid_data(server: str):
         assert upload(api, h).status_code == 201
         assert upload(api, h).status_code == 409
         assert len(api.get("/api/v1/documents", headers=h).json()) == 1
-        foreign = start_generation(api, h, "unidad-ajena", "guia_exploracion", **GENERATION_PARAMS)
+        foreign_key = "clave-unidad-ajena-ep002"
+        foreign = start_generation(api, h, "unidad-ajena", "guia_exploracion", key=foreign_key, **GENERATION_PARAMS)
         assert foreign.status_code == 404 and foreign.json()["error"]["code"] == "UNIT_NOT_FOUND"
         assert api.get("/api/v1/generations", headers=h).json() == []
+
+        # El rechazo no guardó ningún pedido en el flujo nuevo (revisión de Silvana en el PR #22).
+        # 1. Ninguna unidad del docente tiene pedidos.
+        units = [unit["id"] for course in api.get("/api/v1/courses", headers=h).json() for unit in course["units"]]
+        assert units
+        for unit_id in units:
+            listed = api.get("/api/v1/generation-requests", headers=h, params={"unitId": unit_id})
+            assert listed.status_code == 200 and listed.json() == [], (unit_id, listed.text)
+        # 2. En la base no hay pedidos del docente ni pasos de esos pedidos.
+        assert _saved_generation_requests(e2e_database_url, CREDENTIALS["email"]) == (0, 0)
+        # 3. La clave del intento rechazado no quedó guardada: en una unidad propia con material crea el pedido (202).
+        material = upload(
+            api,
+            h,
+            "protocolos.txt",
+            b"El protocolo TCP es orientado a la conexion y garantiza una entrega confiable de los datos. "
+            b"El protocolo UDP no establece conexion y por eso es mas rapido que TCP.",
+        )
+        assert material.status_code == 201, material.text
+        processed = api.post(f"/api/v1/documents/{material.json()['id']}/process", headers=h)
+        assert processed.status_code == 200 and processed.json()["fragmentCount"] >= 1, processed.text
+        reused = start_generation(api, h, "u2", "guia_exploracion", key=foreign_key, **GENERATION_PARAMS)
+        assert reused.status_code == 202, reused.text
+
+
+def _saved_generation_requests(database_url: str, teacher_id: str) -> tuple[int, int]:
+    """Pedidos de generación del docente y pasos de esos pedidos, contados en la base."""
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            requests = connection.execute(
+                text("SELECT COUNT(*) FROM gen_generation_requests WHERE teacher_id = :teacher"), {"teacher": teacher_id}
+            ).scalar_one()
+            steps = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM gen_generation_steps WHERE request_id IN "
+                    "(SELECT id FROM gen_generation_requests WHERE teacher_id = :teacher)"
+                ),
+                {"teacher": teacher_id},
+            ).scalar_one()
+    finally:
+        engine.dispose()
+    return requests, steps
 
 
 @pytest.mark.parametrize("modalities", [["Multimedia"], ["Textual", "Gamificado"]])
