@@ -18,16 +18,19 @@ class ExportNotEligibleError(AccountConfigurationError):
         self.details: list[dict[str, Any]] = details
 
 
-# Rechazos de Generación por el material de la unidad: se resuelven agregando o procesando material (409).
+# Rechazos por el estado de la unidad o de sus recursos (409): se resuelven agregando o procesando material, o
+# pidiendo la regeneración otra vez si el recurso nuevo ya no existe (REGENERATED_RESOURCE_NOT_FOUND, PR #17).
 # Cualquier otro código de rechazo viene de los parámetros guardados del recurso (422).
-MATERIAL_STATE_CODES: frozenset[str] = frozenset({"NO_PROCESSED_MATERIAL", "INSUFFICIENT_EVIDENCE"})
+MATERIAL_STATE_CODES: frozenset[str] = frozenset(
+    {"NO_PROCESSED_MATERIAL", "INSUFFICIENT_EVIDENCE", "REGENERATED_RESOURCE_NOT_FOUND"}
+)
 
 
 class RegenerationFailedError(AccountConfigurationError):
     """REV-C13: la regeneración no terminó bien; el recurso anterior queda como estaba. El mensaje es el motivo.
 
     Con `code` (Generación rechazó el pedido por los datos del docente) se responde con ese código: 409 por el material
-    de la unidad y 422 por los parámetros guardados. Sin código es un fallo del proveedor: 502 REGENERATION_FAILED.
+    de la unidad o porque el recurso nuevo ya no existe, y 422 por los parámetros guardados. Sin código es un fallo del proveedor: 502 REGENERATION_FAILED.
     """
 
     def __init__(self, reason: str, code: str | None = None) -> None:

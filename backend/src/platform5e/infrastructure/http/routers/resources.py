@@ -135,7 +135,7 @@ def create_resources_router(
         summary="Regenerate a resource from review",
         responses={
             **error_responses(401, 404),
-            409: {"model": ErrorResponse, "description": "VERSION_CONFLICT, or Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE). The previous resource is unchanged."},
+            409: {"model": ErrorResponse, "description": "VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); or REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review. The previous resource is unchanged."},
             422: {"model": ErrorResponse, "description": "Invalid body, or Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING). The previous resource is unchanged."},
             502: {"model": ErrorResponse, "description": "REGENERATION_FAILED: only for provider or unexpected failures. The previous resource is unchanged."},
             503: {"model": ErrorResponse, "description": "REGENERATION_UNAVAILABLE."},
@@ -154,8 +154,10 @@ def create_resources_router(
         was edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version
         returns the same result without generating again. On failure the previous resource is unchanged and `message`
         gives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the
-        unit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME); 502
-        REGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409
+        unit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME). If
+        Generation finished but none of the new resources is still in review, the answer is 409
+        REGENERATED_RESOURCE_NOT_FOUND and the regeneration can be asked again. 502 REGENERATION_FAILED is only for
+        provider or unexpected failures. An outdated `expectedVersion` returns 409
         VERSION_CONFLICT.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.

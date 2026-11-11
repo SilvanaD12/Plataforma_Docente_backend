@@ -104,3 +104,5 @@ Estado de revisión (status)        Verificación (verification.status)
 | `get_regeneration` | `teacher_id` y `request_id` | `RegenerationStatus` o `None` si no existe o es de otro docente. Revisión lo consulta desde `GET …/regeneration` mientras el pedido está en curso (D10 confirmada) |
 
 En el recurso anterior, Revisión guarda `regeneration: {fromVersion, requestId, status, newResourceIds, previousDiscarded}`. En cada recurso nuevo guarda `regeneratedFrom: {resourceId, version}`.
+
+Si Generación responde `succeeded` pero ninguno de los recursos nuevos existe, Revisión registra `status: failed` con `code: REGENERATED_RESOURCE_NOT_FOUND` y libera la reserva; en el `POST` responde **409** (`MATERIAL_STATE_CODES` de `domain/review/errors.py`). Si existen algunos, `newResourceIds` guarda solo esos.

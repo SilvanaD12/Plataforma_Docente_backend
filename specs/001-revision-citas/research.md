@@ -283,15 +283,24 @@ Mientras T029 no se integre, el adaptador síncrono sigue en `main.py`.
     cuando no sale ningún recurso con respaldo) y **422** por los parámetros guardados (`INVALID_OUTCOME`,
     `INVALID_SEQUENCE`, `REGENERATION_PARAMETERS_MISSING`). **502** `REGENERATION_FAILED` queda solo para fallos del
     proveedor o inesperados. Generación ya cubre la caída de la IA con el generador por reglas, así que el 502 es raro.
+  - Si Generación responde `succeeded` pero ninguno de los recursos nuevos sigue en Revisión (el docente los borró),
+    se trata como un fallo con **409** `REGENERATED_RESOURCE_NOT_FOUND`: el anterior no se descarta, se libera la
+    reserva y se puede pedir otra vez. Si quedan algunos, `newResourceIds` guarda solo esos. Lo agregó Yan en el PR #17
+    (`d1c7faf`); el 409, en lugar del 422 que le tocaba por no ser un código de material, se fijó en el cierre de
+    REV-01 (2026-11-11), porque el 422 es solo para los parámetros guardados.
 - **Ruta** `POST /api/v1/units/{unit_id}/resources/{resource_id}/regenerations` con `{expectedVersion}`. Errores: 404,
-  409 `VERSION_CONFLICT` o rechazo por el material, 422 por los parámetros guardados, 502 `REGENERATION_FAILED` y 503
-  `REGENERATION_UNAVAILABLE`.
+  409 `VERSION_CONFLICT`, rechazo por el material o `REGENERATED_RESOURCE_NOT_FOUND`, 422 por los parámetros
+  guardados, 502 `REGENERATION_FAILED` y 503 `REGENERATION_UNAVAILABLE`.
 
 **Límites conocidos.**
 - ~~Dos pedidos simultáneos desde la misma versión podían pasar los dos.~~ Cerrado con la reserva atómica
   (2026-11-09).
 - Si el servidor se cae a mitad de un pedido, la reserva y `status: "running"` quedan para esa versión y el mismo
   pedido no se repite. Editar el recurso cambia su versión y permite volver a pedirlo.
+- La comprobación de que el recurso nuevo existe (`d1c7faf`) no es atómica con el descarte del anterior: si el docente
+  borra el recurso nuevo justo entre la comprobación y el descarte, el anterior se descarta igual y no queda ninguno
+  en Revisión. El docente puede restaurar el anterior desde Descartados. Es poco probable, porque exige borrar el
+  recurso nuevo en el mismo instante en que termina la consulta del estado.
 
 **Pedido en segundo plano (implementado en Revisión, 2026-11-09).**
 - `pending` y `running` dejan el pedido «en curso» (`regeneration.status = running`, con su `requestId`), sin marcar
