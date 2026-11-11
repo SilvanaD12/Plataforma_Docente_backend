@@ -101,7 +101,10 @@ get_regeneration(teacher_id: str, request_id: str) -> RegenerationStatus
 #                     new_resource_ids: list[str], reason: str | None
 ```
 
-- `GenerationRegenerationAdapter` llama a `StartRegeneration` y `GetGenerationRequest` y traduce los estados ([research R9](../research.md#r9-regeneración-y-edición-durante-el-pedido)).
+- `GenerationRegenerationAdapter` llama a `StartRegeneration` y `GetGenerationRequest` y traduce los estados ([research R9](../research.md#r9-regeneración-y-edición-durante-el-pedido)): `queued` → `pending`, `running` → `running`, `succeeded` → `succeeded` y `failed` o `interrupted` → `failed`.
+  - `new_resource_ids` son solo los recursos nuevos que siguen en Revisión. Si el pedido terminó bien pero ya no queda ninguno, devuelve `failed` con `code = REGENERATED_RESOURCE_NOT_FOUND`.
+  - Si una consulta falla de forma inesperada cuando el pedido ya existe, devuelve `pending` o `running` con el id del pedido, en vez de propagar el error.
+  - Revisión, por su parte, vuelve a comprobar al ver `succeeded` que los recursos nuevos existen. Si no queda ninguno, lo trata como `failed` con el mismo código, sin descartar el anterior y liberando la reserva.
 - Generación no modifica ni descarta el recurso anterior; eso lo hace Revisión con su guardado condicional por versión.
 
 ## Propios de Generación
