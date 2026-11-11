@@ -5,6 +5,7 @@ import zipfile
 
 import httpx
 
+from tests.e2e.generation_flow import generate
 from tests.support.moodle_xml_validator import validate
 
 MATERIAL = ('El protocolo TCP es orientado a la conexión y garantiza una entrega confiable. '
@@ -22,9 +23,8 @@ def test_exports_approved_resources_as_scorm_and_moodle_xml(server):
         document = api.post('/api/v1/documents', headers=h, files={'file': ('tcp.txt', MATERIAL)},
                              data={'context': json.dumps(context)}).json()
         api.post(f"/api/v1/documents/{document['id']}/process", headers=h)
-        resource = api.post('/api/v1/generations', headers=h, json={
-            'unitId': unit['id'], 'stage': 'evaluate', 'resourceType': 'item_opcion_multiple', 'quantity': 1,
-            'optionCount': 4, 'modalities': ['Textual']}).json()['resources'][0]
+        _, [resource] = generate(api, h, unit['id'], 'item_opcion_multiple', quantity=1, optionCount=4,
+                                 modalities=['Textual'])
         export_url = f"/api/v1/units/{unit['id']}/exports"
 
         assert api.post(export_url, json={'format': 'scorm_zip'}).status_code == 401
@@ -71,9 +71,9 @@ def _approved_item(api: httpx.Client, email: str) -> tuple[dict, dict, dict]:
     document = api.post('/api/v1/documents', headers=h, files={'file': ('tcp.txt', MATERIAL)},
                         data={'context': json.dumps(context)}).json()
     api.post(f"/api/v1/documents/{document['id']}/process", headers=h)
-    resource = api.post('/api/v1/generations', headers=h, json={
-        'unitId': unit['id'], 'stage': 'evaluate', 'resourceType': 'item_opcion_multiple', 'quantity': 1,
-        'optionCount': 4, 'modalities': ['Textual']}).json()['resources'][0]
+    _, [resource] = generate(
+        api, h, unit['id'], 'item_opcion_multiple', quantity=1, optionCount=4, modalities=['Textual']
+    )
     options = [{'id': o['id'], 'text': o['text'], 'feedback': o['feedback'],
                 'decision': 'pendiente' if o['isCorrect'] else 'aceptado'} for o in resource['options']]
     approved = api.put(f"/api/v1/units/{unit['id']}/resources/{resource['id']}", headers=h, json={

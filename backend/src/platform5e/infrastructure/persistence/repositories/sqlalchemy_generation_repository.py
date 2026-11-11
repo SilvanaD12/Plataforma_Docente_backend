@@ -1,5 +1,12 @@
 """
-Persistencia de solicitudes y propuestas de generación mediante SQLAlchemy.
+Repositorio reducido de la generación síncrona retirada (GEN-01, T046 parcial).
+
+Ya no guarda generaciones nuevas. Conserva lo que todavía se usa:
+- `get_demo_catalog`, con el que Cuentas siembra el curso de demostración (`DEMO_CATALOG`).
+- `get_by_id`, la lectura de `GET /api/v1/generations/{id}` sobre `generaciones_demo`.
+- `GenerationORM` y `TeacherGenerationORM`, que Cuentas usa para el historial y la pertenencia.
+
+Pendiente en un PR aparte con CC-01: mover esto a Cuentas y retirar este repositorio y su puerto.
 """
 
 from __future__ import annotations
@@ -60,16 +67,6 @@ class SQLAlchemyGenerationRepository(GenerationRepositoryPort):
         if not fixture_path.exists():
             fixture_path = Path(__file__).resolve().parents[2] / "fixtures" / "generacion_demo.json"
         return json.loads(fixture_path.read_text(encoding="utf-8"))
-
-    @translate_persistence_errors
-    def save(self, result: dict[str, Any], teacher_id: str | None = None) -> None:
-        """Persiste la respuesta de generación y su relación con el docente."""
-        with SessionLocal() as session:
-            request_id = result["request"]["id"]
-            session.add(GenerationORM(id=request_id, result=result))
-            if teacher_id:
-                session.add(TeacherGenerationORM(id=request_id, teacher_id=teacher_id))
-            session.commit()
 
     @translate_persistence_errors
     def get_by_id(self, generation_id: str) -> dict[str, Any] | None:

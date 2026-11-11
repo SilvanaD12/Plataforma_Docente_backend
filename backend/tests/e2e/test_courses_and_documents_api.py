@@ -14,11 +14,10 @@ from typing import Any
 import httpx
 import pytest
 
-GENERATION_REQUEST = {
-    "unitId": "u2",
-    "outcomeId": None,
-    "stage": "explore",
-    "resourceType": "guia_exploracion",
+from tests.e2e.generation_flow import seed_legacy_generation, start_generation
+
+# T046: `POST /api/v1/generations` se retiró. Los pedidos nuevos van a `POST /api/v1/generation-requests`.
+GENERATION_PARAMS = {
     "quantity": 1,
     "difficulty": "intermedia",
     "optionCount": 4,
@@ -65,7 +64,7 @@ def upload(
     )
 
 
-def test_login_catalog_file_and_history_persist_with_a_new_session(server: str):
+def test_login_catalog_file_and_history_persist_with_a_new_session(server: str, e2e_database_url: str):
     with httpx.Client(base_url=server) as api:
         h = login(api)
         c = api.post("/api/v1/courses", headers=h, json=COURSE)
@@ -91,9 +90,8 @@ def test_login_catalog_file_and_history_persist_with_a_new_session(server: str):
         assert document["status"] == "registrado" and document["processedAt"] is None
         file_path = api.get("/api/v1/documents/" + document["id"] + "/file", headers=h)
         assert file_path.content == b"Material docente real"
-        generation = api.post("/api/v1/generations", headers=h, json=GENERATION_REQUEST)
-        assert generation.status_code == 200, generation.text
-        req = generation.json()["request"]
+        # El historial de GET /generations solo tiene generaciones de la ruta retirada (T046): se inserta una.
+        req = seed_legacy_generation(e2e_database_url, CREDENTIALS["email"])
         assert api.get("/api/v1/generations", headers=h).json() == [req]
         assert api.get("/api/v1/generations/" + req["id"]).status_code == 401
         assert api.delete("/api/v1/sessions/current", headers=h).status_code == 204
@@ -148,7 +146,7 @@ def test_private_routes_require_a_session(server: str, route: str):
     assert httpx.get(server + route, headers={"Authorization": "Bearer inventado"}).status_code == 401
 
 
-def test_server_validation_does_not_save_invalid_data(server: str):
+def test_server_validation_does_not_save_invalid_data(server: str, e2e_database_url: str):
     with httpx.Client(base_url=server) as api:
         assert api.post("/api/v1/sessions", json={**CREDENTIALS, "password": "incorrecta"}).status_code == 401
         h = login(api)
@@ -170,16 +168,63 @@ def test_server_validation_does_not_save_invalid_data(server: str):
         assert upload(api, h).status_code == 201
         assert upload(api, h).status_code == 409
         assert len(api.get("/api/v1/documents", headers=h).json()) == 1
-        assert (
-            api.post("/api/v1/generations", headers=h, json={**GENERATION_REQUEST, "unitId": "unidad-ajena"}).status_code
-            == 404
-        )
+        foreign_key = "clave-unidad-ajena-ep002"
+        foreign = start_generation(api, h, "unidad-ajena", "guia_exploracion", key=foreign_key, **GENERATION_PARAMS)
+        assert foreign.status_code == 404 and foreign.json()["error"]["code"] == "UNIT_NOT_FOUND"
         assert api.get("/api/v1/generations", headers=h).json() == []
+
+        # El rechazo no guardó ningún pedido en el flujo nuevo (revisión de Silvana en el PR #22).
+        # 1. Ninguna unidad del docente tiene pedidos.
+        units = [unit["id"] for course in api.get("/api/v1/courses", headers=h).json() for unit in course["units"]]
+        assert units
+        for unit_id in units:
+            listed = api.get("/api/v1/generation-requests", headers=h, params={"unitId": unit_id})
+            assert listed.status_code == 200 and listed.json() == [], (unit_id, listed.text)
+        # 2. En la base no hay pedidos del docente ni pasos de esos pedidos.
+        assert _saved_generation_requests(e2e_database_url, CREDENTIALS["email"]) == (0, 0)
+        # 3. La clave del intento rechazado no quedó guardada: en una unidad propia con material crea el pedido (202).
+        material = upload(
+            api,
+            h,
+            "protocolos.txt",
+            b"El protocolo TCP es orientado a la conexion y garantiza una entrega confiable de los datos. "
+            b"El protocolo UDP no establece conexion y por eso es mas rapido que TCP.",
+        )
+        assert material.status_code == 201, material.text
+        processed = api.post(f"/api/v1/documents/{material.json()['id']}/process", headers=h)
+        assert processed.status_code == 200 and processed.json()["fragmentCount"] >= 1, processed.text
+        reused = start_generation(api, h, "u2", "guia_exploracion", key=foreign_key, **GENERATION_PARAMS)
+        assert reused.status_code == 202, reused.text
+
+
+def _saved_generation_requests(database_url: str, teacher_id: str) -> tuple[int, int]:
+    """Pedidos de generación del docente y pasos de esos pedidos, contados en la base."""
+    from sqlalchemy import create_engine, text
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            requests = connection.execute(
+                text("SELECT COUNT(*) FROM gen_generation_requests WHERE teacher_id = :teacher"), {"teacher": teacher_id}
+            ).scalar_one()
+            steps = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM gen_generation_steps WHERE request_id IN "
+                    "(SELECT id FROM gen_generation_requests WHERE teacher_id = :teacher)"
+                ),
+                {"teacher": teacher_id},
+            ).scalar_one()
+    finally:
+        engine.dispose()
+    return requests, steps
 
 
 @pytest.mark.parametrize("modalities", [["Multimedia"], ["Textual", "Gamificado"]])
 def test_text_only_rejects_other_modalities(server: str, modalities: list[str]):
-    response = httpx.post(f"{server}/api/v1/generations", json={**GENERATION_REQUEST, "modalities": modalities})
+    # La ruta nueva exige sesión (la retirada aceptaba pedidos anónimos): se valida con la sesión del docente.
+    with httpx.Client(base_url=server) as api:
+        params = {**GENERATION_PARAMS, "modalities": modalities}
+        response = start_generation(api, login(api), "u2", "guia_exploracion", **params)
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "INVALID_PARAMETERS"
 
@@ -247,7 +292,8 @@ def test_catalog_session_file_and_history_survive_a_restart(tmp_path: Path):
                         headers = login(api)
                         assert api.post("/api/v1/courses", headers=headers, json=COURSE).status_code == 201
                         doc_id = upload(api, headers).json()["id"]
-                        req_id = api.post("/api/v1/generations", headers=headers, json=GENERATION_REQUEST).json()["request"]["id"]
+                        # Historial de la ruta retirada (T046): se inserta una generación como las que guardaba.
+                        req_id = seed_legacy_generation(env["DATABASE_URL"], CREDENTIALS["email"])["id"]
                     else:
                         assert api.get("/api/v1/sessions/current", headers=headers).status_code == 200
                         assert any(c["code"] == "EP002" for c in api.get("/api/v1/courses", headers=headers).json())
@@ -276,7 +322,7 @@ def test_openapi_declares_bearer_for_swagger(server: str):
         ("/api/v1/courses", "get"),
         ("/api/v1/documents", "post"),
         ("/api/v1/sessions/current", "delete"),
-        ("/api/v1/generations", "post"),
+        ("/api/v1/generation-requests", "post"),
     ]:
         operation = spec["paths"][route][method]
         assert {"TeacherSession": []} in operation["security"]
@@ -288,11 +334,5 @@ def test_openapi_declares_bearer_for_swagger(server: str):
         h = login(api)
         assert api.get("/api/v1/generations", headers=h).status_code == 200
         assert api.get("/api/v1/generations", headers={"Authorization": "Basic incorrecto"}).status_code == 401
-        assert (
-            api.post(
-                "/api/v1/generations",
-                headers={"Authorization": "Basic incorrecto"},
-                json=GENERATION_REQUEST,
-            ).status_code
-            == 401
-        )
+        wrong_scheme = {"Authorization": "Basic incorrecto"}
+        assert start_generation(api, wrong_scheme, "u2", "guia_exploracion", **GENERATION_PARAMS).status_code == 401

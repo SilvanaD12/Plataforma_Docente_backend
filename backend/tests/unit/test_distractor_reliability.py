@@ -11,13 +11,13 @@ from platform5e.application.services.generation.prompt_drafting import (
     normalize_generated_resources,
 )
 from platform5e.application.services.generation.rule_based_generator import RuleBasedGenerator
+from platform5e.application.ports.outbound.evidence_provider_port import EvidenceFragment
 from platform5e.domain.generation.distractor_reliability import assess_distractor, reliability_report
+from tests.support.generation_fakes import run_generation
 from tests.unit.test_generation_with_material import (
     MOCK_COURSE,
     MOCK_UNIT,
     MockGenerator,
-    MockMaterialChunkRepository,
-    build_service_setup,
     make_request_dict,
 )
 
@@ -119,24 +119,6 @@ def test_the_rule_based_generator_explains_the_misconception_of_each_distractor(
 # --- En el servicio: descartado con su motivo e I5 ------------------------------------------------------------------
 
 
-def test_the_service_discards_the_correct_distractor_with_its_reason_and_reports_i5():
-    raw = item(distractor("SCTP"), distractor("UDP"), distractor("IP"))
-    chunks = MockMaterialChunkRepository([{**f, "documentId": "doc1", "unitId": "u1"} for f in FRAGMENTS])
-    service, _ = build_service_setup(MockGenerator({"recursos": [raw]}), chunk_repo=chunks)
-    result = service.generate(make_request_dict(optionCount=4), "docente")
-
-    options = {o["text"]: o for o in result["resources"][0]["options"]}
-    assert options["SCTP"]["decision"] == "descartado" and options["SCTP"]["discardReason"] == "tambien_correcto"
-    assert options["SCTP"]["reliabilityWarning"].startswith("El material también lo presenta como respuesta")
-    assert options["UDP"]["decision"] == "pendiente" and options["UDP"]["reliabilityWarning"] is None
-    assert options["UDP"]["misconception"] == "Confunde los protocolos." and options["UDP"]["feedback"]
-    assert result["distractorReliability"] == {
-        "evaluatedDistractors": 3,
-        "discardedAsCorrect": 1,
-        "reliabilityErrorRate": 0.3333,
-    }
-
-
 def test_an_item_with_less_than_two_reliable_distractors_is_rejected_with_its_reason():
     raw = item(distractor("SCTP"), distractor("UDP"))
     rejected: list[dict] = []
@@ -153,3 +135,29 @@ def test_reliability_report_without_items():
         "reliabilityErrorRate": None,
     }
 
+
+
+def test_the_request_discards_the_correct_distractor_with_its_reason_and_reports_i5(tmp_path):
+    """Antes por el servicio síncrono (retirado en T046): ahora por el pedido de generación."""
+    evidence = tuple(
+        EvidenceFragment(
+            chunk_id=f["id"], document_id="doc1", document_name="apuntes.pdf", location=f["location"], text=f["text"],
+            relevance=0.9, source_url=None, license=None,
+        )
+        for f in FRAGMENTS
+    )
+    raw = item(distractor("SCTP"), distractor("UDP"), distractor("IP"))
+    run = run_generation(
+        tmp_path, "item_opcion_multiple", primary=MockGenerator({"recursos": [raw]}), fragments=evidence, option_count=4
+    )
+
+    options = {o["text"]: o for o in run.resources[0]["options"]}
+    assert options["SCTP"]["decision"] == "descartado" and options["SCTP"]["discardReason"] == "tambien_correcto"
+    assert options["SCTP"]["reliabilityWarning"].startswith("El material también lo presenta como respuesta")
+    assert options["UDP"]["decision"] == "pendiente" and options["UDP"]["reliabilityWarning"] is None
+    assert options["UDP"]["misconception"] == "Confunde los protocolos." and options["UDP"]["feedback"]
+    assert run.step.distractor_reliability == {
+        "evaluatedDistractors": 3,
+        "discardedAsCorrect": 1,
+        "reliabilityErrorRate": 0.3333,
+    }

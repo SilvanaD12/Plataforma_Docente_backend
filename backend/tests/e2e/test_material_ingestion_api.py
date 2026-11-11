@@ -6,6 +6,8 @@ import json
 
 import httpx
 
+from tests.e2e.generation_flow import generate, start_generation
+
 CREDENTIALS = {"email": "docente@5e.demo", "password": "Demo5E!2026"}
 
 MATERIAL = (
@@ -58,11 +60,9 @@ def test_real_material_is_processed_and_generates_cited_resources(server: str):
         chunks = api.get(f"/api/v1/documents/{uploaded.json()['id']}/chunks", headers=h).json()
         assert chunks[0]["location"] == "sección 1" and "protocolo TCP" in " ".join(f["text"] for f in chunks)
 
-        request_body = {
-            "unitId": unit["id"],
+        # T046: por POST /api/v1/generation-requests (la ruta síncrona se retiró), con los mismos parámetros.
+        params = {
             "outcomeId": None,
-            "stage": "evaluate",
-            "resourceType": "item_opcion_multiple",
             "quantity": 2,
             "difficulty": "intermedia",
             "optionCount": 4,
@@ -73,36 +73,38 @@ def test_real_material_is_processed_and_generates_cited_resources(server: str):
             "competency": "Pensamiento crítico",
             "modalities": ["Textual"],
         }
-        response = api.post("/api/v1/generations", headers=h, json=request_body)
-        assert response.status_code == 200, response.text
-        data = response.json()
-        assert data["mode"] == "rag" and data["generator"]["usesAi"] is False
-        ids = {f["id"] for f in data["fragments"]}
-        # Lo recuperado incluye todo lo citado (la evaluación con Ragas lo usa como contexto).
-        retrieved = {f["id"] for f in data["retrievedChunks"]}
-        assert ids and ids <= retrieved and all(f["text"] for f in data["retrievedChunks"])
-        for resource in data["resources"]:
+        data, resources = generate(api, h, unit["id"], "item_opcion_multiple", **params)
+        assert data["status"] == "succeeded", data
+        [step] = data["steps"]
+        # Generado con el material del docente (antes `mode == "rag"`): la búsqueda usó el material (BM25, sin
+        # embeddings en las pruebas) y cada recurso es `rag`.
+        assert data["retrievalMode"] == "bm25_fallback" and step["generator"]["usesAi"] is False
+        assert resources and len(resources) == len(step["resourceIds"])
+        for resource in resources:
             assert resource["source"] == "rag" and resource["status"] == "pendiente"
-            assert all(set(c["fragmentIds"]) <= ids for c in resource["citations"])
+            # Lo citado está en la copia de la evidencia guardada con el recurso, con su texto (antes se comprobaba
+            # contra `fragments` y `retrievedChunks` de la respuesta síncrona).
+            evidence = {item["id"]: item for item in resource["evidence"]}
+            assert evidence and all(item["text"] for item in evidence.values())
+            assert all(set(c["fragmentIds"]) <= set(evidence) for c in resource["citations"])
             assert len(resource["options"]) == 4 and sum(o["isCorrect"] for o in resource["options"]) == 1
             # HU-016: cada afirmación se contrastó con la evidencia; el generador por reglas cita frases del material.
             # HU-019: cada distractor trae su justificación y el error conceptual que representa.
             assert all(o["feedback"] and o["misconception"] for o in resource["options"] if not o["isCorrect"])
             grounding = resource["grounding"]
             assert grounding["checkedClaims"] == len(resource["citations"]) == grounding["supportedClaims"]
-        assert data["grounding"]["hallucinationRate"] == 0.0 and data["grounding"]["rejectedResources"] == []
-        assert data["distractorReliability"]["evaluatedDistractors"] == 3 * len(data["resources"])
-        assert api.get(f"/api/v1/generations/{data['request']['id']}", headers=h).json()["mode"] == "rag"
+        assert step["grounding"]["hallucinationRate"] == 0.0 and step["grounding"]["rejectedResources"] == []
+        assert step["distractorReliability"]["evaluatedDistractors"] == 3 * len(resources)
+        # El pedido se puede volver a leer (antes `GET /generations/{id}` con `mode == "rag"`).
+        again = api.get(f"/api/v1/generation-requests/{data['id']}", headers=h).json()
+        assert again["id"] == data["id"] and again["status"] == "succeeded"
+        assert again["retrievalMode"] == "bm25_fallback"
 
-        explanation = api.post(
-            "/api/v1/generations",
-            headers=h,
-            json={**request_body, "stage": "explain", "resourceType": "explicacion", "quantity": 1},
-        )
-        assert explanation.status_code == 200 and explanation.json()["resources"][0]["options"] is None
+        explanation, [explained] = generate(api, h, unit["id"], "explicacion", **{**params, "quantity": 1})
+        assert explanation["status"] == "succeeded" and explained["options"] is None
 
         assert api.delete(f"/api/v1/documents/{uploaded.json()['id']}", headers=h).status_code == 204
-        without_material = api.post("/api/v1/generations", headers=h, json=request_body)
+        without_material = start_generation(api, h, unit["id"], "item_opcion_multiple", **params)
         assert without_material.status_code == 400 and without_material.json()["error"]["code"] == "NO_PROCESSED_MATERIAL"
 
 

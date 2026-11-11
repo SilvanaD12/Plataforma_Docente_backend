@@ -8,22 +8,29 @@ from typing import Any
 
 import pytest
 
-from platform5e.application.ports.outbound.chunk_repository_port import ChunkRepositoryPort
-from platform5e.application.ports.outbound.evidence_retriever_port import EvidenceRetrieverPort
-from platform5e.application.ports.outbound.generation_repository_port import GenerationRepositoryPort
 from platform5e.application.ports.outbound.language_model_port import ResourceGeneratorPort
-from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
-from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
-from platform5e.application.services.generation.generation_service import GenerationService
 from platform5e.application.services.generation.prompt_drafting import (
     build_generation_context,
     build_prompt_instructions,
     normalize_generated_resources,
     parse_json_response,
 )
+from platform5e.application.use_cases.generation.start_generation_request import (
+    StartGenerationCommand,
+    StartGenerationRequest,
+)
 from platform5e.domain.generation.errors import GenerationError
+from platform5e.domain.generation.generation_request import GenerationMode, GenerationParameters, RequestStatus
 from platform5e.domain.materials.text_analysis import retrieve_relevant_chunks
 from platform5e.infrastructure.retrieval.bm25_evidence_retriever import Bm25EvidenceRetriever
+from tests.support.generation_fakes import (
+    FRAGMENTS,
+    FakeEvidence,
+    FakeMembership,
+    FakeRunner,
+    run_generation,
+    sqlite_repository,
+)
 
 MOCK_UNIT = {
     "id": "u1",
@@ -110,54 +117,6 @@ MOCK_ITEM = {
 }
 
 
-class MockGenerationRepository(GenerationRepositoryPort):
-    def __init__(self) -> None:
-        self.saved_results: list[tuple[dict[str, Any], str | None]] = []
-
-    def get_demo_catalog(self) -> dict[str, Any]:
-        return {"units": [], "examples": [], "fragments": [], "documents": [], "notice": ""}
-
-    def save(self, result: dict[str, Any], teacher_id: str | None = None) -> None:
-        self.saved_results.append((result, teacher_id))
-
-    def get_by_id(self, generation_id: str) -> dict[str, Any] | None:
-        return None
-
-
-class MockTeacherConfigRepository(TeacherRepositoryPort):
-    def get_courses(self, teacher_id: str) -> list[dict[str, Any]]:
-        return [MOCK_COURSE]
-
-    def get_documents(self, teacher_id: str) -> list[dict[str, Any]]:
-        return [MOCK_DOCUMENT]
-
-    def init_catalog(self, teacher_id: str) -> None: ...
-    def get_user_by_email(self, email: str) -> dict[str, Any] | None: return None
-    def create_user(self, user_data: dict[str, Any]) -> None: ...
-    def save_session(self, fingerprint: str, teacher_id: str, expires_at: float) -> None: ...
-    def get_session(self, fingerprint: str) -> tuple[str, float] | None: return None
-    def delete_session(self, fingerprint: str) -> None: ...
-    def save_course(self, teacher_id: str, course_data: dict[str, Any]) -> None: ...
-    def delete_course(self, teacher_id: str, course_id: str, unit_ids: list[str]) -> None: ...
-    def save_document(self, teacher_id: str, metadata: dict[str, Any], content: bytes) -> None: ...
-    def get_document(self, teacher_id: str, document_id: str) -> tuple[dict[str, Any], bytes] | None: return None
-    def delete_document(self, teacher_id: str, document_id: str) -> None: ...
-    def get_history(self, teacher_id: str) -> list[dict[str, Any]]: return []
-    def get_generation_owner(self, generation_id: str) -> str | None: return None
-
-
-class MockMaterialChunkRepository(ChunkRepositoryPort):
-    def __init__(self, fragments: list[dict[str, Any]] = MOCK_FRAGMENTS) -> None:
-        self.fragments_list = fragments
-
-    def get_chunks_by_unit(self, teacher_id: str, unit_id: str) -> list[dict[str, Any]]:
-        return [f for f in self.fragments_list if f.get("unitId") == unit_id or f.get("unidad_id") == unit_id]
-
-    def replace_chunks(self, teacher_id: str, document_id: str, unit_id: str, chunks: list[dict[str, Any]]) -> None: ...
-    def get_chunks_by_document(self, teacher_id: str, document_id: str) -> list[dict[str, Any]]: return []
-    def update_document(self, teacher_id: str, document_data: dict[str, Any]) -> None: ...
-
-
 class MockGenerator(ResourceGeneratorPort):
     def __init__(
         self,
@@ -177,140 +136,6 @@ class MockGenerator(ResourceGeneratorPort):
         if self.error:
             raise self.error
         return self.response_data or {}
-
-
-def build_service_setup(
-    generator: MockGenerator | None = None,
-    fallback: MockGenerator | None = None,
-    chunk_repo: ChunkRepositoryPort | None = None,
-    retriever: EvidenceRetrieverPort | None = None,
-) -> tuple[GenerationService, MockGenerationRepository]:
-    repo = MockGenerationRepository()
-    service = GenerationService(
-        repository=repo,
-        teacher_repository=MockTeacherConfigRepository(),
-        chunk_repository=chunk_repo or MockMaterialChunkRepository(),
-        primary_generator=generator or MockGenerator({"recursos": [MOCK_ITEM]}),
-        fallback_generator=fallback,
-        evidence_retriever=retriever or Bm25EvidenceRetriever(),
-    )
-    return service, repo
-
-
-def test_generates_from_material_cites_chunks_and_saves_history():
-    ai_gen = MockGenerator({"recursos": [MOCK_ITEM]})
-    service, repo = build_service_setup(ai_gen)
-    result = service.generate(make_request_dict(), "docente")
-    assert result["mode"] == "rag" and result["generator"] == {
-        "description": "IA falsa",
-        "usesAi": True,
-        "fallback": False,
-    }
-    resource = result["resources"][0]
-    assert resource["source"] == "rag" and resource["status"] == "pendiente" and resource["outcomeId"] == "ra-1"
-
-    real_mapping = {f["etiqueta"]: f["id"] for f in ai_gen.captured_contexts[0]["fragmentos"]}
-    # El modelo citó F1, que aquí es el fragmento de UDP: la verificación de anclaje (HU-016) lo corrige al de TCP.
-    assert real_mapping["F1"] == "f2"
-    assert resource["citations"] == [{"claim": "TCP garantiza la entrega", "fragmentIds": ["f1"]}]
-    assert resource["grounding"]["correctedClaims"] == 1 and resource["grounding"]["removedClaims"] == []
-    assert sorted(o["text"] for o in resource["options"]) == ["IP", "TCP", "UDP"]
-    assert sum(o["isCorrect"] for o in resource["options"]) == 1
-
-    without_source = next(o for o in resource["options"] if o["text"] == "IP")
-    assert without_source["sourceFragmentIds"] == ["f1"] and without_source["feedback"]  # la cita ya corregida
-    assert {f["id"] for f in result["fragments"]} == {"f1", "f2"}
-    assert result["documents"] == [MOCK_DOCUMENT]
-    assert repo.saved_results[0][1] == "docente"
-
-    context = ai_gen.captured_contexts[0]
-    assert context["curso"]["sumilla"] == "Curso de redes." and context["fragmentos"][0]["etiqueta"] == "F1"
-    assert resource["generatorKind"] == "ia" and resource["params"]["optionCount"] == 3
-    assert {e["id"] for e in resource["evidence"]} == {real_mapping["F1"], real_mapping["F2"]}
-    assert resource["evidence"][0]["documentName"] == "apuntes.pdf"
-
-
-def test_generated_resources_are_saved_for_review():
-    class MockReviewRepo(ResourceReviewRepositoryPort):
-        def __init__(self) -> None:
-            self.saved_records: list[tuple[str, str, list[str]]] = []
-
-        def save_resources(self, teacher_id: str, unit_id: str, resources: list[dict[str, Any]]) -> None:
-            self.saved_records.append((teacher_id, unit_id, [r["id"] for r in resources]))
-
-        def get_resources_by_unit(self, teacher_id: str, unit_id: str) -> list[dict[str, Any]]: return []
-        def get_resource_by_id(self, teacher_id: str, resource_id: str) -> dict[str, Any] | None: return None
-        def delete_resource(self, teacher_id: str, resource_id: str) -> None: ...
-        def get_downloads(self, teacher_id: str, unit_id: str) -> list[dict[str, Any]]: return []
-        def save_download(self, teacher_id: str, unit_id: str, download_record: dict[str, Any]) -> None: ...
-        def delete_downloads(self, teacher_id: str, unit_id: str) -> None: ...
-
-    review_repo = MockReviewRepo()
-    service = GenerationService(
-        repository=MockGenerationRepository(),
-        teacher_repository=MockTeacherConfigRepository(),
-        chunk_repository=MockMaterialChunkRepository(),
-        primary_generator=MockGenerator({"recursos": [MOCK_ITEM]}),
-        review_repository=review_repo,
-        evidence_retriever=Bm25EvidenceRetriever(),
-    )
-    result = service.generate(make_request_dict(), "docente")
-    assert review_repo.saved_records == [("docente", "u1", [result["resources"][0]["id"]])]
-
-
-def test_if_the_ai_fails_the_fallback_is_used_and_reported(caplog):
-    rules_gen = MockGenerator({"recursos": [MOCK_ITEM]}, description="Reglas", uses_ai=False)
-    service, _ = build_service_setup(MockGenerator(error=RuntimeError("429 límite")), rules_gen)
-    result = service.generate(make_request_dict(), "docente")
-    assert result["generator"]["description"] == "Reglas" and result["generator"]["fallback"] is True
-    assert result["resources"][0]["generatorKind"] == "respaldo"
-    assert "429 límite" in caplog.text
-    assert "no respondió" in result["notice"] and "generador por reglas" in result["notice"]
-
-
-def test_if_the_ai_does_not_cite_properly_the_fallback_is_used():
-    bad_output = {
-        "recursos": [
-            {
-                "titulo": "x",
-                "contenido": "y",
-                "citas": [{"afirmacion": "z", "fragmentos": ["F9"]}],
-                "alternativas": [],
-            }
-        ]
-    }
-    rules_gen = MockGenerator({"recursos": [MOCK_ITEM]}, description="Reglas", uses_ai=False)
-    service, _ = build_service_setup(MockGenerator(bad_output), rules_gen)
-    result = service.generate(make_request_dict(), "docente")
-    assert "citas válidas" in result["notice"]
-
-
-def test_without_valid_resources_rejects_without_inventing():
-    service, repo = build_service_setup(MockGenerator({"recursos": []}), fallback=None)
-    with pytest.raises(GenerationError) as err:
-        service.generate(make_request_dict(), "docente")
-    assert err.value.code == "INSUFFICIENT_EVIDENCE" and repo.saved_results == []
-
-
-def test_outcome_from_another_unit_is_rejected():
-    service, _ = build_service_setup(MockGenerator({"recursos": [MOCK_ITEM]}))
-    with pytest.raises(GenerationError) as err:
-        service.generate(make_request_dict(outcomeId="ra-otro"), "docente")
-    assert err.value.code == "INVALID_OUTCOME"
-
-
-def test_unit_without_material_or_demo_asks_for_upload():
-    service, _ = build_service_setup(MockGenerator({"recursos": [MOCK_ITEM]}), chunk_repo=MockMaterialChunkRepository([]))
-    with pytest.raises(GenerationError) as err:
-        service.generate(make_request_dict(), "docente")
-    assert err.value.code == "NO_PROCESSED_MATERIAL" and "pestaña Material" in err.value.message
-
-
-def test_without_teacher_uses_the_demo():
-    service, _ = build_service_setup(MockGenerator({"recursos": [MOCK_ITEM]}))
-    with pytest.raises(GenerationError) as err:
-        service.generate(make_request_dict(unitId="u2"))
-    assert err.value.code == "NO_PROCESSED_MATERIAL"
 
 
 def test_instructions_include_course_request_and_chunks():
@@ -426,68 +251,90 @@ def test_normalize_discards_uncited_or_empty_resources_and_fills_title():
     assert len(resources) == 1 and resources[0]["titulo"] == "Explicación citada 1" and resources[0]["alternativas"] is None
 
 
-def test_without_demo_examples_a_unit_without_material_asks_for_upload():
-    service = GenerationService(
-        repository=MockGenerationRepository(),
-        teacher_repository=MockTeacherConfigRepository(),
-        chunk_repository=MockMaterialChunkRepository([]),
-        primary_generator=MockGenerator({"recursos": [MOCK_ITEM]}),
-        fallback_generator=None,
-        demo_examples_enabled=False,
-    )
-    with pytest.raises(GenerationError) as err:
-        service.generate(make_request_dict(), "docente")
-    assert err.value.code == "NO_PROCESSED_MATERIAL" and "pestaña Material" in err.value.message
-    with pytest.raises(GenerationError):
-        service.generate(make_request_dict(), None)
-
-
-class MockEvidenceRetriever(EvidenceRetrieverPort):
-    """Buscador falso: devuelve siempre el primer fragmento y guarda lo que le pidieron."""
-
-    description = "buscador falso"
-
-    def __init__(self) -> None:
-        self.calls: list[tuple[str, int]] = []
-
-    def retrieve(
-        self, query: str, chunks: list[dict[str, Any]], top_k: int, unit_id: str | None = None
-    ) -> list[dict[str, Any]]:
-        self.calls.append((query, top_k))
-        return [{**chunks[0], "relevance": 0.9}]
-
-
-def test_generation_uses_the_injected_evidence_retriever():
-    retriever = MockEvidenceRetriever()
-    item = {**MOCK_ITEM, "alternativas": [{**alt, "fragmentos": ["F1"]} for alt in MOCK_ITEM["alternativas"]]}
-    ai_gen = MockGenerator({"recursos": [item]})
-    service, _ = build_service_setup(ai_gen, retriever=retriever)
-    result = service.generate(make_request_dict(topK=20), "docente")
-
-    query, top_k = retriever.calls[0]
-    assert "Protocolos de transporte" in query and "contexto peruano" in query
-    assert top_k == 12  # el servicio acota topK antes de llamar al puerto
-    assert [f["id"] for f in ai_gen.captured_contexts[0]["fragmentos"]] == ["f1"]
-    assert result["retrievedChunks"] == [
-        {"id": "f1", "location": "p. 1", "text": MOCK_FRAGMENTS[0]["text"], "relevance": 0.9}
-    ]
-
-
-def test_without_evidence_retriever_material_is_not_used():
-    service = GenerationService(
-        repository=MockGenerationRepository(),
-        teacher_repository=MockTeacherConfigRepository(),
-        chunk_repository=MockMaterialChunkRepository(),
-        primary_generator=MockGenerator({"recursos": [MOCK_ITEM]}),
-        demo_examples_enabled=False,
-    )
-    with pytest.raises(GenerationError) as err:
-        service.generate(make_request_dict(), "docente")
-    assert err.value.code == "NO_PROCESSED_MATERIAL"
-
-
 def test_bm25_adapter_delegates_to_the_domain_search():
     retriever = Bm25EvidenceRetriever()
     assert retriever.description == "búsqueda por palabras (BM25)"
     query = "protocolo confiable con conexión"
     assert retriever.retrieve(query, MOCK_FRAGMENTS, 2) == retrieve_relevant_chunks(query, MOCK_FRAGMENTS, 2)
+
+
+# --- Redacción de un paso con el material (antes por el servicio síncrono, retirado en T046) ----------------------
+# Se ejecutan con StartGenerationRequest y RunGenerationRequest (tests/support/generation_fakes.run_generation).
+
+UDP_FIRST = (FRAGMENTS[1], FRAGMENTS[0])  # la búsqueda devuelve primero UDP: F1 es f2 y F2 es f1
+
+
+def rules(response: dict[str, Any]) -> MockGenerator:
+    return MockGenerator(response, description="Reglas", uses_ai=False)
+
+
+def test_a_drafted_item_cites_its_chunks_and_the_wrong_citation_is_corrected(tmp_path):
+    ai_gen = MockGenerator({"recursos": [MOCK_ITEM]})
+    run = run_generation(
+        tmp_path, "item_opcion_multiple", primary=ai_gen, fragments=UDP_FIRST, option_count=3, outcome_id="ra-1"
+    )
+
+    assert run.request.status == RequestStatus.SUCCEEDED
+    assert run.step.generator == {"description": "IA falsa", "usesAi": True, "fallback": False}
+    [resource] = run.resources
+    assert resource["source"] == "rag" and resource["status"] == "pendiente" and resource["outcomeId"] == "ra-1"
+
+    real_mapping = {f["etiqueta"]: f["id"] for f in ai_gen.captured_contexts[0]["fragmentos"]}
+    # El modelo citó F1, que aquí es el fragmento de UDP: la verificación de anclaje (HU-016) lo corrige al de TCP.
+    assert real_mapping["F1"] == "f2"
+    assert resource["citations"] == [{"claim": "TCP garantiza la entrega", "fragmentIds": ["f1"]}]
+    assert resource["grounding"]["correctedClaims"] == 1 and resource["grounding"]["removedClaims"] == []
+    assert sorted(o["text"] for o in resource["options"]) == ["IP", "TCP", "UDP"]
+    assert sum(o["isCorrect"] for o in resource["options"]) == 1
+    assert all(o["decision"] == "pendiente" for o in resource["options"])
+
+    without_source = next(o for o in resource["options"] if o["text"] == "IP")
+    assert without_source["sourceFragmentIds"] == ["f1"] and without_source["feedback"]  # la cita ya corregida
+
+    context = ai_gen.captured_contexts[0]
+    assert context["curso"]["sumilla"] == "Curso de redes." and context["fragmentos"][0]["etiqueta"] == "F1"
+    assert resource["generatorKind"] == "ia" and resource["params"]["optionCount"] == 3
+    # La copia histórica guarda los fragmentos que el recurso cita (research R6), con su documento.
+    assert {e["id"] for e in resource["evidence"]} <= {"f1", "f2"} and "f1" in {e["id"] for e in resource["evidence"]}
+    assert all(e["documentName"] == "apuntes.pdf" for e in resource["evidence"])
+
+
+def test_if_the_ai_fails_the_fallback_is_used_and_reported(tmp_path, caplog):
+    run = run_generation(
+        tmp_path, "item_opcion_multiple",
+        primary=MockGenerator(error=RuntimeError("429 límite")),
+        fallback=rules({"recursos": [MOCK_ITEM]}),
+        option_count=3,
+    )
+    assert run.step.generator["description"] == "Reglas" and run.step.generator["fallback"] is True
+    assert run.resources[0]["generatorKind"] == "respaldo"
+    assert "429 límite" in caplog.text
+
+
+def test_if_the_ai_does_not_cite_properly_the_fallback_is_used(tmp_path):
+    bad_output = {"recursos": [{"titulo": "x", "contenido": "y", "citas": [{"afirmacion": "z", "fragmentos": ["F9"]}],
+                                "alternativas": []}]}
+    run = run_generation(
+        tmp_path, "item_opcion_multiple",
+        primary=MockGenerator(bad_output), fallback=rules({"recursos": [MOCK_ITEM]}), option_count=3,
+    )
+    assert run.step.generator["fallback"] is True
+    assert [r["title"] for r in run.resources] == ["TCP o UDP"]
+
+
+def test_without_valid_resources_rejects_without_inventing(tmp_path):
+    run = run_generation(tmp_path, "item_opcion_multiple", primary=MockGenerator({"recursos": []}), option_count=3)
+    assert run.request.status == RequestStatus.FAILED
+    assert run.request.failure.code == "INSUFFICIENT_EVIDENCE" and run.resources == []
+
+
+def test_a_unit_without_material_asks_to_upload_it(tmp_path):
+    start = StartGenerationRequest(
+        FakeMembership(), FakeEvidence(material=False), sqlite_repository(tmp_path), FakeRunner()
+    )
+    with pytest.raises(GenerationError) as err:
+        start.execute(StartGenerationCommand(
+            "docente-a", "u1", GenerationMode.INDIVIDUAL, "clave-sin-material",
+            GenerationParameters(resource_types=("item_opcion_multiple",)),
+        ))
+    assert err.value.code == "NO_PROCESSED_MATERIAL" and "pestaña Material" in err.value.message

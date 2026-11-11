@@ -19,135 +19,34 @@ import pytest
 from platform5e.application.ports.outbound.generation_repository_port import GenerationRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.application.services.accounts.account_service import AccountService
-from platform5e.application.services.generation.generation_service import GenerationService
+from platform5e.application.use_cases.generation.get_legacy_generation import GetLegacyGeneration
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.domain.generation.errors import GenerationError
 
 
-# --------------------------------------------------------------------------- generación
+# --------------------------------------------------------------------------- historial de la generación síncrona
 
-DEMO_CATALOG = {
-    "notice": "Datos ficticios de demostración.",
-    "units": [{"id": "u2", "outcomes": [{"id": "ra-1"}]}],
-    "documents": [{"id": "doc-1", "fileName": "separata.pdf", "unitId": "u2"}],
-    "fragments": [
-        {"id": "f-1", "documentId": "doc-1", "unitId": "u2", "location": "p. 1", "text": "Una pila es LIFO."},
-        {"id": "f-2", "documentId": "doc-1", "unitId": "u2", "location": "p. 2", "text": "Apilar y desapilar."},
-    ],
-    "examples": [
-        {
-            "exampleId": "ex-guia",
-            "unitId": "u2",
-            "outcomeId": "ra-1",
-            "stage": "explore",
-            "type": "guia_exploracion",
-            "title": "Guía de pilas",
-            "body": "Explora la pila.",
-            "options": None,
-            "citations": [{"claim": "Definición", "fragmentIds": ["f-1"]}],
-        },
-        {
-            "exampleId": "ex-item",
-            "unitId": "u2",
-            "outcomeId": "ra-1",
-            "stage": "evaluate",
-            "type": "item_opcion_multiple",
-            "title": "Tope",
-            "body": "¿Qué queda en el tope?",
-            "citations": [{"claim": "LIFO", "fragmentIds": ["f-1"]}],
-            "options": [
-                {"id": "o1", "text": "7", "isCorrect": True, "feedback": "Bien", "sourceFragmentIds": ["f-2"]},
-                {"id": "o2", "text": "3", "isCorrect": False, "feedback": "No", "sourceFragmentIds": ["f-2"]},
-                {"id": "o3", "text": "5", "isCorrect": False, "feedback": "No", "sourceFragmentIds": []},
-                {"id": "o4", "text": "1", "isCorrect": False, "feedback": "No", "sourceFragmentIds": []},
-            ],
-        },
-    ],
-}
+class LegacyGenerationRepository(GenerationRepositoryPort):
+    """Repositorio reducido (T046 parcial): solo el catálogo de demostración y las generaciones guardadas."""
 
-
-class MockGenerationRepository(GenerationRepositoryPort):
-    def __init__(self, catalog: dict[str, Any] | None = None) -> None:
-        self.catalog = deepcopy(catalog or DEMO_CATALOG)
-        self.saved: dict[str, dict[str, Any]] = {}
-        self.teachers: dict[str, str | None] = {}
+    def __init__(self, saved: dict[str, dict[str, Any]] | None = None) -> None:
+        self.saved = saved or {}
 
     def get_demo_catalog(self) -> dict[str, Any]:
-        return self.catalog
-
-    def save(self, result: dict[str, Any], teacher_id: str | None = None) -> None:
-        self.saved[result["request"]["id"]] = result
-        self.teachers[result["request"]["id"]] = teacher_id
+        return {"units": []}
 
     def get_by_id(self, generation_id: str) -> dict[str, Any] | None:
         return self.saved.get(generation_id)
 
 
-def _make_request_payload(**overrides) -> dict[str, Any]:
-    base = {
-        "unitId": "u2",
-        "outcomeId": None,
-        "stage": "explore",
-        "resourceType": "guia_exploracion",
-        "quantity": 1,
-        "optionCount": 4,
-    }
-    return {**base, **overrides}
-
-
-def test_generates_with_evidence_and_saves_it():
-    repo = MockGenerationRepository()
-    service = GenerationService(repo)
-    result = service.generate(_make_request_payload(), "docente@5e.demo")
-    resource = result["resources"][0]
-    assert result["mode"] == "api_demo" and result["available"] == 1
-    assert resource["status"] == "pendiente" and resource["source"] == "api_demo"
-    assert resource["citations"][0]["fragmentIds"] == ["api-demo:f-1"]
-    assert [f["id"] for f in result["fragments"]] == ["api-demo:f-1"]
-    assert result["documents"][0]["id"] == "api-demo:doc-1"
-    assert repo.teachers[result["request"]["id"]] == "docente@5e.demo"
-    assert service.get_by_id(result["request"]["id"]) is result
-
-
-def test_generates_an_item_with_undecided_options():
-    service = GenerationService(MockGenerationRepository())
-    result = service.generate(
-        _make_request_payload(stage="evaluate", resourceType="item_opcion_multiple", outcomeId="ra-1")
-    )
-    options = result["resources"][0]["options"]
-    assert len(options) == 4 and all(o["decision"] == "pendiente" for o in options)
-    assert sum(o["isCorrect"] for o in options) == 1
-
-
-def test_rejects_requests_without_support():
-    service = GenerationService(MockGenerationRepository())
-    test_cases = [
-        (_make_request_payload(unitId="u9"), "NO_PROCESSED_MATERIAL"),
-        (_make_request_payload(outcomeId="ra-otra"), "INVALID_OUTCOME"),
-        (_make_request_payload(resourceType="glosario"), "INSUFFICIENT_EVIDENCE"),
-        (_make_request_payload(stage="evaluate", resourceType="item_opcion_multiple", optionCount=5), "INSUFFICIENT_EVIDENCE"),
-    ]
-    for payload, error_code in test_cases:
-        with pytest.raises(GenerationError) as err:
-            service.generate(payload)
-        assert err.value.code == error_code
-
-
-def test_does_not_generate_if_a_chunk_or_its_document_is_missing():
-    missing_fragment = deepcopy(DEMO_CATALOG)
-    missing_fragment["fragments"] = []
-    with pytest.raises(GenerationError, match="Faltan fragmentos"):
-        GenerationService(MockGenerationRepository(missing_fragment)).generate(_make_request_payload())
-
-    missing_document = deepcopy(DEMO_CATALOG)
-    missing_document["documents"] = []
-    with pytest.raises(GenerationError, match="documento de origen"):
-        GenerationService(MockGenerationRepository(missing_document)).generate(_make_request_payload())
+def test_a_saved_generation_is_returned_as_it_was_answered():
+    stored = {"request": {"id": "sol-1"}, "mode": "rag", "resources": [{"id": "r1"}]}
+    assert GetLegacyGeneration(LegacyGenerationRepository({"sol-1": stored})).get("sol-1") is stored
 
 
 def test_get_missing_generation():
     with pytest.raises(GenerationError) as err:
-        GenerationService(MockGenerationRepository()).get_by_id("sol-no-existe")
+        GetLegacyGeneration(LegacyGenerationRepository()).get("sol-no-existe")
     assert err.value.code == "GENERATION_NOT_FOUND"
 
 

@@ -19,12 +19,12 @@ from platform5e.application.use_cases.catalog.list_resource_types import ListRes
 from platform5e.infrastructure.http.routers.catalog import create_catalog_router
 
 from platform5e.application.services.accounts.account_service import AccountService
-from platform5e.application.services.generation.generation_service import GenerationService
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
+from platform5e.application.use_cases.generation.get_legacy_generation import GetLegacyGeneration
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
 from platform5e.application.use_cases.generation.start_regeneration import StartRegeneration
@@ -216,18 +216,8 @@ def create_application() -> FastAPI:
         evidence_retriever=evidence_retriever,
     )
 
-    generation_service = GenerationService(
-        repository=generation_repository,
-        teacher_repository=account_repository,
-        chunk_repository=chunk_repository,
-        primary_generator=primary_generator,
-        fallback_generator=fallback_generator,
-        review_repository=resource_repository,
-        demo_examples_enabled=demo_catalog_enabled,
-        evidence_retriever=evidence_retriever,
-        media_generator=media_generator,
-        media_repository=media_repository,
-    )
+    # GEN-01 (T046 parcial): la generación síncrona se retiró; queda la lectura de su historial.
+    get_legacy_generation = GetLegacyGeneration(generation_repository)
     # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
     evidence_provider = MaterialEvidenceAdapter(chunk_repository, evidence_retriever, account_repository)
     run_generation = RunGenerationRequest(
@@ -290,7 +280,7 @@ def create_application() -> FastAPI:
             start_generation, get_generation, account_service, describe_generator(primary_generator)
         )
     )
-    app.include_router(create_generations_router(generation_service, account_service))
+    app.include_router(create_generations_router(get_legacy_generation, account_service))
     app.include_router(
         create_resources_router(review_service, account_service, media_use_case, regenerate_media_use_case)
     )

@@ -5,26 +5,24 @@ motivo (C02), lo que alimenta el indicador I21 (tasa de alucinación).
 
 from __future__ import annotations
 
-import pytest
-
 from platform5e.application.services.generation.prompt_drafting import (
     build_generation_context,
     normalize_generated_resources,
 )
-from platform5e.domain.generation.errors import GenerationError
 from platform5e.domain.generation.grounding import (
     check_claim,
     claim_support,
     hallucination_rate,
     verify_citations,
 )
+from platform5e.domain.generation.generation_request import RequestStatus
+from tests.support.generation_fakes import run_generation
 from tests.unit.test_generation_with_material import (
     MOCK_COURSE,
     MOCK_FRAGMENTS,
     MOCK_ITEM,
     MOCK_UNIT,
     MockGenerator,
-    build_service_setup,
     make_request_dict,
 )
 
@@ -120,7 +118,24 @@ def test_normalization_drops_unsupported_resources_and_reports_why():
     assert rejections[0]["grounding"]["checkedClaims"] == 1 and rejections[0]["grounding"]["supportedClaims"] == 0
 
 
-def test_the_service_reports_the_grounding_of_the_request_with_i21():
+class ByTypeGenerator(MockGenerator):
+    """Devuelve una respuesta distinta según el tipo pedido, para probar la secuencia."""
+
+    def __init__(self, by_type):
+        super().__init__({})
+        self.by_type = by_type
+
+    def generate(self, context):
+        self.captured_contexts.append(context)
+        return {"recursos": [self.by_type[context["solicitud"]["tipo"]]]}
+
+
+
+
+# --- El pedido de generación (antes por el servicio síncrono, retirado en T046) -----------------------------------
+
+
+def test_the_request_reports_the_grounding_of_each_step_with_i21(tmp_path):
     mixed = {
         **MOCK_ITEM,
         "citas": [
@@ -130,30 +145,31 @@ def test_the_service_reports_the_grounding_of_the_request_with_i21():
         ],
     }
     invented = {**MOCK_ITEM, "titulo": "Inventado", "citas": [{"afirmacion": INVENTED, "fragmentos": ["F1"]}]}
-    service, _ = build_service_setup(MockGenerator({"recursos": [invented, mixed]}))
-    result = service.generate(make_request_dict(quantity=2), "docente")
+    run = run_generation(
+        tmp_path, "item_opcion_multiple", primary=MockGenerator({"recursos": [invented, mixed]}), quantity=2,
+        option_count=3,
+    )
 
-    [resource] = result["resources"]
+    [resource] = run.resources
     assert [c["claim"] for c in resource["citations"]] == [
         "TCP garantiza una entrega confiable",
         "UDP no establece conexión y es más rápido",
     ]
     assert resource["grounding"]["removedClaims"][0]["claim"] == INVENTED
-    report = result["grounding"]
+    report = run.step.grounding
     assert (report["checkedClaims"], report["supportedClaims"], report["unsupportedClaims"]) == (4, 2, 2)
     assert report["hallucinationRate"] == 0.5
     assert report["rejectedResources"][0]["title"] == "Inventado"
-    assert "Se quitaron 2 afirmación(es) sin respaldo en el material y se rechazaron 1 recurso(s)." in result["notice"]
 
 
-def test_when_nothing_has_support_the_service_refuses_and_explains_why():
+def test_when_nothing_has_support_the_request_refuses_and_explains_why(tmp_path):
     invented = {**MOCK_ITEM, "titulo": "Inventado", "citas": [{"afirmacion": INVENTED, "fragmentos": ["F1"]}]}
-    service, repo = build_service_setup(MockGenerator({"recursos": [invented]}))
-    with pytest.raises(GenerationError) as error:
-        service.generate(make_request_dict(), "docente")
-    assert error.value.code == "INSUFFICIENT_EVIDENCE"
-    assert "Motivo: «Inventado»: 1 de 1 afirmaciones sin respaldo en el material" in error.value.message
-    assert repo.saved_results == []
+    run = run_generation(
+        tmp_path, "item_opcion_multiple", primary=MockGenerator({"recursos": [invented]}), option_count=3
+    )
+    assert run.request.status == RequestStatus.FAILED and run.request.failure.code == "INSUFFICIENT_EVIDENCE"
+    assert "Motivo: «Inventado»: 1 de 1 afirmaciones sin respaldo en el material" in run.request.failure.message
+    assert run.resources == []
 
 
 class ByTypeGenerator(MockGenerator):
@@ -168,22 +184,22 @@ class ByTypeGenerator(MockGenerator):
         return {"recursos": [self.by_type[context["solicitud"]["tipo"]]]}
 
 
-def test_in_a_sequence_each_agent_reports_what_it_rejected_for_lack_of_support():
+def test_in_a_sequence_each_agent_reports_what_it_rejected_for_lack_of_support(tmp_path):
     trigger = {"titulo": "Inventado", "contenido": "¿Y si...?", "citas": [{"afirmacion": INVENTED, "fragmentos": ["F1"]}]}
     explanation = {
         "titulo": "TCP y UDP",
         "contenido": "TCP es confiable; UDP es más rápido.",
         "citas": [{"afirmacion": "UDP no establece conexión y es más rápido", "fragmentos": ["F1", "F2"]}],
     }
-    service, _ = build_service_setup(
-        ByTypeGenerator({"pregunta_detonante": trigger, "explicacion": explanation})
+    run = run_generation(
+        tmp_path, "pregunta_detonante", "explicacion",
+        primary=ByTypeGenerator({"pregunta_detonante": trigger, "explicacion": explanation}),
     )
-    result = service.generate_sequence(
-        make_request_dict(resourceTypes=["pregunta_detonante", "explicacion"], stage=None, resourceType=None),
-        "docente",
-    )
-    engage, explain = result["sequence"]
-    assert engage["generated"] == 0 and "sin respaldo en el material" in engage["rejected"][0]
-    assert explain["generated"] == 1 and explain["rejected"] == []
-    assert result["grounding"]["rejectedResources"][0]["title"] == "Inventado"
-    assert result["grounding"]["hallucinationRate"] == 0.5
+    engage, explain = run.request.steps
+    assert engage.resource_ids == () and "sin respaldo en el material" in engage.rejections[0]["reason"]
+    assert len(explain.resource_ids) == 1 and explain.rejections == ()
+    assert engage.grounding["rejectedResources"][0]["title"] == "Inventado"
+    # I21 del pedido: afirmaciones sin respaldo sobre las revisadas, sumando los informes de los pasos.
+    checked = sum(step.grounding["checkedClaims"] for step in run.request.steps)
+    unsupported = sum(step.grounding["unsupportedClaims"] for step in run.request.steps)
+    assert unsupported / checked == 0.5
