@@ -249,3 +249,83 @@ def test_a_late_answer_of_an_old_attempt_leaves_the_new_attempt_intact(tmp_path,
     # La reserva del intento nuevo sigue tomada: pedirlo otra vez desde la misma versión no crea otro pedido.
     assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
     assert generation.requests == 2, "la respuesta vieja liberó la reserva del intento nuevo"
+
+
+class RunningThenFailedGeneration:
+    """Doble del adaptador en segundo plano: el pedido sigue `running` hasta que la prueba lo marca `failed`."""
+
+    def __init__(self) -> None:
+        self.requests = 0
+        self.failed: set[str] = set()
+
+    def request_regeneration(self, teacher_id, resource_id, resource_version, params) -> RegenerationStatus:
+        self.requests += 1
+        return RegenerationStatus(f"gen-req-{self.requests}", "running")
+
+    def get_regeneration(self, teacher_id, request_id) -> RegenerationStatus | None:
+        if request_id in self.failed:
+            return RegenerationStatus(request_id, "failed", (), "Generación no respondió a tiempo.")
+        return RegenerationStatus(request_id, "running")
+
+
+class FailBeforeRunningWrite:
+    """El repositorio real; justo antes de la primera escritura de `running`, ejecuta `meanwhile` (otra consulta)."""
+
+    def __init__(self, inner: resources.SQLAlchemyResourceRepository) -> None:
+        self._inner = inner
+        self.meanwhile = lambda: None
+        self._done = False
+
+    def save_resource_if_attempt(self, teacher_id, unit_id, resource, expected_version, attempt_id, increment=False):
+        if not self._done and resource["regeneration"]["status"] == "running":
+            self._done = True
+            self.meanwhile()
+        return self._inner.save_resource_if_attempt(teacher_id, unit_id, resource, expected_version, attempt_id, increment)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._inner, name)
+
+
+def test_a_running_write_does_not_overwrite_the_same_attempt_once_it_failed(tmp_path, monkeypatch, request):
+    """Revisión de Silvana en el PR #17 de Yan, con el repositorio real: una consulta lee el intento en curso; antes de
+    que escriba `running`, otra consulta del mismo intento guarda `failed` y libera la reserva. `failed` se conserva y
+    el pedido siguiente crea un intento nuevo."""
+    engine = create_engine(URL.create("sqlite", database=str(tmp_path / "terminado.db")))
+    request.addfinalizer(engine.dispose)
+    sessions = sessionmaker(bind=engine)
+    monkeypatch.setattr(accounts, "engine", engine)
+    monkeypatch.setattr(accounts, "SessionLocal", sessions)
+    monkeypatch.setattr(generations, "engine", engine)
+    monkeypatch.setattr(resources, "engine", engine)
+    monkeypatch.setattr(resources, "SessionLocal", sessions)
+
+    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    course = AccountService(account_repository, "", "").save_course(
+        TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
+    )
+    unit_id = course["units"][0]["id"]
+    repository = resources.SQLAlchemyResourceRepository()
+    repository.save_resources(TEACHER, unit_id, [explanation("viejo", unit_id)])
+    generation = RunningThenFailedGeneration()
+    service = ResourceReviewService(account_repository, repository, generation)
+    service.list_resources(TEACHER, unit_id)
+    version = repository.get_resource_by_id(TEACHER, "viejo")["version"]
+    assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
+
+    racing = FailBeforeRunningWrite(repository)
+    racing_service = ResourceReviewService(account_repository, racing, generation)
+    inner: list[dict[str, Any]] = []
+
+    def fail_meanwhile() -> None:
+        generation.failed.add("gen-req-1")
+        inner.append(service.get_regeneration_status(TEACHER, unit_id, "viejo"))
+
+    racing.meanwhile = fail_meanwhile
+    answer = racing_service.get_regeneration_status(TEACHER, unit_id, "viejo")
+
+    assert inner[0]["status"] == "failed"
+    stored = repository.get_resource_by_id(TEACHER, "viejo")["regeneration"]
+    assert stored["status"] == "failed", "la escritura vieja pisó `failed`"
+    assert answer["status"] == "failed"
+    assert service.regenerate_resource(TEACHER, unit_id, "viejo", version)["status"] == "running"
+    assert generation.requests == 2, "el pedido siguiente respondió «en curso» sin crear uno nuevo"

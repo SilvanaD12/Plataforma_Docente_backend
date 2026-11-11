@@ -44,7 +44,7 @@ class ResourceReviewRepositoryPort(Protocol):
     ) -> bool:
         """REV-C12: reserva de forma atómica el pedido de regeneración desde `expected_version` y guarda `resource`
         (con su registro `regeneration`) sin cambiar la versión. El `attemptId` de `resource["regeneration"]` pasa a ser
-        el intento vigente.
+        el intento vigente, en estado `running`.
 
         Devuelve False, sin modificar nada, si la versión ya no es la vigente o si otro pedido ya reservó esa versión.
         """
@@ -62,6 +62,10 @@ class ResourceReviewRepositoryPort(Protocol):
         """REV-C12: como `save_resource_if_version`, pero además solo si `attempt_id` sigue siendo el intento de
         regeneración vigente, comparado en la misma escritura. Así la respuesta tardía de un intento viejo no cambia
         nada del intento nuevo, aunque los dos partan de la misma versión.
+
+        También exige, en la misma escritura, que el intento siga en `running`, y guarda como estado vigente el
+        `status` de `resource["regeneration"]`. Un intento que ya terminó (`succeeded` o `failed`) no se reescribe,
+        aunque otra consulta del mismo intento llegue tarde (revisión de Silvana en el PR #17).
         """
         ...
 

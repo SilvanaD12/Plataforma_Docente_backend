@@ -131,6 +131,9 @@ class TeacherResourceORM(Base):
     # REV-01 (REV-C12): `attemptId` del intento de regeneración vigente; las escrituras de su resultado lo comparan.
     # Migración 20261111000001_regeneration_attempt.sql.
     regeneration_attempt = Column(String, nullable=True)
+    # REV-01 (REV-C12): estado del intento vigente (`running`, `succeeded` o `failed`); solo se escribe sobre `running`.
+    # Migración 20261112000001_regeneration_status.sql.
+    regeneration_status = Column(String, nullable=True)
 
 
 class DownloadORM(Base):
