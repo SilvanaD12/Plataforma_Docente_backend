@@ -120,6 +120,70 @@ def test_asking_twice_for_the_same_version_returns_the_same_request(setup):
     assert newer.request.idempotency_key == regeneration_key("rec-api-1", 3) == "regen-rec-api-1-v3"
 
 
+@pytest.mark.parametrize("ended", [RequestStatus.FAILED, RequestStatus.INTERRUPTED])
+def test_after_a_failed_attempt_the_same_version_creates_the_next_attempt(setup, ended):
+    """Un intento fallido o interrumpido no bloquea la versión: el siguiente usa `-r2`, `-r3`…"""
+    from platform5e.domain.generation.generation_request import Problem
+
+    first = setup.regenerate()
+    setup.repository.finish(first.request.id, ended, Problem("INSUFFICIENT_EVIDENCE", "No citó el material."))
+
+    second = setup.regenerate()
+    assert second.created and second.request.idempotency_key == "regen-rec-api-1-v2-r2"
+    assert second.request.regeneration == RegenerationTarget("rec-api-1", 2)
+    # Mientras el segundo intento está en curso, pedirlo otra vez devuelve ese mismo.
+    again = setup.regenerate()
+    assert not again.created and again.request.id == second.request.id
+
+    setup.repository.finish(second.request.id, RequestStatus.FAILED, None)
+    third = setup.regenerate()
+    assert third.created and third.request.idempotency_key == "regen-rec-api-1-v2-r3"
+    assert setup.runner.submitted == [first.request.id, second.request.id, third.request.id]
+
+
+def test_a_succeeded_attempt_is_returned_without_creating_another(setup):
+    first = setup.regenerate()
+    setup.repository.finish(first.request.id, RequestStatus.FAILED, None)
+    second = setup.regenerate()
+    setup.repository.finish(second.request.id, RequestStatus.SUCCEEDED, None)
+
+    again = setup.regenerate()
+    assert not again.created and again.request.id == second.request.id
+    assert setup.runner.submitted == [first.request.id, second.request.id]
+
+
+def test_a_succeeded_attempt_whose_new_resources_were_deleted_creates_the_next_attempt(setup):
+    """PR #17: si el docente borró todos los recursos nuevos de un intento que terminó bien, la versión se puede
+    regenerar otra vez (`-r2`). Si queda alguno, se devuelve ese mismo intento."""
+    use_case = StartRegeneration(
+        StartGenerationRequest(setup.membership, setup.evidence, setup.repository, setup.runner), setup.review
+    )
+    command = StartRegenerationCommand("docente-a", "u1", "rec-api-1", 2, SAVED_PARAMS)
+    first = use_case.execute(command)
+    finished = setup.run(first.request.id)
+    assert finished.status == RequestStatus.SUCCEEDED and finished.steps[0].resource_ids
+
+    kept = use_case.execute(command)  # el recurso nuevo sigue en Revisión
+    assert not kept.created and kept.request.id == first.request.id
+
+    for resource_id in finished.steps[0].resource_ids:
+        setup.review.delete_resource("docente-a", resource_id)
+    retry = use_case.execute(command)
+    assert retry.created and retry.request.idempotency_key == "regen-rec-api-1-v2-r2"
+
+
+def test_after_too_many_failed_attempts_the_version_cannot_be_regenerated(setup, monkeypatch):
+    from platform5e.application.use_cases.generation import start_regeneration
+
+    monkeypatch.setattr(start_regeneration, "MAX_REGENERATION_ATTEMPTS", 2)
+    for _ in range(2):
+        setup.repository.finish(setup.regenerate().request.id, RequestStatus.FAILED, None)
+    with pytest.raises(GenerationError) as exhausted:
+        setup.regenerate()
+    assert exhausted.value.code == GenerationErrorCode.REGENERATION_UNAVAILABLE
+    assert len(setup.runner.submitted) == 2
+
+
 def test_the_new_resource_uses_current_evidence_and_records_where_it_came_from(setup):
     """La evidencia es la que el material tiene hoy, no la copia histórica del recurso anterior (GEN-R6)."""
     # El material se reprocesó: los mismos textos llegan con otros fragmentos y otro documento.

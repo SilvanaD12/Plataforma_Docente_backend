@@ -23,11 +23,11 @@ from platform5e.application.services.generation.generation_service import Genera
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
-from platform5e.infrastructure.generation.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
+from platform5e.application.use_cases.generation.start_regeneration import StartRegeneration
 from platform5e.application.use_cases.media.get_resource_media import GetResourceMediaUseCase
 from platform5e.application.use_cases.media.regenerate_resource_media import RegenerateResourceMediaUseCase
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError
@@ -35,6 +35,7 @@ from platform5e.domain.generation.errors import GenerationError
 from platform5e.domain.materials.chunking import MaterialError
 from platform5e.domain.shared.errors import DuplicateRecordError, EntityNotFoundError, PersistenceUnavailableError
 from platform5e.infrastructure.adapters.account_unit_membership_adapter import AccountUnitMembershipAdapter
+from platform5e.infrastructure.adapters.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
 from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from platform5e.infrastructure.exporters.moodle_xml_exporter import MoodleXmlExporter
@@ -87,6 +88,7 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_resource_repo
 from platform5e.infrastructure.settings import (
     GENERATION_STALE_REQUEST_SECONDS,
     generation_max_workers,
+    generation_regeneration_wait_seconds,
     generation_request_deadline_seconds,
     generation_sweep_interval_seconds,
     read_flag,
@@ -226,11 +228,6 @@ def create_application() -> FastAPI:
         media_generator=media_generator,
         media_repository=media_repository,
     )
-    # REV-01 (D10, confirmada por Yan): Revisión pide la regeneración por su puerto. Hasta T064 el adaptador es síncrono
-    # y delega en GenerationService; el adaptador en segundo plano de Generación lo reemplaza aquí sin tocar Revisión.
-    review_service = ResourceReviewService(
-        account_repository, resource_repository, GenerationRegenerationAdapter(generation_service)
-    )
     # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
     evidence_provider = MaterialEvidenceAdapter(chunk_repository, evidence_retriever, account_repository)
     run_generation = RunGenerationRequest(
@@ -252,6 +249,17 @@ def create_application() -> FastAPI:
         unit_membership, evidence_provider, generation_request_repository, generation_runner
     )
     get_generation = GetGenerationRequest(generation_request_repository, unit_membership, resource_repository)
+    # REV-01 (D10) y GEN-01 (T029): Revisión pide la regeneración por su puerto; el adaptador de Generación crea un
+    # pedido `regeneration` en segundo plano y espera su resultado hasta GENERATION_REGENERATION_WAIT_SECONDS.
+    review_service = ResourceReviewService(
+        account_repository,
+        resource_repository,
+        GenerationRegenerationAdapter(
+            StartRegeneration(start_generation, resource_repository),
+            get_generation,
+            wait_seconds=generation_regeneration_wait_seconds(),
+        ),
+    )
     export_use_case = ExportUnitResourcesUseCase(
         account_repository,
         resource_repository,

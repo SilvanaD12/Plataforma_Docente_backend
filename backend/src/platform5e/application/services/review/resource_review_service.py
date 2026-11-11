@@ -45,6 +45,9 @@ ALLOWED_DISCARD_REASONS: set[str] = {
     "regenerado",
 }
 MAX_DOWNLOADS_HISTORY: int = 50
+# PR #17 (GEN-01): Generación respondió `succeeded`, pero ninguno de los recursos nuevos sigue en Revisión.
+REGENERATED_RESOURCE_NOT_FOUND_CODE: str = "REGENERATED_RESOURCE_NOT_FOUND"
+REGENERATED_RESOURCE_NOT_FOUND_MESSAGE: str = "El recurso regenerado ya no existe. Pide la regeneración otra vez."
 
 
 def validate_approval_blockers(resource_data: dict[str, Any]) -> list[str]:
@@ -487,9 +490,25 @@ class ResourceReviewService:
         - `pending` o `running`: el pedido sigue en curso; se guarda su id y se conserva la reserva.
         - `failed`: se registra el motivo y se libera la reserva; el anterior queda como estaba (REV-C13).
         - `succeeded`: los nuevos guardan `regeneratedFrom` y el anterior se descarta solo si sigue en la versión de
-          partida; si no, los dos quedan en Revisión (REV-C12).
+          partida; si no, los dos quedan en Revisión (REV-C12). Solo cuentan los recursos nuevos que todavía existen
+          (el docente pudo borrarlos entre la respuesta de Generación y el descarte): `newResourceIds` guarda solo
+          esos y, si no queda ninguno, se trata como `failed` con REGENERATED_RESOURCE_NOT_FOUND, sin descartar el
+          anterior y liberando la reserva (cambio defensivo del PR #17 de GEN-01).
         """
         expected_version = record["fromVersion"]
+        if outcome.status == "succeeded":
+            existing = tuple(
+                new_id for new_id in outcome.new_resource_ids
+                if self._review_repository.get_resource_by_id(teacher_id, new_id) is not None
+            )
+            outcome = (
+                RegenerationStatus(outcome.request_id, "succeeded", existing, outcome.reason, outcome.code)
+                if existing
+                else RegenerationStatus(
+                    outcome.request_id, "failed", (), REGENERATED_RESOURCE_NOT_FOUND_MESSAGE,
+                    REGENERATED_RESOURCE_NOT_FOUND_CODE,
+                )
+            )
         record = {**record, "requestId": outcome.request_id, "newResourceIds": list(outcome.new_resource_ids)}
 
         if outcome.status in ("pending", "running"):

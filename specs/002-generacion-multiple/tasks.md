@@ -146,13 +146,15 @@ Dependencias externas que bloquean tareas:
 - [x] T028 [BE] **Depende de REV-01 PR 1.** Crear `backend/src/platform5e/application/use_cases/generation/start_regeneration.py`. Caso GEN-C7. [PR #14 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/14).
   - Crea un pedido `regeneration` de un paso con los `params` guardados del recurso y la evidencia actual.
   - Usa la clave `regen-{resourceId}-v{resourceVersion}`.
+  - Si el último intento de esa versión terminó `failed` o `interrupted`, o terminó bien pero el docente ya borró todos sus recursos nuevos, crea otro con la clave siguiente (`-r2`, `-r3`…). Si sigue en curso o terminó `succeeded` con algún recurso en Revisión, devuelve ese mismo ([research R9](research.md#r9-regeneración-y-edición-durante-el-pedido)).
   - Un recurso sin `params` lanza `REGENERATION_UNAVAILABLE`.
   - Los recursos nuevos llevan `regeneratedFrom: {resourceId, version}`.
-- [ ] T029 [BE] **Depende de REV-01 PR 1 y T028.** Implementar `backend/src/platform5e/infrastructure/adapters/generation_regeneration_adapter.py` sobre `resource_regeneration_port.py`, y en `main.py` reemplazar con él el adaptador síncrono provisional de Revisión. Caso GEN-C7.
+- [x] T029 [BE] **Depende de REV-01 PR 1 y T028.** Implementar `backend/src/platform5e/infrastructure/adapters/generation_regeneration_adapter.py` sobre `resource_regeneration_port.py`, y en `main.py` reemplazar con él el adaptador síncrono provisional de Revisión. Caso GEN-C7. [PR #17 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/17).
   - `request_regeneration` llama a `StartRegeneration`.
   - `get_regeneration` traduce los estados: `queued` → `pending`, `running` → `running`, `succeeded` → `succeeded`, y `failed` o `interrupted` → `failed` con `reason`.
-  - Devuelve `new_resource_ids`.
-- [ ] T030 [E2E] **Depende de T029.** Probar la regeneración en `backend/tests/e2e/test_generation_requests_api.py` por la ruta de Revisión `POST /api/v1/units/{unitId}/resources/{resourceId}/regenerations`. Caso GEN-C7.
+  - Devuelve `new_resource_ids`, solo los recursos nuevos que siguen en Revisión (de la vista de `GetGenerationRequest`). Si el pedido terminó bien pero el docente los borró todos, devuelve `failed` con `REGENERATED_RESOURCE_NOT_FOUND` («El recurso regenerado ya no existe. Pide la regeneración otra vez.»), y `StartRegeneration` crea el intento siguiente (`-r2`) desde la misma versión.
+  - Si una consulta del pedido falla de forma inesperada cuando el pedido ya existe, la registra y devuelve el último estado conocido (`pending` o `running`) con el id del pedido, para que Revisión siga con `get_regeneration` (revisión de Silvana en el PR #17).
+- [x] T030 [E2E] **Depende de T029.** Probar la regeneración en `backend/tests/e2e/test_generation_requests_api.py` por la ruta de Revisión `POST /api/v1/units/{unitId}/resources/{resourceId}/regenerations`. Caso GEN-C7. [PR #17 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/17).
   - **Éxito:** el recurso anterior queda `descartado`.
   - **Repetición:** no crea otro pedido ni recursos.
   - **Edición durante el pedido:** conserva los dos recursos.
@@ -213,7 +215,7 @@ Dependencias externas que bloquean tareas:
 - [ ] T044 [E2E] Medir la carga ([V11](quickstart.md#v11--carga)): 5 secuencias de 8 × 5 con `LLM_PROVIDER=gemini` y con `rules`.
   - Registrar aquí p50, p95, llamadas al modelo por paso y pedidos con `DEADLINE_EXCEEDED`.
   - Si el p95 con Gemini supera 10 min, bajar el tope a 20 recursos por pedido en `spec.md`, `research.md` (R4) y T018.
-- [ ] T045 [BE] Migrar los consumidores de la ruta antigua:
+- [x] T045 [BE] Migrar los consumidores de la ruta antigua: [PR #16 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/16).
   - `backend/evaluation/collect_samples.py` pasa a `POST /api/v1/generation-requests` con consulta hasta el estado final.
   - `backend/scripts/export_contracts.py` exporta `StartGenerationRequest` en lugar de `GenerationRequest`. Actualizar `docs/api/contracts/generation-request.v1.json`.
 - [ ] T046 [BE] **Depende de T045.** Retirar la ruta y el servicio antiguos.
