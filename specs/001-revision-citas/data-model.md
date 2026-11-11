@@ -108,3 +108,5 @@ Lo implementa el adaptador de Generación en segundo plano, `infrastructure/adap
 En el recurso anterior, Revisión guarda `regeneration: {fromVersion, requestId, status, newResourceIds, previousDiscarded}`. En cada recurso nuevo guarda `regeneratedFrom: {resourceId, version}`.
 
 Si Generación responde `succeeded` pero ninguno de los recursos nuevos existe, Revisión registra `status: failed` con `code: REGENERATED_RESOURCE_NOT_FOUND` y libera la reserva; en el `POST` responde **409** (`MATERIAL_STATE_CODES` de `domain/review/errors.py`). Si existen algunos, `newResourceIds` guarda solo esos.
+
+Estado HTTP del `POST` cuando el puerto devuelve `failed` con `code` (`RegenerationFailedError`): 409 para `MATERIAL_STATE_CODES`; 404 `UNIT_NOT_FOUND` y 429 `TOO_MANY_ACTIVE_REQUESTS`, como `generation-requests` (`START_REJECTION_STATUS`); 422 para cualquier otro código, incluido `REGENERATION_UNAVAILABLE` de Generación; sin `code`, 502 `REGENERATION_FAILED`.

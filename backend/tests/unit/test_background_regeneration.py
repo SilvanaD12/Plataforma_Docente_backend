@@ -247,3 +247,26 @@ def test_a_post_whose_regenerated_resource_no_longer_exists_is_a_state_conflict(
     assert error.value.code == "REGENERATED_RESOURCE_NOT_FOUND" and error.value.status_code == 409
     old = resources.by_id["viejo"]
     assert (old["status"], old["version"]) == ("pendiente", 3) and "viejo" not in resources.claims
+
+
+@pytest.mark.parametrize(
+    ("code", "status_code"),
+    [
+        # Los mismos estados con los que `generation-requests` responde estos rechazos al iniciar un pedido.
+        ("UNIT_NOT_FOUND", 404),
+        ("TOO_MANY_ACTIVE_REQUESTS", 429),
+        # Por ahora 422: en `start_regeneration.py` agrupa tres causas (sin parámetros guardados, destino no válido,
+        # demasiados intentos) y ninguna es «servidor no disponible» (cierre de REV-01, 2026-11-11).
+        ("REGENERATION_UNAVAILABLE", 422),
+    ],
+)
+def test_a_rejection_when_starting_the_request_keeps_generation_status_code(code, status_code):
+    service, resources, generation = build()
+    generation.request_regeneration = lambda *args: RegenerationStatus(  # type: ignore[method-assign]
+        f"regen-{code}", "failed", (), "Generación rechazó el pedido.", code
+    )
+    with pytest.raises(RegenerationFailedError) as error:
+        service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
+    assert (error.value.code, error.value.status_code) == (code, status_code)
+    old = resources.by_id["viejo"]
+    assert (old["status"], old["version"]) == ("pendiente", 3) and "viejo" not in resources.claims
