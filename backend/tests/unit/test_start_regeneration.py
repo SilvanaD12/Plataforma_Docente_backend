@@ -152,6 +152,26 @@ def test_a_succeeded_attempt_is_returned_without_creating_another(setup):
     assert setup.runner.submitted == [first.request.id, second.request.id]
 
 
+def test_a_succeeded_attempt_whose_new_resources_were_deleted_creates_the_next_attempt(setup):
+    """PR #17: si el docente borró todos los recursos nuevos de un intento que terminó bien, la versión se puede
+    regenerar otra vez (`-r2`). Si queda alguno, se devuelve ese mismo intento."""
+    use_case = StartRegeneration(
+        StartGenerationRequest(setup.membership, setup.evidence, setup.repository, setup.runner), setup.review
+    )
+    command = StartRegenerationCommand("docente-a", "u1", "rec-api-1", 2, SAVED_PARAMS)
+    first = use_case.execute(command)
+    finished = setup.run(first.request.id)
+    assert finished.status == RequestStatus.SUCCEEDED and finished.steps[0].resource_ids
+
+    kept = use_case.execute(command)  # el recurso nuevo sigue en Revisión
+    assert not kept.created and kept.request.id == first.request.id
+
+    for resource_id in finished.steps[0].resource_ids:
+        setup.review.delete_resource("docente-a", resource_id)
+    retry = use_case.execute(command)
+    assert retry.created and retry.request.idempotency_key == "regen-rec-api-1-v2-r2"
+
+
 def test_after_too_many_failed_attempts_the_version_cannot_be_regenerated(setup, monkeypatch):
     from platform5e.application.use_cases.generation import start_regeneration
 

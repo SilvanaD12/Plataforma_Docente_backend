@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from platform5e.application.use_cases.generation.get_generation_request import GenerationRequestView
+from platform5e.application.use_cases.generation.get_generation_request import GenerationRequestView, ResourceSummary
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationResult
 from platform5e.application.use_cases.generation.start_regeneration import StartRegeneration
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
@@ -60,18 +60,30 @@ class FakeStartGeneration:
 
 
 class FakeGetGeneration:
-    """Devuelve, en orden, los estados del pedido en cada consulta (el último se repite)."""
+    """Devuelve, en orden, los estados del pedido en cada consulta (el último se repite). Un estado que es una
+    excepción se lanza en esa consulta. Como `GetGenerationRequest`, la vista no incluye los recursos de `deleted`."""
 
-    def __init__(self, *states) -> None:
+    def __init__(self, *states, deleted: tuple[str, ...] = ()) -> None:
         self.states = list(states)
+        self.deleted = set(deleted)
         self.calls: list[tuple[str, str]] = []
 
     def get(self, teacher_id: str, request_id: str) -> GenerationRequestView:
         self.calls.append((teacher_id, request_id))
         request = self.states.pop(0) if len(self.states) > 1 else (self.states[0] if self.states else None)
+        if isinstance(request, Exception):
+            raise request
         if request is None or request.teacher_id != teacher_id or request.id != request_id:
             raise GenerationError(GenerationErrorCode.GENERATION_REQUEST_NOT_FOUND, "No existe.")
-        return GenerationRequestView(request=request, resources_by_step={})
+        resources_by_step = {
+            step.position: tuple(
+                ResourceSummary(resource_id, "Recurso", "current")
+                for resource_id in step.resource_ids
+                if resource_id not in self.deleted
+            )
+            for step in request.steps
+        }
+        return GenerationRequestView(request=request, resources_by_step=resources_by_step)
 
 
 class Clock:
@@ -197,3 +209,48 @@ def test_the_regeneration_wait_setting_accepts_zero_and_ignores_invalid_values()
     assert generation_regeneration_wait_seconds({"GENERATION_REGENERATION_WAIT_SECONDS": "2.5"}) == 2.5
     for invalid in ("-1", "abc", "nan", ""):
         assert generation_regeneration_wait_seconds({"GENERATION_REGENERATION_WAIT_SECONDS": invalid}) == 10.0
+
+
+# PR #17, revisión de Silvana: el id del pedido no se pierde y no se entrega un recurso que ya no existe.
+
+
+def test_an_unexpected_error_in_the_first_poll_keeps_the_request_id(caplog):
+    queued = regeneration(RequestStatus.QUEUED)
+    finished = replace(regeneration(RequestStatus.SUCCEEDED, ("rec-nuevo",)), id=queued.id)
+    get = FakeGetGeneration(RuntimeError("base caída " + "x" * 400), finished)
+    regenerator = adapter(FakeStartGeneration(queued), get, wait=2)
+
+    with caplog.at_level("WARNING", logger="platform5e.regeneration"):
+        status = regenerator.request_regeneration("ana", "rec-viejo", 3, PARAMS)
+
+    assert status.status in ("pending", "running") and status.request_id == queued.id
+    assert status.new_resource_ids == () and status.code is None
+    assert "base caída" in caplog.text and "x" * 300 not in caplog.text  # registrado y recortado
+    later = regenerator.get_regeneration("ana", queued.id)
+    assert (later.status, later.new_resource_ids) == ("succeeded", ("rec-nuevo",))
+
+
+def test_a_deleted_new_resource_is_not_reported_as_succeeded():
+    finished = regeneration(RequestStatus.SUCCEEDED, ("rec-nuevo",))
+    get = FakeGetGeneration(finished, deleted=("rec-nuevo",))
+    status = adapter(FakeStartGeneration(), get).get_regeneration("ana", finished.id)
+    assert (status.status, status.code, status.new_resource_ids) == ("failed", "REGENERATED_RESOURCE_NOT_FOUND", ())
+    assert status.reason == "El recurso regenerado ya no existe. Pide la regeneración otra vez."
+
+    # Lo mismo al esperar el pedido dentro de request_regeneration.
+    queued = replace(finished, status=RequestStatus.QUEUED, steps=(replace(finished.steps[0], resource_ids=()),))
+    waited = adapter(FakeStartGeneration(queued), FakeGetGeneration(finished, deleted=("rec-nuevo",)), wait=2)
+    status = waited.request_regeneration("ana", "rec-viejo", 3, PARAMS)
+    assert (status.status, status.code) == ("failed", "REGENERATED_RESOURCE_NOT_FOUND")
+
+
+def test_with_two_new_resources_and_one_deleted_only_the_remaining_one_is_returned():
+    finished = regeneration(RequestStatus.SUCCEEDED, ("rec-nuevo-1", "rec-nuevo-2"))
+    get = FakeGetGeneration(finished, deleted=("rec-nuevo-1",))
+    status = adapter(FakeStartGeneration(), get).get_regeneration("ana", finished.id)
+    assert (status.status, status.new_resource_ids) == ("succeeded", ("rec-nuevo-2",))
+
+    # Un pedido ya terminado que se devuelve al crearlo (misma clave) también se revisa con la vista.
+    repeated = adapter(FakeStartGeneration(finished), FakeGetGeneration(finished, deleted=("rec-nuevo-1",)), wait=0)
+    status = repeated.request_regeneration("ana", "rec-viejo", 3, PARAMS)
+    assert (status.status, status.new_resource_ids) == ("succeeded", ("rec-nuevo-2",))

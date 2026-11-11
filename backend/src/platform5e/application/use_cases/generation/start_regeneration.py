@@ -4,7 +4,8 @@ Caso de uso GEN-01 (T028): regenera un recurso de Revisión con un pedido `regen
 Usa los `params` guardados en el recurso y la evidencia actual del material, que el pedido recupera al ejecutarse; no
 la copia histórica. La clave `regen-{resourceId}-v{resourceVersion}` es única por docente: pedir dos veces la misma
 versión devuelve el mismo pedido y no duplica recursos, salvo que ese intento haya terminado `failed` o
-`interrupted`: entonces se crea otro con la clave siguiente (`-r2`, `-r3`…). Los recursos nuevos llevan `regeneratedFrom`.
+`interrupted`, o que haya terminado bien pero el docente ya borró todos sus recursos nuevos: entonces se crea otro con
+la clave siguiente (`-r2`, `-r3`…). Los recursos nuevos llevan `regeneratedFrom`.
 
 Generación no descarta ni modifica el recurso anterior: eso lo decide Revisión cuando el pedido termina (research R9).
 Lo llamará el adaptador de regeneración de Revisión (T029). Solo depende de otros casos de uso de Generación y del
@@ -17,6 +18,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.application.use_cases.generation.start_generation_request import (
     StartGenerationCommand,
     StartGenerationRequest,
@@ -42,6 +44,7 @@ DEFAULTS = GenerationParameters(resource_types=())
 
 # Un intento fallido o interrumpido no bloquea la versión: el siguiente usa la clave `-r2`, `-r3`…
 RETRYABLE_STATUSES = frozenset({RequestStatus.FAILED, RequestStatus.INTERRUPTED})
+SUCCEEDED_STATUSES = frozenset({RequestStatus.SUCCEEDED, RequestStatus.PARTIALLY_SUCCEEDED})
 MAX_REGENERATION_ATTEMPTS: int = 20
 TOO_MANY_ATTEMPTS_MESSAGE: str = (
     "Esta versión del recurso ya se intentó regenerar muchas veces sin éxito. Edítalo o crea uno nuevo desde "
@@ -114,8 +117,15 @@ class StartRegenerationCommand:
 class StartRegeneration:
     """Inicia la regeneración con las mismas reglas que cualquier pedido: pertenencia, material y límite de activos."""
 
-    def __init__(self, start_generation: StartGenerationRequest) -> None:
+    def __init__(
+        self,
+        start_generation: StartGenerationRequest,
+        review_repository: ResourceReviewRepositoryPort | None = None,
+    ) -> None:
         self._start_generation = start_generation
+        # Con el repositorio de Revisión, un intento que terminó bien pero cuyos recursos nuevos el docente ya borró
+        # también deja pasar al intento siguiente (PR #17).
+        self._review_repository = review_repository
 
     def execute(self, command: StartRegenerationCommand) -> StartGenerationResult:
         version = command.resource_version
@@ -141,6 +151,21 @@ class StartRegeneration:
                     regeneration=target,
                 )
             )
-            if result.created or result.request.status not in RETRYABLE_STATUSES:
+            if result.created:
                 return result
+            if result.request.status in RETRYABLE_STATUSES:
+                continue
+            if result.request.status in SUCCEEDED_STATUSES and self._new_resources_deleted(command, result.request):
+                continue
+            return result
         raise GenerationError(GenerationErrorCode.REGENERATION_UNAVAILABLE, TOO_MANY_ATTEMPTS_MESSAGE)
+
+    def _new_resources_deleted(self, command: StartRegenerationCommand, request) -> bool:
+        """True si el intento entregó recursos y ninguno sigue en Revisión."""
+        if self._review_repository is None:
+            return False
+        delivered = {resource_id for step in request.steps for resource_id in step.resource_ids}
+        if not delivered:
+            return False
+        stored = self._review_repository.get_resources_by_unit(command.teacher_id, command.unit_id)
+        return not any(resource.get("id") in delivered for resource in stored)

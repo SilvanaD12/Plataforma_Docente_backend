@@ -255,7 +255,9 @@ def create_application() -> FastAPI:
         account_repository,
         resource_repository,
         GenerationRegenerationAdapter(
-            StartRegeneration(start_generation), get_generation, wait_seconds=generation_regeneration_wait_seconds()
+            StartRegeneration(start_generation, resource_repository),
+            get_generation,
+            wait_seconds=generation_regeneration_wait_seconds(),
         ),
     )
     export_use_case = ExportUnitResourcesUseCase(

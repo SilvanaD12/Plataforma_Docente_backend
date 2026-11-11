@@ -458,3 +458,80 @@ def test_a_regeneration_that_failed_after_starting_can_be_asked_again_from_the_s
         assert by_id[previous["id"]]["status"] == "descartado"
         assert by_id[new_id]["regeneratedFrom"] == {"resourceId": previous["id"], "version": 1}
         assert api.get(f"{url}/regeneration", headers=headers).json()["status"] == "succeeded"
+
+
+# PR #17 (revisión de Silvana): el id del pedido no se pierde y no se descarta el original si el nuevo ya no existe.
+
+
+@pytest.fixture
+def flaky_lookup_flag(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """Archivo que, mientras existe, hace fallar una vez la consulta de un pedido de generación en el servidor."""
+    flag = tmp_path / "falla-una-consulta"
+    monkeypatch.setenv("E2E_APP_FACTORY", "tests.e2e.flaky_request_lookup_app:create_application")
+    monkeypatch.setenv("E2E_FLAKY_LOOKUP_FLAG", str(flag))
+    return flag
+
+
+def test_a_temporary_failure_on_the_first_query_keeps_the_request_and_the_status_reaches_succeeded(
+    flaky_lookup_flag, request: pytest.FixtureRequest
+):
+    server = request.getfixturevalue("server")
+    with httpx.Client(base_url=server, timeout=90) as api:
+        headers = _session(api, TEACHER_A)
+        unit, previous = _generated_explanation(api, headers)
+        url = f"/api/v1/units/{unit['id']}/resources/{previous['id']}"
+
+        flaky_lookup_flag.touch()  # la primera consulta del pedido, dentro de la espera del adaptador, falla
+        first = api.post(f"{url}/regenerations", headers=headers, json={"expectedVersion": 1})
+        assert first.status_code == 200, first.text
+        assert first.json()["status"] == "running"
+        assert not flaky_lookup_flag.exists()
+
+        finished = _regeneration_finished(api, headers, url)
+        assert finished["status"] == "succeeded" and finished["previousDiscarded"] is True
+        [new_id] = finished["newResourceIds"]
+        by_id = {r["id"]: r for r in _unit_resources(api, headers, unit["id"])}
+        assert by_id[previous["id"]]["status"] == "descartado"
+        assert by_id[new_id]["regeneratedFrom"] == {"resourceId": previous["id"], "version": 1}
+        assert len(_regeneration_requests(api, headers, unit["id"])) == 1
+
+
+def _regeneration_keys(database_url: str, unit_id: str) -> list[str]:
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            return sorted(
+                connection.execute(
+                    text("SELECT idempotency_key FROM gen_generation_requests WHERE unit_id = :unit AND mode = 'regeneration'"),
+                    {"unit": unit_id},
+                ).scalars()
+            )
+    finally:
+        engine.dispose()
+
+
+def test_if_the_new_resource_is_deleted_before_the_query_the_original_is_kept_and_can_be_regenerated_again(
+    no_wait_server: str, e2e_database_url: str
+):
+    with httpx.Client(base_url=no_wait_server, timeout=90) as api:
+        headers = _session(api, TEACHER_A)
+        unit, previous = _generated_explanation(api, headers)
+        url = f"/api/v1/units/{unit['id']}/resources/{previous['id']}"
+
+        assert api.post(f"{url}/regenerations", headers=headers, json={"expectedVersion": 1}).json()["status"] == "running"
+        [attempt] = _regeneration_requests(api, headers, unit["id"])
+        assert _wait_until_final(api, headers, attempt["id"])["status"] == "succeeded"
+        [new] = [r for r in _unit_resources(api, headers, unit["id"]) if r.get("regeneratedFrom")]
+        assert api.delete(f"/api/v1/units/{unit['id']}/resources/{new['id']}", headers=headers).status_code == 204
+
+        status = api.get(f"{url}/regeneration", headers=headers).json()
+        assert status["status"] == "failed" and status["code"] == "REGENERATED_RESOURCE_NOT_FOUND"
+        assert status["previousDiscarded"] is False
+        [original] = [r for r in _unit_resources(api, headers, unit["id"]) if r["id"] == previous["id"]]
+        assert (original["status"], original["version"]) == ("pendiente", 1)
+
+        again = api.post(f"{url}/regenerations", headers=headers, json={"expectedVersion": 1})
+        assert again.status_code == 200 and again.json()["status"] == "running"
+        assert _regeneration_keys(e2e_database_url, unit["id"]) == [
+            f"regen-{previous['id']}-v1", f"regen-{previous['id']}-v1-r2",
+        ]
