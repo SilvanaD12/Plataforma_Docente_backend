@@ -11,14 +11,23 @@ from fastapi.testclient import TestClient
 import pytest
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
-from platform5e.application.services.generation.generation_service import GenerationService
+from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
+from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
 from platform5e.domain.shared.errors import DuplicateRecordError, PersistenceUnavailableError
-from platform5e.infrastructure.http.routers.generations import create_generations_router
+from platform5e.infrastructure.http.error_handlers import persistence_unavailable_handler
+from platform5e.infrastructure.http.routers.generation_requests import create_generation_requests_router
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_generation_repository as generation_repo_module,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_account_repository import (
     SQLAlchemyAccountRepository,
+)
+from tests.support.generation_fakes import (
+    FakeEvidence,
+    FakeMembership,
+    FakeReviewRepository,
+    FakeRunner,
+    sqlite_repository,
 )
 
 
@@ -53,25 +62,44 @@ def test_sql_error_does_not_cross_the_port(monkeypatch, sql_error, expected_doma
     # Intercepta el constructor de sesión del repositorio
     monkeypatch.setattr(generation_repo_module, "SessionLocal", raise_db_error)
 
+    # T046: el repositorio reducido ya no guarda; la lectura del historial pasa por la misma traducción.
     with pytest.raises(expected_domain_error):
-        repo.save({"request": {"id": "sol-prueba"}})
+        repo.get_by_id("sol-prueba")
 
 
-def test_generation_with_database_down_keeps_503_response(monkeypatch):
-    repo = generation_repo_module.SQLAlchemyGenerationRepository()
+class SignedInTeacher:
+    """Lo único que la ruta de pedidos usa de Cuentas: la sesión del docente."""
+
+    def authenticate_token(self, authorization: str | None) -> str:
+        return "docente-a"
+
+
+def test_generation_with_database_down_keeps_503_response(tmp_path):
+    """POST /api/v1/generation-requests con la base caída responde 503 sin filtrar el detalle (antes por la ruta
+    síncrona retirada en T046)."""
+    requests = sqlite_repository(tmp_path)
 
     def raise_db_error():
         raise SQLAlchemyError("no debe filtrarse a HTTP")
 
-    monkeypatch.setattr(generation_repo_module, "SessionLocal", raise_db_error)
-
+    requests._sessions = raise_db_error
+    membership, evidence = FakeMembership(), FakeEvidence()
     app = FastAPI()
-    app.include_router(create_generations_router(GenerationService(repo), account_service=None, generator_info={}))
+    app.add_exception_handler(PersistenceUnavailableError, persistence_unavailable_handler)
+    app.include_router(
+        create_generation_requests_router(
+            StartGenerationRequest(membership, evidence, requests, FakeRunner()),
+            GetGenerationRequest(requests, membership, FakeReviewRepository()),
+            SignedInTeacher(),  # type: ignore[arg-type]
+            {},
+        )
+    )
 
     client = TestClient(app)
     response = client.post(
-        "/api/v1/generations",
-        json={"unitId": "u2", "stage": "explore", "resourceType": "guia_exploracion", "quantity": 1},
+        "/api/v1/generation-requests",
+        headers={"Authorization": "Bearer token", "Idempotency-Key": "clave-base-caida"},
+        json={"mode": "individual", "unitId": "u1", "resourceTypes": ["guia_exploracion"], "quantity": 1},
     )
 
     assert response.status_code == 503

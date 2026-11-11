@@ -12,7 +12,7 @@ import httpx
 import pytest
 
 from platform5e.application.ports.outbound.media_port import GeneratedMedia
-from platform5e.application.services.generation.generation_service import GenerationService
+from platform5e.application.services.media.media_attachment import attach_generated_media
 from platform5e.application.services.generation.prompt_drafting import (
     build_prompt_instructions,
     normalize_generated_resources,
@@ -168,19 +168,19 @@ class MemoryMediaRepository:
 
 
 def test_generated_media_is_saved_or_falls_back_without_stopping_the_generation():
+    """Antes por GenerationService._attach_media (retirado en T046): ahora por attach_generated_media, que usan los
+    pedidos de generación y «Generar de nuevo» en Revisión."""
     repository = MemoryMediaRepository()
-    service = GenerationService(repository=None, media_generator=FakeMediaGenerator(), media_repository=repository)
     audio = {"id": "r1", "format": "audio", "structure": {"script": "Hola"}}
-    service._attach_media("t1", audio)
+    assert attach_generated_media("t1", audio, FakeMediaGenerator(), repository) is True
     assert audio["media"]["status"] == "ready" and repository.saved[audio["media"]["id"]][1] == b"ID3audio"
 
-    failing = GenerationService(repository=None, media_generator=FakeMediaGenerator(fail=True), media_repository=repository)
     image = {"id": "r2", "format": "image", "structure": {"prompt": "Una red"}}
-    failing._attach_media("t1", image)
+    assert attach_generated_media("t1", image, FakeMediaGenerator(fail=True), repository) is False
     assert image["media"]["status"] == "fallback" and "sin cuota" in image["media"]["note"]
 
     text = {"id": "r3", "format": "text"}
-    service._attach_media("t1", text)
+    assert attach_generated_media("t1", text, FakeMediaGenerator(), repository) is False
     assert "media" not in text
 
 

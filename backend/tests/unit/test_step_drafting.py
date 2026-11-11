@@ -1,4 +1,5 @@
-"""GEN-01 (T013 y T014): redacción de un paso extraída de generation_service y contexto desde los puertos."""
+"""GEN-01 (T013 y T014): redacción de un paso (extraída del servicio síncrono, retirado en T046) y contexto desde los
+puertos."""
 
 from __future__ import annotations
 
@@ -6,7 +7,6 @@ from typing import Any
 
 from platform5e.application.ports.outbound.evidence_provider_port import EvidenceFragment
 from platform5e.application.ports.outbound.unit_membership_port import OutcomeRef, UnitContext
-from platform5e.application.services.generation import generation_service, step_drafting
 from platform5e.application.services.generation.prompt_drafting import (
     build_generation_context,
     build_step_context,
@@ -48,12 +48,6 @@ class OneShotGenerator:
 
 
 # T013 · Extracción sin cambio de comportamiento
-
-
-def test_the_service_reexports_the_extracted_names():
-    """Los importadores actuales de generation_service siguen funcionando."""
-    for name in ("NO_REPEAT_INSTRUCTION", "OPTION_LETTERS", "REQUEST_PARAMETERS", "build_grounding_report"):
-        assert getattr(generation_service, name) is getattr(step_drafting, name)
 
 
 def test_every_rejection_carries_its_kind():

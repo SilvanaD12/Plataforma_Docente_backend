@@ -13,18 +13,18 @@ from platform5e.application.services.generation.prompt_drafting import (
     build_prompt_instructions,
     normalize_generated_resources,
 )
-from platform5e.domain.generation.errors import GenerationError
 from platform5e.domain.generation.grounding import (
     check_statement,
     split_statements,
     verify_statements,
 )
+from platform5e.domain.generation.generation_request import RequestStatus
+from tests.support.generation_fakes import run_generation
 from tests.unit.test_generation_with_material import (
     MOCK_COURSE,
     MOCK_FRAGMENTS,
     MOCK_UNIT,
     MockGenerator,
-    build_service_setup,
     make_request_dict,
 )
 
@@ -161,29 +161,6 @@ def test_the_prompt_asks_for_paragraphs_and_glossary_entries_taken_from_the_mate
     assert "«Término: definición»" in glossary_prompt
 
 
-def test_the_service_reports_the_removed_paragraphs():
-    generator = MockGenerator({"recursos": [explanation(TCP_PARAGRAPH, INVENTED_PARAGRAPH, UDP_PARAGRAPH)]})
-    service, _ = build_service_setup(generator)
-    result = service.generate(make_request_dict(stage="explain", resourceType="explicacion"), "docente")
-
-    [resource] = result["resources"]
-    assert resource["body"] == f"{TCP_PARAGRAPH}\n\n{UDP_PARAGRAPH}"
-    assert resource["grounding"]["removedParagraphs"][0]["text"] == INVENTED_PARAGRAPH
-    assert result["grounding"]["unsupportedParagraphs"] == 1
-    assert "Se quitaron 1 párrafo(s) sin respaldo en el material." in result["notice"]
-
-
-def test_when_the_whole_explanation_is_invented_the_service_refuses_and_explains_why():
-    other = "El protocolo QUIC usa cifrado obligatorio en todos los servidores web."
-    generator = MockGenerator({"recursos": [explanation(INVENTED_PARAGRAPH, other, title="Inventada")]})
-    service, repo = build_service_setup(generator)
-    with pytest.raises(GenerationError) as error:
-        service.generate(make_request_dict(stage="explain", resourceType="explicacion"), "docente")
-    assert error.value.code == "INSUFFICIENT_EVIDENCE"
-    assert "Motivo: «Inventada»: 2 de 2 párrafos sin respaldo en el material" in error.value.message
-    assert repo.saved_results == []
-
-
 # --- Glosario del generador por reglas: sin definiciones repetidas -------------------------------------------------
 
 PROTOCOLS_MATERIAL = (
@@ -230,3 +207,26 @@ def test_the_rule_based_glossary_does_not_repeat_definitions_or_nested_terms():
     grounding = verified["verificacion"]
     assert grounding["supportedClaims"] == grounding["checkedClaims"] == len(entries)
     assert grounding["removedParagraphs"] == []
+
+
+# --- El pedido de generación (antes por el servicio síncrono, retirado en T046) -----------------------------------
+
+
+def test_the_request_reports_the_removed_paragraphs(tmp_path):
+    generator = MockGenerator({"recursos": [explanation(TCP_PARAGRAPH, INVENTED_PARAGRAPH, UDP_PARAGRAPH)]})
+    run = run_generation(tmp_path, "explicacion", primary=generator)
+
+    [resource] = run.resources
+    assert resource["body"] == f"{TCP_PARAGRAPH}\n\n{UDP_PARAGRAPH}"
+    assert resource["grounding"]["removedParagraphs"][0]["text"] == INVENTED_PARAGRAPH
+    assert run.step.grounding["unsupportedParagraphs"] == 1
+
+
+def test_when_the_whole_explanation_is_invented_the_request_refuses_and_explains_why(tmp_path):
+    other = "El protocolo QUIC usa cifrado obligatorio en todos los servidores web."
+    generator = MockGenerator({"recursos": [explanation(INVENTED_PARAGRAPH, other, title="Inventada")]})
+    run = run_generation(tmp_path, "explicacion", primary=generator)
+
+    assert run.request.status == RequestStatus.FAILED and run.request.failure.code == "INSUFFICIENT_EVIDENCE"
+    assert "Motivo: «Inventada»: 2 de 2 párrafos sin respaldo en el material" in run.request.failure.message
+    assert run.resources == []

@@ -6,6 +6,8 @@ import json
 
 import httpx
 
+from tests.e2e.generation_flow import generate
+
 MATERIAL = (
     "Unidad 1: Protocolos de transporte\n\n"
     "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de los datos. "
@@ -69,11 +71,8 @@ def test_new_account_reviews_downloads_and_deletes_its_course(server: str):
             == "procesado"
         )
 
-        request_body = {
-            "unitId": unit["id"],
+        params = {
             "outcomeId": None,
-            "stage": "evaluate",
-            "resourceType": "item_opcion_multiple",
             "quantity": 1,
             "difficulty": "intermedia",
             "optionCount": 4,
@@ -84,12 +83,13 @@ def test_new_account_reviews_downloads_and_deletes_its_course(server: str):
             "competency": "",
             "modalities": ["Textual"],
         }
-        generated = api.post("/api/v1/generations", headers=h, json=request_body).json()
-        assert generated["generator"]["fallback"] is False
+        generated, delivered = generate(api, h, unit["id"], "item_opcion_multiple", **params)
+        assert generated["status"] == "succeeded"
+        assert [step["generator"]["fallback"] for step in generated["steps"]] == [False]
 
         base = f"/api/v1/units/{unit['id']}"
         resources = api.get(base + "/resources", headers=h).json()
-        assert [r["id"] for r in resources] == [generated["resources"][0]["id"]]
+        assert [r["id"] for r in resources] == [delivered[0]["id"]]
         resource = resources[0]
         assert resource["evidence"] and resource["evidence"][0]["documentName"] == "protocolos.txt"
         assert resource["params"]["resourceType"] == "item_opcion_multiple" and resource["generatorKind"] == "respaldo"
@@ -173,12 +173,8 @@ def _unit_with_an_explanation(api: httpx.Client, email: str) -> tuple[dict, dict
         "/api/v1/documents", headers=h, files={"file": ("protocolos.txt", MATERIAL)}, data={"context": json.dumps(context)}
     ).json()
     assert api.post(f"/api/v1/documents/{document['id']}/process", headers=h).status_code == 200
-    generated = api.post(
-        "/api/v1/generations",
-        headers=h,
-        json={"unitId": unit["id"], "stage": "explain", "resourceType": "explicacion", "quantity": 1, "evidenceThreshold": 0.6},
-    )
-    assert generated.status_code == 200, generated.text
+    generated, _ = generate(api, h, unit["id"], "explicacion", quantity=1, evidenceThreshold=0.6)
+    assert generated["status"] == "succeeded", generated
     resource = api.get(f"/api/v1/units/{unit['id']}/resources", headers=h).json()[0]
     return h, unit, document, resource
 

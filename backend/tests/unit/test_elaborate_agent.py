@@ -10,7 +10,8 @@ import json
 import re
 import zipfile
 
-from platform5e.application.services.generation.generation_service import NO_REPEAT_INSTRUCTION
+from platform5e.application.services.generation.step_drafting import NO_REPEAT_INSTRUCTION
+from platform5e.domain.generation.generation_request import StepStatus
 from platform5e.application.services.generation.prompt_drafting import (
     build_generation_context,
     build_prompt_instructions,
@@ -26,12 +27,11 @@ from platform5e.infrastructure.exporters.scorm_package_exporter import ACTIVITY_
 from platform5e.infrastructure.exporters.unit_document_exporter import UnitDocumentExporter
 from platform5e.infrastructure.llm.gemini_language_model import GEMINI_RESPONSE_SCHEMA
 from tests.unit.test_generation_with_material import MOCK_COURSE, MOCK_FRAGMENTS, MOCK_UNIT, make_request_dict
+from tests.support.generation_fakes import run_generation
 from tests.unit.test_multimodal_resources import context_for
 from tests.unit.test_sequence_orchestrator import (
     DISTINCT_RESOURCES,
     StageAwareGenerator,
-    build_service,
-    sequence_request,
 )
 
 TCP = "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable."
@@ -209,51 +209,6 @@ COPIED_CASE = applied_case(
 )
 
 
-def test_an_applied_case_that_repeats_an_earlier_stage_is_asked_again_and_rejected():
-    generator = StageAwareGenerator({**DISTINCT_RESOURCES, "caso_aplicado": COPIED_CASE})
-    service, _ = build_service(generator)
-    result = service.generate_sequence(sequence_request("explicacion", "caso_aplicado"), "docente")
-
-    assert [r["type"] for r in result["resources"]] == ["explicacion"]
-    elaborate_step = result["sequence"][1]
-    assert elaborate_step["agent"] == "Agente de Elaborar" and elaborate_step["generated"] == 0
-    assert "repetía «Entrega confiable con TCP»" in elaborate_step["rejected"][0]
-    # Se le pidió de nuevo una vez, con la instrucción de no repetir, antes de rechazarlo.
-    retries = [c for c in generator.contexts if NO_REPEAT_INSTRUCTION in c["solicitud"]["indicaciones"]]
-    assert [c["solicitud"]["tipo"] for c in retries] == ["caso_aplicado"]
-
-
-def test_the_retry_keeps_the_applied_case_when_it_no_longer_repeats():
-    generator = StageAwareGenerator(
-        {**DISTINCT_RESOURCES, "caso_aplicado": COPIED_CASE}, retry_responses={"caso_aplicado": CASE_RESPONSE}
-    )
-    service, _ = build_service(generator)
-    result = service.generate_sequence(sequence_request("explicacion", "caso_aplicado"), "docente")
-    assert [r["title"] for r in result["resources"]] == ["Entrega confiable con TCP", "La red del colegio"]
-    assert result["sequence"][1]["generated"] == 1 and result["sequence"][1]["rejected"] == []
-
-
-def test_a_distinct_applied_case_follows_the_earlier_stages_and_knows_what_they_wrote():
-    generator = StageAwareGenerator({**DISTINCT_RESOURCES, "caso_aplicado": CASE_RESPONSE})
-    service, _ = build_service(generator)
-    result = service.generate_sequence(
-        sequence_request("caso_aplicado", "pregunta_detonante", "explicacion", "item_opcion_multiple"), "docente"
-    )
-
-    assert [r["stage"] for r in result["resources"]] == ["engage", "explain", "elaborate", "evaluate"]
-    case = result["resources"][2]
-    assert case["type"] == "caso_aplicado" and case["agent"] == "Agente de Elaborar"
-    assert case["structure"]["scenario"] == SCENARIO and len(case["structure"]["criteria"]) == 3
-    assert all(step["rejected"] == [] for step in result["sequence"])
-    # El agente de Elaborar recibe lo que redactaron Enganchar y Explicar para no repetirlo.
-    elaborate_context = next(c for c in generator.contexts if c["solicitud"]["tipo"] == "caso_aplicado")
-    assert [p["titulo"] for p in elaborate_context["secuenciaPrevia"]] == [
-        "Video en vivo sin esperas", "Entrega confiable con TCP",
-    ]
-    _, prompt = build_prompt_instructions(elaborate_context)
-    assert "OTROS AGENTES YA REDACTARON" in prompt and "- Entrega confiable con TCP:" in prompt
-
-
 def test_the_copied_case_is_over_the_repetition_threshold_and_the_new_one_is_not():
     explanation = resource_text(DISTINCT_RESOURCES["explicacion"])
     copied = normalize_generated_resources({"recursos": [COPIED_CASE]}, context())[0]
@@ -302,3 +257,51 @@ def test_the_unit_document_prints_the_case_a_space_to_solve_it_and_the_criteria(
     assert "<strong>Consigna:</strong> Propón qué protocolo usar" in content and "Tu solución:" in content
     assert "☐ Justifica el uso de TCP" in content and "Fuente: p. 1, p. 2" in content
     assert "Clave de respuestas" not in content
+
+
+# --- En una secuencia (antes por el servicio síncrono, retirado en T046; ahora por el pedido de generación) --------
+
+
+def test_an_applied_case_that_repeats_an_earlier_stage_is_asked_again_and_rejected(tmp_path):
+    generator = StageAwareGenerator({**DISTINCT_RESOURCES, "caso_aplicado": COPIED_CASE})
+    run = run_generation(tmp_path, "explicacion", "caso_aplicado", primary=generator)
+
+    assert [r["type"] for r in run.resources] == ["explicacion"]
+    elaborate_step = run.request.steps[1]
+    assert elaborate_step.agent == "Agente de Elaborar" and elaborate_step.resource_ids == ()
+    assert elaborate_step.status == StepStatus.REJECTED
+    assert "repetía «Entrega confiable con TCP»" in elaborate_step.rejections[0]["reason"]
+    # Se le pidió de nuevo una vez, con la instrucción de no repetir, antes de rechazarlo.
+    retries = [c for c in generator.contexts if NO_REPEAT_INSTRUCTION in c["solicitud"]["indicaciones"]]
+    assert [c["solicitud"]["tipo"] for c in retries] == ["caso_aplicado"]
+
+
+def test_the_retry_keeps_the_applied_case_when_it_no_longer_repeats(tmp_path):
+    generator = StageAwareGenerator(
+        {**DISTINCT_RESOURCES, "caso_aplicado": COPIED_CASE}, retry_responses={"caso_aplicado": CASE_RESPONSE}
+    )
+    run = run_generation(tmp_path, "explicacion", "caso_aplicado", primary=generator)
+    assert [r["title"] for r in run.resources] == ["Entrega confiable con TCP", "La red del colegio"]
+    elaborate_step = run.request.steps[1]
+    assert len(elaborate_step.resource_ids) == 1 and elaborate_step.rejections == ()
+
+
+def test_a_distinct_applied_case_follows_the_earlier_stages_and_knows_what_they_wrote(tmp_path):
+    generator = StageAwareGenerator({**DISTINCT_RESOURCES, "caso_aplicado": CASE_RESPONSE})
+    run = run_generation(
+        tmp_path, "caso_aplicado", "pregunta_detonante", "explicacion", "item_opcion_multiple", primary=generator,
+        option_count=3,  # MOCK_ITEM trae tres alternativas, como en la prueba anterior
+    )
+
+    assert [r["stage"] for r in run.resources] == ["engage", "explain", "elaborate", "evaluate"]
+    case = run.resources[2]
+    assert case["type"] == "caso_aplicado" and case["agent"] == "Agente de Elaborar"
+    assert case["structure"]["scenario"] == SCENARIO and len(case["structure"]["criteria"]) == 3
+    assert all(step.rejections == () for step in run.request.steps)
+    # El agente de Elaborar recibe lo que redactaron Enganchar y Explicar para no repetirlo.
+    elaborate_context = next(c for c in generator.contexts if c["solicitud"]["tipo"] == "caso_aplicado")
+    assert [p["titulo"] for p in elaborate_context["secuenciaPrevia"]] == [
+        "Video en vivo sin esperas", "Entrega confiable con TCP",
+    ]
+    _, prompt = build_prompt_instructions(elaborate_context)
+    assert "OTROS AGENTES YA REDACTARON" in prompt and "- Entrega confiable con TCP:" in prompt

@@ -138,3 +138,54 @@ class FailingGenerator:
 def sqlite_repository(directory: Path) -> SQLAlchemyGenerationRequestRepository:
     bind = create_engine(f"sqlite:///{directory / 'generation.db'}", connect_args={"check_same_thread": False})
     return SQLAlchemyGenerationRequestRepository(bind)
+
+
+class GenerationRun:
+    """Resultado de `run_generation`: el pedido terminado, los recursos entregados a Revisión y la evidencia falsa."""
+
+    def __init__(self, request: Any, resources: list[dict[str, Any]], evidence: "FakeEvidence") -> None:
+        self.request = request
+        self.resources = resources
+        self.evidence = evidence
+
+    @property
+    def step(self) -> Any:
+        [step] = self.request.steps
+        return step
+
+
+def run_generation(
+    directory: Path,
+    *resource_types: str,
+    primary: Any,
+    fallback: Any = None,
+    fragments: tuple[EvidenceFragment, ...] = FRAGMENTS,
+    **parameters: Any,
+) -> GenerationRun:
+    """Crea un pedido con StartGenerationRequest y lo ejecuta con RunGenerationRequest, con los puertos falsos, un
+    SQLite temporal y la verificación real de Revisión. Un tipo es un pedido individual; varios, una secuencia.
+
+    Reemplaza, en las pruebas de agentes y de redacción, al servicio síncrono retirado en T046."""
+    from uuid import uuid4
+
+    from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
+    from platform5e.application.use_cases.generation.start_generation_request import (
+        StartGenerationCommand,
+        StartGenerationRequest,
+    )
+    from platform5e.domain.generation.generation_request import GenerationMode, GenerationParameters
+    from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
+
+    repository = sqlite_repository(directory)
+    membership, evidence, review = FakeMembership(), FakeEvidence(fragments), FakeReviewRepository()
+    mode = GenerationMode.INDIVIDUAL if len(resource_types) == 1 else GenerationMode.SEQUENCE
+    started = StartGenerationRequest(membership, evidence, repository, FakeRunner()).execute(
+        StartGenerationCommand(
+            "docente-a", "u1", mode, f"clave-{uuid4().hex}",
+            GenerationParameters(resource_types=resource_types, **parameters),
+        )
+    ).request
+    RunGenerationRequest(
+        repository, membership, evidence, review, ReviewVerificationAdapter(), primary, fallback, heartbeat_seconds=0
+    ).execute(started.id)
+    return GenerationRun(repository.get("docente-a", started.id), review.all(), evidence)

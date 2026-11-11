@@ -99,4 +99,6 @@ def test_generation_requests_follow_the_gen01_contract():
     step = SPEC["components"]["schemas"]["GenerationStep"]["properties"]
     assert {"position", "stage", "agent", "status", "resourceIds", "resources", "rejections", "generator"} <= set(step)
     assert "/api/v1/generation-requests/{request_id}" in paths and "get" in paths["/api/v1/generation-requests"]
-    assert paths["/api/v1/generations"]["post"].get("deprecated") is True
+    # T046: la ruta síncrona se retiró; solo queda la lectura de su historial.
+    assert set(paths["/api/v1/generations"]) == {"get"}
+    assert set(paths["/api/v1/generations/{generation_id}"]) == {"get"}

@@ -1,12 +1,12 @@
-"""Esquemas de la generación de recursos con el material de la unidad (RAG)."""
+"""Esquemas compartidos de la generación (tipos, informes) y del historial de la generación síncrona retirada."""
 
 from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field
 
-from platform5e.infrastructure.http.schemas.common import ApiRequest, ApiResponse
+from platform5e.infrastructure.http.schemas.common import ApiResponse
 from platform5e.infrastructure.http.schemas.resources import ResourceResponse
 
 Stage = Literal["engage", "explore", "explain", "elaborate", "evaluate"]
@@ -34,75 +34,6 @@ ResourceType = Literal[
     "completar_espacios",
 ]
 Difficulty = Literal["basica", "intermedia", "avanzada"]
-
-
-class GenerationRequest(ApiRequest):
-    unit_id: str = Field(description="Unit whose processed material is used.", examples=["unidad-1"])
-    outcome_id: str | None = Field(default=None, description="Learning outcome of the unit, optional.")
-    stage: Stage | None = Field(
-        default=None, description="5E stage of the requested resource. Required unless `resourceTypes` is sent.",
-        examples=["evaluate"],
-    )
-    resource_type: ResourceType | None = Field(
-        default=None, description="Requested resource type. Required unless `resourceTypes` is sent.",
-        examples=["item_opcion_multiple"],
-    )
-    resource_types: list[ResourceType] | None = Field(
-        default=None,
-        min_length=1,
-        max_length=8,
-        description=(
-            "Several resource types for one class sequence (HU-003). Each type goes to the agent of its 5E stage, "
-            "in the order of the class, and a resource that repeats another one of the sequence is rejected. "
-            "When present, `stage` and `resourceType` are ignored."
-        ),
-        examples=[["pregunta_detonante", "explicacion", "item_opcion_multiple"]],
-    )
-    quantity: int = Field(default=1, ge=1, le=5)
-    difficulty: Difficulty = "intermedia"
-    option_count: int = Field(default=4, ge=2, le=5, description="Options per multiple-choice item.")
-    top_k: int = Field(default=10, ge=1, le=50, description="Chunks retrieved from the material (BM25).")
-    evidence_threshold: float = Field(
-        default=0.6,
-        ge=0.0,
-        le=1.0,
-        description=(
-            "Minimum share of a claim's words that its cited chunks must contain (HU-016). "
-            "Claims below it are removed, and a resource with less than half of its claims supported is rejected."
-        ),
-    )
-    instructions: str = Field(default="", max_length=500, description="Free text from the teacher.")
-    audience: str = Field(default="", max_length=200, examples=["Tercer ciclo"])
-    competency: str = Field(default="", max_length=200)
-    # Sprint 1: solo texto (HU-053, alcance acordado con el docente). Otra modalidad responde 422.
-    modalities: list[Literal["Textual"]] = Field(
-        default_factory=lambda: ["Textual"], max_length=1, description="Sprint 1 generates text only."
-    )
-
-    @model_validator(mode="after")
-    def require_a_resource_type(self) -> "GenerationRequest":
-        if not self.resource_types and (self.stage is None or self.resource_type is None):
-            raise ValueError("Send `stage` and `resourceType`, or `resourceTypes` for a sequence.")
-        return self
-
-    def to_domain(self) -> dict[str, Any]:
-        """El diccionario que esperan los servicios de generación."""
-        return {
-            "unitId": self.unit_id,
-            "outcomeId": self.outcome_id,
-            "stage": self.stage,
-            "resourceType": self.resource_type,
-            "resourceTypes": list(self.resource_types) if self.resource_types else None,
-            "quantity": self.quantity,
-            "difficulty": self.difficulty,
-            "optionCount": self.option_count,
-            "topK": self.top_k,
-            "evidenceThreshold": self.evidence_threshold,
-            "instructions": self.instructions,
-            "audience": self.audience,
-            "competency": self.competency,
-            "modalities": self.modalities,
-        }
 
 
 class GeneratorInfo(ApiResponse):

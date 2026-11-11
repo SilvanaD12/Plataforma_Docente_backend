@@ -5,6 +5,8 @@ import zipfile
 
 import httpx
 
+from tests.e2e.generation_flow import generate as generate_resources
+
 MATERIAL = (
     'El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de los datos. '
     'El protocolo UDP no establece conexión ni confirma la entrega; por eso es más rápido. '
@@ -28,10 +30,10 @@ def setup(api: httpx.Client):
 
 
 def generate(api, h, unit, stage, resource_type):
-    response = api.post('/api/v1/generations', headers=h, json={
-        'unitId': unit['id'], 'stage': stage, 'resourceType': resource_type, 'quantity': 1})
-    assert response.status_code == 200, response.text
-    return response.json()['resources'][0]
+    """Un recurso del tipo pedido, por POST /api/v1/generation-requests (T046). La etapa la decide el tipo."""
+    final, resources = generate_resources(api, h, unit['id'], resource_type, quantity=1)
+    assert final['status'] == 'succeeded' and final['steps'][0]['stage'] == stage, final
+    return resources[0]
 
 
 def test_multimodal_resources_from_generation_to_scorm(server):

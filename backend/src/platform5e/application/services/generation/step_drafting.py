@@ -2,8 +2,8 @@
 Redacción de un paso de generación (GEN-01 · T013): pide los recursos al generador principal o al de respaldo, aplica
 el control de repetición de la secuencia, arma el recurso para la revisión docente y resume la verificación de anclaje.
 
-Se extrajo de `generation_service.py` sin cambiar su comportamiento. Lo usan el servicio síncrono (hasta T046) y el
-caso de uso que ejecuta los pedidos en segundo plano.
+Se extrajo de `generation_service.py` sin cambiar su comportamiento. Lo usa el caso de uso que ejecuta los pedidos en
+segundo plano; el servicio síncrono se retiró en T046.
 """
 
 from __future__ import annotations

@@ -1,7 +1,9 @@
 """
-Adaptador HTTP de la generación síncrona de recursos (HU-053, EN-006): RAG sobre el material de la unidad.
+Historial de la generación síncrona retirada (GEN-01, T046 parcial).
 
-Obsoleto desde GEN-01: los pedidos nuevos usan routers/generation_requests.py. `GET /generator` se movió allí.
+`POST /api/v1/generations` se retiró: los pedidos nuevos usan routers/generation_requests.py. Quedan las lecturas del
+historial guardado antes de GEN-01: `GET /api/v1/generations` (lista del docente) y `GET /api/v1/generations/{id}`,
+con la misma comprobación de pertenencia y la misma respuesta.
 """
 
 from __future__ import annotations
@@ -11,75 +13,17 @@ from typing import Any
 from fastapi import APIRouter, Depends
 
 from platform5e.application.services.accounts.account_service import AccountService
-from platform5e.application.services.generation.generation_service import GenerationService
+from platform5e.application.use_cases.generation.get_legacy_generation import GetLegacyGeneration
 from platform5e.domain.generation.errors import GenerationError
-from platform5e.domain.shared.errors import PersistenceUnavailableError
 from platform5e.infrastructure.http.dependencies import current_teacher_dependency, extract_authorization_header
 from platform5e.infrastructure.http.error_handlers import error_json
 from platform5e.infrastructure.http.schemas.common import error_responses
-from platform5e.infrastructure.http.schemas.generations import (
-    GenerationRequest,
-    GenerationRequestRecord,
-    GenerationResult,
-)
+from platform5e.infrastructure.http.schemas.generations import GenerationRequestRecord, GenerationResult
 
 
-def create_generations_router(
-    generation_service: GenerationService,
-    account_service: AccountService,
-    generator_info: dict[str, Any] | None = None,
-) -> APIRouter:
-    """`generator_info` ya no se usa (`GET /generator` está en generation_requests.py); se acepta por compatibilidad
-    con quienes construyen este router, hasta retirarlo en T046."""
+def create_generations_router(get_legacy_generation: GetLegacyGeneration, account_service: AccountService) -> APIRouter:
     router = APIRouter(prefix="/api/v1")
     current_teacher = current_teacher_dependency(account_service)
-
-    @router.post(
-        "/generations",
-        tags=["generations"],
-        response_model=GenerationResult,
-        summary="Generate resources from the unit material (deprecated)",
-        responses=error_responses(400, 401, 404, 422, 503),
-        deprecated=True,
-    )
-    def generate_resources(
-        body: GenerationRequest, authorization: str | None = Depends(extract_authorization_header)
-    ) -> Any:
-        """Deprecated: use `POST /generation-requests`, which runs in the background with an idempotency key. This
-        synchronous route keeps working the same until the evaluation scripts migrate, and is then removed.
-
-        Retrieves the most relevant chunks of the unit (BM25) and drafts the resources with the active generator.
-
-        Only resources whose claims cite valid chunks are kept; they are saved as `pendiente` for the teacher's review.
-        If the AI fails, the rule-based generator answers and `generator.fallback` is true. Without material the
-        request is rejected (400 NO_PROCESSED_MATERIAL) instead of inventing content.
-
-        With `resourceTypes`, the request becomes a class sequence (HU-003): each type goes to the agent of its 5E
-        stage, in the order of the class; all agents share the same evidence and see what the previous ones wrote.
-        A resource too similar to another one of the sequence is asked again once and, if it still repeats, rejected.
-        Each resource records its `agent`, and `sequence` reports what every agent generated or rejected.
-
-        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
-        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
-
-        ```bash
-        curl --fail-with-body -i -X POST "$BASE_URL/api/v1/generations" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"unitId":"unidad-1","stage":"explain","resourceType":"glosario","quantity":1,"difficulty":"intermedia"}'
-        ```
-
-        Replace unidad-1 with a unit containing processed material. Expected 200; returned resources await review."""
-        try:
-            teacher_id = account_service.authenticate_token(authorization) if authorization else None
-            if teacher_id:
-                account_service.get_unit(teacher_id, body.unit_id)
-            return generation_service.generate(body.to_domain(), teacher_id)
-        except GenerationError as error:
-            return error_json(400, error.code, error.message)
-        except PersistenceUnavailableError:
-            return error_json(
-                503,
-                "PERSISTENCE_UNAVAILABLE",
-                "No se pudo guardar la solicitud. Comprueba la conexión de la base de datos.",
-            )
 
     @router.get(
         "/generations",
@@ -123,7 +67,7 @@ def create_generations_router(
         Expected 200. See the response schema below for the returned fields."""
         try:
             account_service.verify_generation_ownership(generation_id, authorization)
-            return generation_service.get_by_id(generation_id)
+            return get_legacy_generation.get(generation_id)
         except GenerationError as error:
             return error_json(404, error.code, error.message)
 
