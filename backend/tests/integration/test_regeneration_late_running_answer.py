@@ -18,8 +18,6 @@ import threading
 from dataclasses import dataclass
 from typing import Any
 
-import pytest
-
 from sqlalchemy import URL, create_engine, select
 from sqlalchemy.orm import sessionmaker
 
@@ -262,7 +260,6 @@ def build_world(tmp_path, monkeypatch, request) -> World:
     )
 
 
-@pytest.mark.xfail(strict=True, reason="pendiente del PR de REV-01 que compara el estado del intento en el UPDATE")
 def test_a_pending_running_write_after_failed_keeps_failed_and_the_same_version_can_be_regenerated_again(
     tmp_path, monkeypatch, request
 ):
