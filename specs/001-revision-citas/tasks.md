@@ -200,7 +200,8 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - Agregar `GET /api/v1/downloads`.
   - Retirar `GET /units/{unit_id}/downloads/{download_id}` y `POST /units/{unit_id}/downloads`, y quitar `DownloadInput`.
   - `DownloadResponse` gana `course_id`, `course_name`, `unit_name` y `unit_number`, que pueden ser `null` en registros anteriores.
-- [ ] T042 [BE] [US3] **CC-01:** en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_account_repository.py`, quitar `DownloadORM` del bucle de `delete_course` (H5). Lo hace Silvana, o Juan con su aprobación en el PR. No tocar el borrado de `media_assets`, que también es de CC-01.
+- [x] T042 [BE] [US3] **CC-01:** en `backend/src/platform5e/infrastructure/persistence/repositories/sqlalchemy_account_repository.py`, quitar `DownloadORM` del bucle de `delete_course` (H5). Lo hace Silvana, o Juan con su aprobación en el PR. No tocar el borrado de `media_assets`, que también es de CC-01.
+  - **Hecho por Silvana** en el [PR #8](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/8) (commit `7f6172a`, «conservar descargas y limpiar multimedia al borrar cursos»). En `main` (`f46a34c`), el bucle de `delete_course` recorre solo `ChunkORM`, `DocumentORM` y `TeacherResourceORM`; las descargas se conservan. Lo prueba `tests/integration/test_course_download_retention.py`.
 - [x] T043 [BE] [US3] Cierre del bloque d): documentar los `details` del 422 en `backend/src/platform5e/infrastructure/http/routers/exports.py`, correr las pruebas y `scripts/export_openapi.py`, y hacer el **commit d)**.
 
 ### Bloque e) multimedia por `prompt` o `script` y recursos antiguos (REV-C8 · REV-R8, R11)
@@ -232,7 +233,8 @@ borrar el curso y consultar `GET /api/v1/downloads`.
   - **Opción A**, si Sergio la elige: llamarla para los recursos sin `verification` desde `list_resources` y `get_resource`, en `resource_review_service.py`, y desde `ExportUnitResourcesUseCase.execute`, en `export_unit_resources.py`, antes de aplicar el filtro.
   - **Opción B**: crear `backend/scripts/upgrade_resource_verification.py` con `--dry-run` y un informe por estado.
 - [x] T049 [P] [BE] [US3] En `backend/src/platform5e/application/use_cases/media/regenerate_resource_media.py`, quitar `media.invalidated` cuando el archivo se genere bien. En `backend/src/platform5e/infrastructure/http/schemas/resources.py`, agregar `MediaResponse.invalidated: bool = False`.
-- [ ] T050 [BE] [US3] Cierre del bloque e): correr las pruebas, incluida la de PostgreSQL con la migración aplicada, ejecutar `scripts/export_openapi.py` y hacer el **commit e)**.
+- [x] T050 [BE] [US3] Cierre del bloque e): correr las pruebas, incluida la de PostgreSQL con la migración aplicada, ejecutar `scripts/export_openapi.py` y hacer el **commit e)**.
+  - **Hecho.** Commits del bloque e): `d18508d` y `325ad07`, integrados con el [PR #13](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/13). La CI del backend (`.github/workflows/backend-ci.yml`) corre las pruebas e2e también sobre PostgreSQL 16 (`pgvector/pgvector:pg16`, con `E2E_DATABASE_URL`), donde el servidor aplica al arrancar las migraciones de `backend/database/migrations` (`20261108000001_resource_version.sql` y `20261109000001_regeneration_claim.sql` en el #13). Silvana pidió la CI en verde del último commit del #13 antes de integrarlo y lo integró en `dda8355`.
 
 ## Fase 5 · Historia 2: regenerar sin perder el anterior (prioridad 2, dependiente de Yan)
 
@@ -285,12 +287,13 @@ el pedido conserva ambos y un fallo deja el anterior igual.
   6. En Exportación, descargar SCORM y Moodle XML, abrir los archivos y confirmar que no incluyen recursos pendientes ni insuficientes (REV-C7).
 
   Registrar capturas y estados HTTP sin tokens. Depende de T033 y T059.
-- [ ] T061 [E2E] [US3] **Borrar un curso y ver el historial:**
+- [x] T061 [E2E] [US3] **Borrar un curso y ver el historial:**
   1. Exportar desde un curso de prueba.
   2. Eliminar el curso desde la interfaz de CC-01.
   3. Abrir el historial y confirmar fecha, formato, archivo, curso y unidad (REV-C9).
 
   Depende de T042, de la tarea T009 de CC-01 (confirmación de borrado en la interfaz) y de T057.
+  - **Hecho con T011 de CC-01** ([specs/003-cuentas-y-cursos/tasks.md](../003-cuentas-y-cursos/tasks.md), línea 20), marcada por Silvana en el commit [`25bf257`](https://github.com/SilvanaD12/Plataforma_Docente_backend/commit/25bf257). Validación manual en Vercel el 9 de noviembre de 2026 (hora de Perú): se exportó `t011-01-unidad-1-documento.html` del curso de prueba T011-01; tras confirmar la eliminación, el curso desapareció de «Mis cursos» y el mismo registro siguió en «Mis descargas» con fecha, formato, archivo, curso y unidad (CC-C9 y REV-C9).
 - [ ] T062 [BE] Recorrer [quickstart.md](quickstart.md) completo, incluido el aislamiento con la cuenta B, y repetir `tests/e2e` con PostgreSQL (`E2E_DATABASE_URL` en una base desechable). Anotar todos los resultados en el registro de avance y en los PR.
 
 ### Seguimiento después de integrar los PR #13 (backend) y #7 (frontend)

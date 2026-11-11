@@ -228,26 +228,29 @@ acordarla en el equipo y actualizar antes la ficha (REV-C8 y REV-R8).**
 
 ## D10. Regeneración (REV-R10 · REV-C12, C13)
 
-**Estado: confirmada por Yan (2026-11-09), con pedido en segundo plano.** Se implementó primero como decisión
-provisional y síncrona (2026-11-08). Yan confirmó el puerto y el pedido en segundo plano:
-- su adaptador (T029 de Generación) reemplaza al síncrono en `main.py` sin tocar Revisión;
-- `request_regeneration` crea un pedido en modo regeneración, con clave `regen-{resourceId}-v{version}` por docente,
-  y devuelve `pending` o `running` cuando no termina en su tiempo límite;
-- `get_regeneration` traduce `queued → pending`, `running → running`, `succeeded → succeeded`, y
-  `failed`/`interrupted → failed` con `reason` y `code`, y devuelve `None` para otro docente o un pedido inexistente;
+**Estado: confirmada por Yan (2026-11-09) e implementada con pedido en segundo plano.** El adaptador de regeneración
+es el de Generación (T029 de GEN-01, [PR #17](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/17)):
+`infrastructure/adapters/generation_regeneration_adapter.py`, conectado en `main.py` sin cambiar el puerto ni
+Revisión.
+- `request_regeneration` crea un pedido en modo regeneración con `StartRegeneration`, con clave
+  `regen-{resourceId}-v{version}` por docente (`-r2`, `-r3`… si el intento anterior falló o sus recursos nuevos ya se
+  borraron). Espera su resultado hasta `GENERATION_REGENERATION_WAIT_SECONDS` (10 s por defecto): si termina, devuelve
+  `succeeded` o `failed`; si no, `pending` o `running`, y Revisión sigue con `get_regeneration`.
+- `get_regeneration` traduce `queued → pending`, `running → running`, `succeeded` (o `partially_succeeded` con
+  recursos) `→ succeeded`, y `failed`/`interrupted → failed` con `reason` y `code`. Devuelve `None` para otro docente o
+  un pedido inexistente.
 - Generación guarda los recursos nuevos con `verification`, `version = 1`, `evidence[].retrievedAt` y
   `regeneratedFrom`, y nunca toca el recurso anterior: el descarte condicional es de Revisión.
+- La prueba e2e con un pedido que pasa por `running` está en el #17
+  (`tests/e2e/test_generation_requests_api.py::test_with_a_short_wait_the_first_answer_is_running_and_the_query_reaches_succeeded`),
+  y las respuestas tardías, en `tests/integration/test_regeneration_late_running_answer.py`.
 
-Mientras T029 no se integre, el adaptador síncrono sigue en `main.py`.
-
-**Alcance de los PR #13 (backend) y #7 (frontend), anotado para la integración (2026-11-09).**
-- **El adaptador sigue síncrono.** `main.py` usa `GenerationRegenerationAdapter`, que llama a `GenerationService.generate`
-  y siempre devuelve `succeeded` o `failed`.
-- **Revisión ya maneja `pending` y `running`.** Es el último commit de cada PR: el pedido queda «en curso», la ruta
-  `GET …/regeneration` hace el descarte al ver `succeeded`, y la revisión consulta ese estado. Hoy solo lo ejercitan
-  pruebas con dobles, porque el adaptador síncrono nunca devuelve esos estados.
-- **Para un PR posterior con Yan (T064):** el adaptador asíncrono de Generación (su T029) y una prueba e2e con un pedido
-  que pase por `running`.
+**Historia.** Primero se implementó como decisión provisional, con un adaptador síncrono que llamaba a
+`GenerationService.generate` (2026-11-08) y con el que se integraron los PR #13 del backend y #7 del frontend. Revisión
+ya trataba `pending` y `running` como «en curso», probado entonces solo con dobles. El #17 conectó el adaptador en
+segundo plano, y T046 de GEN-01 (PR #22) borró el adaptador síncrono, su prueba y `GenerationService`. Antes del #17 se
+integraron dos ajustes de Revisión que pidió Silvana al revisarlo: el `attemptId` vigente (PR #18) y el estado del
+intento en el mismo `UPDATE` (`regeneration_status`, T066 y T067).
 
 **Lo implementado.**
 - **Puerto** `application/ports/outbound/resource_regeneration_port.py`, el que se propuso a Yan:
@@ -255,15 +258,8 @@ Mientras T029 no se integre, el adaptador síncrono sigue en `main.py`.
   `get_regeneration(teacher_id, request_id) -> RegenerationStatus | None`. `RegenerationStatus` trae `request_id`,
   `status` (`pending`, `running`, `succeeded` o `failed`), `new_resource_ids`, `reason` y `code` (solo en `failed`: el
   código del rechazo por los datos del docente, o `None` si falló el proveedor o algo inesperado).
-- **Adaptador síncrono** `infrastructure/generation/generation_regeneration_adapter.py`. Arma el pedido con
-  `GenerationRequest` (los `params` guardados del recurso, la unidad y `quantity = 1`) y llama a
-  `GenerationService.generate`, el mismo caso de uso que usa `POST /api/v1/generations`, así que usa la evidencia
-  vigente del material. Devuelve `succeeded` con los ids nuevos o `failed` con el motivo (`GenerationError`, parámetros
-  guardados incompletos, ningún recurso con respaldo o un error inesperado). **No se modificó ningún archivo de
-  Generación.** `main.py` crea el servicio de revisión después del de generación para pasarle el adaptador.
-  **Retirado.** Desde el PR #17 de GEN-01 (T029 y T064), `main.py` usa el adaptador en segundo plano de Generación
-  (`infrastructure/adapters/generation_regeneration_adapter.py`). T046 de GEN-01 borró este adaptador síncrono, su
-  prueba y `GenerationService`.
+- **Adaptador** `infrastructure/adapters/generation_regeneration_adapter.py`, de Generación (ver arriba). `main.py`
+  crea el servicio de revisión con él. Revisión no depende de ningún archivo de Generación: solo del puerto.
 - **Servicio** `ResourceReviewService.regenerate_resource(teacher_id, unit_id, resource_id, expected_version)`:
   - Antes de pedirlo, **reserva el pedido de forma atómica** con `claim_regeneration`: un solo `UPDATE` condicional
     que exige la versión esperada y que no haya reserva para esa versión (columna `regeneration_claim`, migración
@@ -336,7 +332,7 @@ implementan en la rama del módulo del repositorio `Plataforma_Docente_frontend`
 
 ## Mensajes para el grupo (antes de los bloques que los necesitan)
 
-1. **Yan (antes de b; para f se avanzó con la decisión provisional de D10).** Generación debe llamar `content_fingerprint` y `verify_resource` al crear, guardar `verification`, `version = 1` y `evidence[].retrievedAt`, y entregar `pending` cuando no pudo verificar. También hay que acordar el contrato de regeneración (D10).
+1. **Yan (antes de b; para f se avanzó con la decisión provisional de D10, ya confirmada e implementada).** Generación debe llamar `content_fingerprint` y `verify_resource` al crear, guardar `verification`, `version = 1` y `evidence[].retrievedAt`, y entregar `pending` cuando no pudo verificar. También hay que acordar el contrato de regeneración (D10).
 2. **Sergio (antes de e).** Aprobar la migración SQL de `version` para Neon y elegir entre la actualización perezosa (A) y el script único `scripts/upgrade_resource_verification.py` (B) de D7. También, de dónde sale `retrievedAt` en la copia (H3).
 3. **Silvana, PR 1 (antes de integrarlo).** El PUT de recursos pasa a exigir `expectedVersion` y deja de aceptar guardados sin él. El PR 1 del backend se integra en `main` coordinado con el PR del frontend que envía `expectedVersion`, y el despliegue de ese commit en Render espera a que el frontend esté listo en Vercel.
 4. **Silvana, borrado y descargas (antes de d).** Quitar `DownloadORM` de `delete_course` (H5): lo hace ella, o Juan con su aprobación en el PR (T008 de CC-01). Además: se retiran `POST` y `GET /{download_id}` de descargas, y se agrega `GET /api/v1/downloads`. Las pestañas `review` y `export` ya están resueltas en `d9d4f7d`; no hace falta otro acuerdo de rutas (H14). El borrado de `media_assets` en `delete_course`, que hoy no ocurre, es de CC-01.

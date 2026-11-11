@@ -98,7 +98,7 @@ domain/
 application/
 ├── ports/outbound/
 │   ├── resource_repository_port.py           A  save_resource_if_version(…, increment), get_downloads_by_teacher
-│   ├── resource_regeneration_port.py         C  D10 · pendiente de acuerdo con Yan
+│   ├── resource_regeneration_port.py         C  D10 · acordado con Yan (pedido en segundo plano)
 │   └── unit_exporter_port.py                 R
 ├── services/review/resource_review_service.py  A  update_resource (versión, huella, reverificación, reviewReset,
 │                                                  multimedia), validate_approval_blockers, retry_verification,
@@ -121,7 +121,7 @@ infrastructure/
 ├── http/schemas/citation.py                  A  corregir la descripción de similarity_score
 ├── http/schemas/downloads.py                 A  courseId, courseName, unitName, unitNumber; quitar DownloadInput
 ├── exporters/                                R  Moodle XML, SCORM y documento de unidad
-└── (adaptador de regeneración)               C  D10 · delega en Generación (bloque f)
+└── adapters/generation_regeneration_adapter.py  GEN-01  D10 · adaptador de Yan en segundo plano (T029, PR #17)
 main.py                                       A  inyectar el puerto de regeneración
 database/migrations/20261108000001_resource_version.sql   C  D3 · ADD COLUMN IF NOT EXISTS version
 scripts/upgrade_resource_verification.py      C  solo si Sergio elige la opción B de D7
