@@ -214,7 +214,7 @@ Dependencias externas que bloquean tareas:
 - [ ] T044 [E2E] Medir la carga ([V11](quickstart.md#v11--carga)): 5 secuencias de 8 × 5 con `LLM_PROVIDER=gemini` y con `rules`.
   - Registrar aquí p50, p95, llamadas al modelo por paso y pedidos con `DEADLINE_EXCEEDED`.
   - Si el p95 con Gemini supera 10 min, bajar el tope a 20 recursos por pedido en `spec.md`, `research.md` (R4) y T018.
-- [ ] T045 [BE] Migrar los consumidores de la ruta antigua:
+- [x] T045 [BE] Migrar los consumidores de la ruta antigua: [PR #16 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/16).
   - `backend/evaluation/collect_samples.py` pasa a `POST /api/v1/generation-requests` con consulta hasta el estado final.
   - `backend/scripts/export_contracts.py` exporta `StartGenerationRequest` en lugar de `GenerationRequest`. Actualizar `docs/api/contracts/generation-request.v1.json`.
 - [ ] T046 [BE] **Depende de T045.** Retirar la ruta y el servicio antiguos.
