@@ -212,9 +212,27 @@ Dependencias externas que bloquean tareas:
 
 ## 6. Carga, retirada y cierre
 
-- [ ] T044 [E2E] Medir la carga ([V11](quickstart.md#v11--carga)): 5 secuencias de 8 × 5 con `LLM_PROVIDER=gemini` y con `rules`.
+- [x] T044 [E2E] Medir la carga ([V11](quickstart.md#v11--carga)): 5 secuencias de 8 × 5 con `LLM_PROVIDER=gemini` y con `rules`. PR del backend (enlace pendiente).
   - Registrar aquí p50, p95, llamadas al modelo por paso y pedidos con `DEADLINE_EXCEEDED`.
   - Si el p95 con Gemini supera 10 min, bajar el tope a 20 recursos por pedido en `spec.md`, `research.md` (R4) y T018.
+  - **Resultados (2026-11-12).** Servidor local con SQLite, `GENERATION_MAX_WORKERS=2` y el plazo por defecto de 15 min. 5 secuencias de 8 tipos × 5 (`pregunta_detonante`, `sondeo_diagnostico`, `guia_exploracion`, `caso_indagacion`, `explicacion`, `glosario`, `ejercicio_aplicacion`, `item_opcion_multiple`) sobre la misma unidad y el mismo material. Gemini con `gemini-3.5-flash-lite` en el plan gratuito. Script: `backend/scripts/measure_generation_load.py`; datos en `backend/evaluation/results/load-rules-20261112T055908Z.json` y `load-gemini-20261112T061006Z.json` (no se versionan). Los dos pedidos aceptados de la comprobación de concurrencia no entran en los percentiles.
+
+    | Medida | `rules` | `gemini` |
+    | --- | --- | --- |
+    | Pedidos medidos y estado final | 5 (5 succeeded) | 5 (5 succeeded) |
+    | Duración creado→terminado, p50 / p95 | 0.6 s / 0.6 s | 31.0 s / 107.1 s |
+    | Recursos entregados (de 200) | 125 | 153 |
+    | Rechazos por motivo | 50 (repetition 50) | 25 (repetition 17, grounding 8) |
+    | Pasos con respaldo de redacción (de 40) | 0 | 17 |
+    | Redacciones por paso (mín / prom / máx) | 1 / 1.5 / 2 | 1 / 1.23 / 2 |
+    | Llamadas a IA por paso (cota inferior prom. – cota superior máx.) | 0.0 – 0 | 1.23 – 4 |
+    | `DEADLINE_EXCEEDED` (pasos / pedidos) | 0 / 0 | 0 / 0 |
+    | 3 pedidos simultáneos → 2 × 202 + 429 `TOO_MANY_ACTIVE_REQUESTS` | OK | OK |
+
+    - El p95 con Gemini (107.1 s) queda muy por debajo de 10 min y no hubo `DEADLINE_EXCEEDED`: se mantiene el tope de 40 recursos por pedido de R4.
+    - 17 de 40 pasos con Gemini usaron el respaldo por reglas. Según el log del servidor, sobre todo por los 429 de límite de uso del plan gratuito con 2 secuencias en paralelo, más algunos 503 (modelo sobrecargado) y borradores sin citas válidas. Las duraciones con Gemini reflejan ese límite del plan gratuito, no la latencia de la IA en todos los pasos; un plan de pago o menos pedidos en paralelo las cambiaría.
+    - El generador por reglas entregó menos recursos de los pedidos con este corpus por los rechazos por repetición (50); no es un problema de carga.
+    - Las llamadas al modelo por paso son cotas, no conteos exactos: la API no expone el número. Propuesta pendiente (no hecha): contar las llamadas en `draft_resources` y `draft_step` y exponerlas en `steps[].generator`.
 - [x] T045 [BE] Migrar los consumidores de la ruta antigua: [PR #16 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/16).
   - `backend/evaluation/collect_samples.py` pasa a `POST /api/v1/generation-requests` con consulta hasta el estado final.
   - `backend/scripts/export_contracts.py` exporta `StartGenerationRequest` en lugar de `GenerationRequest`. Actualizar `docs/api/contracts/generation-request.v1.json`.
