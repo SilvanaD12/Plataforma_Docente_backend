@@ -212,7 +212,7 @@ Dependencias externas que bloquean tareas:
 
 ## 6. Carga, retirada y cierre
 
-- [x] T044 [E2E] Medir la carga ([V11](quickstart.md#v11--carga)): 5 secuencias de 8 × 5 con `LLM_PROVIDER=gemini` y con `rules`. PR del backend (enlace pendiente).
+- [x] T044 [E2E] Medir la carga ([V11](quickstart.md#v11--carga)): 5 secuencias de 8 × 5 con `LLM_PROVIDER=gemini` y con `rules`. [PR #27 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/27).
   - Registrar aquí p50, p95, llamadas al modelo por paso y pedidos con `DEADLINE_EXCEEDED`.
   - Si el p95 con Gemini supera 10 min, bajar el tope a 20 recursos por pedido en `spec.md`, `research.md` (R4) y T018.
   - **Resultados (2026-11-12).** Servidor local con SQLite, `GENERATION_MAX_WORKERS=2` y el plazo por defecto de 15 min. 5 secuencias de 8 tipos × 5 (`pregunta_detonante`, `sondeo_diagnostico`, `guia_exploracion`, `caso_indagacion`, `explicacion`, `glosario`, `ejercicio_aplicacion`, `item_opcion_multiple`) sobre la misma unidad y el mismo material. Gemini con `gemini-3.5-flash-lite` en el plan gratuito. Script: `backend/scripts/measure_generation_load.py`; datos en `backend/evaluation/results/load-rules-20261112T055908Z.json` y `load-gemini-20261112T061006Z.json` (no se versionan). Los dos pedidos aceptados de la comprobación de concurrencia no entran en los percentiles.
