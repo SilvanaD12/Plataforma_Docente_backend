@@ -16,8 +16,9 @@ Estados del pedido → estados del puerto:
   con REGENERATED_RESOURCE_NOT_FOUND.
 - `failed`, `interrupted` o un pedido terminado sin recursos → `failed`, con el motivo y el código.
 
-Un rechazo al iniciar (`REGENERATION_UNAVAILABLE`, `NO_PROCESSED_MATERIAL`, `UNIT_NOT_FOUND`,
-`TOO_MANY_ACTIVE_REQUESTS`…) se devuelve como `failed` con su código, igual que el adaptador provisional. Generación no
+Un rechazo al iniciar (`REGENERATION_PARAMETERS_MISSING`, `REGENERATION_TARGET_INVALID`,
+`REGENERATION_ATTEMPTS_EXHAUSTED`, `NO_PROCESSED_MATERIAL`, `UNIT_NOT_FOUND`,
+`TOO_MANY_ACTIVE_REQUESTS`…) se devuelve como `failed` con su código; Revisión decide el estado HTTP. Generación no
 descarta el recurso anterior: eso lo hace Revisión al ver `succeeded`.
 """
 

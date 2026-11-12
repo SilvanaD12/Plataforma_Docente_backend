@@ -180,5 +180,9 @@ def test_error_codes_are_plain_strings():
         "TOO_MANY_ACTIVE_REQUESTS",
         "DEADLINE_EXCEEDED",
         "EVIDENCE_UNAVAILABLE",
-        "REGENERATION_UNAVAILABLE",
+        "REGENERATION_PARAMETERS_MISSING",
+        "REGENERATION_TARGET_INVALID",
+        "REGENERATION_ATTEMPTS_EXHAUSTED",
     }
+    # Solo Revisión responde REGENERATION_UNAVAILABLE (su 503); Generación ya no lo usa.
+    assert "REGENERATION_UNAVAILABLE" not in {code.value for code in GenerationErrorCode}
