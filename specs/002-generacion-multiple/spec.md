@@ -51,7 +51,7 @@ Como docente, quiero recibir en revisión recursos con su evidencia verificada p
 - Verificar los casos GEN-C1 a GEN-C9 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
 - Validar el orden de etapas, la recuperación tras una desconexión y la conservación de resultados parciales.
 - Comprobar que repetir un pedido con los mismos datos no duplica recursos y que otro docente no puede consultarlo.
-- Comprobar que ningún recurso llega a revisión sin huella, resultado de verificación y copia histórica completa.
+- Comprobar que los recursos vigentes llegan a revisión con huella, resultado de verificación y copia histórica completa, y que los pendientes pueden llegar con el motivo registrado, pero no pueden aprobarse ni exportarse.
 - Comprobar que una regeneración fallida, o sobre una versión que ya cambió, no descarta el recurso anterior.
 
 ## Dependencias con otros módulos
