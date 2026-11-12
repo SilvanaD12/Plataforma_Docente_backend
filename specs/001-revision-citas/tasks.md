@@ -278,7 +278,7 @@ el pedido conserva ambos y un fallo deja el anterior igual.
 
 ## Fase 7 · Recorridos de extremo a extremo y cierre
 
-- [ ] T060 [E2E] [US1] [US3] **Editar, verificar, aprobar y exportar en el navegador** con backend y frontend locales y la cuenta A:
+- [x] T060 [E2E] [US1] [US3] **Editar, verificar, aprobar y exportar en el navegador** con backend y frontend locales y la cuenta A:
   1. Abrir la pestaña Revisión de la unidad de prueba.
   2. Editar una afirmación para que no tenga respaldo y ver «Insuficiente» con su motivo y la aprobación bloqueada (REV-C1, C3).
   3. Corregir el texto y ver «Vigente».
@@ -287,6 +287,16 @@ el pedido conserva ambos y un fallo deja el anterior igual.
   6. En Exportación, descargar SCORM y Moodle XML, abrir los archivos y confirmar que no incluyen recursos pendientes ni insuficientes (REV-C7).
 
   Registrar capturas y estados HTTP sin tokens. Depende de T033 y T059.
+  - **Hecho (2026-11-12), Juan, cuenta A.** Backend local (`feat/revision-cierre`, SQLite) y frontend en `main` (`97aa7e7`); curso «Curso de prueba REV-01», unidad 1 «Capa de transporte».
+    1. Revisión abierta con los recursos generados.
+    2. Explicación editada con párrafos sin respaldo: «Respaldo: Insuficiente» con el motivo («2 de 2 párrafos sin respaldo en el material») y la aprobación bloqueada; como estaba aprobada, apareció «volvió a revisión y necesita una nueva aprobación» (REV-C1, C3).
+    3. Al corregir el texto, la explicación volvió a «Vigente» (confirmado por Juan; la captura de «Vigente» que se adjuntó es del recurso de imagen).
+    4. Guardado desde una segunda pestaña con la versión anterior: aviso «Este recurso cambió en otra pestaña…» y lo escrito se conservó (REV-C14). El cambio de título de este paso («capa de carro») quedó guardado en el recurso de imagen.
+    5. Se aprobaron el recurso de imagen y el ítem de opción múltiple; los demás quedaron pendientes.
+    6. Moodle XML sin ítems aprobados: aviso «Ningún recurso cumple las condiciones…» con «4 recursos sin aprobar» y «1 recurso que este formato no admite», sin descarga (REV-C7). Tras aprobar el ítem se descargó `rev-prueba-unidad-1-moodle.xml` (3,0 KB).
+    7. `rev-prueba-unidad-1-scorm.zip` (10,2 KB) trae `imsmanifest.xml`, `sco/01.html` (solo la imagen aprobada, con su descripción porque no hay imagen generada en local), `media/01.svg` y `shared/`. El Moodle XML trae una sola pregunta: el ítem aprobado (correcta «capa de transporte»; distractores TCP, UDP y SYN; retroalimentación con cita del material). Ningún recurso pendiente o insuficiente aparece en los archivos (REV-C7).
+    8. «Tus descargas» muestra fecha, formato, archivo, curso y unidad (REV-C9).
+  - **Límites del registro.** Los estados HTTP no se anotaron uno por uno: Juan indicó que lo demás estaba correcto. Las 10 capturas, sin tokens, están en la carpeta del equipo `docs_equipo/capturas/T060` (fuera del repositorio) y se adjuntan al PR.
 - [x] T061 [E2E] [US3] **Borrar un curso y ver el historial:**
   1. Exportar desde un curso de prueba.
   2. Eliminar el curso desde la interfaz de CC-01.
@@ -294,7 +304,9 @@ el pedido conserva ambos y un fallo deja el anterior igual.
 
   Depende de T042, de la tarea T009 de CC-01 (confirmación de borrado en la interfaz) y de T057.
   - **Hecho con T011 de CC-01** ([specs/003-cuentas-y-cursos/tasks.md](../003-cuentas-y-cursos/tasks.md), línea 20), marcada por Silvana en el commit [`25bf257`](https://github.com/SilvanaD12/Plataforma_Docente_backend/commit/25bf257). Validación manual en Vercel el 9 de noviembre de 2026 (hora de Perú): se exportó `t011-01-unidad-1-documento.html` del curso de prueba T011-01; tras confirmar la eliminación, el curso desapareció de «Mis cursos» y el mismo registro siguió en «Mis descargas» con fecha, formato, archivo, curso y unidad (CC-C9 y REV-C9).
-- [ ] T062 [BE] Recorrer [quickstart.md](quickstart.md) completo, incluido el aislamiento con la cuenta B, y repetir `tests/e2e` con PostgreSQL (`E2E_DATABASE_URL` en una base desechable). Anotar todos los resultados en el registro de avance y en los PR.
+- [x] T062 [BE] Recorrer [quickstart.md](quickstart.md) completo, incluido el aislamiento con la cuenta B, y repetir `tests/e2e` con PostgreSQL (`E2E_DATABASE_URL` en una base desechable). Anotar todos los resultados en el registro de avance y en los PR.
+  - **`tests/e2e` con PostgreSQL (2026-11-11):** 49 passed en 315,91 s, en un contenedor Docker local desechable (`pgvector/pgvector:pg16`, puerto 55432), borrado al terminar. Sin tocar Render ni Neon.
+  - **Recorrido de quickstart.md (2026-11-12):** con un script de Python con `httpx`, fuera del repositorio, contra el backend local con SQLite. Usó dos cuentas nuevas (A y B), un curso con una unidad, un TXT corto procesado y una explicación y un ítem generados con `generation-requests`. Los 13 pasos dieron el resultado esperado. Por orden: 1 (200), 2 (200, misma huella y v1 → v2), 3 (200, `insufficient` con motivo y un bloqueo), 4 (409 `VERSION_CONFLICT`, sin cambios), 5 (200 y 200, `pendiente` con `reviewReset: true`), 5b (200, `evidence`, `verification` y versión iguales), 6 (200 y 200: reordenar mantiene la huella; cambiar la correcta da otra huella y una verificación nueva), 7 (SCORM 200; Moodle 422 `NO_APPROVED_RESOURCES` con `details` `not_approved: 1` y `unsupported_format: 1`), 8 (una sola página en `sco/`, la de la explicación aprobada), 9 (200 `succeeded`; el anterior quedó `descartado` con motivo `regenerado`), 10 (200, mismo resultado sin recurso nuevo), 11 (409 `NO_PROCESSED_MATERIAL`, el recurso no cambió), 12 (204; el historial conserva archivo, curso y unidad tras borrar el curso) y 13 (cuenta B: 404 `UNIT_NOT_FOUND` en las seis rutas y ninguna descarga de A). El paso 13 se ejecutó antes del 12, porque el 12 borra el curso. En el paso 9 la regeneración terminó dentro de la espera del adaptador, así que este recorrido no pasó por `running` (eso lo cubre la e2e del PR #17).
 
 ### Seguimiento después de integrar los PR #13 (backend) y #7 (frontend)
 
