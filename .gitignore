@@ -42,6 +42,7 @@ backend/htmlcov/
 *.tsbuildinfo
 backend/reports/
 backend/evaluation/.venv/
+backend/evaluation/results/
 
 # Entorno virtual raíz
 venv/
