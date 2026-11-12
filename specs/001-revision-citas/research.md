@@ -285,16 +285,20 @@ intento en el mismo `UPDATE` (`regeneration_status`, T066 y T067).
     (`d1c7faf`); el 409, en lugar del 422 que le tocaba por no ser un código de material, se fijó en el cierre de
     REV-01 (2026-11-11), porque el 422 es solo para los parámetros guardados.
   - Los rechazos al iniciar el pedido conservan el estado con el que los responde `generation-requests`: **404**
-    `UNIT_NOT_FOUND` y **429** `TOO_MANY_ACTIVE_REQUESTS` (cierre de REV-01, 2026-11-11). `REGENERATION_UNAVAILABLE`
-    de Generación queda por ahora en **422**: en `start_regeneration.py` agrupa tres causas de los datos del recurso
-    (sin parámetros guardados, destino no válido, demasiados intentos), ninguna «servidor no disponible». El 503
-    `REGENERATION_UNAVAILABLE` de Revisión sigue siendo solo para un servidor sin regeneración configurada. Revisión no
-    envía `Retry-After` en el 429.
+    `UNIT_NOT_FOUND` y **429** `TOO_MANY_ACTIVE_REQUESTS` (cierre de REV-01, 2026-11-11). Revisión no envía
+    `Retry-After` en el 429.
+  - **Códigos de `StartRegeneration`.** Antes, Generación usaba `REGENERATION_UNAVAILABLE` para tres causas de los
+    datos del recurso. El [PR #23 de Yan](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/23) los separó,
+    y Revisión los responde así: `REGENERATION_PARAMETERS_MISSING` (sin `params` o sin `resourceType`) **422**,
+    `REGENERATION_TARGET_INVALID` (id o versión del recurso no válidos) **422**, y `REGENERATION_ATTEMPTS_EXHAUSTED`
+    (se agotaron los intentos desde esa versión; editar el recurso cambia la versión y permite pedirla otra vez)
+    **409**. Son los mismos estados que les da `generation-requests` en ese PR. `REGENERATION_UNAVAILABLE` queda solo
+    para el **503** de Revisión, cuando el servidor no tiene regeneración configurada.
 - **Ruta** `POST /api/v1/units/{unit_id}/resources/{resource_id}/regenerations` con `{expectedVersion}`. Errores: 404
-  (también `UNIT_NOT_FOUND` de Generación), 409 `VERSION_CONFLICT`, rechazo por el material o
-  `REGENERATED_RESOURCE_NOT_FOUND`, 422 por los parámetros guardados (incluido `REGENERATION_UNAVAILABLE` de
-  Generación), 429 `TOO_MANY_ACTIVE_REQUESTS`, 502 `REGENERATION_FAILED` y 503 `REGENERATION_UNAVAILABLE` (sin
-  regeneración en el servidor).
+  (también `UNIT_NOT_FOUND` de Generación), 409 `VERSION_CONFLICT`, rechazo por el material,
+  `REGENERATED_RESOURCE_NOT_FOUND` o `REGENERATION_ATTEMPTS_EXHAUSTED`, 422 por los parámetros guardados (incluidos
+  `REGENERATION_PARAMETERS_MISSING` y `REGENERATION_TARGET_INVALID`), 429 `TOO_MANY_ACTIVE_REQUESTS`, 502
+  `REGENERATION_FAILED` y 503 `REGENERATION_UNAVAILABLE` (sin regeneración en el servidor).
 
 **Límites conocidos.**
 - ~~Dos pedidos simultáneos desde la misma versión podían pasar los dos.~~ Cerrado con la reserva atómica

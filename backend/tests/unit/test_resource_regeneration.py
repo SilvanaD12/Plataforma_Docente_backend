@@ -217,6 +217,9 @@ def test_without_a_regeneration_port_the_service_says_it_is_not_available():
         ("INVALID_OUTCOME", 422),
         ("INVALID_SEQUENCE", 422),
         ("REGENERATION_PARAMETERS_MISSING", 422),
+        # PR #23 de Yan: códigos propios de StartRegeneration en lugar de REGENERATION_UNAVAILABLE.
+        ("REGENERATION_TARGET_INVALID", 422),
+        ("REGENERATION_ATTEMPTS_EXHAUSTED", 409),
     ],
 )
 def test_a_rejection_for_the_teachers_data_keeps_the_generation_code(generation_code, http_status):
