@@ -31,7 +31,7 @@ Dependencias externas que bloquean tareas:
   - Validación: `IDEMPOTENCY_KEY_REQUIRED`, `IDEMPOTENCY_KEY_REUSED`, `INVALID_SEQUENCE`.
   - No encontrados: `GENERATION_REQUEST_NOT_FOUND`, `UNIT_NOT_FOUND`.
   - Límites y ejecución: `TOO_MANY_ACTIVE_REQUESTS`, `DEADLINE_EXCEEDED`, `EVIDENCE_UNAVAILABLE`.
-  - Regeneración: `REGENERATION_UNAVAILABLE`.
+  - Regeneración: `REGENERATION_PARAMETERS_MISSING` (422: sin `params` o sin `resourceType`), `REGENERATION_TARGET_INVALID` (422: id o versión del recurso no válidos) y `REGENERATION_ATTEMPTS_EXHAUSTED` (409: se agotaron los intentos de la versión). Los estados HTTP son los previstos; los asigna Revisión en su ruta (PR de cierre de REV-01, rama `feat/revision-cierre`). `REGENERATION_UNAVAILABLE` ya no es de Generación: queda solo para el 503 propio de Revisión.
 - [x] T004 [BE] Crear `backend/src/platform5e/domain/generation/evidence.py` con `build_snapshot(referenced_ids, fragments, retrieved_at)`. [PR #14 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/14).
   - Devuelve los `EvidenceSnapshotItem` (`id`, `text`, `location`, `documentId`, `documentName`, `sourceUrl`, `license`, `retrievedAt`) y la lista de ids que faltan.
   - Recibe los ids ya calculados, sin importar `domain/review`.
@@ -147,7 +147,7 @@ Dependencias externas que bloquean tareas:
   - Crea un pedido `regeneration` de un paso con los `params` guardados del recurso y la evidencia actual.
   - Usa la clave `regen-{resourceId}-v{resourceVersion}`.
   - Si el último intento de esa versión terminó `failed` o `interrupted`, o terminó bien pero el docente ya borró todos sus recursos nuevos, crea otro con la clave siguiente (`-r2`, `-r3`…). Si sigue en curso o terminó `succeeded` con algún recurso en Revisión, devuelve ese mismo ([research R9](research.md#r9-regeneración-y-edición-durante-el-pedido)).
-  - Un recurso sin `params` lanza `REGENERATION_UNAVAILABLE`.
+  - Un recurso sin `params` o sin `resourceType` lanza `REGENERATION_PARAMETERS_MISSING` (422). Un id o una versión no válidos lanzan `REGENERATION_TARGET_INVALID` (422). Al agotar `MAX_REGENERATION_ATTEMPTS` lanza `REGENERATION_ATTEMPTS_EXHAUSTED` (409). Los estados los asigna Revisión.
   - Los recursos nuevos llevan `regeneratedFrom: {resourceId, version}`.
 - [x] T029 [BE] **Depende de REV-01 PR 1 y T028.** Implementar `backend/src/platform5e/infrastructure/adapters/generation_regeneration_adapter.py` sobre `resource_regeneration_port.py`, y en `main.py` reemplazar con él el adaptador síncrono provisional de Revisión. Caso GEN-C7. [PR #17 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/17).
   - `request_regeneration` llama a `StartRegeneration`.
