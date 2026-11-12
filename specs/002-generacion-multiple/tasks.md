@@ -218,17 +218,17 @@ Dependencias externas que bloquean tareas:
 - [x] T045 [BE] Migrar los consumidores de la ruta antigua: [PR #16 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/16).
   - `backend/evaluation/collect_samples.py` pasa a `POST /api/v1/generation-requests` con consulta hasta el estado final.
   - `backend/scripts/export_contracts.py` exporta `StartGenerationRequest` en lugar de `GenerationRequest`. Actualizar `docs/api/contracts/generation-request.v1.json`.
-- [ ] T046 [BE] **Depende de T045.** Retirar la ruta y el servicio antiguos.
+- [x] T046 [BE] **Depende de T045.** Retirar la ruta y el servicio antiguos. PR #22 del backend y [PR #24 del backend (con CC-01)](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/24).
   - Quitar `POST /api/v1/generations` y el modo demostración.
   - Eliminar lo que quede de `generation_service.py` y `generation_repository_port.py`.
   - Conservar la lectura de `GET /api/v1/generations/{id}` sobre `generaciones_demo` para el historial.
   - Exportar OpenAPI de nuevo, como en T021.
-  - **Hecho en este PR (enlace pendiente):**
-    - Se quitaron `POST /api/v1/generations` y su esquema, `generation_service.py`, el modo demostración de Generación (pedidos anónimos con ejemplos) y el adaptador síncrono provisional de regeneración (`infrastructure/generation/`) con su prueba.
-    - `GenerationRepositoryPort` y `SQLAlchemyGenerationRepository` quedan reducidos a lo que usa Cuentas: `get_demo_catalog` y las clases ORM del historial y de la pertenencia. También conservan `get_by_id` para `GET /api/v1/generations/{id}`, que ahora lee con `GetLegacyGeneration` (`use_cases/generation/get_legacy_generation.py`), con la misma comprobación de pertenencia y la misma respuesta. `GET /api/v1/generations` (lista) sigue igual.
-    - Las pruebas que usaban la ruta retirada pasan a `POST /api/v1/generation-requests`. Las del historial insertan una generación como las que guardaba la ruta retirada. Las pruebas unitarias de lo que se conserva (redacción, anclaje, agentes, multimedia) se ejecutan con `RunGenerationRequest`.
-    - Se volvió a exportar OpenAPI.
-  - Parcial. Pendiente en un PR aparte con CC-01 (Silvana revisa Cuentas, Yan revisa Generación): mover a Cuentas la siembra del curso de demostración y las clases ORM del historial y de la pertenencia, y retirar generation_repository_port.py y el repositorio reducido.
+  - **PR #22:** se quitaron `POST /api/v1/generations` y su esquema, `generation_service.py`, el modo demostración de Generación (pedidos anónimos con ejemplos) y el adaptador síncrono provisional de regeneración (`infrastructure/generation/`) con su prueba. Las pruebas que usaban la ruta retirada pasan a `POST /api/v1/generation-requests`; las del historial insertan una generación como las que guardaba la ruta retirada; las pruebas unitarias de lo que se conserva (redacción, anclaje, agentes, multimedia) se ejecutan con `RunGenerationRequest`.
+  - **PR #24 (con CC-01; Silvana revisa Cuentas, Yan revisa Generación):**
+    - Cuentas siembra el curso de demostración leyendo `persistence/seed/demo_generation.json` directamente (parte de Silvana), sin `GenerationRepositoryPort.get_demo_catalog`.
+    - El historial de la generación retirada es de Cuentas: `GenerationORM` y `TeacherGenerationORM` (tablas `generaciones_demo` y `ep002_generaciones_docente`, sin cambios de esquema) y `adapt_legacy_generation` están en `sqlalchemy_account_repository.py`, que crea esas tablas en SQLite y las lee en `get_history`, `get_generation_owner` y el nuevo `get_generation` (en `TeacherRepositoryPort`).
+    - `GET /api/v1/generations` y `GET /api/v1/generations/{id}` mantienen rutas, respuestas, 401 y 404 y la comprobación de pertenencia; `{id}` se sirve con `AccountService.get_generation`. El router sigue en `infrastructure/http/routers/generations.py`.
+    - Se eliminaron `generation_repository_port.py`, `sqlalchemy_generation_repository.py` y `get_legacy_generation.py`, con su cableado en `main.py`. OpenAPI no cambia.
 - [x] T047 [BE] Al borrar un curso, eliminar los pedidos de sus unidades en `gen_generation_requests` y, en cascada, sus pasos en `gen_generation_steps`, conservando los registros de descarga. Caso CC-C9. [PR #14 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/14).
   - Coordinar con CC-01 el cambio en el borrado de cursos: T008 de [CC-01](../003-cuentas-y-cursos/tasks.md) ya se integró en el [PR #8 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/8) sin estas tablas.
   - Prueba de integración: un curso con un pedido terminado y una descarga registrada; al borrarlo no quedan pedidos ni pasos de sus unidades y la descarga sigue disponible para su docente.
