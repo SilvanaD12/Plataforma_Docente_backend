@@ -26,7 +26,7 @@ pytest tests/architecture
 python scripts/export_openapi.py && git diff --exit-code ../docs/api/openapi.json
 ```
 
-El último comando falla si el contrato exportado no coincide con el que está en el repositorio (Constitución II). Se ejecuta antes de abrir cada PR, porque la CI actual no hace esa comparación.
+El último comando falla si el contrato exportado no coincide con el que está en el repositorio (Constitución II). La CI hace la misma comparación en el paso «OpenAPI export matches docs/api/openapi.json» de `.github/workflows/backend-ci.yml` (T048), antes de las pruebas; ejecutarlo antes de abrir el PR evita que la CI falle por esto.
 
 ## Escenarios
 
