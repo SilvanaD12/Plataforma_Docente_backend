@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+    paths: ["backend/**", ".github/workflows/backend-ci.yml", "docs/api/openapi.json"]
   workflow_dispatch:
 
 permissions:
