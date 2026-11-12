@@ -42,5 +42,8 @@ class GenerationErrorCode(StrEnum):
     REQUEST_INTERRUPTED = "REQUEST_INTERRUPTED"
     GENERATION_FAILED = "GENERATION_FAILED"
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
-    # Regeneración
-    REGENERATION_UNAVAILABLE = "REGENERATION_UNAVAILABLE"
+    # Regeneración (los lanza StartRegeneration; Revisión decide el estado HTTP de su ruta). REGENERATION_UNAVAILABLE
+    # ya no es de Generación: queda solo para el 503 propio de Revisión («la regeneración no está disponible»).
+    REGENERATION_PARAMETERS_MISSING = "REGENERATION_PARAMETERS_MISSING"  # 422: sin `params` o sin `resourceType`
+    REGENERATION_TARGET_INVALID = "REGENERATION_TARGET_INVALID"  # 422: id o versión del recurso no válidos
+    REGENERATION_ATTEMPTS_EXHAUSTED = "REGENERATION_ATTEMPTS_EXHAUSTED"  # 409: se agotaron los intentos de la versión

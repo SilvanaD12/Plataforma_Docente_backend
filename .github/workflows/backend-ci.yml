@@ -4,7 +4,7 @@ on:
   pull_request:
   push:
     branches: [main]
-    paths: ["backend/**", ".github/workflows/backend-ci.yml"]
+    paths: ["backend/**", ".github/workflows/backend-ci.yml", "docs/api/openapi.json"]
   workflow_dispatch:
 
 permissions:
@@ -45,6 +45,15 @@ jobs:
           cache-dependency-path: backend/pyproject.toml
       - name: Install backend
         run: python -m pip install -e ".[dev,postgres]"
+      # Constitution II: the committed contract must match the code. No database server, network or secret is
+      # needed: without DATABASE_URL the app builds over a local SQLite file only to produce the OpenAPI document.
+      - name: OpenAPI export matches docs/api/openapi.json
+        run: |
+          python scripts/export_openapi.py
+          if ! git diff --exit-code -- ../docs/api/openapi.json; then
+            echo "::error file=docs/api/openapi.json::The exported OpenAPI differs from docs/api/openapi.json. From backend/, run 'python scripts/export_openapi.py' and commit docs/api/openapi.json."
+            exit 1
+          fi
       - name: Unit architecture and integration tests
         run: >-
           python -m pytest tests/unit tests/architecture tests/integration -q

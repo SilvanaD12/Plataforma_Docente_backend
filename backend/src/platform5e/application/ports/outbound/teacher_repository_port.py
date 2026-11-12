@@ -69,3 +69,7 @@ class TeacherRepositoryPort(Protocol):
     def get_generation_owner(self, generation_id: str) -> str | None:
         """Determina el identificador del docente propietario de una generación."""
         ...
+
+    def get_generation(self, generation_id: str) -> dict[str, Any] | None:
+        """Generación del historial (guardada antes de GEN-01) tal como se respondió, o None si no existe."""
+        ...

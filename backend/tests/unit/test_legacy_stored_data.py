@@ -5,8 +5,6 @@ from __future__ import annotations
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_account_repository import (
     adapt_legacy_course,
     adapt_legacy_document,
-)
-from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_repository import (
     adapt_legacy_generation,
 )
 

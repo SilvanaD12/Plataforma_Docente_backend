@@ -27,7 +27,6 @@ from platform5e.infrastructure.adapters.account_unit_membership_adapter import A
 from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
-    sqlalchemy_generation_repository as generations,
     sqlalchemy_media_repository as media_module,
     sqlalchemy_resource_repository as resources,
 )
@@ -91,10 +90,9 @@ class Setup:
         for module in (accounts, media_module):
             monkeypatch.setattr(module, "engine", self.engine)
             monkeypatch.setattr(module, "SessionLocal", sessions)
-        monkeypatch.setattr(generations, "engine", self.engine)
         monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-        account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+        account_repository = accounts.SQLAlchemyAccountRepository()
         self.service = AccountService(account_repository, "", "")
         self.review = resources.SQLAlchemyResourceRepository()
         self.requests = SQLAlchemyGenerationRequestRepository(self.engine)

@@ -180,7 +180,7 @@ def test_after_too_many_failed_attempts_the_version_cannot_be_regenerated(setup,
         setup.repository.finish(setup.regenerate().request.id, RequestStatus.FAILED, None)
     with pytest.raises(GenerationError) as exhausted:
         setup.regenerate()
-    assert exhausted.value.code == GenerationErrorCode.REGENERATION_UNAVAILABLE
+    assert exhausted.value.code == GenerationErrorCode.REGENERATION_ATTEMPTS_EXHAUSTED
     assert len(setup.runner.submitted) == 2
 
 
@@ -210,7 +210,7 @@ def test_the_new_resource_uses_current_evidence_and_records_where_it_came_from(s
 def test_a_resource_without_params_cannot_be_regenerated(setup, params):
     with pytest.raises(GenerationError) as unavailable:
         setup.regenerate(params=params)
-    assert unavailable.value.code == GenerationErrorCode.REGENERATION_UNAVAILABLE
+    assert unavailable.value.code == GenerationErrorCode.REGENERATION_PARAMETERS_MISSING
     assert "no se puede regenerar" in unavailable.value.message
     assert setup.runner.submitted == []
 
@@ -219,7 +219,7 @@ def test_a_resource_without_params_cannot_be_regenerated(setup, params):
 def test_an_invalid_target_cannot_be_regenerated(setup, resource_id, version):
     with pytest.raises(GenerationError) as unavailable:
         setup.regenerate(resource_id=resource_id, version=version)
-    assert unavailable.value.code == GenerationErrorCode.REGENERATION_UNAVAILABLE
+    assert unavailable.value.code == GenerationErrorCode.REGENERATION_TARGET_INVALID
     assert setup.runner.submitted == []
 
 

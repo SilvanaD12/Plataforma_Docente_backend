@@ -6,7 +6,6 @@ from sqlalchemy.orm import sessionmaker
 from platform5e.application.services.accounts.account_service import AccountService
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
-    sqlalchemy_generation_repository as generations,
     sqlalchemy_resource_repository as resources,
 )
 
@@ -17,11 +16,9 @@ def test_deleting_course_preserves_its_download_record(tmp_path, monkeypatch, re
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    generation_repository = generations.SQLAlchemyGenerationRepository()
-    account_repository = accounts.SQLAlchemyAccountRepository(generation_repository)
+    account_repository = accounts.SQLAlchemyAccountRepository()
     service = AccountService(account_repository, "", "")
     downloads = resources.SQLAlchemyResourceRepository()
     teacher_id = "docente@example.com"

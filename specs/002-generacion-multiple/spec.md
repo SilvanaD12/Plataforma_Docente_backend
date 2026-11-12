@@ -32,7 +32,7 @@ Como docente, quiero recibir en revisión recursos con su evidencia verificada p
 | Caso | Dado y cuando | Entonces |
 | --- | --- | --- |
 | GEN-C7 | Revisión pide regenerar un recurso | Se ejecuta un pedido individual con los parámetros guardados y la evidencia actual. El anterior pasa a Descartados solo si la regeneración termina bien y sigue en la misma versión. Si no, se conserva y decide el docente. |
-| GEN-C8 | Un recurso no alcanza el umbral o le falta un fragmento referenciado | Llega a revisión como pendiente y no puede aprobarse ni exportarse, también si lo redactó el generador por reglas. |
+| GEN-C8 | Un borrador no alcanza el umbral de evidencia, o a un recurso le falta un fragmento referenciado | El borrador bajo el umbral se rechaza con su motivo y no llega a revisión. Si falta un fragmento referenciado o la verificación no puede completarse, el recurso llega a revisión como pendiente y no puede aprobarse ni exportarse, también si lo redactó el generador por reglas. |
 | GEN-C9 | La búsqueda híbrida no está disponible | Material responde con `retrieval_mode` igual a `bm25_fallback`. El resultado distingue ese respaldo de búsqueda del respaldo de redacción por reglas. |
 
 ## Requisitos funcionales
@@ -51,7 +51,7 @@ Como docente, quiero recibir en revisión recursos con su evidencia verificada p
 - Verificar los casos GEN-C1 a GEN-C9 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
 - Validar el orden de etapas, la recuperación tras una desconexión y la conservación de resultados parciales.
 - Comprobar que repetir un pedido con los mismos datos no duplica recursos y que otro docente no puede consultarlo.
-- Comprobar que ningún recurso llega a revisión sin huella, resultado de verificación y copia histórica completa.
+- Comprobar que los recursos vigentes llegan a revisión con huella, resultado de verificación y copia histórica completa, y que los pendientes pueden llegar con el motivo registrado, pero no pueden aprobarse ni exportarse.
 - Comprobar que una regeneración fallida, o sobre una versión que ya cambió, no descarta el recurso anterior.
 
 ## Dependencias con otros módulos

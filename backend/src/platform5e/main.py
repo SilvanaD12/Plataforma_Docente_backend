@@ -24,7 +24,6 @@ from platform5e.application.services.materials.material_service import MaterialS
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
-from platform5e.application.use_cases.generation.get_legacy_generation import GetLegacyGeneration
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
 from platform5e.application.use_cases.generation.start_regeneration import StartRegeneration
@@ -76,9 +75,6 @@ from platform5e.infrastructure.retrieval.bm25_evidence_retriever import Bm25Evid
 from platform5e.infrastructure.retrieval.hybrid_evidence_retriever import HybridEvidenceRetriever   
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_chunk_repository import SQLAlchemyChunkRepository
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import SQLAlchemyMediaRepository
-from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_repository import (
-    SQLAlchemyGenerationRepository,
-)
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     SQLAlchemyGenerationRequestRepository,
 )
@@ -174,8 +170,7 @@ def create_application() -> FastAPI:
         )
 
     # 1. Adaptadores de salida
-    generation_repository = SQLAlchemyGenerationRepository()
-    account_repository = SQLAlchemyAccountRepository(generation_repository)
+    account_repository = SQLAlchemyAccountRepository()
     chunk_repository = SQLAlchemyChunkRepository()
     resource_repository = SQLAlchemyResourceRepository()
     open_source = WikipediaSource() if read_flag("TOPIC_SEARCH_ENABLED", True) else None
@@ -216,8 +211,6 @@ def create_application() -> FastAPI:
         evidence_retriever=evidence_retriever,
     )
 
-    # GEN-01 (T046 parcial): la generación síncrona se retiró; queda la lectura de su historial.
-    get_legacy_generation = GetLegacyGeneration(generation_repository)
     # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
     evidence_provider = MaterialEvidenceAdapter(chunk_repository, evidence_retriever, account_repository)
     run_generation = RunGenerationRequest(
@@ -280,7 +273,7 @@ def create_application() -> FastAPI:
             start_generation, get_generation, account_service, describe_generator(primary_generator)
         )
     )
-    app.include_router(create_generations_router(get_legacy_generation, account_service))
+    app.include_router(create_generations_router(account_service))
     app.include_router(
         create_resources_router(review_service, account_service, media_use_case, regenerate_media_use_case)
     )
