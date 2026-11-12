@@ -62,9 +62,10 @@ paths:
                 expectedVersion: { type: integer, minimum: 1 }
       responses:
         '200': { description: Regeneration result, content: { application/json: { schema: { $ref: '#/components/schemas/RegenerationResponse' } } } }
-        '404': { description: UNIT_NOT_FOUND or RESOURCE_NOT_FOUND }
-        '409': { description: 'VERSION_CONFLICT, or Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); the previous resource is unchanged and `message` gives the reason' }
-        '422': { description: 'Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING); the previous resource is unchanged' }
+        '404': { description: 'UNIT_NOT_FOUND or RESOURCE_NOT_FOUND; UNIT_NOT_FOUND also when Generation rejects the request for a missing unit, as in generation-requests' }
+        '409': { description: 'VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review; or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the resource to ask again). The previous resource is unchanged and `message` gives the reason' }
+        '422': { description: 'Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING, REGENERATION_TARGET_INVALID); the previous resource is unchanged. The REGENERATION_* codes come from Generation PR #23' }
+        '429': { description: 'TOO_MANY_ACTIVE_REQUESTS, the same status as generation-requests; the previous resource is unchanged' }
         '502': { description: 'REGENERATION_FAILED: only for provider or unexpected failures; the previous resource is unchanged' }
         '503': { description: REGENERATION_UNAVAILABLE }
   /api/v1/units/{unit_id}/resources/{resource_id}/regeneration:

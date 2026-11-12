@@ -1927,7 +1927,7 @@
           "resources"
         ],
         "summary": "Regenerate a resource from review",
-        "description": "REV-C12 and REV-C13 (decision D10, confirmed by Generation): asks Generation for a new resource with the\nstored parameters and the current evidence of the material. If Generation does not finish within its time\nlimit, the answer is `status: running` and the request goes on in the background: ask\n`GET …/resources/{resource_id}/regeneration` until it ends.\n\nOn success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the\nprevious one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it\nwas edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version\nreturns the same result without generating again. On failure the previous resource is unchanged and `message`\ngives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the\nunit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME); 502\nREGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409\nVERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource of your unit with its current version. Expected 200.",
+        "description": "REV-C12 and REV-C13 (decision D10, confirmed by Generation): asks Generation for a new resource with the\nstored parameters and the current evidence of the material. If Generation does not finish within its time\nlimit, the answer is `status: running` and the request goes on in the background: ask\n`GET …/resources/{resource_id}/regeneration` until it ends.\n\nOn success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the\nprevious one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it\nwas edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version\nreturns the same result without generating again. On failure the previous resource is unchanged and `message`\ngives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the\nunit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME). If\nGeneration finished but none of the new resources is still in review, the answer is 409\nREGENERATED_RESOURCE_NOT_FOUND and the regeneration can be asked again. Rejections when Generation starts the\nrequest keep the status of `generation-requests`: 404 UNIT_NOT_FOUND, 429 TOO_MANY_ACTIVE_REQUESTS and 409\nREGENERATION_ATTEMPTS_EXHAUSTED. 502\nREGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409\nVERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource of your unit with its current version. Expected 200.",
         "operationId": "regenerate_resource_api_v1_units__unit_id__resources__resource_id__regenerations_post",
         "security": [
           {
@@ -1996,7 +1996,7 @@
             }
           },
           "409": {
-            "description": "VERSION_CONFLICT, or Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE). The previous resource is unchanged.",
+            "description": "VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review; or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the resource to ask again). The previous resource is unchanged.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2006,7 +2006,17 @@
             }
           },
           "422": {
-            "description": "Invalid body, or Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING). The previous resource is unchanged.",
+            "description": "Invalid body, or Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING, REGENERATION_TARGET_INVALID). The previous resource is unchanged.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "TOO_MANY_ACTIVE_REQUESTS: the teacher already has the maximum of active generation requests, as in generation-requests. The previous resource is unchanged; try again later.",
             "content": {
               "application/json": {
                 "schema": {

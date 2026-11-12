@@ -96,11 +96,17 @@ Estado de revisión (status)        Verificación (verification.status)
 | `save_resources(...)` | Se conserva para Generación, que crea recursos con `version = 1`. |
 | `get_downloads(teacher_id, unit_id)` | Se conserva para el filtro por unidad. |
 
-## Puerto de regeneración (`ResourceRegenerationPort`), decisión provisional D10 sin confirmación de Yan
+## Puerto de regeneración (`ResourceRegenerationPort`), D10
+
+Lo implementa el adaptador de Generación en segundo plano, `infrastructure/adapters/generation_regeneration_adapter.py` (T029 de GEN-01, PR #17), conectado en `main.py`.
 
 | Operación | Entrada | Salida |
 |---|---|---|
 | `request_regeneration` | `teacher_id`, `resource_id`, `resource_version` y `params` (con `unitId`) | `RegenerationStatus(request_id, status, new_resource_ids, reason, code)`; `status`: `pending`, `running`, `succeeded` o `failed`; `code` solo en `failed` por los datos del docente (`None` si falló el proveedor) |
-| `get_regeneration` | `teacher_id` y `request_id` | `RegenerationStatus` o `None` si no existe o es de otro docente. Revisión lo consulta desde `GET …/regeneration` mientras el pedido está en curso (D10 confirmada) |
+| `get_regeneration` | `teacher_id` y `request_id` | `RegenerationStatus` o `None` si no existe o es de otro docente. Revisión lo consulta desde `GET …/regeneration` mientras el pedido está en curso |
 
 En el recurso anterior, Revisión guarda `regeneration: {fromVersion, requestId, status, newResourceIds, previousDiscarded}`. En cada recurso nuevo guarda `regeneratedFrom: {resourceId, version}`.
+
+Si Generación responde `succeeded` pero ninguno de los recursos nuevos existe, Revisión registra `status: failed` con `code: REGENERATED_RESOURCE_NOT_FOUND` y libera la reserva; en el `POST` responde **409** (`MATERIAL_STATE_CODES` de `domain/review/errors.py`). Si existen algunos, `newResourceIds` guarda solo esos.
+
+Estado HTTP del `POST` cuando el puerto devuelve `failed` con `code` (`RegenerationFailedError`): 409 para `MATERIAL_STATE_CODES`; 404 `UNIT_NOT_FOUND`, 429 `TOO_MANY_ACTIVE_REQUESTS` y 409 `REGENERATION_ATTEMPTS_EXHAUSTED`, como `generation-requests` (`START_REJECTION_STATUS`); 422 para cualquier otro código, incluidos `REGENERATION_PARAMETERS_MISSING` y `REGENERATION_TARGET_INVALID`; sin `code`, 502 `REGENERATION_FAILED`. Los tres códigos `REGENERATION_*` de Generación vienen del [PR #23 de Yan](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/23), que reemplazó el `REGENERATION_UNAVAILABLE` de Generación.

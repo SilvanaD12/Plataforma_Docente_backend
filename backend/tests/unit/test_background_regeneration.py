@@ -15,6 +15,7 @@ import pytest
 from platform5e.application.ports.outbound.resource_regeneration_port import RegenerationStatus
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError
+from platform5e.domain.review.errors import RegenerationFailedError
 from tests.unit.test_resource_regeneration import Resources, Teachers, explanation
 
 
@@ -234,3 +235,38 @@ def test_a_running_write_does_not_overwrite_the_same_attempt_once_it_failed():
     assert "viejo" not in resources.claims
     assert service.regenerate_resource("ana", "u1", "viejo", expected_version=3)["status"] == "running"
     assert len(generation.requests) == 2, "el pedido siguiente respondió «en curso» sin crear uno nuevo"
+
+
+def test_a_post_whose_regenerated_resource_no_longer_exists_is_a_state_conflict():
+    """Cierre de REV-01: si Generación termina dentro del POST pero ningún recurso nuevo sigue en Revisión (d1c7faf),
+    el error es 409 REGENERATED_RESOURCE_NOT_FOUND, como los rechazos por el estado del material. El 422 queda para
+    los parámetros guardados del recurso, como dice la ficha."""
+    service, resources, _ = build(first_status="succeeded")
+    with pytest.raises(RegenerationFailedError) as error:
+        service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
+    assert error.value.code == "REGENERATED_RESOURCE_NOT_FOUND" and error.value.status_code == 409
+    old = resources.by_id["viejo"]
+    assert (old["status"], old["version"]) == ("pendiente", 3) and "viejo" not in resources.claims
+
+
+@pytest.mark.parametrize(
+    ("code", "status_code"),
+    [
+        # Los mismos estados con los que `generation-requests` responde estos rechazos al iniciar un pedido.
+        ("UNIT_NOT_FOUND", 404),
+        ("TOO_MANY_ACTIVE_REQUESTS", 429),
+        # Por ahora 422: en `start_regeneration.py` agrupa tres causas (sin parámetros guardados, destino no válido,
+        # demasiados intentos) y ninguna es «servidor no disponible» (cierre de REV-01, 2026-11-11).
+        ("REGENERATION_UNAVAILABLE", 422),
+    ],
+)
+def test_a_rejection_when_starting_the_request_keeps_generation_status_code(code, status_code):
+    service, resources, generation = build()
+    generation.request_regeneration = lambda *args: RegenerationStatus(  # type: ignore[method-assign]
+        f"regen-{code}", "failed", (), "Generación rechazó el pedido.", code
+    )
+    with pytest.raises(RegenerationFailedError) as error:
+        service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
+    assert (error.value.code, error.value.status_code) == (code, status_code)
+    old = resources.by_id["viejo"]
+    assert (old["status"], old["version"]) == ("pendiente", 3) and "viejo" not in resources.claims

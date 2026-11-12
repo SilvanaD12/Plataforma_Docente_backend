@@ -64,6 +64,9 @@ class Media:
     def get_media(self, teacher_id, media_id):
         return self.files.get(media_id)
 
+    def delete_media(self, teacher_id, media_id):
+        self.files.pop(media_id, None)
+
 
 class Voice:
     description = "Voz de prueba"

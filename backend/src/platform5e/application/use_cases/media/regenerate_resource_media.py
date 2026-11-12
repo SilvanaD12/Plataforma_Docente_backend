@@ -5,6 +5,7 @@ Caso de uso: vuelve a generar la imagen o el audio de un recurso con su descripc
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,6 +14,8 @@ from platform5e.application.ports.outbound.resource_repository_port import Resou
 from platform5e.application.services.media.media_attachment import attach_generated_media, has_media
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError
+
+logger = logging.getLogger("platform5e.media")
 
 
 class RegenerateResourceMediaUseCase:
@@ -56,9 +59,20 @@ class RegenerateResourceMediaUseCase:
         if not self._review_repository.save_resource_if_version(
             teacher_id, unit_id, resource, started_version, increment=False
         ):
+            if generated:
+                # T063: el archivo nuevo ya quedó guardado y ningún recurso lo usa; se borra para no dejarlo huérfano.
+                self._delete_unused_media(teacher_id, resource["media"]["id"])
             raise AccountConfigurationError(
                 "VERSION_CONFLICT",
                 "El recurso cambió mientras se generaba el archivo. Recárgalo y genera el archivo de nuevo si hace falta.",
                 409,
             )
         return resource
+
+    def _delete_unused_media(self, teacher_id: str, media_id: str) -> None:
+        """Borra el archivo sin referencia. Si falla, se registra (solo el id del archivo y el error) y la respuesta
+        sigue siendo el 409: el docente no necesita saberlo y el archivo no se usa en ningún recurso."""
+        try:
+            self._media_repository.delete_media(teacher_id, media_id)
+        except Exception as exc:  # el conflicto de versión es lo que importa al docente
+            logger.warning("No se pudo borrar el archivo sin referencia %s: %s", media_id, str(exc)[:200])
