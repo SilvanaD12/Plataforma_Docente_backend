@@ -4,8 +4,6 @@ Los adaptadores traducen fallos técnicos de infraestructura antes de llegar a l
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
@@ -31,19 +29,17 @@ from tests.support.generation_fakes import (
 )
 
 
-def test_account_repository_receives_the_catalog_in_its_constructor():
-    class MockCatalogProvider:
-        def get_demo_catalog(self) -> dict[str, Any]:
-            return {"units": [{"id": "unidad-inyectada", "title": "Prueba"}]}
+def test_account_repository_loads_the_demo_course_once():
+    repo = SQLAlchemyAccountRepository()
+    teacher_id = "catalogo-demo@example.com"
 
-        # Alias en español por compatibilidad de interfaz
-        def demo_catalog(self) -> dict[str, Any]:
-            return self.get_demo_catalog()
+    repo.init_catalog(teacher_id)
+    repo.init_catalog(teacher_id)
 
-    repo = SQLAlchemyAccountRepository(MockCatalogProvider())
-    repo.init_catalog("inyeccion@example.com")
-    courses = repo.get_courses("inyeccion@example.com")
-    assert courses[0]["units"][0]["id"] == "unidad-inyectada"
+    courses = repo.get_courses(teacher_id)
+    assert len(courses) == 1
+    assert courses[0]["code"] == "ICSI-205"
+    assert [unit["id"] for unit in courses[0]["units"]] == ["u2", "u3"]
 
 
 @pytest.mark.parametrize(

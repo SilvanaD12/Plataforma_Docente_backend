@@ -4,6 +4,8 @@ Cuentas docentes, sesiones, cursos, documentos binarios y relaciones de persiste
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import (
@@ -21,7 +23,6 @@ from sqlalchemy import (
     text,
 )
 
-from platform5e.application.ports.outbound.generation_repository_port import GenerationRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine
 from platform5e.infrastructure.persistence.error_translation import translate_persistence_errors
@@ -163,8 +164,7 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     """Adaptador de persistencia SQLAlchemy para cuentas, sesiones, cursos y documentos."""
 
     @translate_persistence_errors
-    def __init__(self, generation_repository: GenerationRepositoryPort) -> None:
-        self._generation_repository = generation_repository
+    def __init__(self) -> None:
         if engine.dialect.name == "sqlite":
             for table in (*TABLES_TO_REGISTER, TeacherGenerationORM):
                 table.__table__.create(engine, checkfirst=True)
@@ -204,7 +204,8 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
             ).first()
             if exists:
                 return
-            demo_units = self._generation_repository.get_demo_catalog()["units"]
+            fixture_path = Path(__file__).resolve().parents[1] / "seed" / "demo_generation.json"
+            demo_units = json.loads(fixture_path.read_text(encoding="utf-8"))["units"]
             initial_course = {
                 "id": "curso-aed",
                 "code": "ICSI-205",

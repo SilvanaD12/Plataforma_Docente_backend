@@ -34,7 +34,6 @@ from platform5e.infrastructure.adapters.generation_regeneration_adapter import G
 from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
-    sqlalchemy_generation_repository as generations,
     sqlalchemy_resource_repository as resources,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
@@ -82,11 +81,10 @@ def test_a_late_running_answer_keeps_failed_and_the_same_version_can_be_regenera
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    account_repository = accounts.SQLAlchemyAccountRepository()
     course = AccountService(account_repository, "", "").save_course(
         TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
     )
@@ -227,11 +225,10 @@ def build_world(tmp_path, monkeypatch, request) -> World:
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    account_repository = accounts.SQLAlchemyAccountRepository()
     course = AccountService(account_repository, "", "").save_course(
         TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
     )

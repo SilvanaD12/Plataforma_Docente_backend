@@ -175,7 +175,7 @@ def create_application() -> FastAPI:
 
     # 1. Adaptadores de salida
     generation_repository = SQLAlchemyGenerationRepository()
-    account_repository = SQLAlchemyAccountRepository(generation_repository)
+    account_repository = SQLAlchemyAccountRepository()
     chunk_repository = SQLAlchemyChunkRepository()
     resource_repository = SQLAlchemyResourceRepository()
     open_source = WikipediaSource() if read_flag("TOPIC_SEARCH_ENABLED", True) else None

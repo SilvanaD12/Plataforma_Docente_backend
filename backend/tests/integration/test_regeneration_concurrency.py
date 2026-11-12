@@ -22,7 +22,6 @@ from platform5e.application.services.review.resource_review_service import Resou
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
-    sqlalchemy_generation_repository as generations,
     sqlalchemy_resource_repository as resources,
 )
 
@@ -89,11 +88,10 @@ def test_two_simultaneous_regenerations_from_the_same_version_create_one_resourc
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    account_repository = accounts.SQLAlchemyAccountRepository()
     course = AccountService(account_repository, "", "").save_course(
         TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
     )
@@ -151,11 +149,10 @@ def test_two_overlapping_status_queries_keep_the_discarded_result(tmp_path, monk
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    account_repository = accounts.SQLAlchemyAccountRepository()
     course = AccountService(account_repository, "", "").save_course(
         TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
     )
@@ -216,11 +213,10 @@ def test_a_late_answer_of_an_old_attempt_leaves_the_new_attempt_intact(tmp_path,
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    account_repository = accounts.SQLAlchemyAccountRepository()
     course = AccountService(account_repository, "", "").save_course(
         TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
     )
@@ -295,11 +291,10 @@ def test_a_running_write_does_not_overwrite_the_same_attempt_once_it_failed(tmp_
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    account_repository = accounts.SQLAlchemyAccountRepository()
     course = AccountService(account_repository, "", "").save_course(
         TEACHER, {"code": "RED-301", "name": "Redes", "term": "2026-II", "units": [{"title": "Transporte"}]}
     )
