@@ -78,10 +78,10 @@ def parameters_from_saved(params: Mapping[str, Any] | None) -> GenerationParamet
     `resourceType` el recurso no se puede regenerar.
     """
     if not isinstance(params, Mapping):
-        raise GenerationError(GenerationErrorCode.REGENERATION_UNAVAILABLE, WITHOUT_PARAMETERS_MESSAGE)
+        raise GenerationError(GenerationErrorCode.REGENERATION_PARAMETERS_MISSING, WITHOUT_PARAMETERS_MESSAGE)
     resource_type = params.get("resourceType")
     if not isinstance(resource_type, str) or not resource_type:
-        raise GenerationError(GenerationErrorCode.REGENERATION_UNAVAILABLE, WITHOUT_PARAMETERS_MESSAGE)
+        raise GenerationError(GenerationErrorCode.REGENERATION_PARAMETERS_MISSING, WITHOUT_PARAMETERS_MESSAGE)
     modalities = params.get("modalities")
     outcome_id = params.get("outcomeId")
     return GenerationParameters(
@@ -130,11 +130,11 @@ class StartRegeneration:
     def execute(self, command: StartRegenerationCommand) -> StartGenerationResult:
         version = command.resource_version
         if isinstance(version, bool) or not isinstance(version, int) or version < 1:
-            raise GenerationError(GenerationErrorCode.REGENERATION_UNAVAILABLE, INVALID_TARGET_MESSAGE)
+            raise GenerationError(GenerationErrorCode.REGENERATION_TARGET_INVALID, INVALID_TARGET_MESSAGE)
         if not command.resource_id or not IDEMPOTENCY_KEY_PATTERN.fullmatch(
             regeneration_key(command.resource_id, version, MAX_REGENERATION_ATTEMPTS)
         ):
-            raise GenerationError(GenerationErrorCode.REGENERATION_UNAVAILABLE, INVALID_TARGET_MESSAGE)
+            raise GenerationError(GenerationErrorCode.REGENERATION_TARGET_INVALID, INVALID_TARGET_MESSAGE)
         parameters = parameters_from_saved(command.params)
         target = RegenerationTarget(resource_id=command.resource_id, resource_version=version)
 
@@ -158,7 +158,7 @@ class StartRegeneration:
             if result.request.status in SUCCEEDED_STATUSES and self._new_resources_deleted(command, result.request):
                 continue
             return result
-        raise GenerationError(GenerationErrorCode.REGENERATION_UNAVAILABLE, TOO_MANY_ATTEMPTS_MESSAGE)
+        raise GenerationError(GenerationErrorCode.REGENERATION_ATTEMPTS_EXHAUSTED, TOO_MANY_ATTEMPTS_MESSAGE)
 
     def _new_resources_deleted(self, command: StartRegenerationCommand, request) -> bool:
         """True si el intento entregó recursos y ninguno sigue en Revisión."""

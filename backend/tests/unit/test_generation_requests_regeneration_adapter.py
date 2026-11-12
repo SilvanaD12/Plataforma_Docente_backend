@@ -134,7 +134,9 @@ def test_with_a_short_wait_it_answers_pending_or_running_without_blocking():
 @pytest.mark.parametrize(
     "code",
     [
-        GenerationErrorCode.REGENERATION_UNAVAILABLE,
+        GenerationErrorCode.REGENERATION_PARAMETERS_MISSING,
+        GenerationErrorCode.REGENERATION_TARGET_INVALID,
+        GenerationErrorCode.REGENERATION_ATTEMPTS_EXHAUSTED,
         GenerationErrorCode.NO_PROCESSED_MATERIAL,
         GenerationErrorCode.UNIT_NOT_FOUND,
         GenerationErrorCode.TOO_MANY_ACTIVE_REQUESTS,
@@ -150,7 +152,7 @@ def test_a_rejection_when_starting_is_failed_with_its_code(code):
 def test_saved_parameters_without_resource_type_or_unit_are_rejected_without_creating_a_request():
     start = FakeStartGeneration(regeneration(RequestStatus.QUEUED))
     without_type = adapter(start, FakeGetGeneration()).request_regeneration("ana", "rec-viejo", 3, {"unitId": "u1"})
-    assert (without_type.status, without_type.code) == ("failed", "REGENERATION_UNAVAILABLE")
+    assert (without_type.status, without_type.code) == ("failed", "REGENERATION_PARAMETERS_MISSING")
     without_unit = adapter(start, FakeGetGeneration()).request_regeneration("ana", "rec-viejo", 3, {"resourceType": "explicacion"})
     assert (without_unit.status, without_unit.code) == ("failed", "UNIT_NOT_FOUND")
     assert start.commands == []
@@ -254,3 +256,19 @@ def test_with_two_new_resources_and_one_deleted_only_the_remaining_one_is_return
     repeated = adapter(FakeStartGeneration(finished), FakeGetGeneration(finished, deleted=("rec-nuevo-1",)), wait=0)
     status = repeated.request_regeneration("ana", "rec-viejo", 3, PARAMS)
     assert (status.status, status.new_resource_ids) == ("succeeded", ("rec-nuevo-2",))
+
+
+@pytest.mark.parametrize(
+    ("code", "http_status"),
+    [
+        (GenerationErrorCode.REGENERATION_PARAMETERS_MISSING, 422),
+        (GenerationErrorCode.REGENERATION_TARGET_INVALID, 422),
+        (GenerationErrorCode.REGENERATION_ATTEMPTS_EXHAUSTED, 409),
+    ],
+)
+def test_the_generation_routes_give_each_regeneration_code_its_status(code, http_status):
+    """Estados de Generación para los códigos de regeneración (en Revisión los asigna su propia ruta)."""
+    from platform5e.infrastructure.http.routers.generation_requests import generation_error_response
+
+    response = generation_error_response(GenerationError(code, "Motivo para el docente."))
+    assert response.status_code == http_status

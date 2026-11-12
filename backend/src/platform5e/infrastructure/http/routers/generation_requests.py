@@ -54,6 +54,10 @@ ERROR_STATUS: dict[str, int] = {
     GenerationErrorCode.INVALID_PARAMETERS: 422,
     GenerationErrorCode.TOO_MANY_ACTIVE_REQUESTS: 429,
     GenerationErrorCode.EVIDENCE_UNAVAILABLE: 503,
+    # Regeneración: hoy solo llegan por la ruta de Revisión, que decide su propio estado; aquí quedan coherentes.
+    GenerationErrorCode.REGENERATION_PARAMETERS_MISSING: 422,
+    GenerationErrorCode.REGENERATION_TARGET_INVALID: 422,
+    GenerationErrorCode.REGENERATION_ATTEMPTS_EXHAUSTED: 409,
 }
 
 
