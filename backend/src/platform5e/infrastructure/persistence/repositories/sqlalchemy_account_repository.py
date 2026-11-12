@@ -26,10 +26,6 @@ from sqlalchemy import (
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine
 from platform5e.infrastructure.persistence.error_translation import translate_persistence_errors
-from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_repository import (
-    GenerationORM,
-    TeacherGenerationORM,
-)
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     GenerationRequestORM,
@@ -148,6 +144,35 @@ class DownloadORM(Base):
     download_data = Column("datos", JSON, nullable=False)
 
 
+class GenerationORM(Base):
+    """Generación guardada por la ruta síncrona retirada (T046): historial de solo lectura, tal como se respondió."""
+
+    __tablename__ = "generaciones_demo"
+    id = Column(String, primary_key=True)
+    result = Column("resultado", JSON, nullable=False)
+
+
+class TeacherGenerationORM(Base):
+    """Docente dueño de cada generación del historial (`generaciones_demo`)."""
+
+    __tablename__ = "ep002_generaciones_docente"
+    id = Column(String, primary_key=True)
+    teacher_id = Column("docente", String, nullable=False)
+
+
+# Generaciones guardadas antes del contrato en inglés: su bloque «generator» tenía claves en español.
+_LEGACY_GENERATOR_KEYS = {"descripcion": "description", "usaIA": "usesAi"}
+
+
+def adapt_legacy_generation(result: dict[str, Any]) -> dict[str, Any]:
+    """Adapta al contrato actual una generación guardada con las claves anteriores, sin migrar la base."""
+    generator = result.get("generator")
+    if isinstance(generator, dict):
+        generator = {_LEGACY_GENERATOR_KEYS.get(key, key): value for key, value in generator.items()}
+        return {**result, "generator": generator}
+    return result
+
+
 TABLES_TO_REGISTER = (
     UserORM,
     SessionORM,
@@ -157,6 +182,8 @@ TABLES_TO_REGISTER = (
     TeacherResourceORM,
     MediaAssetORM,
     DownloadORM,
+    GenerationORM,
+    TeacherGenerationORM,
 )
 
 
@@ -166,7 +193,7 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     @translate_persistence_errors
     def __init__(self) -> None:
         if engine.dialect.name == "sqlite":
-            for table in (*TABLES_TO_REGISTER, TeacherGenerationORM):
+            for table in TABLES_TO_REGISTER:
                 table.__table__.create(engine, checkfirst=True)
 
     @translate_persistence_errors
@@ -377,3 +404,9 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
         with SessionLocal() as session:
             entity = session.get(TeacherGenerationORM, generation_id)
             return entity.teacher_id if entity else None
+
+    @translate_persistence_errors
+    def get_generation(self, generation_id: str) -> dict[str, Any] | None:
+        with SessionLocal() as session:
+            entity = session.get(GenerationORM, generation_id)
+            return adapt_legacy_generation(entity.result) if entity else None

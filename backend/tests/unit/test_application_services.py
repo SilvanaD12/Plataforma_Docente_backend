@@ -16,38 +16,9 @@ import zipfile
 
 import pytest
 
-from platform5e.application.ports.outbound.generation_repository_port import GenerationRepositoryPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.application.services.accounts.account_service import AccountService
-from platform5e.application.use_cases.generation.get_legacy_generation import GetLegacyGeneration
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError
-from platform5e.domain.generation.errors import GenerationError
-
-
-# --------------------------------------------------------------------------- historial de la generación síncrona
-
-class LegacyGenerationRepository(GenerationRepositoryPort):
-    """Repositorio reducido (T046 parcial): solo el catálogo de demostración y las generaciones guardadas."""
-
-    def __init__(self, saved: dict[str, dict[str, Any]] | None = None) -> None:
-        self.saved = saved or {}
-
-    def get_demo_catalog(self) -> dict[str, Any]:
-        return {"units": []}
-
-    def get_by_id(self, generation_id: str) -> dict[str, Any] | None:
-        return self.saved.get(generation_id)
-
-
-def test_a_saved_generation_is_returned_as_it_was_answered():
-    stored = {"request": {"id": "sol-1"}, "mode": "rag", "resources": [{"id": "r1"}]}
-    assert GetLegacyGeneration(LegacyGenerationRepository({"sol-1": stored})).get("sol-1") is stored
-
-
-def test_get_missing_generation():
-    with pytest.raises(GenerationError) as err:
-        GetLegacyGeneration(LegacyGenerationRepository()).get("sol-no-existe")
-    assert err.value.code == "GENERATION_NOT_FOUND"
 
 
 # --------------------------------------------------------------------------- configuración (EP-002)
@@ -58,6 +29,7 @@ class MockAccountRepository(TeacherRepositoryPort):
         self.catalogs: dict[str, list[dict[str, Any]]] = {}
         self.docs: dict[tuple[str, str], tuple[dict[str, Any], bytes]] = {}
         self.owners: dict[str, str] = {}
+        self.generations: dict[str, dict[str, Any]] = {}
         self.users: dict[str, dict[str, Any]] = {}
         self.deleted_entries: list[tuple[str, str, list[str]]] = []
 
@@ -126,6 +98,9 @@ class MockAccountRepository(TeacherRepositoryPort):
 
     def get_generation_owner(self, generation_id: str) -> str | None:
         return self.owners.get(generation_id)
+
+    def get_generation(self, generation_id: str) -> dict[str, Any] | None:
+        return self.generations.get(generation_id)
 
 
 SEED_EMAIL: str = "docente@5e.demo"
@@ -284,3 +259,27 @@ def test_another_teachers_generation_is_not_exposed(account_service: AccountServ
     account_service.repository.owners["sol-2"] = SEED_EMAIL
     assert account_service.verify_generation_ownership("sol-2", authorization) is None
     assert account_service.verify_generation_ownership("sol-sin-dueño", None) is None
+
+
+# --------------------------------------------------------------------------- historial de la generación síncrona
+# T046: el historial guardado antes de GEN-01 es de Cuentas (antes lo leía GetLegacyGeneration en Generación).
+
+
+def test_a_saved_generation_is_returned_as_it_was_answered(account_service: AccountService):
+    stored = {"request": {"id": "sol-1"}, "mode": "rag", "resources": [{"id": "r1"}]}
+    account_service.repository.generations["sol-1"] = stored
+    account_service.repository.owners["sol-1"] = SEED_EMAIL
+    assert account_service.get_generation("sol-1", _get_bearer_header(account_service)) is stored
+
+
+def test_get_missing_generation(account_service: AccountService):
+    authorization = _get_bearer_header(account_service)
+    error = _get_account_error_code(account_service.get_generation, "sol-no-existe", authorization)
+    assert error == "GENERATION_NOT_FOUND"
+
+
+def test_a_generation_of_another_teacher_is_not_returned(account_service: AccountService):
+    account_service.repository.generations["sol-ajena"] = {"request": {"id": "sol-ajena"}}
+    account_service.repository.owners["sol-ajena"] = "otro@5e.demo"
+    error = _get_account_error_code(account_service.get_generation, "sol-ajena", _get_bearer_header(account_service))
+    assert error == "GENERATION_NOT_FOUND"

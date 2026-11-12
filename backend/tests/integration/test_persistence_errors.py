@@ -15,7 +15,7 @@ from platform5e.domain.shared.errors import DuplicateRecordError, PersistenceUna
 from platform5e.infrastructure.http.error_handlers import persistence_unavailable_handler
 from platform5e.infrastructure.http.routers.generation_requests import create_generation_requests_router
 from platform5e.infrastructure.persistence.repositories import (
-    sqlalchemy_generation_repository as generation_repo_module,
+    sqlalchemy_account_repository as account_repo_module,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_account_repository import (
     SQLAlchemyAccountRepository,
@@ -50,17 +50,17 @@ def test_account_repository_loads_the_demo_course_once():
     ],
 )
 def test_sql_error_does_not_cross_the_port(monkeypatch, sql_error, expected_domain_error):
-    repo = generation_repo_module.SQLAlchemyGenerationRepository()
+    repo = SQLAlchemyAccountRepository()
 
     def raise_db_error():
         raise sql_error
 
     # Intercepta el constructor de sesión del repositorio
-    monkeypatch.setattr(generation_repo_module, "SessionLocal", raise_db_error)
+    monkeypatch.setattr(account_repo_module, "SessionLocal", raise_db_error)
 
-    # T046: el repositorio reducido ya no guarda; la lectura del historial pasa por la misma traducción.
+    # T046: el historial de generaciones es de Cuentas; su lectura pasa por la misma traducción.
     with pytest.raises(expected_domain_error):
-        repo.get_by_id("sol-prueba")
+        repo.get_generation("sol-prueba")
 
 
 class SignedInTeacher:
