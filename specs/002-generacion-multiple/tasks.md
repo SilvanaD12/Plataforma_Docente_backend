@@ -232,7 +232,7 @@ Dependencias externas que bloquean tareas:
 - [x] T047 [BE] Al borrar un curso, eliminar los pedidos de sus unidades en `gen_generation_requests` y, en cascada, sus pasos en `gen_generation_steps`, conservando los registros de descarga. Caso CC-C9. [PR #14 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/14).
   - Coordinar con CC-01 el cambio en el borrado de cursos: T008 de [CC-01](../003-cuentas-y-cursos/tasks.md) ya se integró en el [PR #8 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/8) sin estas tablas.
   - Prueba de integración: un curso con un pedido terminado y una descarga registrada; al borrarlo no quedan pedidos ni pasos de sus unidades y la descarga sigue disponible para su docente.
-- [ ] T048 [BE] Proponer a CC-01 un paso en `.github/workflows/backend-ci.yml` que compare la exportación de OpenAPI con `docs/api/openapi.json`. Constitución II.
+- [x] T048 [BE] Proponer a CC-01 un paso en `.github/workflows/backend-ci.yml` que compare la exportación de OpenAPI con `docs/api/openapi.json`. Constitución II. PR del backend (propuesta a CC-01, enlace pendiente).
 - [ ] T049 [E2E] Enlazar en este archivo la evidencia de cada caso, de GEN-C1 a GEN-C9, y de los criterios de éxito de la ficha: orden de etapas, recuperación, resultados parciales, no duplicación, aislamiento, huella y verificación en cada recurso, y regeneración fallida que conserva el anterior.
 
 ## Dependencias y trabajo en paralelo
