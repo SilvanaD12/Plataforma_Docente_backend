@@ -38,6 +38,7 @@ Resultado esperado: todo pasa, y `tests/architecture` confirma que `domain/revie
 | `tests/unit/test_resource_regeneration.py`, `tests/unit/test_background_regeneration.py` | REV-C12, C13 y D10 en segundo plano |
 | `tests/unit/test_regenerated_resource_missing.py` | REV-C13: el recurso nuevo ya no existe |
 | `tests/integration/test_regeneration_concurrency.py`, `tests/integration/test_regeneration_late_running_answer.py` | REV-C12: pedidos simultáneos, respuestas tardías e intentos terminados (T066, T067) |
+| `tests/integration/test_regeneration_route_errors.py` | REV-C13 por la ruta: 409 `REGENERATION_ATTEMPTS_EXHAUSTED`, 422 `REGENERATION_TARGET_INVALID` y `REGENERATION_PARAMETERS_MISSING` |
 | `tests/integration/test_course_download_retention.py` | REV-C9 al borrar un curso |
 | `tests/e2e/test_accounts_and_review_api.py` | REV-C1, C3, C11, C12, C13, C14 y aislamiento A/B |
 | `tests/e2e/test_exports_api.py` | REV-C7, C9 |
