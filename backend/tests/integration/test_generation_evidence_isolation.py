@@ -19,7 +19,6 @@ from platform5e.infrastructure.adapters.material_evidence_adapter import Materia
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
     sqlalchemy_chunk_repository as chunks_module,
-    sqlalchemy_generation_repository as generations,
 )
 from platform5e.infrastructure.retrieval.hybrid_evidence_retriever import HybridEvidenceRetriever
 
@@ -74,10 +73,9 @@ def chunk_repository(tmp_path, monkeypatch, request) -> UnitOnlyVectorIndex:
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(chunks_module, "engine", engine)
     monkeypatch.setattr(chunks_module, "SessionLocal", sessions)
-    accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())  # crea las tablas
+    accounts.SQLAlchemyAccountRepository()  # crea las tablas
 
     repository = UnitOnlyVectorIndex()
     repository.replace_chunks(TEACHER_A, "doc-rosa", SHARED_UNIT, _material(TEACHER_A, "frag-rosa"))

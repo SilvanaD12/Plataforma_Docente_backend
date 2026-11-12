@@ -27,7 +27,6 @@ from platform5e.domain.generation.generation_request import (
 from platform5e.domain.generation.sequence import plan_steps
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
-    sqlalchemy_generation_repository as generations,
     sqlalchemy_resource_repository as resources,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
@@ -87,10 +86,9 @@ def test_deleting_a_course_removes_its_generation_requests_and_keeps_its_downloa
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    service = AccountService(accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository()), "", "")
+    service = AccountService(accounts.SQLAlchemyAccountRepository(), "", "")
     generation_requests = SQLAlchemyGenerationRequestRepository(engine)
     downloads = resources.SQLAlchemyResourceRepository()
     with engine.connect() as connection:

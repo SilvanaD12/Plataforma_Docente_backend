@@ -394,3 +394,13 @@ class AccountService:
     def list_generation_requests(self, teacher_id: str) -> list[dict[str, Any]]:
         """Obtiene el historial de solicitudes ordenadas de forma descendente."""
         return sorted(self.repository.get_history(teacher_id), key=lambda r: r["createdAt"], reverse=True)
+
+    def get_generation(self, generation_id: str, authorization_header: str | None) -> dict[str, Any]:
+        """Una generación del historial (guardada antes de GEN-01), tal como se respondió. Aplica la misma
+        comprobación de pertenencia que `verify_generation_ownership`; si no existe responde GENERATION_NOT_FOUND
+        (404)."""
+        self.verify_generation_ownership(generation_id, authorization_header)
+        result = self.repository.get_generation(generation_id)
+        if result is None:
+            raise AccountConfigurationError("GENERATION_NOT_FOUND", "La solicitud de generación no existe.", 404)
+        return result

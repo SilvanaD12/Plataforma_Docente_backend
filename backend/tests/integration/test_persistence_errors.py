@@ -4,8 +4,6 @@ Los adaptadores traducen fallos técnicos de infraestructura antes de llegar a l
 
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
@@ -17,7 +15,7 @@ from platform5e.domain.shared.errors import DuplicateRecordError, PersistenceUna
 from platform5e.infrastructure.http.error_handlers import persistence_unavailable_handler
 from platform5e.infrastructure.http.routers.generation_requests import create_generation_requests_router
 from platform5e.infrastructure.persistence.repositories import (
-    sqlalchemy_generation_repository as generation_repo_module,
+    sqlalchemy_account_repository as account_repo_module,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_account_repository import (
     SQLAlchemyAccountRepository,
@@ -31,19 +29,17 @@ from tests.support.generation_fakes import (
 )
 
 
-def test_account_repository_receives_the_catalog_in_its_constructor():
-    class MockCatalogProvider:
-        def get_demo_catalog(self) -> dict[str, Any]:
-            return {"units": [{"id": "unidad-inyectada", "title": "Prueba"}]}
+def test_account_repository_loads_the_demo_course_once():
+    repo = SQLAlchemyAccountRepository()
+    teacher_id = "catalogo-demo@example.com"
 
-        # Alias en español por compatibilidad de interfaz
-        def demo_catalog(self) -> dict[str, Any]:
-            return self.get_demo_catalog()
+    repo.init_catalog(teacher_id)
+    repo.init_catalog(teacher_id)
 
-    repo = SQLAlchemyAccountRepository(MockCatalogProvider())
-    repo.init_catalog("inyeccion@example.com")
-    courses = repo.get_courses("inyeccion@example.com")
-    assert courses[0]["units"][0]["id"] == "unidad-inyectada"
+    courses = repo.get_courses(teacher_id)
+    assert len(courses) == 1
+    assert courses[0]["code"] == "ICSI-205"
+    assert [unit["id"] for unit in courses[0]["units"]] == ["u2", "u3"]
 
 
 @pytest.mark.parametrize(
@@ -54,17 +50,17 @@ def test_account_repository_receives_the_catalog_in_its_constructor():
     ],
 )
 def test_sql_error_does_not_cross_the_port(monkeypatch, sql_error, expected_domain_error):
-    repo = generation_repo_module.SQLAlchemyGenerationRepository()
+    repo = SQLAlchemyAccountRepository()
 
     def raise_db_error():
         raise sql_error
 
     # Intercepta el constructor de sesión del repositorio
-    monkeypatch.setattr(generation_repo_module, "SessionLocal", raise_db_error)
+    monkeypatch.setattr(account_repo_module, "SessionLocal", raise_db_error)
 
-    # T046: el repositorio reducido ya no guarda; la lectura del historial pasa por la misma traducción.
+    # T046: el historial de generaciones es de Cuentas; su lectura pasa por la misma traducción.
     with pytest.raises(expected_domain_error):
-        repo.get_by_id("sol-prueba")
+        repo.get_generation("sol-prueba")
 
 
 class SignedInTeacher:

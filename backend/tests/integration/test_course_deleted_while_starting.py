@@ -32,7 +32,6 @@ from platform5e.infrastructure.persistence.database import normalize_database_ur
 from platform5e.infrastructure.persistence.migration_runner import apply_database_migrations
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
-    sqlalchemy_generation_repository as generations,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     SQLAlchemyGenerationRequestRepository,
@@ -64,7 +63,6 @@ def engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Engine]:
     sessions = sessionmaker(bind=bind)
     monkeypatch.setattr(accounts, "engine", bind)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", bind)
     yield bind
     bind.dispose()
 
@@ -72,7 +70,7 @@ def engine(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Engine]:
 class Setup:
     def __init__(self, engine: Engine, repository_class: type[SQLAlchemyGenerationRequestRepository]) -> None:
         self.engine = engine
-        account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+        account_repository = accounts.SQLAlchemyAccountRepository()
         self.service = AccountService(account_repository, "", "")
         self.requests = repository_class(engine)
         self.membership = AccountUnitMembershipAdapter(account_repository)

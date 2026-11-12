@@ -24,7 +24,6 @@ from platform5e.infrastructure.adapters.account_unit_membership_adapter import A
 from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
-    sqlalchemy_generation_repository as generations,
     sqlalchemy_resource_repository as resources,
 )
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
@@ -59,10 +58,9 @@ def test_deleting_the_course_while_a_request_runs_leaves_nothing_of_that_unit(tm
     sessions = sessionmaker(bind=engine)
     monkeypatch.setattr(accounts, "engine", engine)
     monkeypatch.setattr(accounts, "SessionLocal", sessions)
-    monkeypatch.setattr(generations, "engine", engine)
     monkeypatch.setattr(resources, "SessionLocal", sessions)
 
-    account_repository = accounts.SQLAlchemyAccountRepository(generations.SQLAlchemyGenerationRepository())
+    account_repository = accounts.SQLAlchemyAccountRepository()
     service = AccountService(account_repository, "", "")
     review_repository = resources.SQLAlchemyResourceRepository()
     generation_requests = SQLAlchemyGenerationRequestRepository(engine)
