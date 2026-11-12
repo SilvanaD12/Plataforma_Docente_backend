@@ -190,3 +190,98 @@ def test_an_accepted_request_whose_status_cannot_be_read_marks_the_run_incomplet
     assert summary["durationSeconds"]["p50"] == 25.0
     text = load.format_summary(summary, "rules")
     assert "Corrida incompleta: 4 de 5 pedidos terminaron" in text
+
+
+def test_a_measured_send_that_fails_by_network_is_recorded_and_the_run_goes_on(load, monkeypatch, tmp_path):
+    """Revisión del PR #27: la 2.ª secuencia medida falla por red. No se cae el script: se reintenta un par de veces
+    con la misma clave, se registra el envío fallido, siguen los demás y la corrida queda incompleta."""
+    import httpx
+
+    attempts: list[str] = []
+
+    def post_request(client, headers, key, body):
+        if "-concurrency-" in key:
+            index = int(key.rsplit("-", 1)[-1])
+            if index == 2:
+                return httpx.Response(429, headers={"Retry-After": "30"},
+                                      json={"error": {"code": "TOO_MANY_ACTIVE_REQUESTS", "message": "x"}})
+            return httpx.Response(202, json={"id": f"c{index}"})
+        if key.endswith("-sequence-1"):
+            attempts.append(key)
+            raise httpx.ConnectError("conexión rechazada")
+        return httpx.Response(202, json={"id": f"m{key.rsplit('-', 1)[-1]}"})
+
+    monkeypatch.setattr(load, "post_request", post_request)
+    statuses = {"c0": final_status("c0", 5), "c1": final_status("c1", 5),
+                **{f"m{i}": final_status(f"m{i}", 10 * (i + 1)) for i in (0, 2, 3, 4)}}
+
+    report = run(load, FakeClient(statuses))  # no lanza
+
+    assert [r["id"] for r in report["requests"]] == ["m0", "m2", "m3", "m4"]  # la aceptada antes sigue y se consulta
+    assert all(r["finished"] for r in report["requests"])
+    [failed] = report["failedSends"]
+    assert failed["index"] == 1 and failed["key"].endswith("-sequence-1")
+    assert failed["error"] == {"type": "ConnectError", "message": "conexión rechazada"}
+    assert len(attempts) == 1 + load.MAX_SEND_RETRIES and set(attempts) == {failed["key"]}  # misma clave, acotado
+    assert report["complete"] is False
+    summary = report["summary"]
+    assert summary["finishedRequests"] == 4 and summary["failedSends"] == [failed["key"]]
+    text = load.format_summary(summary, "rules")
+    assert "Corrida incompleta: 4 de 5 pedidos terminaron" in text and failed["key"] in text
+
+    monkeypatch.setattr(load, "RESULTS", tmp_path)
+    written = load.write_report(report, "rules")
+    assert json.loads(written.read_text(encoding="utf-8"))["failedSends"][0]["index"] == 1
+
+
+def test_a_status_answer_that_is_not_json_is_recorded_and_polling_goes_on(load, monkeypatch):
+    """Un 200 que no es JSON (por ejemplo, la página de un proxy) no detiene la espera: queda como error."""
+    import httpx
+
+    fake_posts(monkeypatch, load)
+    statuses = {"c0": final_status("c0", 5), "c1": final_status("c1", 5),
+                **{f"m{i}": final_status(f"m{i}", 10 + i) for i in range(5)}}
+
+    class HtmlFor(FakeClient):
+        def get(self, path, headers=None, params=None):
+            if path.endswith("/m2"):
+                return httpx.Response(200, text="<html>proxy</html>")
+            return super().get(path, headers, params)
+
+    report = run(load, HtmlFor(statuses))
+    [broken] = [r for r in report["requests"] if r["id"] == "m2"]
+    assert broken["status"] == "unknown" and broken["error"]["type"] == "JSONDecodeError"
+    assert report["complete"] is False and report["summary"]["finishedRequests"] == 4
+
+
+def test_a_network_failure_before_any_request_stops_with_a_clear_message_and_no_report(
+    load, monkeypatch, tmp_path, capsys
+):
+    import sys
+
+    import httpx
+
+    class Collect:
+        @staticmethod
+        def login(client, email, password):
+            raise httpx.ConnectError("conexión rechazada")
+
+        @staticmethod
+        def fail(message):
+            print(f"Error: {message}", file=sys.stderr)
+            raise SystemExit(1)
+
+    monkeypatch.setattr(load, "load_collect_samples", lambda: Collect)
+    monkeypatch.setattr(load, "RESULTS", tmp_path / "results")
+    monkeypatch.setenv("EVAL_EMAIL", "carga@correo.pe")
+    monkeypatch.setenv("EVAL_PASSWORD", "clave-que-no-debe-aparecer")
+    monkeypatch.setattr(sys, "argv", ["measure_generation_load.py", "--api", "http://servidor.test"])
+
+    with pytest.raises(SystemExit) as stopped:
+        load.main()
+
+    assert stopped.value.code == 1
+    err = capsys.readouterr().err
+    assert "no se pudo preparar la medición" in err and "ConnectError" in err and "ningún pedido" in err
+    assert "clave-que-no-debe-aparecer" not in err
+    assert not (tmp_path / "results").exists()  # no hay informe

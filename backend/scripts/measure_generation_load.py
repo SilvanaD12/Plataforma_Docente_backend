@@ -13,10 +13,18 @@ Qué hace:
    Retry-After y reenvía con la misma clave). Consulta cada pedido hasta un estado final.
 4. Imprime el resumen y guarda los datos en evaluation/results/load-<proveedor>-<fecha>.json (carpeta ignorada por git).
 
-Fallos de red: un envío de la comprobación de concurrencia que falla queda registrado (tipo y mensaje corto) y la
-comprobación sale «INCONCLUSO». Un pedido aceptado cuyo estado no se pudo leer, o que no terminó antes de --timeout,
-queda en el informe con su último estado conocido (o «unknown») y el error; los percentiles usan solo los pedidos
-terminados y, si terminaron menos de 5, la corrida queda marcada como incompleta (`complete: false`).
+Fallos de red:
+- Antes de crear pedidos (inicio de sesión, curso, unidad, material, GET /generator y la espera de pedidos activos de
+  corridas anteriores), un fallo detiene el script con un mensaje claro: todavía no hay nada que informar.
+- Desde la comprobación de concurrencia, ningún fallo de red detiene el script y el informe siempre se escribe:
+  - Un envío de la comprobación de concurrencia que falla queda registrado (tipo y mensaje corto) y la comprobación
+    sale «INCONCLUSO».
+  - Un envío medido que falla por red se reintenta hasta 2 veces con la misma clave; si sigue fallando se registra en
+    `failedSends` y se sigue con el siguiente.
+  - Un pedido aceptado cuyo estado no se pudo leer, o que no terminó antes de --timeout, queda en el informe con su
+    último estado conocido (o «unknown») y el error.
+- Los percentiles usan solo los pedidos terminados; si terminaron menos de 5 (contando los envíos fallidos), la
+  corrida queda marcada como incompleta (`complete: false` y la línea «Corrida incompleta» en el resumen).
 
 Llamadas al modelo: la API no las cuenta. El script da una estimación por paso con lo que sí informa la API
 (`generator.usesAi`, `generator.fallback` y los rechazos `repetition`); ver `step_model_calls`.
@@ -60,6 +68,8 @@ SEQUENCE_TYPES: tuple[str, ...] = (
 QUANTITY = 5
 SEQUENCES = 5
 CONCURRENT_STARTS = 3
+# Reintentos de un envío medido que falla por red, con la misma clave (el servidor no duplica el pedido).
+MAX_SEND_RETRIES = 2
 
 
 # --------------------------------------------------------------------------- cálculos (sin red)
@@ -247,8 +257,9 @@ def format_summary(summary: dict[str, Any], provider: str) -> str:
     width = max(len(label) for label, _ in rows)
     text = "\n".join(f"{label.ljust(width)}  {value}" for label, value in rows)
     if not summary["complete"]:
+        missing = summary["unfinishedRequests"] + [f"{key} (no enviado)" for key in summary.get("failedSends", [])]
         text += (f"\nCorrida incompleta: {summary['finishedRequests']} de {summary['expectedRequests']} pedidos "
-                 f"terminaron (sin terminar: {', '.join(summary['unfinishedRequests']) or '—'})")
+                 f"terminaron (sin terminar: {', '.join(missing) or '—'})")
     return text
 
 
@@ -284,13 +295,14 @@ def wait_final(
         for request_id in sorted(pending):
             try:
                 response = client.get(f"{REQUESTS_PATH}/{request_id}", headers=headers)
-            except httpx.HTTPError as error:
+                body = response.json() if response.status_code == 200 else None
+            except (httpx.HTTPError, ValueError) as error:  # sin respuesta, o un 200 que no es JSON (p. ej. un proxy)
                 errors[request_id] = network_error(error)
                 continue
             if response.status_code != 200:
                 errors[request_id] = {"type": "HTTP", "message": f"HTTP {response.status_code}"}
                 continue
-            last[request_id] = response.json()
+            last[request_id] = body
             errors.pop(request_id, None)
             if last[request_id].get("status") in FINAL_STATUSES:
                 pending.discard(request_id)
@@ -360,15 +372,33 @@ def concurrency_check(api: str, headers: dict, unit_id: str, run_id: str) -> dic
 
 def submit_measured(
     client: httpx.Client, headers: dict, unit_id: str, run_id: str, poll: float, deadline: float
-) -> tuple[dict[str, str], list[dict]]:
-    """Envía las secuencias medidas respetando el límite de 2 activos. Devuelve (id → clave, rechazos
-    definitivos)."""
+) -> tuple[dict[str, str], list[dict], list[dict]]:
+    """Envía las secuencias medidas respetando el límite de 2 activos. Devuelve (id → clave, rechazos definitivos del
+    servidor, envíos fallidos).
+
+    Un envío que falla por red se reintenta hasta `MAX_SEND_RETRIES` veces con la misma clave; si sigue fallando, o si
+    se agota --timeout antes de que el servidor lo acepte, se registra como fallido y se sigue con el siguiente."""
     submitted: dict[str, str] = {}
     refused: list[dict] = []
+    failed: list[dict] = []
     for number in range(SEQUENCES):
         key = f"load-{run_id}-sequence-{number}"
-        while time.monotonic() < deadline:
-            response = post_request(client, headers, key, sequence_body(unit_id))
+        network_failures = 0
+        outcome: dict | None = None  # error del envío si no se aceptó ni se rechazó
+        while True:
+            if time.monotonic() >= deadline:
+                outcome = outcome or {"type": "Timeout", "message": "se agotó --timeout antes de enviarlo"}
+                break
+            try:
+                response = post_request(client, headers, key, sequence_body(unit_id))
+            except httpx.HTTPError as error:
+                network_failures += 1
+                outcome = network_error(error)
+                if network_failures > MAX_SEND_RETRIES:
+                    break
+                time.sleep(min(poll, max(0.0, deadline - time.monotonic())))
+                continue
+            outcome = None
             if response.status_code in (200, 202):
                 submitted[response.json()["id"]] = key
                 print(f"  secuencia {number + 1}/{SEQUENCES} aceptada ({response.status_code})")
@@ -380,7 +410,10 @@ def submit_measured(
             refused.append({"key": key, "status": response.status_code, "body": response.text[:300]})
             print(f"  secuencia {number + 1}/{SEQUENCES} rechazada ({response.status_code})")
             break
-    return submitted, refused
+        if outcome is not None:
+            failed.append({"index": number, "key": key, "error": outcome})
+            print(f"  secuencia {number + 1}/{SEQUENCES} no enviada: {outcome['type']}")
+    return submitted, refused, failed
 
 
 def run_measurement(
@@ -395,12 +428,13 @@ def run_measurement(
     concurrency["requests"] = records_for(accepted, warmup, warmup_errors)
 
     print(f"Medición: {SEQUENCES} secuencias de {len(SEQUENCE_TYPES)} tipos x {QUANTITY}…")
-    submitted, refused = submit_measured(client, headers, unit_id, run_id, poll, deadline)
+    submitted, refused, failed_sends = submit_measured(client, headers, unit_id, run_id, poll, deadline)
     final, errors = wait_final(client, headers, submitted, poll, deadline)
 
     records = records_for(submitted, final, errors)
     summary = summarize(records, concurrency)
     summary["refused"] = len(refused)
+    summary["failedSends"] = [send["key"] for send in failed_sends]
     return {
         "complete": summary["complete"],
         "types": list(SEQUENCE_TYPES),
@@ -409,6 +443,7 @@ def run_measurement(
         "concurrency": concurrency,
         "requests": records,
         "refused": refused,
+        "failedSends": failed_sends,
         "summary": summary,
     }
 
@@ -440,13 +475,19 @@ def main() -> None:
     api = args.api.rstrip("/")
 
     with httpx.Client(base_url=api, timeout=60) as client:
-        headers = collect.login(client, email, password)  # el token solo vive en memoria
-        unit = collect.ensure_unit(client, headers)
-        collect.ensure_material(client, headers, unit, args.corpus)
-        generator = client.get("/api/v1/generator").json()
+        try:  # antes de crear pedidos: si falla la red no hay nada que informar y el script se detiene
+            headers = collect.login(client, email, password)  # el token solo vive en memoria
+            unit = collect.ensure_unit(client, headers)
+            collect.ensure_material(client, headers, unit, args.corpus)
+            generator = client.get("/api/v1/generator").json()
+            wait_no_active(client, headers, unit["id"], args.poll, deadline)
+        except (httpx.HTTPError, ValueError) as error:
+            collect.fail(
+                f"no se pudo preparar la medición contra {api} ({type(error).__name__}). Todavía no se creó ningún "
+                "pedido, así que no hay informe: revisa que el servidor esté en marcha y vuelve a intentarlo."
+            )
         provider = str(generator.get("provider") or "desconocido")
         print(f"Generador: {generator.get('description')} · unidad {unit['id']}")
-        wait_no_active(client, headers, unit["id"], args.poll, deadline)
 
         report = run_measurement(client, api, headers, unit["id"], args.run_id, args.poll, deadline)
 
