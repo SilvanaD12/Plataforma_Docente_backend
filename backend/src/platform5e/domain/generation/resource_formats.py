@@ -23,6 +23,25 @@ RESOURCE_CATALOG: dict[str, tuple[str, str]] = {
     entry.id: (entry.stage, entry.format) for entry in RESOURCE_TYPES
 }
 
+# HU-024 (research R11): una modalidad es un grupo de tipos, no un modo distinto de generar. Un tipo puede estar en
+# más de una. Kinestésico queda vacío hasta que T054 agregue `actividad_kinestesica`.
+MODALITIES: tuple[str, ...] = ("Textual", "Gamificado", "Multimedia", "Kinestésico")
+MODALITY_TYPES: dict[str, frozenset[str]] = {
+    "Textual": frozenset({
+        "pregunta_detonante", "sondeo_diagnostico", "guia_exploracion", "caso_indagacion", "exploracion_guiada",
+        "explicacion", "glosario", "ejercicio_aplicacion", "caso_aplicado", "item_opcion_multiple",
+    }),
+    "Gamificado": frozenset({
+        "reto_prediccion", "emparejamiento", "ordenar_pasos", "verdadero_falso", "completar_espacios",
+        "item_opcion_multiple",
+    }),
+    "Multimedia": frozenset({
+        "imagen_ilustrativa", "audio_detonante", "podcast_resumen", "diagrama_proceso", "mapa_conceptual",
+        "infografia",
+    }),
+    "Kinestésico": frozenset(),
+}
+
 BLANK = "____"
 MAX_ITEMS = 10
 MAX_SHORT = 160
@@ -46,6 +65,17 @@ MIN_ITEMS: dict[str, int] = {
 
 def resource_format(resource_type: str) -> str:
     return RESOURCE_CATALOG.get(resource_type, ("", TEXT))[1]
+
+
+def modalities_of(resource_type: str) -> list[str]:
+    """Modalidades que incluyen el tipo, en el orden de `MODALITIES`."""
+    return [modality for modality in MODALITIES if resource_type in MODALITY_TYPES[modality]]
+
+
+def types_outside_modality(modality: str, resource_types: list[str] | tuple[str, ...]) -> list[str]:
+    """Tipos pedidos que no pertenecen a la modalidad, sin repetir y en el orden recibido."""
+    allowed = MODALITY_TYPES.get(modality, frozenset())
+    return [resource_type for resource_type in dict.fromkeys(resource_types) if resource_type not in allowed]
 
 
 def resource_stage(resource_type: str) -> str:

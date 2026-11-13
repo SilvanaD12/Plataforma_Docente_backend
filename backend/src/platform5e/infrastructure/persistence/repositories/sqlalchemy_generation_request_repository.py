@@ -152,8 +152,15 @@ def _parameters_from_json(data: dict[str, Any]) -> GenerationParameters:
         instructions=data["instructions"],
         audience=data["audience"],
         competency=data["competency"],
-        modalities=tuple(data["modalities"]),
+        modality=_saved_modality(data),
     )
+
+
+def _saved_modality(data: dict[str, Any]) -> str | None:
+    """La modalidad guardada. Los pedidos de antes de HU-024 traen `modalities: ["Textual"]`, que era el valor por
+    defecto del servidor y no una elección del docente: se leen sin modalidad (research R11)."""
+    modality = data.get("modality")
+    return modality if isinstance(modality, str) and modality else None
 
 
 def _step_to_orm(request_id: str, step: GenerationStep) -> GenerationStepORM:

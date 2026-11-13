@@ -32,6 +32,7 @@ from platform5e.domain.generation.generation_request import (
     RegenerationTarget,
     RequestStatus,
 )
+from platform5e.domain.generation.resource_formats import MODALITIES
 
 WITHOUT_PARAMETERS_MESSAGE: str = (
     "Este recurso se creó antes de que se guardaran los datos de su pedido y no se puede regenerar. "
@@ -82,7 +83,7 @@ def parameters_from_saved(params: Mapping[str, Any] | None) -> GenerationParamet
     resource_type = params.get("resourceType")
     if not isinstance(resource_type, str) or not resource_type:
         raise GenerationError(GenerationErrorCode.REGENERATION_PARAMETERS_MISSING, WITHOUT_PARAMETERS_MESSAGE)
-    modalities = params.get("modalities")
+    modality = params.get("modality")
     outcome_id = params.get("outcomeId")
     return GenerationParameters(
         resource_types=(resource_type,),
@@ -95,11 +96,9 @@ def parameters_from_saved(params: Mapping[str, Any] | None) -> GenerationParamet
         instructions=_text(params.get("instructions"), DEFAULTS.instructions),
         audience=_text(params.get("audience"), DEFAULTS.audience),
         competency=_text(params.get("competency"), DEFAULTS.competency),
-        modalities=(
-            tuple(m for m in modalities if isinstance(m, str))
-            if isinstance(modalities, list) and any(isinstance(m, str) for m in modalities)
-            else DEFAULTS.modalities
-        ),
+        # HU-024: se conserva la modalidad guardada sin comprobar que el tipo pertenezca a ella. `modalities` de antes
+        # de HU-024 se ignora: era el valor por defecto del servidor, no una elección del docente.
+        modality=modality if modality in MODALITIES else None,
     )
 
 

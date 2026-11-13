@@ -112,7 +112,7 @@ def test_the_payload_hash_ignores_omitted_defaults_and_repeated_types():
         option_count=4,
         top_k=10,
         evidence_threshold=0.6,
-        modalities=("Textual",),
+        modality=None,
     )
     assert unit_hash(explicit) == unit_hash(GenerationParameters(resource_types=("glosario", "explicacion")))
     assert len(unit_hash(explicit)) == 64

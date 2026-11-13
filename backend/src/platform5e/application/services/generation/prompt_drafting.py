@@ -240,7 +240,7 @@ def build_generation_context(
             "indicaciones": request_data.get("instructions", ""),
             "publico": request_data.get("audience", ""),
             "competencia": request_data.get("competency", ""),
-            "modalidades": request_data.get("modalities", []),
+            "modalidades": [request_data["modality"]] if request_data.get("modality") else [],
             "umbralEvidencia": request_data.get("evidenceThreshold", DEFAULT_THRESHOLD),
         },
         "fragmentos": [

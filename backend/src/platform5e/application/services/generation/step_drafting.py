@@ -30,7 +30,7 @@ REQUEST_PARAMETERS: tuple[str, ...] = (
     "instructions",
     "audience",
     "competency",
-    "modalities",
+    "modality",
     "topK",
     "evidenceThreshold",
 )
@@ -79,8 +79,12 @@ def previous_sequence(accepted: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def saved_parameters(request_data: dict[str, Any]) -> dict[str, Any]:
-    """Parámetros congelados en el recurso; los usa la regeneración (GEN-R6)."""
-    return {param: request_data.get(param) for param in REQUEST_PARAMETERS}
+    """Parámetros congelados en el recurso; los usa la regeneración (GEN-R6). `modality` solo se guarda si el docente
+    eligió una (HU-024)."""
+    saved = {param: request_data.get(param) for param in REQUEST_PARAMETERS}
+    if not saved["modality"]:
+        del saved["modality"]
+    return saved
 
 
 def draft_resources(
