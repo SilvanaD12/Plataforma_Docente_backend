@@ -23,6 +23,9 @@ MAX_FILE_SIZE: int = 25 * 1024 * 1024
 ALLOWED_DOCUMENT_TYPES: set[str] = {
     "Separata o apuntes de clase",
     "Diapositivas de clase",
+    "Guía de laboratorio o práctica",
+    "Lectura académica o artículo",
+    "Otro material didáctico",
     "Guía de práctica",
     "Sílabo de la unidad",
     "Transcripción de clase",
