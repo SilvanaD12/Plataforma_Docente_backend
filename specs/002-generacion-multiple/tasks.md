@@ -270,14 +270,14 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
   - Pruebas unitarias: el 422 sin pedido creado, el pedido sin modalidad, el hash con y sin modalidad, y que reenviar la misma clave de un pedido aceptado lo devuelve sin volver a validar.
 - [x] T053 [BE] **Depende de T052.** Guardar `modality` en los `params` de cada recurso (`step_drafting.py`), solo si el docente la eligió, y conservarla al regenerar sin comprobarla (`start_regeneration.py`). Casos GEN-C7 y GEN-C10. PR del backend (enlace pendiente).
   - Prueba obligatoria: regenerar una imagen y un audio antiguos guardados con `modalities: ["Textual"]` sigue funcionando.
-- [ ] T054 [BE] Agregar el tipo `actividad_kinestesica` (etapa Explorar, formato `interactive`). Caso GEN-C11.
+- [x] T054 [BE] Agregar el tipo `actividad_kinestesica` (etapa Explorar, formato `interactive`). Caso GEN-C11. PR del backend (enlace pendiente).
   - Catálogo en `resource_catalog.py`; estructura en `resource_formats.py` (`guidedSteps` como en `exploracion_guiada`, `MIN_ITEMS = 3`, `materials`, `estimatedMinutes` de 5 a 90 y `space`).
   - `materials`, `estimatedMinutes` y `space` van dentro de `structure`, y `normalize_structure` debe conservarlos: la huella se calcula sobre la estructura normalizada.
   - Instrucción de estructura y conversión en `prompt_drafting.py`; enlace de los pasos con `link_step_sources` de `grounding.py`.
   - Redactor del generador por reglas en `rule_based_generator.py`, con al menos 3 pasos citados.
   - Pruebas: normalización, redactor por reglas, copia histórica de los fragmentos de los pasos y verificación vigente.
-- [ ] T055 [BE] **Depende de T052.** Agregar en `prompt_drafting.py` la línea de la modalidad cuando el pedido la trae. No cambia las reglas de citas ni de formato del tipo. Caso GEN-C10.
-- [ ] T056 [E2E] **Depende de T050 a T055.** Probar en `backend/tests/e2e/test_generation_requests_api.py`, con el generador por reglas. Casos GEN-C10 y GEN-C11.
+- [x] T055 [BE] **Depende de T052.** Agregar en `prompt_drafting.py` la línea de la modalidad cuando el pedido la trae. No cambia las reglas de citas ni de formato del tipo. Caso GEN-C10. PR del backend (enlace pendiente).
+- [x] T056 [E2E] **Depende de T050 a T055.** Probar en `backend/tests/e2e/test_generation_requests_api.py`, con el generador por reglas. Casos GEN-C10 y GEN-C11. PR del backend (enlace pendiente).
   - Un pedido por modalidad, con tipos compatibles.
   - Un tipo que no pertenece a la modalidad: `422 RESOURCE_TYPE_NOT_IN_MODALITY` y ningún pedido guardado.
   - Un pedido sin `modalities` funciona como hoy y devuelve `parameters.modalities = []`.

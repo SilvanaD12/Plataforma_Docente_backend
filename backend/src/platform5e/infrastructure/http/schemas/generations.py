@@ -23,6 +23,7 @@ ResourceType = Literal[
     "imagen_ilustrativa",
     "diagrama_proceso",
     "exploracion_guiada",
+    "actividad_kinestesica",
     "reto_prediccion",
     "mapa_conceptual",
     "infografia",

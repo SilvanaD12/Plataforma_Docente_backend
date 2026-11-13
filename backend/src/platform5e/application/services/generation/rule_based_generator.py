@@ -113,6 +113,7 @@ _BUILDERS_BY_TYPE: dict[str, str] = {
     "imagen_ilustrativa": "_illustration",
     "diagrama_proceso": "_process_diagram",
     "exploracion_guiada": "_guided_exploration",
+    "actividad_kinestesica": "_kinesthetic_activity",
     "mapa_conceptual": "_concept_map",
     "infografia": "_infographic",
     "emparejamiento": "_matching_activity",
@@ -696,6 +697,41 @@ class RuleBasedGenerator:
             "citas": [{"afirmacion": sentence, "fragmentos": [tag]} for tag, sentence in selected],
             "alternativas": [],
             "estructura": {"pasos_guiados": steps},
+        }
+
+    def _kinesthetic_activity(self, index, sentence_pairs, terms, context):
+        """HU-024: de 3 a 4 pasos para hacer con el cuerpo en el aula. Cada paso representa una idea del material y
+        cita su fragmento; los materiales, el tiempo y el espacio son los de una actividad corta en el aula."""
+        start = (index * 4) % max(1, len(sentence_pairs))
+        selected = sentence_pairs[start : start + 4]
+        if len(selected) < 3:
+            selected = sentence_pairs[:4]
+        if len(selected) < 3:
+            return None
+        steps = []
+        for n, (tag, sentence) in enumerate(selected, start=1):
+            term = _term_in(sentence, terms)
+            steps.append(
+                {
+                    "titulo": f"Estación {n}: {_capitalize_first(term)}" if term else f"Estación {n}",
+                    "consigna": "En grupos, representen con el cuerpo o con objetos del aula esta idea del material: "
+                    f"«{_shorten(sentence, 300)}»",
+                    "pregunta": f"¿Qué observaron al representar {term}?" if term else "¿Qué observaron?",
+                    "fragmentos": [tag],
+                }
+            )
+        return {
+            "titulo": f"Actividad kinestésica: {context['unidad']['titulo']}",
+            "contenido": "Formen grupos y recorran las estaciones en orden: representen cada idea, comenten lo que "
+            "observaron y vuelvan a su lugar al terminar.",
+            "citas": [{"afirmacion": sentence, "fragmentos": [tag]} for tag, sentence in selected],
+            "alternativas": [],
+            "estructura": {
+                "pasos_guiados": steps,
+                "materiales": ["Tarjetas con las ideas del material", "Plumones", "Cinta adhesiva"],
+                "minutos_estimados": 10 + 5 * len(steps),
+                "espacio": "Aula con espacio libre para moverse (mesas a un lado)",
+            },
         }
 
     def _prediction_challenge(self, index, sentence_pairs, terms, context):

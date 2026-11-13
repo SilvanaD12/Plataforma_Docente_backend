@@ -81,6 +81,9 @@ _STRUCTURE_SCHEMA: dict[str, Any] = {
                 },
             },
         },
+        "materiales": _TAGS_ARRAY_TYPE,
+        "minutos_estimados": {"type": "INTEGER"},
+        "espacio": _STRING_TYPE,
         "situacion": _STRING_TYPE,
         "consigna": _STRING_TYPE,
         "criterios": {

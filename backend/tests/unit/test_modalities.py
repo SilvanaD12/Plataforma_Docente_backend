@@ -39,10 +39,6 @@ from platform5e.infrastructure.http.schemas.generation_requests import (
 from tests.unit.test_generation_request_use_cases import KEY, command, error_code, parts  # noqa: F401 (fixture)
 from tests.unit.test_start_regeneration import Setup
 
-# Tipo que agregará T054. Hasta entonces Kinestésico no tiene tipos.
-FUTURE_KINESTHETIC_TYPE = "actividad_kinestesica"
-
-
 # T051 · Catálogo
 
 
@@ -59,13 +55,13 @@ def test_the_four_modalities_group_the_types_of_the_data_model():
     assert MODALITY_TYPES["Multimedia"] == {
         "imagen_ilustrativa", "audio_detonante", "podcast_resumen", "diagrama_proceso", "mapa_conceptual", "infografia",
     }
-    assert MODALITY_TYPES["Kinestésico"] == frozenset()  # T054 agrega actividad_kinestesica
+    assert MODALITY_TYPES["Kinestésico"] == {"actividad_kinestesica"}  # T054
 
 
 def test_every_catalog_type_belongs_to_at_least_one_modality():
     catalog = {entry.id for entry in RESOURCE_TYPES}
     grouped = set().union(*MODALITY_TYPES.values())
-    assert grouped <= catalog | {FUTURE_KINESTHETIC_TYPE}
+    assert grouped == catalog
     assert [type_id for type_id in catalog if not modalities_of(type_id)] == []
     assert modalities_of("item_opcion_multiple") == ["Textual", "Gamificado"]
     assert modalities_of("exploracion_guiada") == modalities_of("caso_aplicado") == ["Textual"]
@@ -152,11 +148,13 @@ def test_the_rejection_names_the_types_that_do_not_belong(parts):
 
 
 @pytest.mark.parametrize("resource_type", ["exploracion_guiada", "imagen_ilustrativa", "ordenar_pasos"])
-def test_kinesthetic_has_no_types_until_t054(parts, resource_type):
+def test_kinesthetic_only_accepts_the_kinesthetic_activity(parts, resource_type):
     start, repository = parts[0], parts[1]
     code = error_code(lambda: start.execute(command(resource_type, modality="Kinestésico")))
     assert code == GenerationErrorCode.RESOURCE_TYPE_NOT_IN_MODALITY
     assert repository.find_by_key("docente-a", KEY) is None
+    created = start.execute(command("actividad_kinestesica", modality="Kinestésico", key="clave-kinestesica-2"))
+    assert created.created and created.request.parameters.modality == "Kinestésico"
 
 
 def test_a_compatible_request_saves_its_modality(parts):
