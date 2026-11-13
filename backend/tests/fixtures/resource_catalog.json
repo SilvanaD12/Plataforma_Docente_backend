@@ -144,6 +144,22 @@
     ]
   },
   {
+    "id": "actividad_kinestesica",
+    "name": "Actividad kinestésica",
+    "singular": "Actividad kinestésica",
+    "count": [
+      "actividad kinestésica",
+      "actividades kinestésicas"
+    ],
+    "stage": "explore",
+    "group": "Para explorar",
+    "format": "interactive",
+    "hasOptions": false,
+    "modalities": [
+      "Kinestésico"
+    ]
+  },
+  {
     "id": "explicacion",
     "name": "Explicación del tema",
     "singular": "Explicación del tema",

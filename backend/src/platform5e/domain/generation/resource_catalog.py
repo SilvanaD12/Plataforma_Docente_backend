@@ -26,6 +26,7 @@ RESOURCE_TYPES: tuple[ResourceTypeDefinition, ...] = (
     ResourceTypeDefinition('imagen_ilustrativa', 'Imagen ilustrativa', 'Imagen ilustrativa', ('imagen', 'imágenes'), 'explore', 'Para explorar', 'image'),
     ResourceTypeDefinition('diagrama_proceso', 'Diagrama de proceso', 'Diagrama de proceso', ('diagrama', 'diagramas'), 'explore', 'Para explorar', 'visual'),
     ResourceTypeDefinition('exploracion_guiada', 'Exploración guiada', 'Exploración guiada', ('exploración guiada', 'exploraciones guiadas'), 'explore', 'Para explorar', 'interactive'),
+    ResourceTypeDefinition('actividad_kinestesica', 'Actividad kinestésica', 'Actividad kinestésica', ('actividad kinestésica', 'actividades kinestésicas'), 'explore', 'Para explorar', 'interactive'),
     ResourceTypeDefinition('explicacion', 'Explicación del tema', 'Explicación del tema', ('explicación', 'explicaciones'), 'explain', 'Para explicar', 'text'),
     ResourceTypeDefinition('glosario', 'Glosario', 'Glosario', ('glosario', 'glosarios'), 'explain', 'Para explicar', 'text'),
     ResourceTypeDefinition('mapa_conceptual', 'Mapa conceptual', 'Mapa conceptual', ('mapa conceptual', 'mapas conceptuales'), 'explain', 'Para explicar', 'visual'),
