@@ -3496,10 +3496,18 @@
           },
           "modalities": {
             "items": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "Textual",
+                "Gamificado",
+                "Multimedia",
+                "Kinestésico"
+              ]
             },
             "type": "array",
-            "title": "Modalities"
+            "maxItems": 1,
+            "title": "Modalities",
+            "description": "The modality chosen by the teacher, as a list of 0 or 1 items (HU-024), with the same shape as the request body. Empty when the request did not send one. Requests saved before HU-024 return an empty list."
           }
         },
         "additionalProperties": true,
@@ -5242,6 +5250,21 @@
           "hasOptions": {
             "type": "boolean",
             "title": "Hasoptions"
+          },
+          "modalities": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "Textual",
+                "Gamificado",
+                "Multimedia",
+                "Kinestésico"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Modalities",
+            "description": "Modalities that include this type (HU-024). Every catalog type belongs to at least one."
           }
         },
         "additionalProperties": true,
@@ -5254,7 +5277,8 @@
           "stage",
           "group",
           "format",
-          "hasOptions"
+          "hasOptions",
+          "modalities"
         ],
         "title": "ResourceTypeResponse"
       },
@@ -5651,15 +5675,17 @@
           "modalities": {
             "items": {
               "type": "string",
-              "const": "Textual"
+              "enum": [
+                "Textual",
+                "Gamificado",
+                "Multimedia",
+                "Kinestésico"
+              ]
             },
             "type": "array",
             "maxItems": 1,
             "title": "Modalities",
-            "description": "Only text in this delivery.",
-            "default": [
-              "Textual"
-            ]
+            "description": "Optional. One modality per request (HU-024). When sent, every type in `resourceTypes` must belong to it (422 RESOURCE_TYPE_NOT_IN_MODALITY, nothing is created). When omitted, types are not filtered and the request is saved without a modality. There is no server default."
           }
         },
         "additionalProperties": false,

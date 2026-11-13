@@ -219,14 +219,21 @@ def _saved_generation_requests(database_url: str, teacher_id: str) -> tuple[int,
     return requests, steps
 
 
-@pytest.mark.parametrize("modalities", [["Multimedia"], ["Textual", "Gamificado"]])
-def test_text_only_rejects_other_modalities(server: str, modalities: list[str]):
+@pytest.mark.parametrize(
+    ("modalities", "code"),
+    [
+        (["Visual"], "INVALID_PARAMETERS"),  # valor desconocido
+        (["Textual", "Gamificado"], "INVALID_PARAMETERS"),  # una sola modalidad por pedido
+        (["Multimedia"], "RESOURCE_TYPE_NOT_IN_MODALITY"),  # la guía de exploración es Textual (HU-024)
+    ],
+)
+def test_invalid_modalities_are_rejected(server: str, modalities: list[str], code: str):
     # La ruta nueva exige sesión (la retirada aceptaba pedidos anónimos): se valida con la sesión del docente.
     with httpx.Client(base_url=server) as api:
         params = {**GENERATION_PARAMS, "modalities": modalities}
         response = start_generation(api, login(api), "u2", "guia_exploracion", **params)
     assert response.status_code == 422
-    assert response.json()["error"]["code"] == "INVALID_PARAMETERS"
+    assert response.json()["error"]["code"] == code
 
 
 def test_file_over_the_limit_is_not_saved(server: str):

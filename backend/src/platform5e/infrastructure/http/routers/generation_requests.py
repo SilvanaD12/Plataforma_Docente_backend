@@ -52,6 +52,7 @@ ERROR_STATUS: dict[str, int] = {
     GenerationErrorCode.GENERATION_REQUEST_NOT_FOUND: 404,
     GenerationErrorCode.IDEMPOTENCY_KEY_REUSED: 409,
     GenerationErrorCode.INVALID_PARAMETERS: 422,
+    GenerationErrorCode.RESOURCE_TYPE_NOT_IN_MODALITY: 422,
     GenerationErrorCode.TOO_MANY_ACTIVE_REQUESTS: 429,
     GenerationErrorCode.EVIDENCE_UNAVAILABLE: 503,
     # Regeneración: hoy solo llegan por la ruta de Revisión, que decide su propio estado; aquí quedan coherentes.
@@ -113,6 +114,9 @@ def _step_payload(step: DomainStep, view: GenerationRequestView | None) -> dict[
 def status_payload(request: GenerationRequest, view: GenerationRequestView | None = None) -> dict[str, Any]:
     """El pedido en la forma de `GenerationRequestStatus` (camelCase)."""
     parameters = request.parameters.to_payload()
+    # La respuesta conserva la forma del cuerpo (research R11): una lista de 0 o 1 modalidad.
+    modality = parameters.pop("modality")
+    parameters["modalities"] = [modality] if modality else []
     return {
         **summary_payload(request),
         "parameters": parameters,

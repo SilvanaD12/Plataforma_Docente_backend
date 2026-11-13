@@ -23,6 +23,7 @@ RequestStatus = Literal["queued", "running", "succeeded", "partially_succeeded",
 StepStatus = Literal["pending", "running", "succeeded", "rejected", "failed", "interrupted"]
 RejectionKind = Literal["grounding", "repetition", "structure", "distractor"]
 VerificationStatus = Literal["current", "insufficient", "pending"]
+Modality = Literal["Textual", "Gamificado", "Multimedia", "Kinestésico"]
 
 
 class StartGenerationRequest(ApiRequest):
@@ -52,9 +53,14 @@ class StartGenerationRequest(ApiRequest):
     instructions: str = Field(default="", max_length=500, description="Free text from the teacher.")
     audience: str = Field(default="", max_length=200, examples=["Tercer ciclo"])
     competency: str = Field(default="", max_length=200)
-    # Pydantic copia el valor por defecto en cada instancia; así OpenAPI muestra el default del contrato.
-    modalities: list[Literal["Textual"]] = Field(
-        default=["Textual"], max_length=1, description="Only text in this delivery."
+    modalities: list[Modality] = Field(
+        default_factory=list,
+        max_length=1,
+        description=(
+            "Optional. One modality per request (HU-024). When sent, every type in `resourceTypes` must belong to it "
+            "(422 RESOURCE_TYPE_NOT_IN_MODALITY, nothing is created). When omitted, types are not filtered and the "
+            "request is saved without a modality. There is no server default."
+        ),
     )
 
     def to_parameters(self) -> GenerationParameters:
@@ -70,7 +76,7 @@ class StartGenerationRequest(ApiRequest):
             instructions=self.instructions,
             audience=self.audience,
             competency=self.competency,
-            modalities=tuple(self.modalities),
+            modality=self.modalities[0] if self.modalities else None,
         )
 
 
@@ -92,7 +98,13 @@ class GenerationParametersView(ApiResponse):
     instructions: str
     audience: str
     competency: str
-    modalities: list[str]
+    modalities: list[Modality] = Field(
+        max_length=1,
+        description=(
+            "The modality chosen by the teacher, as a list of 0 or 1 items (HU-024), with the same shape as the "
+            "request body. Empty when the request did not send one. Requests saved before HU-024 return an empty list."
+        ),
+    )
 
 
 class GenerationRequestSummary(ApiResponse):

@@ -257,18 +257,18 @@ Dependencias externas que bloquean tareas:
 
 Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con Silvana (CC-01, frontend) y Juan (REV-01). Las tareas de GEN-01 son de Yan; las de coordinación indican su responsable.
 
-- [ ] T050 [BE] Ampliar el contrato en `backend/src/platform5e/infrastructure/http/schemas/generation_requests.py`. Caso GEN-C10.
+- [x] T050 [BE] Ampliar el contrato en `backend/src/platform5e/infrastructure/http/schemas/generation_requests.py`. Caso GEN-C10. PR del backend (enlace pendiente).
   - `modalities`: lista opcional de `Textual`, `Gamificado`, `Multimedia` o `Kinestésico`, con como máximo un elemento y sin valor por defecto en el servidor.
   - La vista de parámetros sigue devolviendo `modalities`, con la misma forma que el cuerpo: `[modalidad]`, o `[]` si el pedido no la envió. Así no cambia para los clientes actuales. El dominio y los parámetros guardados usan `modality` (`str | None`).
   - Código nuevo `RESOURCE_TYPE_NOT_IN_MODALITY` en `domain/generation/errors.py`, con estado 422 en `ERROR_STATUS` de `routers/generation_requests.py`.
-- [ ] T051 [BE] Agregar `MODALITY_TYPES` en `backend/src/platform5e/domain/generation/resource_formats.py` y la lista `modalities` de cada tipo en `GET /api/v1/resource-types` (`use_cases/catalog/list_resource_types.py` y `schemas/catalog.py`). Caso GEN-C10.
+- [x] T051 [BE] Agregar `MODALITY_TYPES` en `backend/src/platform5e/domain/generation/resource_formats.py` y la lista `modalities` de cada tipo en `GET /api/v1/resource-types` (`use_cases/catalog/list_resource_types.py` y `schemas/catalog.py`). Caso GEN-C10. PR del backend (enlace pendiente).
   - Prueba: los tipos de cada modalidad, `item_opcion_multiple` en Textual y Gamificado, `exploracion_guiada` y `caso_aplicado` en Textual, y que todo tipo de `RESOURCE_TYPES` pertenece al menos a una modalidad.
-- [ ] T052 [BE] **Depende de T050 y T051.** Validar la modalidad en `StartGenerationRequest`, junto con el plan de pasos y después de buscar la clave. Caso GEN-C10.
+- [x] T052 [BE] **Depende de T050 y T051.** Validar la modalidad en `StartGenerationRequest`, junto con el plan de pasos y después de buscar la clave. Caso GEN-C10. PR del backend (enlace pendiente).
   - `GenerationParameters.modality` (`str | None`), en `to_payload()` y en `payload_hash`.
   - Con modalidad, un tipo que no pertenece a ella responde `422 RESOURCE_TYPE_NOT_IN_MODALITY` y no crea el pedido. Sin modalidad, no se filtran los tipos y el pedido se guarda con `modality = null`.
   - El repositorio lee los parámetros guardados antes de HU-024 (`modalities: ["Textual"]`) como `modality = null`.
   - Pruebas unitarias: el 422 sin pedido creado, el pedido sin modalidad, el hash con y sin modalidad, y que reenviar la misma clave de un pedido aceptado lo devuelve sin volver a validar.
-- [ ] T053 [BE] **Depende de T052.** Guardar `modality` en los `params` de cada recurso (`step_drafting.py`), solo si el docente la eligió, y conservarla al regenerar sin comprobarla (`start_regeneration.py`). Casos GEN-C7 y GEN-C10.
+- [x] T053 [BE] **Depende de T052.** Guardar `modality` en los `params` de cada recurso (`step_drafting.py`), solo si el docente la eligió, y conservarla al regenerar sin comprobarla (`start_regeneration.py`). Casos GEN-C7 y GEN-C10. PR del backend (enlace pendiente).
   - Prueba obligatoria: regenerar una imagen y un audio antiguos guardados con `modalities: ["Textual"]` sigue funcionando.
 - [ ] T054 [BE] Agregar el tipo `actividad_kinestesica` (etapa Explorar, formato `interactive`). Caso GEN-C11.
   - Catálogo en `resource_catalog.py`; estructura en `resource_formats.py` (`guidedSteps` como en `exploracion_guiada`, `MIN_ITEMS = 3`, `materials`, `estimatedMinutes` de 5 a 90 y `space`).
@@ -282,7 +282,7 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
   - Un tipo que no pertenece a la modalidad: `422 RESOURCE_TYPE_NOT_IN_MODALITY` y ningún pedido guardado.
   - Un pedido sin `modalities` funciona como hoy y devuelve `parameters.modalities = []`.
   - Actualizar `test_text_only_rejects_other_modalities` de `test_courses_and_documents_api.py`, que hoy espera 422 para Multimedia y Gamificado.
-- [ ] T057 [BE] **Depende de T050 y T051.** Exportar OpenAPI (`scripts/export_openapi.py`) y actualizar `docs/api/openapi.json`; la CI compara el contrato (T048).
+- [x] T057 [BE] **Depende de T050 y T051.** Exportar OpenAPI (`scripts/export_openapi.py`) y actualizar `docs/api/openapi.json`; la CI compara el contrato (T048). PR del backend (enlace pendiente).
 - [ ] T058 [FE] **Silvana.** Formulario de generación en `src/features/generation`. Caso GEN-C10.
   - Selector de modalidad, con «Textual» por defecto, que filtra el selector de tipos con `modalities` de `GET /resource-types` y envía `modalities: [modalidad]`.
   - Al cambiar de modalidad, el formulario conserva los tipos elegidos que siguen siendo compatibles y quita los demás. Si no queda ninguno, el docente debe elegir uno antes de generar: el botón de generar queda deshabilitado, con un mensaje. Por ejemplo, de Textual a Gamificado se conserva `item_opcion_multiple` y se quita `glosario`.

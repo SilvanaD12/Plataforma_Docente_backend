@@ -182,6 +182,69 @@ def test_a_unit_without_processed_material_is_rejected_without_creating_a_reques
         assert api.get("/api/v1/generation-requests", headers=headers, params={"unitId": unit_id}).json() == []
 
 
+# HU-024 (T056 parcial, sin actividad kinestésica): modalidad del pedido. Caso GEN-C10.
+MODALITY_SEQUENCES = {
+    "Textual": ["pregunta_detonante", "glosario"],
+    "Gamificado": ["ordenar_pasos", "item_opcion_multiple"],
+    "Multimedia": ["diagrama_proceso", "infografia"],
+}
+
+
+def test_the_catalog_reports_the_modalities_of_each_type(server: str):
+    with httpx.Client(base_url=server, timeout=30) as api:
+        catalog = {entry["id"]: entry["modalities"] for entry in api.get("/api/v1/resource-types").json()}
+    assert catalog["item_opcion_multiple"] == ["Textual", "Gamificado"]
+    assert catalog["exploracion_guiada"] == catalog["caso_aplicado"] == ["Textual"]
+    assert all(catalog.values())
+
+
+@pytest.mark.parametrize("modality", list(MODALITY_SEQUENCES))
+def test_one_request_per_modality_saves_it_in_the_request_and_its_resources(server: str, modality: str):
+    with httpx.Client(base_url=server, timeout=90) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        body = {"mode": "sequence", "unitId": unit["id"], "resourceTypes": MODALITY_SEQUENCES[modality],
+                "modalities": [modality]}
+        accepted = _start(api, headers, body)
+        assert accepted.status_code == 202, accepted.text
+        assert accepted.json()["parameters"]["modalities"] == [modality]
+
+        finished = _wait_until_final(api, headers, accepted.json()["id"])
+        assert finished["status"] == "succeeded", finished
+        delivered = {resource_id for step in finished["steps"] for resource_id in step["resourceIds"]}
+        resources = [r for r in _unit_resources(api, headers, unit["id"]) if r["id"] in delivered]
+        assert resources and all(r["params"]["modality"] == modality for r in resources)
+        assert all("modalities" not in r["params"] for r in resources)
+
+
+def test_a_type_outside_the_modality_is_rejected_without_saving_a_request(server: str):
+    with httpx.Client(base_url=server, timeout=30) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        for modality, types in [("Textual", ["glosario", "imagen_ilustrativa"]), ("Kinestésico", ["glosario"])]:
+            body = {"mode": "sequence", "unitId": unit["id"], "resourceTypes": types, "modalities": [modality]}
+            response = _start(api, headers, body)
+            assert response.status_code == 422, response.text
+            assert response.json()["error"]["code"] == "RESOURCE_TYPE_NOT_IN_MODALITY"
+        listed = api.get("/api/v1/generation-requests", headers=headers, params={"unitId": unit["id"]})
+        assert listed.status_code == 200 and listed.json() == []
+
+
+def test_a_request_without_modalities_is_not_filtered_and_returns_an_empty_list(server: str):
+    with httpx.Client(base_url=server, timeout=90) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        body = {"mode": "sequence", "unitId": unit["id"], "resourceTypes": ["pregunta_detonante", "diagrama_proceso"]}  # Textual y Multimedia
+        accepted = _start(api, headers, body)
+        assert accepted.status_code == 202, accepted.text
+
+        finished = _wait_until_final(api, headers, accepted.json()["id"])
+        assert finished["status"] == "succeeded" and finished["parameters"]["modalities"] == []
+        delivered = {resource_id for step in finished["steps"] for resource_id in step["resourceIds"]}
+        resources = [r for r in _unit_resources(api, headers, unit["id"]) if r["id"] in delivered]
+        assert resources and all("modality" not in r["params"] for r in resources)
+
+
 @pytest.fixture
 def single_worker_server(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> Iterator[str]:
     """Servidor con un solo hilo de generación: los pedidos siguientes esperan en cola y cuentan como activos."""

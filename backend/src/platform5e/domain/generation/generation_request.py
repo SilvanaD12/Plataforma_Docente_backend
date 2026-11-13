@@ -91,7 +91,8 @@ class GenerationParameters:
     instructions: str = ""
     audience: str = ""
     competency: str = ""
-    modalities: tuple[str, ...] = ("Textual",)
+    # HU-024: la modalidad elegida o None. Sin valor por defecto: omitirla y enviar «Textual» son pedidos distintos.
+    modality: str | None = None
 
     def to_payload(self) -> dict[str, Any]:
         """Forma JSON (camelCase) del pedido, con `resourceTypes` sin repetidos y en el orden recibido."""
@@ -106,7 +107,7 @@ class GenerationParameters:
             "instructions": self.instructions,
             "audience": self.audience,
             "competency": self.competency,
-            "modalities": list(self.modalities),
+            "modality": self.modality,
         }
 
 
