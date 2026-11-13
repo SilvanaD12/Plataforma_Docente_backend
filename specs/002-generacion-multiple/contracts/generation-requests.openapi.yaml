@@ -76,6 +76,21 @@ paths:
         '404': { $ref: '#/components/responses/UnitNotFound' }
         '422': { $ref: '#/components/responses/InvalidParameters' }
 
+  /resource-types:
+    get:
+      tags: [catalog]
+      operationId: listResourceTypes
+      summary: List supported resource types in teaching order
+      description: |
+        Public catalog (no session). HU-024: each type lists the modalities it belongs to, so the client filters the
+        type picker by the chosen modality. The default modality ("Textual") lives in the client selector, not here.
+      responses:
+        '200':
+          description: Resource types in 5E order.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/ResourceTypeInfo' } }
+
   /generation-requests/{request_id}:
     get:
       tags: [generations]
@@ -124,7 +139,30 @@ components:
       enum: [pregunta_detonante, sondeo_diagnostico, audio_detonante, reto_prediccion, guia_exploracion,
              caso_indagacion, imagen_ilustrativa, diagrama_proceso, exploracion_guiada, explicacion, glosario,
              mapa_conceptual, infografia, podcast_resumen, ejercicio_aplicacion, caso_aplicado, emparejamiento,
-             ordenar_pasos, item_opcion_multiple, verdadero_falso, completar_espacios]
+             ordenar_pasos, item_opcion_multiple, verdadero_falso, completar_espacios, actividad_kinestesica]
+    Modality:
+      type: string
+      description: |
+        HU-024. A modality is a group of resource types (`MODALITY_TYPES` in `domain/generation/resource_formats.py`).
+        A type can belong to more than one modality.
+      enum: [Textual, Gamificado, Multimedia, Kinestésico]
+    ResourceTypeInfo:
+      type: object
+      required: [id, name, singular, count, stage, group, format, hasOptions, modalities]
+      properties:
+        id: { $ref: '#/components/schemas/ResourceType' }
+        name: { type: string }
+        singular: { type: string }
+        count: { type: array, items: { type: string }, minItems: 2, maxItems: 2, description: Singular and plural nouns. }
+        stage: { $ref: '#/components/schemas/Stage' }
+        group: { type: string }
+        format: { type: string, enum: [text, visual, image, audio, interactive] }
+        hasOptions: { type: boolean }
+        modalities:
+          type: array
+          items: { $ref: '#/components/schemas/Modality' }
+          minItems: 1
+          description: Modalities that include this type. Every catalog type belongs to at least one.
     RequestStatus: { type: string, enum: [queued, running, succeeded, partially_succeeded, failed, interrupted] }
     StepStatus: { type: string, enum: [pending, running, succeeded, rejected, failed, interrupted] }
 
@@ -150,7 +188,14 @@ components:
         instructions: { type: string, maxLength: 500, default: '' }
         audience: { type: string, maxLength: 200, default: '' }
         competency: { type: string, maxLength: 200, default: '' }
-        modalities: { type: array, items: { type: string, enum: [Textual] }, maxItems: 1, default: [Textual] }
+        modalities:
+          type: array
+          items: { $ref: '#/components/schemas/Modality' }
+          maxItems: 1
+          description: |
+            Optional. One modality per request (HU-024). When sent, every type in `resourceTypes` must belong to it
+            (422 RESOURCE_TYPE_NOT_IN_MODALITY, nothing is created). When omitted, types are not filtered and the
+            request is saved without a modality. There is no server default.
 
     GenerationRequestSummary:
       type: object
@@ -234,7 +279,13 @@ components:
         instructions: { type: string }
         audience: { type: string }
         competency: { type: string }
-        modalities: { type: array, items: { type: string } }
+        modalities:
+          type: array
+          items: { $ref: '#/components/schemas/Modality' }
+          maxItems: 1
+          description: |
+            The modality chosen by the teacher, as a list of 0 or 1 items (HU-024), with the same shape as the request
+            body. Empty when the request did not send one. Requests saved before HU-024 return an empty list.
 
     RegenerationTargetView:
       type: object
@@ -331,7 +382,10 @@ components:
       description: '`IDEMPOTENCY_KEY_REUSED`: the key was already used by this teacher with a different body.'
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
     InvalidParameters:
-      description: '`INVALID_PARAMETERS`: type, range or unknown field. `details` lists each problem.'
+      description: |
+        `INVALID_PARAMETERS`: type, range or unknown field; `details` lists each problem.
+        `RESOURCE_TYPE_NOT_IN_MODALITY`: a requested type does not belong to the chosen modality (HU-024). The request
+        is not created.
       content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
     TooManyActive:
       description: '`TOO_MANY_ACTIVE_REQUESTS`: the teacher already has 2 requests in `queued` or `running`.'

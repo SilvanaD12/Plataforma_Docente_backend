@@ -134,6 +134,7 @@ Plataforma_Docente_frontend/src/features/generation/
 4. **Verificación y regeneración,** cuando se integre el PR 1 de REV-01: adaptador de `ResourceVerificationPort` y adaptador de `resource_regeneration_port.py` que reemplaza el adaptador síncrono provisional de Revisión.
 5. **Frontend** `src/features/generation`, desde `main` del frontend, que ya tiene la base de CC-01 y la ruta `/courses/:courseId/units/:unitId/generation`. Antes, acordar con CC-01 la ampliación de `httpClient.ts` ([R10](research.md#r10-frontend)).
 6. **Validación de carga** (V11) y retirada de `POST /generations` cuando migre `evaluation/collect_samples.py`.
+7. **Modalidades (HU-024):** primero el PR de especificación; después, GEN-01 con T050 a T057. Silvana (T058, frontend) y Juan (T059, Revisión y exportación) avanzan en paralelo con GEN-01, y al final T061 enlaza la evidencia ([research R11](research.md#r11-modalidades-hu-024)).
 
 ## Seguimiento de complejidad
 
