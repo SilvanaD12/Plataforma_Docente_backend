@@ -272,6 +272,7 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
   - Prueba obligatoria: regenerar una imagen y un audio antiguos guardados con `modalities: ["Textual"]` sigue funcionando.
 - [ ] T054 [BE] Agregar el tipo `actividad_kinestesica` (etapa Explorar, formato `interactive`). Caso GEN-C11.
   - Catálogo en `resource_catalog.py`; estructura en `resource_formats.py` (`guidedSteps` como en `exploracion_guiada`, `MIN_ITEMS = 3`, `materials`, `estimatedMinutes` de 5 a 90 y `space`).
+  - `materials`, `estimatedMinutes` y `space` van dentro de `structure`, y `normalize_structure` debe conservarlos: la huella se calcula sobre la estructura normalizada.
   - Instrucción de estructura y conversión en `prompt_drafting.py`; enlace de los pasos con `link_step_sources` de `grounding.py`.
   - Redactor del generador por reglas en `rule_based_generator.py`, con al menos 3 pasos citados.
   - Pruebas: normalización, redactor por reglas, copia histórica de los fragmentos de los pasos y verificación vigente.
@@ -289,13 +290,13 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
   - Mostrar el mensaje de `RESOURCE_TYPE_NOT_IN_MODALITY` si el servidor lo devuelve.
 - [ ] T059 [BE] **Juan (REV-01).** Soportar `actividad_kinestesica` en Revisión y exportación. Caso GEN-C11.
   - `domain/review/resource_verification.py`: enlazar sus `guidedSteps` como en `exploracion_guiada` (`LINKED_ITEMS`), con mínimo 3 pasos.
-  - `domain/review/content_fingerprint.py`: incluir `materials`, `estimatedMinutes` y `space`.
-  - `infrastructure/exporters/unit_document_exporter.py`: `RESOURCE_LABELS` con «Para explorar · Actividad kinestésica».
-  - `infrastructure/exporters/scorm_package_exporter.py`: `SOURCED_LISTS` con sus `guidedSteps` y la actividad en `ACTIVITY_JS`, con la casilla «Lo hicimos».
+  - `domain/review/content_fingerprint.py` (**depende de T054**): `materials`, `estimatedMinutes` y `space` entran en la huella porque están en `structure` y `normalize_structure` los conserva; no se agregan a `UNVERIFIED_STRUCTURE_FIELDS`. Prueba: editar cualquiera de los tres cambia la huella y devuelve el recurso a revisión.
+  - `infrastructure/exporters/unit_document_exporter.py`: `RESOURCE_LABELS` con «Para explorar · Actividad kinestésica», y mostrar los materiales, el tiempo estimado y el espacio antes de los pasos.
+  - `infrastructure/exporters/scorm_package_exporter.py`: `SOURCED_LISTS` con sus `guidedSteps` y la actividad en `ACTIVITY_JS`, con la casilla «Lo hicimos». También muestra los materiales, el tiempo estimado y el espacio antes de los pasos.
   - Agregar el tipo no cambia las reglas de los tipos existentes, así que no se espera subir `VERIFICATION_RULE_VERSION`. Juan lo confirma.
-- [ ] T060 [BE] **Juan (REV-01), decisión abierta.** Decidir si en SCORM un `item_opcion_multiple` con `modality` explícitamente «Textual» se muestra como cuestionario simple, sin puntos. En este sprint o en el sprint 2; no es un requisito de GEN-01.
+- T060 (movida al seguimiento del sprint 2)
 - [ ] T061 [E2E] **Depende de T056, T058 y T059.** Enlazar en la [tabla de evidencia](#evidencia-de-los-casos-y-criterios-t049) los casos GEN-C10 y GEN-C11 y el criterio de éxito de modalidades (un pedido por modalidad, rechazo de un tipo incompatible y exportación de una actividad kinestésica).
-- Seguimiento fuera de esta entrega (REV-01, sprint 2): exportar a Moodle XML verdadero o falso y relacionar, y verificar el guion de audio oración por oración (sube `VERIFICATION_RULE_VERSION`).
+- Seguimiento fuera de esta entrega (REV-01, sprint 2): exportar a Moodle XML verdadero o falso y relacionar; verificar el guion de audio oración por oración (sube `VERIFICATION_RULE_VERSION`); y mostrar en SCORM un `item_opcion_multiple` como cuestionario simple, sin puntos, solo cuando el docente eligió explícitamente la modalidad «Textual» (`modality = "Textual"`; sin modalidad, sigue en la evaluación por niveles). Esta última era T060.
 
 ## Evidencia de los casos y criterios (T049)
 
@@ -334,5 +335,5 @@ Despliegue en Render: «Informe GEN-01 2 (backend, Swagger)», Evidencias 12 y 1
   - **REV-01 PR 1:** T025 a T030.
   - **CC-01 httpClient:** T034, y en cadena T036 a T038, T042 y T043.
   - **MAT-01 retrieval_mode:** T031 a T033.
-- HU-024: T050 y T051 son independientes; T052 depende de los dos, y T053 y T055 de T052. T058 (Silvana) puede empezar con el contrato de T050 y T051. T059 (Juan) puede avanzar en paralelo con T054, sobre la estructura de [data-model](data-model.md#actividad_kinestesica).
+- HU-024: T050 y T051 son independientes; T052 depende de los dos, y T053 y T055 de T052. T058 (Silvana) puede empezar con el contrato de T050 y T051. T059 (Juan) puede avanzar en paralelo con T054, sobre la estructura de [data-model](data-model.md#actividad_kinestesica), salvo su parte de la huella, que depende de T054 (`normalize_structure` debe conservar `materials`, `estimatedMinutes` y `space`).
 - El backend no se integra a `main` sin T026, para que ningún recurso llegue a Revisión sin `verification` y los que no tengan copia histórica completa lleguen pendientes.

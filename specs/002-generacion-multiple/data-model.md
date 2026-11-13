@@ -149,16 +149,16 @@ Los ids referenciados se obtienen con `referenced_fragment_ids(resource)` de REV
 
 ### actividad_kinestesica
 
-Tipo nuevo de la etapa Explorar (HU-024, modalidad Kinestésico). Formato `interactive`. La estructura sigue la de `exploracion_guiada`:
+Tipo nuevo de la etapa Explorar (HU-024, modalidad Kinestésico). Formato `interactive`. La estructura sigue la de `exploracion_guiada`. Los cuatro campos van dentro de `structure`, no a nivel del recurso:
 
-| Campo | Tipo | Reglas |
+| Campo de `structure` | Tipo | Reglas |
 | --- | --- | --- |
 | `guidedSteps` | `list[{title, instruction, question, fragmentIds}]` | Mínimo 3 pasos (`MIN_ITEMS`). `question` puede ser la pregunta de cierre del paso, por ejemplo «¿Qué observaron?». Cada paso cita sus fragmentos; la verificación los enlaza como en `exploracion_guiada`. |
 | `materials` | `list[str]` | Materiales para la actividad. Puede estar vacía. |
 | `estimatedMinutes` | `int` | Tiempo estimado, de 5 a 90 minutos. |
 | `space` | `str` | Texto corto: dónde se hace la actividad (aula, patio…). |
 
-Solo los pasos se verifican contra el material. `materials`, `estimatedMinutes` y `space` no se contrastan con la evidencia, pero forman parte de la huella (`content_fingerprint`). La casilla «Lo hicimos» es del paquete SCORM, no del contenido. Los fragmentos de `guidedSteps[].fragmentIds` ya entran en la copia histórica.
+Solo los pasos se verifican contra el material. `materials`, `estimatedMinutes` y `space` no se contrastan con la evidencia, pero forman parte de la huella (`content_fingerprint`). La huella solo cubre el tipo, el cuerpo, las citas, las alternativas y la estructura, y se calcula sobre la estructura normalizada: por eso los tres campos van en `structure` y `normalize_structure` debe conservarlos. Si quedaran fuera, editarlos no devolvería el recurso a revisión. La casilla «Lo hicimos» es del paquete SCORM, no del contenido. Los fragmentos de `guidedSteps[].fragmentIds` ya entran en la copia histórica.
 
 ### VerificationResult
 
