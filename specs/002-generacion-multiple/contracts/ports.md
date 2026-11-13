@@ -106,6 +106,7 @@ get_regeneration(teacher_id: str, request_id: str) -> RegenerationStatus
   - Si una consulta falla de forma inesperada cuando el pedido ya existe, devuelve `pending` o `running` con el id del pedido, en vez de propagar el error.
   - Revisión, por su parte, vuelve a comprobar al ver `succeeded` que los recursos nuevos existen. Si no queda ninguno, lo trata como `failed` con el mismo código, sin descartar el anterior y liberando la reserva.
   - Un rechazo al iniciar se devuelve como `failed` con su código. Los de `StartRegeneration` son `REGENERATION_PARAMETERS_MISSING` (422: sin `params` o sin `resourceType`), `REGENERATION_TARGET_INVALID` (422: id o versión del recurso no válidos) y `REGENERATION_ATTEMPTS_EXHAUSTED` (409: se agotaron los intentos de la versión). Revisión asigna el estado HTTP de su ruta; esos son los previstos. `REGENERATION_UNAVAILABLE` ya no lo usa Generación: queda solo para el 503 propio de Revisión.
+- `params` son los parámetros guardados del recurso. Si traen `modality` (HU-024), el pedido nuevo la conserva, pero la regeneración no comprueba que el tipo pertenezca a ella. Los recursos anteriores guardan `modalities: ["Textual"]`, que se lee como «sin modalidad» ([research R11](../research.md#r11-modalidades-hu-024)).
 - Generación no modifica ni descarta el recurso anterior; eso lo hace Revisión con su guardado condicional por versión.
 
 ## Propios de Generación

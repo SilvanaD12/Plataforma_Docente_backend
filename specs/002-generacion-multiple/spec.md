@@ -1,6 +1,6 @@
 # Generación individual y secuencia 5E
 
-**Ficha** GEN-01 · HU-003
+**Ficha** GEN-01 · HU-003 · HU-024
 
 **Responsable** Yan
 
@@ -11,6 +11,8 @@
 ## Objetivo y alcance
 
 Permitir que un docente pida recursos para una unidad en modo individual o como secuencia 5E. Ambos modos usan el mismo pedido en segundo plano, con clave estable del cliente, estado consultable y recuperación tras una interrupción. Cada secuencia usa una cantidad común por tipo. El módulo incluye el catálogo de tipos, los agentes por etapa y la verificación de evidencia al crear cada recurso. El lote independiente y las cantidades distintas por tipo quedan para una entrega posterior.
+
+HU-024 agrega la modalidad del pedido: Textual, Gamificado, Multimedia o Kinestésico. Una modalidad es un grupo de tipos de recurso, no un modo distinto de generar. El Project Charter dejaba el audio fuera del alcance; HU-024 y HU-056 incorporan la imagen y el audio.
 
 ## Historia de pedido y recuperación
 
@@ -35,6 +37,15 @@ Como docente, quiero recibir en revisión recursos con su evidencia verificada p
 | GEN-C8 | Un borrador no alcanza el umbral de evidencia, o a un recurso le falta un fragmento referenciado | El borrador bajo el umbral se rechaza con su motivo y no llega a revisión. Si falta un fragmento referenciado o la verificación no puede completarse, el recurso llega a revisión como pendiente y no puede aprobarse ni exportarse, también si lo redactó el generador por reglas. |
 | GEN-C9 | La búsqueda híbrida no está disponible | Material responde con `retrieval_mode` igual a `bm25_fallback`. El resultado distingue ese respaldo de búsqueda del respaldo de redacción por reglas. |
 
+## Historia de modalidad
+
+Como docente, quiero elegir la modalidad antes de generar para recibir solo los tipos de recurso que corresponden a la clase que preparo (HU-024).
+
+| Caso | Dado y cuando | Entonces |
+| --- | --- | --- |
+| GEN-C10 | Elijo una modalidad y pido recursos | Solo se ofrecen los tipos de esa modalidad. Si el pedido incluye un tipo que no pertenece a ella, se rechaza con `RESOURCE_TYPE_NOT_IN_MODALITY` antes de crearse. El pedido y sus recursos guardan la modalidad elegida. |
+| GEN-C11 | Pido una actividad kinestésica | El recurso trae al menos 3 pasos con instrucción y pregunta, cada uno con su cita al material, y además materiales, tiempo estimado y espacio. Solo los pasos se verifican contra el material. Si la IA falla, la redacta el generador por reglas. |
+
 ## Requisitos funcionales
 
 - **GEN-R1.** Ofrecer modos explícitos de generación individual y secuencia 5E. Ambos usan el mismo mecanismo de pedido en segundo plano.
@@ -45,14 +56,17 @@ Como docente, quiero recibir en revisión recursos con su evidencia verificada p
 - **GEN-R6.** Regenerar un recurso a pedido de Revisión con su identificador y versión. Ejecutar un pedido individual con los parámetros guardados y la evidencia actual del material, no con la copia histórica. El recurso anterior pasa a Descartados solo si la regeneración termina bien y sigue en la misma versión (REV-C14).
 - **GEN-R7.** Guardar en cada recurso la huella de contenido, calculada con la función compartida `domain/review/content_fingerprint.py`, y el resultado de verificación: estado, `evidenceThreshold` del pedido, `VERIFICATION_RULE_VERSION` y resumen. Sin ediciones, ese resultado no se recalcula.
 - **GEN-R8.** Guardar la copia histórica de todos los fragmentos referenciados por citas, alternativas y elementos de estructura (pasos, predicciones y criterios): id, texto, ubicación, `documentId`, `documentName`, `sourceUrl`, licencia y fecha de recuperación. Si falta alguno, el recurso queda pendiente.
+- **GEN-R9.** Ofrecer cuatro modalidades: Textual, Gamificado, Multimedia y Kinestésico. Cada una es un grupo de tipos de recurso; todo tipo pertenece al menos a una, y puede estar en más de una. El catálogo de tipos informa las modalidades de cada tipo. Un pedido admite una sola modalidad. Si la envía, todos sus tipos deben pertenecer a ella; si no la envía, no se filtran los tipos y el pedido se guarda sin modalidad. La modalidad elegida se guarda en el pedido y en los parámetros de cada recurso. La regeneración no comprueba la modalidad.
+- **GEN-R10.** Agregar el tipo actividad kinestésica a la etapa Explorar: pasos guiados con la misma forma que la exploración guiada (mínimo 3, cada uno con sus fragmentos), más materiales, tiempo estimado y espacio. Solo los pasos se verifican contra el material; materiales, tiempo y espacio forman parte de la huella. Tiene un redactor del generador por reglas.
 
 ## Criterios de éxito
 
-- Verificar los casos GEN-C1 a GEN-C9 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
+- Verificar los casos GEN-C1 a GEN-C11 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
 - Validar el orden de etapas, la recuperación tras una desconexión y la conservación de resultados parciales.
 - Comprobar que repetir un pedido con los mismos datos no duplica recursos y que otro docente no puede consultarlo.
 - Comprobar que los recursos vigentes llegan a revisión con huella, resultado de verificación y copia histórica completa, y que los pendientes pueden llegar con el motivo registrado, pero no pueden aprobarse ni exportarse.
 - Comprobar que una regeneración fallida, o sobre una versión que ya cambió, no descarta el recurso anterior.
+- Comprobar un pedido por modalidad, el rechazo de un tipo que no pertenece a la modalidad elegida y la exportación de una actividad kinestésica.
 
 ## Dependencias con otros módulos
 
@@ -60,8 +74,10 @@ Como docente, quiero recibir en revisión recursos con su evidencia verificada p
 | --- | --- |
 | CC-01 · Cuentas y Cursos | Generación consulta el puerto de pertenencia antes de aceptar un pedido. Una unidad ajena o inexistente se rechaza sin revelar sus datos. |
 | MAT-01 · Material y Evidencia | Entrada: `query`, `teacher_id`, `unit_id` y `limit`, solo con material listo. Salida por fragmento: `chunk_id`, `document_id`, `documentName`, `location`, `text` y `relevance` de 0 a 1, más `retrieval_mode`. Generación recupera una vez y comparte la evidencia entre etapas. La procedencia para la copia histórica (URL, licencia y fecha) se fija en el plan. |
-| REV-01 · Revisión y Exportación | Revisión mantiene `content_fingerprint.py`. Generación mantiene `grounding.py`, `distractor_reliability.py`, `resource_catalog.py`, `resource_formats.py` y `VERIFICATION_RULE_VERSION`, que sube cuando cambia un mínimo por tipo. Los estados son vigente, insuficiente y pendiente. Los recursos antiguos sin evidencia quedan pendientes y solo se regeneran (REV-R11). |
+| REV-01 · Revisión y Exportación | Revisión mantiene `content_fingerprint.py`. Generación mantiene `grounding.py`, `distractor_reliability.py`, `resource_catalog.py`, `resource_formats.py` y `VERIFICATION_RULE_VERSION`, que sube cuando cambia un mínimo por tipo. Los estados son vigente, insuficiente y pendiente. Los recursos antiguos sin evidencia quedan pendientes y solo se regeneran (REV-R11). Para HU-024, Revisión verifica los pasos de la actividad kinestésica, incluye materiales, tiempo y espacio en la huella y la exporta; decide además si en SCORM un ítem de opción múltiple con modalidad Textual se muestra sin puntos ([research R11](research.md#r11-modalidades-hu-024)). |
 
 ## Alcance y decisiones de diseño
 
 El lote independiente y las cantidades distintas por tipo quedan fuera de esta entrega. El plan debe concretar el contrato de inicio y consulta en OpenAPI, el alcance de la clave por docente, el almacenamiento del estado, los límites de carga y qué ocurre si el recurso se edita durante una regeneración. Si el servidor se reinicia, los pedidos en curso se marcan como interrumpidos y se conservan los recursos ya generados.
+
+Para HU-024 quedan fuera de esta entrega: exportar a Moodle XML otros tipos además del ítem de opción múltiple (verdadero o falso y relacionar, en el sprint 2, a cargo de REV-01) y verificar el guion de audio oración por oración (tarea aparte de REV-01 para el sprint 2, que sube `VERIFICATION_RULE_VERSION`).
