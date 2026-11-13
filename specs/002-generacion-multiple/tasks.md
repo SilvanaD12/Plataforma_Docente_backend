@@ -282,7 +282,11 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
   - Un pedido sin `modalities` funciona como hoy y devuelve `parameters.modalities = []`.
   - Actualizar `test_text_only_rejects_other_modalities` de `test_courses_and_documents_api.py`, que hoy espera 422 para Multimedia y Gamificado.
 - [ ] T057 [BE] **Depende de T050 y T051.** Exportar OpenAPI (`scripts/export_openapi.py`) y actualizar `docs/api/openapi.json`; la CI compara el contrato (T048).
-- [ ] T058 [FE] **Silvana.** Selector de modalidad en `src/features/generation`, con «Textual» por defecto, que filtra el selector de tipos con `modalities` de `GET /resource-types` y envía `modalities: [modalidad]`. Mostrar la modalidad en la sección Contexto y el mensaje de `RESOURCE_TYPE_NOT_IN_MODALITY`. Caso GEN-C10.
+- [ ] T058 [FE] **Silvana.** Formulario de generación en `src/features/generation`. Caso GEN-C10.
+  - Selector de modalidad, con «Textual» por defecto, que filtra el selector de tipos con `modalities` de `GET /resource-types` y envía `modalities: [modalidad]`.
+  - Al cambiar de modalidad, el formulario conserva los tipos elegidos que siguen siendo compatibles y quita los demás. Si no queda ninguno, el docente debe elegir uno antes de generar: el botón de generar queda deshabilitado, con un mensaje. Por ejemplo, de Textual a Gamificado se conserva `item_opcion_multiple` y se quita `glosario`.
+  - Una sección Contexto, aparte, agrupa Resultado de aprendizaje, Audiencia y Competencia (HU-024 C02). La modalidad no forma parte de Contexto.
+  - Mostrar el mensaje de `RESOURCE_TYPE_NOT_IN_MODALITY` si el servidor lo devuelve.
 - [ ] T059 [BE] **Juan (REV-01).** Soportar `actividad_kinestesica` en Revisión y exportación. Caso GEN-C11.
   - `domain/review/resource_verification.py`: enlazar sus `guidedSteps` como en `exploracion_guiada` (`LINKED_ITEMS`), con mínimo 3 pasos.
   - `domain/review/content_fingerprint.py`: incluir `materials`, `estimatedMinutes` y `space`.
