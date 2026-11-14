@@ -311,13 +311,6 @@ def test_review_marks_a_supported_activity_as_current():
     assert verify_resource(_verified_activity(), 0.6, 1)["status"] == "current"
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "T059 (REV-01): `LINKED_ITEMS` de domain/review/resource_verification.py no incluye actividad_kinestesica; "
-        "Revisión no comprueba sus pasos ni el mínimo de 3."
-    ),
-)
 def test_review_rejects_an_edited_activity_whose_steps_are_not_in_the_material():
     invented = {
         "title": "Historia de ARPANET",
@@ -327,6 +320,20 @@ def test_review_rejects_an_edited_activity_whose_steps_are_not_in_the_material()
     }
     edited = _verified_activity(structure=structure(guidedSteps=[TCP_STEP, invented, {**invented, "title": "Otra"}]))
     assert verify_resource(edited, 0.6, 1)["status"] == "insufficient"
+
+
+def test_review_needs_three_supported_steps_and_gives_the_reason():
+    """T059 (REV-01): con solo 2 pasos respaldados, la actividad editada queda insuficiente y el motivo lo explica."""
+    invented = {
+        "title": "Historia de ARPANET",
+        "instruction": "Investiguen quién diseñó ARPANET en 1969 y en qué universidades se instaló.",
+        "question": "",
+        "fragmentIds": ["f1"],
+    }
+    edited = _verified_activity(structure=structure(guidedSteps=[TCP_STEP, UDP_STEP, invented]))
+    result = verify_resource(edited, 0.6, 1)
+    assert result["status"] == "insufficient"
+    assert "solo 2 pasos" in result["reason"] and "al menos 3 pasos" in result["reason"]
 
 
 # T055 · Línea de la modalidad en el prompt
