@@ -183,3 +183,25 @@ def test_the_summary_reports_the_strictness_next_to_the_judge(ragas, tmp_path):
     assert summary["judge"] == "juez-falso" and summary["answer_relevancy_strictness"] == 1
     first_line = (tmp_path / "summary.md").read_text(encoding="utf-8").splitlines()[2]
     assert first_line.startswith("Juez: juez-falso (answer_relevancy con strictness=1) · ")
+
+
+# Embeddings del juez (T068)
+
+
+def test_the_judge_embeddings_send_raw_text_to_the_gemini_endpoint(ragas, monkeypatch):
+    """langchain_community.OpenAIEmbeddings no tiene check_embedding_ctx_length: lo pasaba a model_kwargs y la API
+    respondía «unexpected keyword argument». langchain_openai sí lo tiene, y con False envía el texto, no tokens.
+    Sin red ni clave real: solo se construye el juez. Se omite si el entorno no tiene las librerías de evaluation/."""
+    openai_embeddings = pytest.importorskip("langchain_openai").OpenAIEmbeddings
+    for module in ("langchain_community", "ragas"):
+        pytest.importorskip(module)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEY", "clave-de-prueba")
+
+    _, embeddings = ragas.build_judge("juez-falso", "gemini-embedding-001")
+    underlying = embeddings.embeddings
+    assert type(underlying) is openai_embeddings
+    assert underlying.check_embedding_ctx_length is False
+    assert underlying.openai_api_base == ragas.GEMINI_OPENAI_URL
+    assert underlying.model == "gemini-embedding-001"
+    assert "check_embedding_ctx_length" not in underlying.model_kwargs

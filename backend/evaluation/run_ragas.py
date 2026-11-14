@@ -87,7 +87,8 @@ def build_judge(model: str, embedding_model: str):
         sys.exit('Error: define GEMINI_API_KEY con la clave de Google AI Studio.')
     warnings.filterwarnings('ignore', category=DeprecationWarning)
     from langchain_community.chat_models import ChatOpenAI
-    from langchain_community.embeddings import OpenAIEmbeddings
+    # langchain_openai, no langchain_community: la de community no tiene check_embedding_ctx_length y lo enviaba a la API.
+    from langchain_openai import OpenAIEmbeddings
     from ragas.embeddings import LangchainEmbeddingsWrapper
     from ragas.llms import LangchainLLMWrapper
 
