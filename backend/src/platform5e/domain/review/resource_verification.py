@@ -41,6 +41,9 @@ PENDING = "pending"
 # y en plural para el motivo).
 LINKED_ITEMS: dict[str, tuple[str, Any, str, str]] = {
     "exploracion_guiada": ("guidedSteps", link_step_sources, "paso", "pasos"),
+    # T059 (REV-01): la actividad kinestésica usa la estructura de la exploración guiada (GEN-01, research R11).
+    # Solo los pasos se verifican; materiales, tiempo y espacio entran en la huella pero no se contrastan.
+    "actividad_kinestesica": ("guidedSteps", link_step_sources, "paso", "pasos"),
     "reto_prediccion": ("predictions", link_prediction_sources, "predicción", "predicciones"),
     "caso_aplicado": ("criteria", link_criterion_sources, "criterio de logro", "criterios de logro"),
 }
