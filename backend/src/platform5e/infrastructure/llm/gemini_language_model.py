@@ -6,6 +6,7 @@ Soporta proveedores: Gemini, Anthropic y OpenAI (o compatibles como Groq/OpenRou
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -154,6 +155,51 @@ GEMINI_RESPONSE_SCHEMA: dict[str, Any] = {
 }
 
 
+# Esquema propio de la actividad kinestésica (T073). Con el esquema compartido, todos los campos de «estructura» son
+# opcionales y gemini-3.5-flash-lite los devolvía vacíos: la actividad se rechazaba sin pasos, tiempo ni espacio. Aquí
+# son obligatorios y con límites. `minItems` y `maxItems` van como texto: así los documenta el esquema de Gemini (int64).
+# Los demás tipos siguen con GEMINI_RESPONSE_SCHEMA sin cambios.
+_KINESTHETIC_STRUCTURE_SCHEMA: dict[str, Any] = {
+    "type": "OBJECT",
+    "properties": {
+        "pasos_guiados": {
+            "type": "ARRAY",
+            "minItems": "3",
+            "maxItems": "5",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "titulo": _STRING_TYPE,
+                    "consigna": _STRING_TYPE,
+                    "pregunta": _STRING_TYPE,  # opcional: la pregunta de cierre del paso
+                    "fragmentos": {**_TAGS_ARRAY_TYPE, "maxItems": "3"},
+                },
+                "required": ["titulo", "consigna", "fragmentos"],
+            },
+        },
+        "minutos_estimados": {"type": "INTEGER"},
+        "espacio": _STRING_TYPE,
+        "materiales": {**_TAGS_ARRAY_TYPE, "maxItems": "8"},
+    },
+    "required": ["pasos_guiados", "minutos_estimados", "espacio", "materiales"],
+}
+
+
+def response_schema(resource_type: str | None, quantity: int | None = None) -> dict[str, Any]:
+    """Esquema de respuesta de Gemini para el tipo pedido. Solo la actividad kinestésica tiene uno propio: exige su
+    «estructura» y limita «recursos» a la cantidad pedida. Los demás tipos reciben GEMINI_RESPONSE_SCHEMA tal cual."""
+    if resource_type != "actividad_kinestesica":
+        return GEMINI_RESPONSE_SCHEMA
+    schema = deepcopy(GEMINI_RESPONSE_SCHEMA)
+    resources = schema["properties"]["recursos"]
+    if isinstance(quantity, int) and not isinstance(quantity, bool) and quantity > 0:
+        resources["maxItems"] = str(quantity)
+    item = resources["items"]
+    item["properties"]["estructura"] = deepcopy(_KINESTHETIC_STRUCTURE_SCHEMA)
+    item["required"] = [*item["required"], "estructura"]
+    return schema
+
+
 class AIProviderError(Exception):
     """Excepción para errores de conectividad, cuota o respuestas inválidas del proveedor de IA."""
 
@@ -205,19 +251,25 @@ class GeminiLanguageModel(ResourceGeneratorPort):
     def generate(self, context: dict[str, Any]) -> dict[str, Any]:
         """Envía el contexto estructurado y extrae el JSON validado."""
         system_instruction, user_prompt = build_prompt_instructions(context)
+        request = context.get("solicitud") or {}
+        schema = response_schema(request.get("tipo"), request.get("cantidad"))
         try:
-            parsed_data = self._complete_json(system_instruction, user_prompt, attempt=1)
+            parsed_data = self._complete_json(system_instruction, user_prompt, schema, attempt=1)
         except ValueError:
             # Si también falla el reintento, su error (con su diagnóstico) es el que se informa.
-            parsed_data = self._complete_json(system_instruction, user_prompt + RETRY_PROMPT_SUFFIX, attempt=2)
+            parsed_data = self._complete_json(
+                system_instruction, user_prompt + RETRY_PROMPT_SUFFIX, schema, attempt=2
+            )
 
         return parsed_data if isinstance(parsed_data, dict) else {"recursos": parsed_data}
 
-    def _complete_json(self, system_instruction: str, user_prompt: str, attempt: int) -> Any:
+    def _complete_json(
+        self, system_instruction: str, user_prompt: str, schema: dict[str, Any], attempt: int
+    ) -> Any:
         """Pide la respuesta y la lee como JSON. Si no lo es, el error dice por qué terminó la respuesta y cuánto
         medía (un JSON cortado por el límite de tokens termina con finishReason MAX_TOKENS), y el registro guarda su
         comienzo y su final. Nunca se registran la clave ni el prompt."""
-        raw_text, finish_reason, output_tokens = self._complete(system_instruction, user_prompt)
+        raw_text, finish_reason, output_tokens = self._complete(system_instruction, user_prompt, schema)
         try:
             return parse_json_response(raw_text)
         except ValueError as exc:
@@ -233,13 +285,15 @@ class GeminiLanguageModel(ResourceGeneratorPort):
             )
             raise ValueError(f"{str(exc).rstrip('.')} ({details}).") from exc
 
-    def _complete(self, system_instruction: str, user_prompt: str) -> tuple[str, str | None, int | None]:
+    def _complete(
+        self, system_instruction: str, user_prompt: str, schema: dict[str, Any] | None = None
+    ) -> tuple[str, str | None, int | None]:
         """Invoca el endpoint del proveedor. Devuelve el texto y, si el proveedor los informa (Gemini), por qué terminó
         la respuesta (finishReason) y cuántos tokens tiene; si no, None."""
         if self.provider == "gemini":
             generation_config: dict[str, Any] = {"responseMimeType": "application/json"}
             if self._enforce_schema:
-                generation_config["responseSchema"] = GEMINI_RESPONSE_SCHEMA
+                generation_config["responseSchema"] = schema or GEMINI_RESPONSE_SCHEMA
 
             try:
                 response_data = self._post_request(
@@ -255,7 +309,7 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 if exc.status_code != 400 or not self._enforce_schema:
                     raise
                 self._enforce_schema = False  # El modelo rechazó el esquema: reintento en JSON libre
-                return self._complete(system_instruction, user_prompt)
+                return self._complete(system_instruction, user_prompt, schema)
 
             candidates = response_data.get("candidates") or []
             if not candidates:
