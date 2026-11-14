@@ -316,6 +316,15 @@ Decisiones en [research R12](research.md#r12-contexto-de-la-evaluación-rag): la
 - [ ] T067 [Sergio] Corpus de evaluación: de 4 a 6 documentos con licencia o permiso de uso (unos 50 a 60 fragmentos), con 1 o 2 documentos de otro tema, y una respuesta de referencia (`reference`) por caso de `cases.json`; de forma opcional, `expectedFragments`, `unitTitle`, `outcomeText` y `competency`. Validar también la redacción de las indicaciones y la cobertura de etapas y tipos.
 - [ ] T068 [E2E] **Depende de T065, T066 y T067.** Correr `collect_samples.py` y `run_ragas.py` con el corpus de T067, con `--contexts retrieved` y `--contexts cited`, y registrar aquí los resultados (promedios, por etapa, `context_recall` y muestras de respaldo por reglas).
 
+## 9. Interpretación de pedidos (HU-038)
+
+Decisiones en [research R13](research.md#r13-interpretación-de-pedidos-hu-038).
+
+- [ ] T069 [BE] Implementar `InterpretGenerationRequest` con reglas deterministas. Reutilizar la validación de pertenencia, los resultados de la unidad y el catálogo de Generación. Probar mensajes sin tipos reconocidos, con uno o varios tipos, con tipos repetidos o fuera del orden 5E, con solo una etapa, con un resultado ambiguo o con una solicitud explícita de quitarlo, con cantidades incompatibles o fuera de rango y con tipos incompatibles con la modalidad. Caso GEN-C12.
+- [ ] T070 [BE] **Depende de T069.** Conectar la ruta autenticada, exportar sus esquemas en el OpenAPI de la aplicación y agregar pruebas HTTP para la validación del cuerpo, el 401 de sesión y el mismo 404 para una unidad ajena y una inexistente. Comprobar que interpretar solo devuelve un borrador y sus problemas, sin crear un pedido, llamar a un proveedor ni recuperar evidencia.
+- [ ] T071 [FE] **Usa el contrato de T070.** Agregar el chat a Generación y aplicar el borrador al formulario editable. Mostrar la unidad activa, la etapa de cada tipo, los problemas y, cuando corresponda, una sugerencia de unidad propia. Permitir editar cada parámetro aplicado, incluidas las instrucciones opcionales. Omitir un campo conserva su valor y `outcomeId: null` limpia el resultado de aprendizaje. Reutilizar las validaciones del formulario y confirmar con «Generar». **Dependencia de la vista previa:** usarla cuando HU-040 esté integrada. Hasta entonces, usar el formulario normal.
+- [ ] T072 [E2E] **Depende de T070 y T071.** En TCP/IP, interpretar «Para TCP/IP, quiero dos glosarios», corregir la cantidad a 1 y confirmar desde el formulario. Comprobar que antes de confirmar hay cero pedidos nuevos y después hay exactamente uno con la cantidad editada. Verificar que mencionar solo una etapa pide elegir un tipo y que sugerir otra unidad propia mantiene la unidad activa. Enlazar aquí la evidencia.
+
 ## Evidencia de los casos y criterios (T049)
 
 Pruebas automáticas en `main` (rutas desde la raíz de cada repositorio; las del frontend están en `Plataforma_Docente_frontend` y se citan con la descripción de `it`), PR donde se implementó cada caso y evidencia manual de los informes de GEN-01 en Notion.

@@ -46,6 +46,14 @@ Como docente, quiero elegir la modalidad antes de generar para recibir solo los 
 | GEN-C10 | Elijo una modalidad y pido recursos | Solo se ofrecen los tipos de esa modalidad. Si el pedido incluye un tipo que no pertenece a ella, se rechaza con `RESOURCE_TYPE_NOT_IN_MODALITY` antes de crearse. El pedido y sus recursos guardan la modalidad elegida. |
 | GEN-C11 | Pido una actividad kinestésica | El recurso trae al menos 3 pasos con instrucción y pregunta, cada uno con su cita al material, y además materiales, tiempo estimado y espacio. Solo los pasos se verifican contra el material. Si la IA falla, la redacta el generador por reglas. |
 
+## Interpretación de pedidos (HU-038)
+
+Como docente, quiero describir con mis propias palabras los recursos que necesito y corregir el pedido interpretado antes de generar.
+
+| Caso | Dado y cuando | Entonces |
+| --- | --- | --- |
+| GEN-C12 | Describo uno o más recursos desde la pestaña Generación | El chat muestra la unidad activa, los tipos reconocidos en orden 5E y sin repetirlos, sus etapas de solo lectura, la cantidad y los demás parámetros interpretados. Señala los valores faltantes, ambiguos o no permitidos. Puedo corregir el borrador en el formulario existente. El pedido solo se crea cuando confirmo con «Generar». |
+
 ## Requisitos funcionales
 
 - **GEN-R1.** Ofrecer modos explícitos de generación individual y secuencia 5E. Ambos usan el mismo mecanismo de pedido en segundo plano.
@@ -59,14 +67,18 @@ Como docente, quiero elegir la modalidad antes de generar para recibir solo los 
 - **GEN-R9.** Ofrecer cuatro modalidades: Textual, Gamificado, Multimedia y Kinestésico. Cada una es un grupo de tipos de recurso; todo tipo pertenece al menos a una, y puede estar en más de una. El catálogo de tipos informa las modalidades de cada tipo. Un pedido admite una sola modalidad. Si la envía, todos sus tipos deben pertenecer a ella; si no la envía, no se filtran los tipos y el pedido se guarda sin modalidad. La modalidad elegida se guarda en el pedido y en los parámetros de cada recurso. La regeneración no comprueba la modalidad.
 - **GEN-R10.** Agregar el tipo actividad kinestésica a la etapa Explorar: pasos guiados con la misma forma que la exploración guiada (mínimo 3, cada uno con sus fragmentos), más materiales, tiempo estimado y espacio. Solo los pasos se verifican contra el material; materiales, tiempo y espacio forman parte de la huella. Tiene un redactor del generador por reglas.
 
+- **GEN-R11.** Interpretar el mensaje del docente mediante reglas deterministas y devolver un borrador editable para la unidad activa. Comprobar la pertenencia de la unidad antes de interpretar y aplicar las reglas del catálogo. La interpretación funciona con independencia del procesamiento de documentos, la recuperación de evidencia y la generación de recursos.
+
 ## Criterios de éxito
 
-- Verificar los casos GEN-C1 a GEN-C11 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
+- Verificar los casos GEN-C1 a GEN-C12 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
 - Validar el orden de etapas, la recuperación tras una desconexión y la conservación de resultados parciales.
 - Comprobar que repetir un pedido con los mismos datos no duplica recursos y que otro docente no puede consultarlo.
 - Comprobar que los recursos vigentes llegan a revisión con huella, resultado de verificación y copia histórica completa, y que los pendientes pueden llegar con el motivo registrado, pero no pueden aprobarse ni exportarse.
 - Comprobar que una regeneración fallida, o sobre una versión que ya cambió, no descarta el recurso anterior.
 - Comprobar un pedido por modalidad, el rechazo de un tipo que no pertenece a la modalidad elegida y la exportación de una actividad kinestésica.
+
+- Para GEN-C12, interpretar «Para TCP/IP, quiero dos glosarios» desde la unidad TCP/IP y mostrar la etapa Explicar, el tipo Glosario y la cantidad 2. Cambiar la cantidad a 1 y comprobar que se crea un único pedido, con cantidad 1, al pulsar «Generar».
 
 ## Dependencias con otros módulos
 

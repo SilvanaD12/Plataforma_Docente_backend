@@ -136,6 +136,8 @@ Plataforma_Docente_frontend/src/features/generation/
 6. **Validación de carga** (V11) y retirada de `POST /generations` cuando migre `evaluation/collect_samples.py`.
 7. **Modalidades (HU-024):** primero el PR de especificación; después, GEN-01 con T050 a T057. Silvana (T058, frontend) y Juan (T059, Revisión y exportación) avanzan en paralelo con GEN-01, y al final T061 enlaza la evidencia ([research R11](research.md#r11-modalidades-hu-024)).
 
+8. **Interpretación de pedidos (HU-038):** Silvana implementa el backend y el frontend. Yan revisa el contrato y coordina la integración con la vista previa de HU-040. Tras revisar el contrato de diseño, implementar `InterpretGenerationRequest` en `application/use_cases/generation/` y conectar la ruta autenticada. El chat aplica el borrador al formulario de Generación y el docente confirma con «Generar». La vista previa se usa cuando HU-040 esté integrada. Hasta entonces, se usa el formulario normal.
+
 ## Seguimiento de complejidad
 
 No aplica: no hay infracciones de la Constitución.
