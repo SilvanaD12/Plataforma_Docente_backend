@@ -6,6 +6,7 @@ Soporta proveedores: Gemini, Anthropic y OpenAI (o compatibles como Groq/OpenRou
 from __future__ import annotations
 
 import logging
+import re
 from copy import deepcopy
 from typing import Any
 
@@ -16,6 +17,7 @@ from platform5e.application.services.generation.prompt_drafting import (
     build_prompt_instructions,
     parse_json_response,
 )
+from platform5e.application.services.provider_errors import redact_secrets
 
 DEFAULT_MODELS: dict[str, str] = {
     "gemini": "gemini-3.8-flash",  # gemini-2.5-flash responde 404 a las claves nuevas
@@ -201,11 +203,26 @@ def response_schema(resource_type: str | None, quantity: int | None = None) -> d
 
 
 class AIProviderError(Exception):
-    """Excepción para errores de conectividad, cuota o respuestas inválidas del proveedor de IA."""
+    """Excepción para errores de conectividad, cuota o respuestas inválidas del proveedor de IA.
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
-        super().__init__(message)
+    El mensaje (para el registro) puede traer el texto del proveedor, con las claves ocultas. `public_reason` es lo
+    único que se guarda o se devuelve al docente: nunca lleva el texto del proveedor (revisión del PR #43). Si quien
+    lanza el error no lo indica, es genérico."""
+
+    def __init__(self, message: str, status_code: int | None = None, public_reason: str | None = None) -> None:
+        super().__init__(redact_secrets(message))
         self.status_code = status_code
+        generic = f"el proveedor respondió {status_code}" if status_code else "el proveedor no respondió"
+        self.public_reason = redact_secrets(public_reason or generic)
+
+
+class InvalidModelResponse(ValueError):
+    """El texto del modelo no es JSON válido. El mensaje solo trae el diagnóstico (finishReason, tokens y caracteres),
+    así que también es el motivo público."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.public_reason = message
 
 
 def _grouped(number: int) -> str:
@@ -280,10 +297,10 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 attempt,
                 ATTEMPTS,
                 details,
-                raw_text[:INVALID_TEXT_PREVIEW_CHARS],
-                raw_text[-INVALID_TEXT_PREVIEW_CHARS:],
+                redact_secrets(raw_text[:INVALID_TEXT_PREVIEW_CHARS]),
+                redact_secrets(raw_text[-INVALID_TEXT_PREVIEW_CHARS:]),
             )
-            raise ValueError(f"{str(exc).rstrip('.')} ({details}).") from exc
+            raise InvalidModelResponse(f"{str(exc).rstrip('.')} ({details}).") from exc
 
     def _complete(
         self, system_instruction: str, user_prompt: str, schema: dict[str, Any] | None = None
@@ -316,7 +333,11 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 block_reason = (response_data.get("promptFeedback") or {}).get(
                     "blockReason", "sin candidatos"
                 )
-                raise AIProviderError(f"Gemini no devolvió texto ({block_reason}).")
+                # blockReason es un valor fijo de Gemini (SAFETY, OTHER…); si no lo parece, no se muestra.
+                shown = f" ({block_reason})" if re.fullmatch(r"[A-Z_]{1,40}", str(block_reason)) else ""
+                raise AIProviderError(
+                    f"Gemini no devolvió texto ({block_reason}).", public_reason=f"Gemini no devolvió texto{shown}."
+                )
             parts = (candidates[0].get("content") or {}).get("parts") or []
             text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
             output_tokens = (response_data.get("usageMetadata") or {}).get("candidatesTokenCount")
@@ -365,9 +386,8 @@ class GeminiLanguageModel(ResourceGeneratorPort):
             )
         except httpx.HTTPError as exc:
             provider_name = PROVIDER_DISPLAY_NAMES[self.provider]
-            raise AIProviderError(
-                f"sin conexión con {provider_name}: {exc.__class__.__name__}"
-            ) from exc
+            message = f"sin conexión con {provider_name}: {exc.__class__.__name__}"
+            raise AIProviderError(message, public_reason=message) from exc
 
         if response.status_code >= 400:
             provider_name = PROVIDER_DISPLAY_NAMES[self.provider]
@@ -382,12 +402,13 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 detail_msg = response.text[:200]
 
             if response.status_code == 429:
-                raise AIProviderError(
-                    f"límite de uso de {provider_name} alcanzado (429). Espera un minuto.", 429
-                )
+                message = f"límite de uso de {provider_name} alcanzado (429). Espera un minuto."
+                raise AIProviderError(message, 429, public_reason=message)
+            # El texto del proveedor va solo al registro: puede traer la clave o datos del proyecto.
             raise AIProviderError(
                 f"{provider_name} respondió {response.status_code}: {detail_msg[:200]}",
                 response.status_code,
+                public_reason=f"{provider_name} respondió {response.status_code}",
             )
 
         return response.json()

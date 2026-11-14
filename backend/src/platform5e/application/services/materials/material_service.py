@@ -17,6 +17,7 @@ from platform5e.application.ports.outbound.text_extractor_port import TextExtrac
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.application.ports.outbound.unit_membership_port import UnitMembershipPort
 from platform5e.application.ports.outbound.evidence_retriever_port import EvidenceRetrieverPort
+from platform5e.application.services.provider_errors import public_reason, redact_secrets
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.domain.materials.chunking import MaterialError, chunk_pages
@@ -188,11 +189,14 @@ class MaterialService:
         try:
             run = self._embedding_service.embed_pending(document_id=document_id)
         except Exception as exc:
-            logger.warning("No se pudieron generar los embeddings de %s: %s", document_id, exc)
+            # `embeddingError` se guarda y la API lo devuelve: solo el motivo genérico. El detalle, al registro.
+            logger.warning(
+                "No se pudieron generar los embeddings de %s: %s", document_id, redact_secrets(str(exc))[:500]
+            )
             return {
                 "embeddedFragmentCount": 0,
                 "embeddingModel": self._embedding_service.model,
-                "embeddingError": str(exc)[:200],
+                "embeddingError": public_reason(exc)[:200],
             }
         if not run.available:
             return {}

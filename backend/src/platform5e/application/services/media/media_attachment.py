@@ -11,6 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from platform5e.application.ports.outbound.media_port import MediaGeneratorPort, MediaRepositoryPort
+from platform5e.application.services.provider_errors import public_reason, redact_secrets
 from platform5e.domain.generation.resource_formats import AUDIO, IMAGE
 
 logger = logging.getLogger("platform5e.media")
@@ -56,8 +57,9 @@ def generate_media(resource: dict[str, Any], generator: MediaGeneratorPort | Non
             generator.generate_image(structure["prompt"]) if kind == IMAGE else generator.synthesize_speech(structure["script"])
         )
     except Exception as exc:  # el recurso se conserva con su respaldo
-        logger.warning("Medio no generado para %s: %s", resource.get("id"), str(exc)[:200])
-        resource["media"]["note"] += f" ({str(exc)[:120]})"
+        # La nota se guarda y se muestra al docente: solo el motivo genérico. El detalle, al registro y sin claves.
+        logger.warning("Medio no generado para %s: %s", resource.get("id"), redact_secrets(str(exc))[:500])
+        resource["media"]["note"] += f" ({public_reason(exc)[:120]})"
         return None
     media = {
         "id": f"media-{uuid4()}",

@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from platform5e.application.ports.outbound.language_model_port import ResourceGeneratorPort
 from platform5e.application.services.generation.prompt_drafting import normalize_generated_resources
+from platform5e.application.services.provider_errors import public_reason, redact_secrets
 from platform5e.domain.generation.grounding import hallucination_rate
 from platform5e.domain.generation.resource_formats import resource_format
 from platform5e.domain.generation.sequence import SIMILARITY_THRESHOLD, most_similar, resource_text
@@ -112,7 +113,9 @@ def draft_resources(
                     f"{primary_generator.description} no devolvió recursos con citas válidas del material."
                 )
         except Exception as exc:
-            warning_message = f"{primary_generator.description} no respondió ({str(exc)[:160]})."
+            # Al paso (y a la API) va solo el motivo genérico; el detalle del proveedor, al registro y sin claves.
+            logger.warning("%s no respondió: %s", primary_generator.description, redact_secrets(str(exc))[:500])
+            warning_message = f"{primary_generator.description} no respondió ({public_reason(exc)[:160]})."
 
     if not resources and fallback_generator is not None and fallback_generator is not primary_generator:
         raw_response = fallback_generator.generate(generation_context)

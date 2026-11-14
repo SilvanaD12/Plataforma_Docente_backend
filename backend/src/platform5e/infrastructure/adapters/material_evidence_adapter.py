@@ -18,6 +18,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Protocol, get_args
 
+from platform5e.application.services.provider_errors import redact_secrets
 from platform5e.application.ports.outbound.chunk_repository_port import ChunkRepositoryPort
 from platform5e.application.ports.outbound.evidence_provider_port import (
     EvidenceFragment,
@@ -112,7 +113,10 @@ class MaterialEvidenceAdapter(EvidenceProviderPort):
                 if document.get("unitId") == query.unit_id
             }
         except Exception as error:
-            logger.warning("No se pudo recuperar la evidencia de la unidad %s: %s", query.unit_id, error)
+            # La búsqueda híbrida llama a los embeddings de Gemini: el detalle va al registro sin claves.
+            logger.warning(
+                "No se pudo recuperar la evidencia de la unidad %s: %s", query.unit_id, redact_secrets(str(error))[:500]
+            )
             raise EvidenceUnavailable() from error
 
         fragments: list[EvidenceFragment] = []

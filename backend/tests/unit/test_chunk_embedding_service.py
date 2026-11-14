@@ -189,7 +189,8 @@ def test_if_the_model_fails_the_material_stays_processed_with_the_reason():
     service, _, store = processing_with(FakeEmbedder(fail=True))
     data = service.process_material("d", "doc1")
     assert data["status"] == "procesado" and data["fragmentCount"] == 1
-    assert data["embeddedFragmentCount"] == 0 and "Gemini no respondió" in data["embeddingError"]
+    # Revisión del PR #43: se guarda solo el tipo del error, no su texto.
+    assert data["embeddedFragmentCount"] == 0 and data["embeddingError"] == "error del proveedor: ConnectionError"
 
 
 def test_without_embeddings_the_processing_result_does_not_change():

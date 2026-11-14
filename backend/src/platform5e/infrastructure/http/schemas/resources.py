@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 from pydantic import Field, computed_field, field_validator
 
+from platform5e.application.services.provider_errors import sanitize_stored_reason
 from platform5e.application.services.review.resource_review_service import approval_blockers
 from platform5e.infrastructure.html_sanitizer import clean_html
 from platform5e.infrastructure.http.schemas.common import ApiRequest, ApiResponse
@@ -74,6 +75,12 @@ class MediaResponse(ApiResponse):
             "resource is left out of new exports until the file is generated again."
         ),
     )
+
+    @field_validator("note", mode="before")
+    @classmethod
+    def _without_provider_text(cls, value: object) -> object:
+        # Revisión del PR #43: notas guardadas antes de la corrección pueden traer el mensaje del proveedor.
+        return sanitize_stored_reason(value) if isinstance(value, str) else value
 
 
 class RemovedClaim(ApiResponse):
