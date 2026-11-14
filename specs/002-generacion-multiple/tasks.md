@@ -268,7 +268,7 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
   - Con modalidad, un tipo que no pertenece a ella responde `422 RESOURCE_TYPE_NOT_IN_MODALITY` y no crea el pedido. Sin modalidad, no se filtran los tipos y el pedido se guarda con `modality = null`.
   - El repositorio lee los parámetros guardados antes de HU-024 (`modalities: ["Textual"]`) como `modality = null`.
   - Pruebas unitarias: el 422 sin pedido creado, el pedido sin modalidad, el hash con y sin modalidad, y que reenviar la misma clave de un pedido aceptado lo devuelve sin volver a validar.
-- [x] T053 [BE] **Depende de T052.** Guardar `modality` en los `params` de cada recurso (`step_drafting.py`), solo si el docente la eligió, y conservarla al regenerar sin comprobarla (`start_regeneration.py`). Casos GEN-C7 y GEN-C10. PR del backend (enlace pendiente).
+- [x] T053 [BE] **Depende de T052.** Guardar `modality` en los `params` de cada recurso (`step_drafting.py`), solo si el pedido la trae (con el formulario, casi siempre: «Textual» viene preseleccionado), y conservarla al regenerar sin comprobarla (`start_regeneration.py`). Casos GEN-C7 y GEN-C10. PR del backend (enlace pendiente).
   - Prueba obligatoria: regenerar una imagen y un audio antiguos guardados con `modalities: ["Textual"]` sigue funcionando.
 - [x] T054 [BE] Agregar el tipo `actividad_kinestesica` (etapa Explorar, formato `interactive`). Caso GEN-C11. PR del backend (enlace pendiente).
   - Catálogo en `resource_catalog.py`; estructura en `resource_formats.py` (`guidedSteps` como en `exploracion_guiada`, `MIN_ITEMS = 3`, `materials`, `estimatedMinutes` de 5 a 90 y `space`).
@@ -296,7 +296,7 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
   - Agregar el tipo no cambia las reglas de los tipos existentes, así que no se espera subir `VERIFICATION_RULE_VERSION`. Juan lo confirma.
 - T060 (movida al seguimiento del sprint 2)
 - [ ] T061 [E2E] **Depende de T056, T058 y T059.** Enlazar en la [tabla de evidencia](#evidencia-de-los-casos-y-criterios-t049) los casos GEN-C10 y GEN-C11 y el criterio de éxito de modalidades (un pedido por modalidad, rechazo de un tipo incompatible y exportación de una actividad kinestésica).
-- Seguimiento fuera de esta entrega (REV-01, sprint 2): exportar a Moodle XML verdadero o falso y relacionar; verificar el guion de audio oración por oración (sube `VERIFICATION_RULE_VERSION`); y mostrar en SCORM un `item_opcion_multiple` como cuestionario simple, sin puntos, solo cuando el docente eligió explícitamente la modalidad «Textual» (`modality = "Textual"`; sin modalidad, sigue en la evaluación por niveles). Esta última era T060.
+- Seguimiento fuera de esta entrega (REV-01, sprint 2): exportar a Moodle XML verdadero o falso y relacionar; verificar el guion de audio oración por oración (sube `VERIFICATION_RULE_VERSION`); y decidir qué cuenta como elección explícita de Textual para el `item_opcion_multiple` en SCORM, porque Textual viene preseleccionado en el formulario y un `modality: "Textual"` guardado no indica por sí solo que el docente cambió el selector (hasta entonces, todos los ítems de opción múltiple van a la evaluación por niveles). Esta última era T060.
 
 ## Evidencia de los casos y criterios (T049)
 

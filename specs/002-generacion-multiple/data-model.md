@@ -33,7 +33,7 @@ Es el pedido persistido. Lo crea `StartGenerationRequest` o `StartRegeneration` 
 | `quantity` | `int` | Va de 1 a 5 y es común a todos los tipos (GEN-R2). |
 | `outcomeId` | `str \| null` | Si se envía, debe pertenecer a la unidad (`400 INVALID_OUTCOME`). |
 | `difficulty`, `optionCount`, `topK`, `evidenceThreshold`, `instructions`, `audience`, `competency` | — | Tienen los rangos de `StartGenerationRequest` en `schemas/generation_requests.py`. |
-| `modality` | `Textual` \| `Gamificado` \| `Multimedia` \| `Kinestésico` \| `null` | HU-024. Campo interno del dominio y de los parámetros guardados. Sale de `modalities` del cuerpo (lista de 0 o 1 elemento), y la respuesta la devuelve con la misma forma: `parameters.modalities` es `[modality]`, o `[]` si es `null`. Es `null` si el pedido no la envía; el servidor no aplica un valor por defecto. Si no es `null`, cada tipo de `resourceTypes` debe estar en `MODALITY_TYPES[modality]` (`422 RESOURCE_TYPE_NOT_IN_MODALITY`). Entra en `payload_hash`. Los pedidos y recursos guardados antes de HU-024 traen `modalities: ["Textual"]`, que era el valor por defecto del servidor y no una elección del docente: se leen como `modality = null` ([research R11](research.md#r11-modalidades-hu-024)). |
+| `modality` | `Textual` \| `Gamificado` \| `Multimedia` \| `Kinestésico` \| `null` | HU-024. Campo interno del dominio y de los parámetros guardados. Sale de `modalities` del cuerpo (lista de 0 o 1 elemento), y la respuesta la devuelve con la misma forma: `parameters.modalities` es `[modality]`, o `[]` si es `null`. Es `null` si el pedido no la envía; el servidor no aplica un valor por defecto. El formulario del frontend envía «Textual» si el docente no cambia el selector, así que con él casi nunca es `null`. Si no es `null`, cada tipo de `resourceTypes` debe estar en `MODALITY_TYPES[modality]` (`422 RESOURCE_TYPE_NOT_IN_MODALITY`). Entra en `payload_hash`. Los pedidos y recursos guardados antes de HU-024 traen `modalities: ["Textual"]`, que era el valor por defecto del servidor y no una elección del docente: se leen como `modality = null` ([research R11](research.md#r11-modalidades-hu-024)). |
 
 ### MODALITY_TYPES
 
@@ -128,7 +128,7 @@ Se mantiene el diccionario actual de `_build_resource_dict` (`ep002_recursos.dat
 | --- | --- | --- |
 | `requestId` | `str` | `GenerationRequest.id` (hoy `sol-api-…`). |
 | `agent` | `str` | Agente de la etapa. |
-| `params` | `GenerationParameters` del paso | Ya existe. Lo usa la regeneración (GEN-R6). Incluye `modality` solo si el docente eligió una (HU-024); los recursos anteriores no la tienen y conservan su comportamiento al exportarse. La regeneración no la comprueba. |
+| `params` | `GenerationParameters` del paso | Ya existe. Lo usa la regeneración (GEN-R6). Incluye `modality` solo si el pedido la trae (HU-024). Con el formulario del frontend casi siempre la trae, porque «Textual» viene preseleccionado: un `modality: "Textual"` guardado no indica por sí solo que el docente cambió el selector. Los recursos anteriores no la tienen y conservan su comportamiento al exportarse. La regeneración no la comprueba. |
 | `generatorKind` | `ia` \| `respaldo` | Ya existe. |
 | `evidence` | `list[EvidenceSnapshotItem]` | Es la copia histórica de **todos** los fragmentos referenciados ([research R6](research.md#r6-copia-histórica-de-la-evidencia)). |
 | `verification` | `VerificationResult` | Lo calcula `ResourceVerificationPort.verify`. Incluye la huella en `verification.fingerprint` (GEN-R7). |
