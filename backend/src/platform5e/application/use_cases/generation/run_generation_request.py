@@ -413,6 +413,8 @@ class RunGenerationRequest:
                 "description": generator.description,
                 "usesAi": uses_ai,
                 "fallback": self._is_fallback(generator),
+                # Por qué redactó el respaldo (el mismo aviso del registro); null si no hubo respaldo.
+                "fallbackReason": drafted.warning if self._is_fallback(generator) else None,
             },
             grounding=build_grounding_report(resources, grounding_rejections),
             distractor_reliability=reliability_report(resources),

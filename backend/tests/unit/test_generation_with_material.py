@@ -275,7 +275,7 @@ def test_a_drafted_item_cites_its_chunks_and_the_wrong_citation_is_corrected(tmp
     )
 
     assert run.request.status == RequestStatus.SUCCEEDED
-    assert run.step.generator == {"description": "IA falsa", "usesAi": True, "fallback": False}
+    assert run.step.generator == {"description": "IA falsa", "usesAi": True, "fallback": False, "fallbackReason": None}
     [resource] = run.resources
     assert resource["source"] == "rag" and resource["status"] == "pendiente" and resource["outcomeId"] == "ra-1"
 

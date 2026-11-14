@@ -202,6 +202,11 @@ class StepGenerator(ApiResponse):
     description: str
     uses_ai: bool
     fallback: bool = Field(description="True when the rule-based generator drafted after the AI failed.")
+    fallback_reason: str | None = Field(
+        default=None,
+        description="In Spanish: why the AI draft was not used (the same warning as the server log). `null` when "
+        "`fallback` is false.",
+    )
 
 
 class GenerationStep(ApiResponse):

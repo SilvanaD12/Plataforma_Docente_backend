@@ -242,3 +242,25 @@ def test_a_resource_missing_from_review_is_a_problem_not_a_sample(collect):
     problems: list[dict] = []
     assert collect.build_samples(OLD_CASE, STATUS, {}, EVIDENCE, UNIT, 1.0, problems) == []
     assert problems == [{"kind": "missing", "message": "el recurso r1 ya no está en revisión"}]
+
+
+# GEN-01: motivo del respaldo por reglas
+
+
+FALLBACK_REASON = "Gemini · gemini-3.5-flash-lite no devolvió recursos con citas válidas del material. " \
+                  "Se usó el generador por reglas."
+
+
+def test_the_fallback_reason_goes_into_the_sample_and_next_to_the_generator(collect):
+    step = {**STATUS["steps"][0], "generator": {"description": "Generador por reglas (sin IA)", "usesAi": False,
+                                                "fallback": True, "fallbackReason": FALLBACK_REASON}}
+    [sample] = collect.build_samples(OLD_CASE, {**STATUS, "steps": [step]}, {"r1": _resource("r1", ["f1"])},
+                                     EVIDENCE, UNIT, 1.5, [])
+    assert sample["fallback"] is True and sample["fallback_reason"] == FALLBACK_REASON
+    assert collect.generator_label(sample) == f"Generador por reglas (sin IA) (motivo: {FALLBACK_REASON})"
+
+
+def test_without_fallback_the_generator_is_printed_as_before(collect):
+    [sample] = collect.build_samples(OLD_CASE, STATUS, {"r1": _resource("r1", ["f1"])}, EVIDENCE, UNIT, 1.5, [])
+    assert sample["fallback_reason"] is None  # pedidos guardados antes no traen el campo
+    assert collect.generator_label(sample) == "Generador por reglas (sin IA)"

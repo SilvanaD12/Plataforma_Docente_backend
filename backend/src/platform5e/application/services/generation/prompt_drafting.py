@@ -25,9 +25,13 @@ from platform5e.domain.generation.resource_formats import (
     AUDIO,
     IMAGE,
     INTERACTIVE,
-    TEXT,
+    MAX_MINUTES,
     MIN_ITEMS,
+    MIN_MINUTES,
+    TEXT,
     VISUAL,
+    complete_guided_steps,
+    estimated_minutes,
     normalize_structure,
     resource_format,
 )
@@ -160,8 +164,11 @@ STRUCTURE_INSTRUCTIONS: dict[str, str] = {
         '"estructura": {"pasos_guiados": [{"titulo": "...", "consigna": "qué hacen los estudiantes con el cuerpo o '
         'con objetos del aula", "pregunta": "pregunta para comentar lo que observaron (opcional)", "fragmentos": '
         '["F1"]}], "materiales": ["objetos del aula que se necesitan"], "minutos_estimados": 20, "espacio": "dónde se '
-        'hace: aula, patio…"}. Cada paso cita en «fragmentos» la etiqueta del fragmento en que se apoya; '
-        "«minutos_estimados» es un entero de 5 a 90"
+        'hace: aula, patio…"}. Cada paso cita en «fragmentos» la etiqueta del fragmento en que se apoya. '
+        # Gemini devolvía cada paso como un recurso aparte, o sin tiempo ni espacio: el recurso se rechazaba.
+        "Es UN solo recurso: todos sus pasos van dentro de «pasos_guiados»; nunca un recurso por paso. "
+        "«minutos_estimados» (entero de 5 a 90) y «espacio» son obligatorios. "
+        "La consigna de cada paso se basa en una oración del fragmento que cita"
     ),
     "reto_prediccion": (
         '"estructura": {"predicciones": [{"pregunta": "¿Qué crees que pasa si…?", "correcta": "opción que dice el '
@@ -560,6 +567,45 @@ def _parse_is_correct(alternative: dict[str, Any]) -> bool:
     return raw_val is True
 
 
+def _structure_rejection_reason(resource_type: str, raw_structure: Any, title: str) -> str:
+    """Por qué la «estructura» que devolvió el modelo no alcanza para el recurso, en palabras del docente."""
+    if resource_type == "actividad_kinestesica":
+        data = raw_structure if isinstance(raw_structure, dict) else {}
+        problems = []
+        steps = data.get("pasos_guiados")
+        minimum = MIN_ITEMS[resource_type]
+        if not isinstance(steps, list) or not steps:
+            problems.append(
+                "no trae los pasos dentro de «pasos_guiados»: la actividad es un solo recurso con todos sus pasos, "
+                "no un recurso por paso"
+            )
+        else:
+            converted = [{"title": i.get("titulo"), "instruction": i.get("consigna")} for i in _list_of_dicts(steps)]
+            complete = complete_guided_steps(converted, question_required=False)
+            if complete < minimum:
+                problems.append(
+                    f"solo {complete} paso(s) completos (título y consigna); la actividad necesita al menos {minimum}"
+                )
+        minutes = data.get("minutos_estimados")
+        if estimated_minutes(minutes) is None:
+            received = "" if minutes is None or str(minutes).strip() == "" else f"; llegó «{minutes}»"
+            problems.append(f"falta el tiempo estimado (entero de {MIN_MINUTES} a {MAX_MINUTES} minutos){received}")
+        space = data.get("espacio")
+        if not (isinstance(space, str) and space.strip()):
+            problems.append("falta el espacio donde se hace la actividad")
+        if problems:
+            return f"«{title}»: " + "; ".join(problems) + "."
+    minimum = MIN_ITEMS.get(resource_type)
+    detail = f" (necesita al menos {minimum} elementos completos)" if minimum else ""
+    return f"«{title}»: la estructura de «{RESOURCE_TYPES[resource_type][0]}» está incompleta o no es válida{detail}."
+
+
+def _reject_structure(rejections: list[dict[str, Any]] | None, title: str, reason: str) -> None:
+    """Un recurso que se descarta por su forma (no por su respaldo) queda como rechazo `structure` con su motivo."""
+    if rejections is not None:
+        rejections.append({"title": title, "reason": reason, "kind": "structure"})
+
+
 def normalize_generated_resources(
     raw_payload: Any, context: dict[str, Any], rejections: list[dict[str, Any]] | None = None
 ) -> list[dict[str, Any]]:
@@ -576,13 +622,22 @@ def normalize_generated_resources(
     fragments_by_id = {f["id"]: f.get("texto", "") for f in context["fragmentos"]}
     req = context["solicitud"]
     threshold = float(req.get("umbralEvidencia", DEFAULT_THRESHOLD))
+    type_name = RESOURCE_TYPES[req["tipo"]][0]
     items_list = raw_payload.get("recursos") if isinstance(raw_payload, dict) else raw_payload
     if not isinstance(items_list, list):
+        _reject_structure(rejections, type_name, "La respuesta del modelo no trae la lista «recursos».")
         return []
 
     verified_resources: list[dict[str, Any]] = []
-    for raw_item in items_list:
-        if len(verified_resources) >= req["cantidad"] or not isinstance(raw_item, dict):
+    for position, raw_item in enumerate(items_list, 1):
+        if len(verified_resources) >= req["cantidad"]:
+            continue  # ya están los recursos pedidos: los demás sobran
+        if not isinstance(raw_item, dict):
+            _reject_structure(
+                rejections,
+                f"{type_name} {position}",
+                f"El elemento {position} de la respuesta no es un recurso (se esperaba un objeto JSON).",
+            )
             continue
 
         body = _clean_multiline_block(raw_item.get("contenido"), MAX_CONTENT_CHARS)
@@ -600,6 +655,7 @@ def normalize_generated_resources(
             or f"{RESOURCE_TYPES[req['tipo']][0]} {len(verified_resources) + 1}"
         )
         if not body:
+            _reject_structure(rejections, title, f"«{title}»: llegó sin contenido.")
             continue
 
         grounding = verify_citations(valid_citations, fragments_by_id, threshold)
@@ -639,6 +695,9 @@ def normalize_generated_resources(
         if req["tipo"] in STRUCTURE_INSTRUCTIONS:
             structure = structure_from_model(req["tipo"], raw_item.get("estructura"), body, title, tag_mapping)
             if structure is None:
+                _reject_structure(
+                    rejections, title, _structure_rejection_reason(req["tipo"], raw_item.get("estructura"), title)
+                )
                 continue
             if req["tipo"] in GUIDED_STEP_TYPES:
                 # HU-048 C02 y HU-024: cada paso queda enlazado al fragmento que lo respalda; los que no se apoyan se
@@ -709,6 +768,12 @@ def normalize_generated_resources(
                 req["alternativas"],
             )
             if alternatives is None:
+                _reject_structure(
+                    rejections,
+                    title,
+                    f"«{title}»: las alternativas no son válidas: hace falta 1 correcta y {req['alternativas'] - 1} "
+                    "distractores, cada uno con su retroalimentación y su error conceptual.",
+                )
                 continue
             reliable = _review_distractor_reliability(alternatives, body, fragments_by_id)
             needed = min(MIN_RELIABLE_DISTRACTORS, len(alternatives) - 1)
