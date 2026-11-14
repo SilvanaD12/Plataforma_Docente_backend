@@ -23,6 +23,7 @@ from platform5e.application.services.materials.chunk_embedding_service import Ch
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
+from platform5e.application.use_cases.generation.get_generation_evidence import GetGenerationEvidence
 from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
@@ -232,6 +233,7 @@ def create_application() -> FastAPI:
         unit_membership, evidence_provider, generation_request_repository, generation_runner
     )
     get_generation = GetGenerationRequest(generation_request_repository, unit_membership, resource_repository)
+    get_evidence = GetGenerationEvidence(generation_request_repository)
     # REV-01 (D10) y GEN-01 (T029): Revisión pide la regeneración por su puerto; el adaptador de Generación crea un
     # pedido `regeneration` en segundo plano y espera su resultado hasta GENERATION_REGENERATION_WAIT_SECONDS.
     review_service = ResourceReviewService(
@@ -270,7 +272,11 @@ def create_application() -> FastAPI:
     app.include_router(create_documents_router(account_service, material_service))
     app.include_router(
         create_generation_requests_router(
-            start_generation, get_generation, account_service, describe_generator(primary_generator)
+            start_generation,
+            get_generation,
+            account_service,
+            describe_generator(primary_generator),
+            get_evidence,
         )
     )
     app.include_router(create_generations_router(account_service))

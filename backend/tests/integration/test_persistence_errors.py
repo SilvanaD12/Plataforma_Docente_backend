@@ -13,6 +13,7 @@ from platform5e.application.use_cases.generation.get_generation_request import G
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
 from platform5e.domain.shared.errors import DuplicateRecordError, PersistenceUnavailableError
 from platform5e.infrastructure.http.error_handlers import persistence_unavailable_handler
+from platform5e.application.use_cases.generation.get_generation_evidence import GetGenerationEvidence
 from platform5e.infrastructure.http.routers.generation_requests import create_generation_requests_router
 from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as account_repo_module,
@@ -88,6 +89,7 @@ def test_generation_with_database_down_keeps_503_response(tmp_path):
             GetGenerationRequest(requests, membership, FakeReviewRepository()),
             SignedInTeacher(),  # type: ignore[arg-type]
             {},
+            GetGenerationEvidence(requests),
         )
     )
 

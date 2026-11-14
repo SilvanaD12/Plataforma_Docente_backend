@@ -180,3 +180,37 @@ class GenerationRequestStatus(GenerationRequestSummary):
     failure: Problem | None = None
     started_at: str | None = None
     steps: list[GenerationStep] = Field(description="One step per resource type, in 5E order.")
+
+
+class RetrievedFragment(ApiResponse):
+    """Un fragmento recuperado por el pedido, con su procedencia (TA-010)."""
+
+    chunk_id: str
+    document_id: str
+    document_name: str
+    location: str
+    text: str
+    relevance: float = Field(ge=0.0, le=1.0, description="Relevance reported by Material, from 0 to 1.")
+    source_url: str | None = None
+    license: str | None = None
+
+
+class GenerationEvidence(ApiResponse):
+    """Todo lo que el pedido recuperó del material y entregó al modelo, no solo lo citado (TA-010, research R12)."""
+
+    request_id: str
+    retrieval_mode: Literal["hybrid", "bm25_fallback"] | None = Field(
+        description="Search fallback reported by Material. `null` while the request is queued."
+    )
+    limit: int = Field(
+        ge=1, description="Maximum number of chunks the request retrieved: its `topK`, bounded from 3 to 12."
+    )
+    retrieved_at: str | None = Field(
+        description="When the request retrieved the chunks (ISO 8601). `null` while the request is queued."
+    )
+    fragments: list[RetrievedFragment] = Field(
+        description=(
+            "Every retrieved chunk, in retrieval order. The resources cite a subset of them. Empty while the request "
+            "is queued or if the retrieval failed."
+        )
+    )

@@ -9,9 +9,17 @@ pedido de generación individual (POST /api/v1/generation-requests, con la cabec
 GET /api/v1/generation-requests/{id} cada --poll segundos hasta que el pedido termine o pase --timeout.
 
 Guarda una línea por recurso en evaluation/results/samples.jsonl con la pregunta (user_input), el contexto
-(retrieved_contexts) y la respuesta (response), los campos que lee run_ragas.py. La API de pedidos no devuelve los
-fragmentos recuperados: el contexto es la copia histórica de la evidencia que se guardó con cada recurso (campo
-`evidence` de GET /api/v1/units/{unitId}/resources), es decir, los fragmentos que el recurso cita.
+(retrieved_contexts) y la respuesta (response), los campos que lee run_ragas.py. El contexto es todo lo que el pedido
+recuperó del material y entregó al modelo, en el orden de la recuperación (GET /api/v1/generation-requests/{id}/evidence,
+TA-010, research R12); los fragmentos que cita cada recurso quedan aparte en cited_contexts. Cada muestra registra
+además retrieved_count, limit, retrieval_mode y la consulta con que se recuperó (retrieval_query: título de la unidad,
+resultados de aprendizaje, indicaciones y competencia). Hasta el PR #16 (commit 6ed774a) el contexto era solo lo citado.
+
+Campos de cada caso de cases.json: id, instructions y resourceType (o mode "sequence" con resourceTypes), y de forma
+opcional stage, quantity, difficulty, optionCount, topK, competency, unitTitle y outcomeText (una unidad propia para el
+caso, con ese título y ese resultado de aprendizaje), reference (respuesta esperada, para context_recall) y
+expectedFragments (pasajes del material que deberían recuperarse). Los casos sin campos nuevos se piden igual que antes.
+El pedido no envía `modalities`, así que la modalidad (HU-024) no filtra los tipos.
 
 Si un pedido falla, vence el tiempo o un paso se rechaza sin recursos, el motivo se registra en
 evaluation/results/failures.jsonl (no en samples.jsonl, porque run_ragas.py exige contexto en cada muestra) y se sigue
@@ -50,6 +58,11 @@ HERE = Path(__file__).resolve().parent
 COURSE_CODE = 'EVAL-RAG'
 REQUESTS_PATH = '/api/v1/generation-requests'
 FINAL_STATUSES = {'succeeded', 'partially_succeeded', 'failed', 'interrupted'}
+CASE_MODES = ('individual', 'sequence')
+DEFAULT_UNIT_TITLE = 'Protocolos de transporte'
+DEFAULT_OUTCOME = 'Distingue TCP, UDP e IP según su función'
+COURSE_HASH_LENGTH = 12
+EVIDENCE_TIMEOUT = 60.0
 TYPE_NAMES = {
     'pregunta_detonante': 'Pregunta detonante', 'sondeo_diagnostico': 'Sondeo diagnóstico',
     'guia_exploracion': 'Guía de exploración', 'caso_indagacion': 'Caso con preguntas de indagación',
@@ -123,20 +136,48 @@ def login(client: httpx.Client, email: str, password: str) -> dict:
     return {'Authorization': f"Bearer {session.json()['token']}"}
 
 
-def ensure_unit(client: httpx.Client, headers: dict) -> dict:
+def ensure_unit(client: httpx.Client, headers: dict, code: str = COURSE_CODE, title: str = DEFAULT_UNIT_TITLE,
+                outcome: str = DEFAULT_OUTCOME) -> dict:
+    """La unidad del curso de evaluación `code`; si el curso no existe, lo crea con una unidad y un resultado."""
     courses = request(client, 'GET', '/api/v1/courses', headers=headers).json()
-    course = next((c for c in courses if c.get('code') == COURSE_CODE), None)
+    course = next((c for c in courses if c.get('code') == code), None)
     if course is None:
+        name = 'Redes de computadoras (evaluación RAG)' if code == COURSE_CODE else f'Evaluación RAG: {title}'[:150]
         response = request(client, 'POST', '/api/v1/courses', headers=headers, json={
-            'code': COURSE_CODE, 'name': 'Redes de computadoras (evaluación RAG)', 'term': '2026-II',
+            'code': code, 'name': name, 'term': '2026-II',
             'summary': 'Curso de redes de computadoras: protocolos de transporte y de red.',
             'learningGoal': 'Explica cómo se comunican los equipos en una red.',
-            'units': [{'title': 'Protocolos de transporte', 'outcomes': [{'text': 'Distingue TCP, UDP e IP según su función'}]}],
+            'units': [{'title': title, 'outcomes': [{'text': outcome}]}],
         })
         if response.status_code != 201:
             fail(f'no se pudo crear el curso ({response.status_code}): {response.text}')
         course = response.json()
     return course['units'][0]
+
+
+def unit_spec(case: dict) -> tuple[str, str] | None:
+    """(título, resultado) de la unidad propia del caso, o None si usa la unidad de evaluación de siempre. Si el caso
+    trae solo uno de los dos, el otro es el de la unidad de evaluación."""
+    if 'unitTitle' not in case and 'outcomeText' not in case:
+        return None
+    return case.get('unitTitle') or DEFAULT_UNIT_TITLE, case.get('outcomeText') or DEFAULT_OUTCOME
+
+
+def course_code(title: str, outcome: str) -> str:
+    """Código del curso de una unidad propia: `EVAL-RAG-` y un hash corto del título y el resultado (máximo 30)."""
+    digest = hashlib.sha256(f'{title}\n{outcome}'.encode('utf-8')).hexdigest()[:COURSE_HASH_LENGTH]
+    return f'{COURSE_CODE}-{digest}'
+
+
+def ensure_case_unit(client: httpx.Client, headers: dict, case: dict, cache: dict) -> dict:
+    """La unidad del caso: la de evaluación de siempre o, con unitTitle u outcomeText, una propia en su propio curso
+    (se crea una vez y se reutiliza). `cache` evita volver a consultar los cursos en la misma corrida."""
+    spec = unit_spec(case)
+    if spec not in cache:
+        cache[spec] = ensure_unit(client, headers) if spec is None else ensure_unit(
+            client, headers, course_code(*spec), *spec
+        )
+    return cache[spec]
 
 
 def ensure_material(client: httpx.Client, headers: dict, unit: dict, corpus: Path) -> None:
@@ -298,15 +339,116 @@ def step_problems(status: dict) -> list[dict]:
     return problems
 
 
+def case_mode(case: dict) -> str:
+    mode = case.get('mode', 'individual')
+    if mode not in CASE_MODES:
+        raise ValueError(f"el caso «{case.get('id')}» tiene un mode no válido ({mode}): usa individual o sequence")
+    return mode
+
+
+def case_types(case: dict) -> list[str]:
+    """Tipos del pedido: resourceType en un caso individual, resourceTypes en una secuencia."""
+    if case_mode(case) == 'sequence':
+        types = case.get('resourceTypes')
+        if not isinstance(types, list) or not types:
+            raise ValueError(f"el caso «{case.get('id')}» es una secuencia sin resourceTypes")
+        return list(types)
+    if not case.get('resourceType'):
+        raise ValueError(f"el caso «{case.get('id')}» no tiene resourceType")
+    return [case['resourceType']]
+
+
+def case_label(case: dict) -> str:
+    if case.get('mode') == 'sequence':
+        return f"{case.get('id')} · secuencia · {', '.join(case.get('resourceTypes') or [])}"
+    return f"{case.get('id')} · {case.get('stage', '')} · {case.get('resourceType', '')}"
+
+
+def request_body(case: dict, unit: dict) -> dict:
+    """Cuerpo del pedido del caso. Sin `modalities`: la modalidad (HU-024) no filtra los tipos."""
+    return {
+        'mode': case_mode(case), 'unitId': unit['id'], 'resourceTypes': case_types(case),
+        'quantity': case.get('quantity', 1), 'outcomeId': None, 'difficulty': case.get('difficulty', 'intermedia'),
+        'optionCount': case.get('optionCount', 4), 'topK': case.get('topK', 8), 'evidenceThreshold': 0.6,
+        'instructions': case['instructions'], 'audience': '', 'competency': case.get('competency', ''),
+    }
+
+
+def retrieval_query(unit: dict, case: dict) -> dict:
+    """La consulta con que el pedido recupera el material (`evidence_query_text` del backend): título de la unidad,
+    sus resultados de aprendizaje (el pedido no elige uno), las indicaciones y la competencia."""
+    outcomes = [o['text'] for o in unit.get('outcomes') or [] if o.get('text')]
+    parts = {'unitTitle': unit.get('title', ''), 'outcomes': outcomes, 'instructions': case['instructions'],
+             'competency': case.get('competency', '')}
+    parts['text'] = ' '.join(filter(None, [parts['unitTitle'], *outcomes, parts['instructions'], parts['competency']]))
+    return parts
+
+
+def fetch_evidence(client: httpx.Client, headers: dict, request_id: str,
+                   deadline: float | None) -> tuple[dict | None, dict | None]:
+    """Todo lo que recuperó el pedido (GET …/evidence). Devuelve (evidencia, None) o (None, problema)."""
+    problem = {'kind': 'evidence', 'requestId': request_id}
+    try:
+        response = request(client, 'GET', f'{REQUESTS_PATH}/{request_id}/evidence', deadline=deadline,
+                           headers=headers)
+    except BudgetExhausted:
+        return None, {**problem, 'code': 'TIMEOUT', 'message': 'no hubo tiempo para leer la evidencia del pedido'}
+    except httpx.TransportError as error:
+        return None, {**problem, 'code': 'NETWORK_ERROR',
+                      'message': f'no se pudo leer la evidencia del pedido: {error}'}
+    if response.status_code != 200:
+        return None, {'kind': 'evidence', **server_problem(response), 'requestId': request_id}
+    return response.json(), None
+
+
+def build_samples(case: dict, status: dict, stored: dict, evidence: dict, unit: dict, elapsed: float,
+                  problems: list[dict]) -> list[dict]:
+    """Una muestra por recurso entregado. El contexto es todo lo recuperado, en orden; lo citado queda aparte."""
+    contexts = [fragment['text'] for fragment in evidence.get('fragments') or [] if fragment.get('text')]
+    query = retrieval_query(unit, case)
+    sequence = case_mode(case) == 'sequence'
+    samples = []
+    for step in status.get('steps') or []:
+        generator = step.get('generator') or {}
+        # En un caso individual la etapa y el tipo son los del caso, como antes; en una secuencia, los de cada paso.
+        stage = step.get('stage') if sequence else case.get('stage')
+        resource_type = step.get('resourceType') if sequence else case['resourceType']
+        for resource_id in step.get('resourceIds') or []:
+            resource = stored.get(resource_id)
+            if resource is None:
+                problems.append({'kind': 'missing', 'message': f'el recurso {resource_id} ya no está en revisión'})
+                continue
+            sample = {
+                'case_id': case['id'], 'stage': stage, 'resource_type': resource_type,
+                'user_input': f"{TYPE_NAMES.get(resource_type, resource_type)}: {case['instructions']}",
+                'retrieved_contexts': contexts,
+                'response': resource_text(resource),
+                'cited_contexts': [item['text'] for item in resource.get('evidence') or [] if item.get('text')],
+                'retrieved_count': len(contexts),
+                'limit': evidence.get('limit'),
+                'retrieval_mode': evidence.get('retrievalMode') or status.get('retrievalMode'),
+                'retrieval_query': query,
+                'cites_material': cites_material(resource),
+                'generator': generator.get('description'),
+                'uses_ai': bool(generator.get('usesAi')),
+                'fallback': bool(generator.get('fallback')),
+                'seconds': elapsed,
+                'request_id': status['id'],
+                'request_status': status['status'],
+                'problems': problems,
+            }
+            if 'reference' in case:
+                sample['reference'] = case['reference']
+            if 'expectedFragments' in case:
+                sample['expected_fragments'] = case['expectedFragments']
+            samples.append(sample)
+    return samples
+
+
 def run_case(client: httpx.Client, headers: dict, unit: dict, case: dict, args: argparse.Namespace,
              attempt: int) -> tuple[dict | None, dict | None, float]:
     """Crea y espera el pedido de un caso. Devuelve (estado final, falla, segundos)."""
-    body = {
-        'mode': 'individual', 'unitId': unit['id'], 'resourceTypes': [case['resourceType']],
-        'quantity': case.get('quantity', 1), 'outcomeId': None, 'difficulty': case.get('difficulty', 'intermedia'),
-        'optionCount': case.get('optionCount', 4), 'topK': case.get('topK', 8), 'evidenceThreshold': 0.6,
-        'instructions': case['instructions'], 'audience': '', 'competency': '', 'modalities': ['Textual'],
-    }
+    body = request_body(case, unit)
     key = idempotency_key(args.run_id, case['id'], attempt)
     started = time.perf_counter()
     deadline = time.monotonic() + args.timeout
@@ -355,12 +497,25 @@ def main() -> None:
     samples, failures = [], []
     with httpx.Client(base_url=args.api.rstrip('/'), timeout=180) as client:
         headers = login(client, email, password)
-        unit = ensure_unit(client, headers)
-        ensure_material(client, headers, unit, args.corpus)
-        ensure_topics(client, headers, unit, args.topics)
+        units: dict = {}
+        prepared: set[str] = set()
         for number, case in enumerate(cases):
             if number and args.delay:
                 time.sleep(args.delay)  # respeta el límite de solicitudes por minuto del proveedor de IA
+            label = case_label(case)
+            unit = ensure_case_unit(client, headers, case, units)
+            if unit['id'] not in prepared:  # el corpus y los temas, una vez por unidad
+                ensure_material(client, headers, unit, args.corpus)
+                ensure_topics(client, headers, unit, args.topics)
+                prepared.add(unit['id'])
+            stage, types = case.get('stage'), ', '.join(case.get('resourceTypes') or [case.get('resourceType', '')])
+            try:
+                request_body(case, unit)
+            except ValueError as invalid:
+                print(f"{label}: sin muestra (INVALID_CASE) {invalid}")
+                failures.append({'case_id': case.get('id'), 'stage': stage, 'resource_type': types, 'status': None,
+                                 'problems': [{'code': 'INVALID_CASE', 'message': str(invalid)}], 'seconds': 0})
+                continue
             for attempt in range(args.retries + 1):
                 status, failure, elapsed = run_case(client, headers, unit, case, args, attempt)
                 steps = (status or {}).get('steps') or []
@@ -372,58 +527,40 @@ def main() -> None:
                 print(f"{case['id']}: la IA no respondió; reintento {attempt + 1} de {args.retries} en {wait:.0f} s")
                 time.sleep(wait)
 
-            label = f"{case['id']} · {case['stage']} · {case['resourceType']}"
             if failure is not None:
                 print(f"{label}: sin muestra ({failure['code']}) {failure['message']}")
-                failures.append({'case_id': case['id'], 'stage': case['stage'], 'resource_type': case['resourceType'],
+                failures.append({'case_id': case['id'], 'stage': stage, 'resource_type': types,
                                  'status': None, 'problems': [failure], 'seconds': elapsed})
                 continue
 
             problems = step_problems(status)
             resource_ids = [rid for step in steps for rid in step.get('resourceIds') or []]
-            stored = {r['id']: r for r in request(client, 'GET', f"/api/v1/units/{unit['id']}/resources",
-                                                  headers=headers).json()} if resource_ids else {}
-            case_samples = []
-            for step in steps:
-                generator = step.get('generator') or {}
-                for resource_id in step.get('resourceIds') or []:
-                    resource = stored.get(resource_id)
-                    if resource is None:
-                        problems.append({'kind': 'missing', 'message': f'el recurso {resource_id} ya no está en revisión'})
-                        continue
-                    # Contexto: la copia histórica de la evidencia guardada con el recurso.
-                    contexts = [item['text'] for item in resource.get('evidence') or [] if item.get('text')]
-                    cites = cites_material(resource)
-                    case_samples.append({
-                        'case_id': case['id'], 'stage': case['stage'], 'resource_type': case['resourceType'],
-                        'user_input': f"{TYPE_NAMES.get(case['resourceType'], case['resourceType'])}: {case['instructions']}",
-                        'retrieved_contexts': contexts,
-                        'response': resource_text(resource),
-                        'cited_contexts': contexts,
-                        'cites_material': cites,
-                        'generator': generator.get('description'),
-                        'uses_ai': bool(generator.get('usesAi')),
-                        'fallback': bool(generator.get('fallback')),
-                        'seconds': elapsed,
-                        'request_id': status['id'],
-                        'request_status': status['status'],
-                        'retrieval_mode': status.get('retrievalMode'),
-                        'problems': problems,
-                    })
+            stored, evidence = {}, {}
+            if resource_ids:
+                stored = {r['id']: r for r in request(client, 'GET', f"/api/v1/units/{unit['id']}/resources",
+                                                      headers=headers).json()}
+                # TA-010: el contexto es todo lo que recuperó el pedido, no solo lo que citan los recursos.
+                evidence, evidence_problem = fetch_evidence(client, headers, status['id'],
+                                                            time.monotonic() + min(args.timeout, EVIDENCE_TIMEOUT))
+                if evidence_problem is not None:
+                    problems.append(evidence_problem)
+                    evidence = {}
+            case_samples = build_samples(case, status, stored, evidence, unit, elapsed, problems)
             without_context = [s for s in case_samples if not s['retrieved_contexts']]
             if without_context:
-                problems.append({'kind': 'context', 'message': f'{len(without_context)} recurso(s) sin evidencia guardada'})
+                problems.append({'kind': 'context', 'message': f'{len(without_context)} recurso(s) sin evidencia recuperada'})
             samples.extend(s for s in case_samples if s['retrieved_contexts'])
             if not any(s['retrieved_contexts'] for s in case_samples):
-                failures.append({'case_id': case['id'], 'stage': case['stage'], 'resource_type': case['resourceType'],
+                failures.append({'case_id': case['id'], 'stage': stage, 'resource_type': types,
                                  'status': status['status'], 'request_id': status['id'], 'problems': problems,
                                  'seconds': elapsed})
                 reason = '; '.join(p.get('message') or p.get('code', '') for p in problems) or 'sin recursos'
                 print(f"{label}: sin muestra ({status['status']}) {reason[:200]}")
                 continue
-            contexts_count = len(case_samples[0]['retrieved_contexts'])
-            print(f"{label}: {len(case_samples)} recurso(s), {contexts_count} fragmento(s) de evidencia, {elapsed} s · "
-                  f"{case_samples[0]['generator']} · búsqueda {status.get('retrievalMode') or 'desconocida'}")
+            first = case_samples[0]
+            print(f"{label}: {len(case_samples)} recurso(s), {first['retrieved_count']} fragmento(s) recuperado(s) "
+                  f"(límite {first['limit']}), {elapsed} s · {first['generator']} · "
+                  f"búsqueda {first['retrieval_mode'] or 'desconocida'}")
 
     with args.out.open('w', encoding='utf-8') as file:
         for sample in samples:

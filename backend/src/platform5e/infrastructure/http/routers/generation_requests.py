@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Header, Query, status
 from fastapi.responses import JSONResponse
 
 from platform5e.application.services.accounts.account_service import AccountService
+from platform5e.application.use_cases.generation.get_generation_evidence import GetGenerationEvidence
 from platform5e.application.use_cases.generation.get_generation_request import (
     GenerationRequestView,
     GetGenerationRequest,
@@ -33,6 +34,7 @@ from platform5e.infrastructure.http.dependencies import current_teacher_dependen
 from platform5e.infrastructure.http.error_handlers import error_json
 from platform5e.infrastructure.http.schemas.common import error_responses
 from platform5e.infrastructure.http.schemas.generation_requests import (
+    GenerationEvidence,
     GenerationRequestStatus,
     GenerationRequestSummary,
     StartGenerationRequest,
@@ -137,6 +139,7 @@ def create_generation_requests_router(
     get_generation: GetGenerationRequest,
     account_service: AccountService,
     generator_info: dict[str, Any],
+    get_evidence: GetGenerationEvidence,
 ) -> APIRouter:
     router = APIRouter()
     current_teacher = current_teacher_dependency(account_service)
@@ -268,6 +271,39 @@ def create_generation_requests_router(
         except GenerationError as error:
             return generation_error_response(error)
         return status_payload(view.request, view)
+
+    @router.get(
+        f"{BASE_PATH}/{{request_id}}/evidence",
+        tags=["generations"],
+        response_model=GenerationEvidence,
+        summary="Get the evidence retrieved by a generation request",
+        responses=error_responses(401, 404),
+    )
+    def get_generation_evidence(request_id: str, teacher_id: str = Depends(current_teacher)) -> Any:
+        """Every chunk the request retrieved from the material and gave to the model, in retrieval order, not only
+        the ones its resources cite. The Ragas evaluation uses it as the retrieved context (TA-010). A queued request
+        answers 200 with no fragments. Requests of other teachers answer 404 GENERATION_REQUEST_NOT_FOUND, the same
+        as missing ones.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/generation-requests/${REQUEST_ID}/evidence" -H "Authorization: Bearer $TOKEN"
+        ```
+
+        Expected 200. See the response schema below for the returned fields."""
+        try:
+            evidence = get_evidence.execute(teacher_id, request_id)
+        except GenerationError as error:
+            return generation_error_response(error)
+        return {
+            "requestId": evidence.request_id,
+            "retrievalMode": evidence.retrieval_mode,
+            "limit": evidence.limit,
+            "retrievedAt": evidence.retrieved_at,
+            "fragments": list(evidence.fragments),
+        }
 
     @router.get(
         "/api/v1/generator",
