@@ -1090,6 +1090,7 @@
           "generations"
         ],
         "summary": "Interpret a generation request",
+        "description": "Interprets a teacher's message for a unit they own and returns an editable draft.\nThe endpoint uses deterministic rules and creates no generation request.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nReplace unidad-1 with the ID of a unit you own.\n\n```bash\ncurl -X POST \"$BASE_URL/api/v1/generation-requests/interpret\" -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" --data '{\"unitId\":\"unidad-1\",\"message\":\"Quiero dos glosarios\"}'\n```\n\nExpected 200 with the draft, derived 5E stages, and interpretation issues.",
         "operationId": "interpretGenerationRequest",
         "requestBody": {
           "content": {

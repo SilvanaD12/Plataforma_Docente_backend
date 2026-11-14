@@ -160,6 +160,18 @@ def create_generation_interpretation_router(
         body: InterpretGenerationRequest,
         teacher_id: str = Depends(current_teacher),
     ) -> GenerationInterpretation | JSONResponse:
+        """Interprets a teacher's message for a unit they own and returns an editable draft.
+        The endpoint uses deterministic rules and creates no generation request.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Replace unidad-1 with the ID of a unit you own.
+
+        ```bash
+        curl -X POST "$BASE_URL/api/v1/generation-requests/interpret" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data '{"unitId":"unidad-1","message":"Quiero dos glosarios"}'
+        ```
+
+        Expected 200 with the draft, derived 5E stages, and interpretation issues.
+        """
         command = InterpretGenerationCommand(
             teacher_id=teacher_id,
             unit_id=body.unit_id,
