@@ -1,0 +1,171 @@
+Modelo OSI
+
+El modelo de interconexión de sistemas abiertos (ISO/IEC 7498-1), conocido como “modelo OSI”, (en inglés, Open Systems Interconnection) es un modelo de referencia para los protocolos de la red (no es una arquitectura de red), creado en el año 1980 por la Organización Internacional de Normalización.​ Se ha publicado desde 1983 por la Unión Internacional de Telecomunicaciones (UIT) y, desde 1984, la Organización Internacional de Normalización (ISO) también lo publicó con estándar.​ Su desarrollo comenzó en 1977.​
+Es un estándar que tiene por objetivo conseguir interconectar sistemas de procedencia distinta, para que estos puedan intercambiar información sin ningún tipo de impedimentos debidos a los protocolos con los que estos operan de forma propia, según su fabricante y se utiliza para entender cómo se transmiten los datos desde una aplicación en un dispositivo hasta otra en un dispositivo diferente, siendo un estándar muy importante para la infraestructura de red moderna.
+El modelo OSI está conformado por 7 capas o niveles de abstracción: Capa física, capa de enlace de datos, capa de red, capa de transporte, capa de sesión, capa de presentación y capa de aplicación. Cada uno de estos niveles tendrá sus propias funciones para que en conjunto sean capaces de poder alcanzar su objetivo final. Precisamente esta separación en niveles hace posible la intercomunicación de protocolos distintos al concentrar funciones específicas en cada nivel de operación.
+El modelo OSI no es la definición de una topología ni un modelo de red en sí mismo. Tampoco especifica ni define los protocolos que se utilizan en la comunicación, ya que estos están implementados de forma independiente a este modelo. Lo que realmente hace OSI es definir la funcionalidad de ellos para conseguir un estándar.
+
+
+== Historia ==
+A principios de 1980 el desarrollo de redes originó desorden en muchos sentidos. Se produjo un enorme crecimiento en la cantidad y tamaño de las redes. A medida que las empresas tomaban conciencia de las ventajas de usar tecnologías de conexión, las redes se agregaban o expandían a casi la misma velocidad con la que se introducían las nuevas tecnologías de red.
+A mediados de 1980, estas empresas comenzaron a sufrir las consecuencias de la rápida expansión. De la misma forma en que las personas que no hablan un mismo idioma tienen dificultades para comunicarse, las redes que utilizaban diferentes especificaciones e implementaciones no podían intercambiar información. El mismo problema surgía con las empresas que desarrollaban tecnologías de conexiones propietarias (una tecnología es llamada «propietaria» cuando su implementación, ya sea de software o hardware, está sujeta a un copyright; esto supone que una empresa controla esta tecnología y las empresas que quieran utilizarla en sus sistemas tienen que pagar derechos por su uso). Las tecnologías de conexión que respetaban reglas propietarias en forma estricta no podían comunicarse con tecnologías que usaban reglas propietarias diferentes o incluso con las que usaban reglas de conexión copyleft.
+Para enfrentar el problema de incompatibilidad de redes, la ISO investigó modelos de conexión como la red de Digital Equipment Corporation (DECnet), la Arquitectura de Sistemas de Red (Systems Network Architecture, SNA) y TCP/IP, a fin de encontrar un conjunto de reglas aplicables de forma general a todas las redes. Con base en esta investigación, la ISO desarrolló un modelo de red para ayudar a los fabricantes a crear redes que sean compatibles con otras redes.
+
+
+== Modelo de referencia OSI ==
+El modelo OSI es un estándar desarrollado en 1980 por la Organización Internacional de Normalización (ISO),​ una federación global de organizaciones que representa aproximadamente a 160 países. El núcleo de este estándar es el modelo de referencia OSI, una normativa formada por siete capas que define las diferentes fases por las que deben pasar los datos para viajar de un dispositivo a otro sobre una red de comunicaciones.
+Siguiendo el esquema de este modelo se crearon numerosos protocolos. El advenimiento de protocolos más flexibles, donde las capas no estaban tan desmarcadas y la correspondencia con los niveles no era tan clara, puso a este esquema en un segundo plano. Sin embargo se usa en la enseñanza como una manera de mostrar cómo puede estructurarse una «pila» de protocolos de comunicaciones.​
+El modelo especifica el protocolo que debe usarse en cada capa, y suele hablarse de modelo de referencia ya que se usa como una gran herramienta para la enseñanza de comunicación de redes. 
+Debe recordarse siempre que es un modelo, una construcción teórica, por ende no tiene un correlato directo con el mundo real. Se trata de una normativa estandarizada útil debido a la existencia de muchas tecnologías, fabricantes y compañías dentro del mundo de las comunicaciones, y al estar en continua expansión, se tuvo que crear un método para que todos pudieran entenderse de algún modo, incluso cuando las tecnologías no coincidieran. De este modo, no importa la localización geográfica o el lenguaje utilizado- todo el mundo debe atenerse a unas normas mínimas para poder comunicarse entre sí. Esto es sobre todo importante cuando hablamos de la red de redes, es decir, Internet.
+El modelo de referencia OSI es el modelo de red descriptivo, que fue creado por la Organización internacional para la Estandarización en el año 1980. Reconoció que era necesario crear un modelo de red que pudiera ayudar a los diseñadores de red a implementar redes que pudieran comunicarse y trabajar en conjunto y por lo tanto, elaboraron el modelo de referencia OSI. El núcleo de este estándar es el modelo de referencia OSI, una normativa formada por siete capas que define las diferentes fases por las que deben pasar los datos para viajar de un dispositivo a otro sobre una red de comunicaciones. El modelo especifica el protocolo que debe ser usado en cada capa, y suele hablarse de modelo de referencia ya que es usado como una gran herramienta para la enseñanza de comunicación de redes.
+Existen diversos protocolos diseñados según el tipo de comunicación que se requiere. Entre ellos, el conjunto de protocolos TCP/IP se ha consolidado como el estándar predominante en redes corporativas, debido a su interoperabilidad y amplia adopción.
+Las redes basadas en TCP/IP ofrecen una alta escalabilidad, lo que permite su implementación en infraestructuras de diversos tamaños, desde pequeñas redes locales hasta sistemas de gran escala.
+TCP/IP es un conjunto de protocolos de comunicación diseñados para la interconexión de redes, permitiendo la transmisión de datos entre dispositivos en distintas plataformas de software. Es ampliamente soportado por la mayoría de los sistemas operativos y se considera el protocolo de red predeterminado en muchos de ellos.
+La pila de protocolos TCP/IP incluye varios protocolos fundamentales, como FTP, SMTP, UDP, IP y ARP.
+TCP (Protocolo de Control de Transmisión) opera en la capa de transporte del modelo OSI y proporciona una comunicación confiable y orientada a conexión. Por otro lado, IP (Protocolo de Internet) es un protocolo no orientado a conexión que permite el envío de datos entre el origen y el destino a través de una red de conmutación de paquetes. En este tipo de redes, la información se transmite en unidades llamadas paquetes o datagramas.
+
+
+== Arquitectura de capas ==
+La recomendación X.200 describe un modelo de siete capas o niveles numeradas del 1 al 7 siendo la 1 la más baja.
+
+
+=== Capa de medio físico - Capa 0* (Layer Zero) ===
+Esta capa es un tema que genera bastante discusión, ya que no está oficialmente reconocida en el modelo OSI. Sin embargo, en la práctica​​ el término es de uso común para referirse al medio de transmisión, ya sea cableado o inalámbrico. Especial relevancia tiene en el mundo de los operadores de telefonía al ser usada para explicar todo lo referente a redes fotónicas y sistemas de transmisión de múltiples longitudes de onda (DWDM). Por otro lado, en el mundo de los centros de datos se hace referencia a la capa 0 como todo lo relacionado con infraestructura como cableado entre estantes y salas, así como todo lo referente al cableado dentro de los estantes.
+
+
+=== Capa física - Capa 1 ===
+
+Es la capa más baja del modelo OSI. Es la que se encarga de la topología de red y de las conexiones globales de la computadora hacia la red, se refiere tanto al medio físico como a la forma en la que se transmite la información y de las redes.​
+Sus principales funciones se pueden resumir como:
+
+Definir el medio o medios físicos por los que va a viajar la comunicación: cable de pares trenzados (o no, como en RS232/EIA232), cable coaxial, guías de onda, aire, fibra óptica.
+Definir las características eléctricas (niveles de tensión) y materiales (componentes y conectores mecánicos) que se van a usar en la transmisión de los datos por los medios físicos.
+Definir las características funcionales de la interfaz (establecimiento, mantenimiento y liberación del enlace físico).
+Transmitir el flujo de bits a través del medio.
+Manejar las señales eléctricas del medio de transmisión, polos en un enchufe, etc.
+Garantizar la conexión (aunque no la fiabilidad de dicha conexión).
+
+
+=== Capa de enlace de datos - Capa 2 ===
+
+Esta capa se ocupa del direccionamiento físico, del acceso al medio, de la detección de errores, de la distribución ordenada de tramas y del control del flujo.​
+Es uno de los aspectos más importantes que revisar en el momento de conectar dos ordenadores, ya que está entre la capa 1 y 3 como parte esencial para la creación de sus protocolos básicos (MAC, IP), para regular la forma de la conexión entre computadoras, determinando el paso de tramas (unidad de medida de la información en esta capa, que no es más que la segmentación de los datos trasladándolos por medio de paquetes), verificando su integridad, y corrigiendo errores.
+Por lo cual es importante mantener una excelente adecuación al medio físico (los más usados son el cable UTP, par trenzado o de 8 hilos), con el medio de red que redirige las conexiones mediante un enrutador.
+Dadas estas situaciones cabe recalcar que el dispositivo que usa la capa de enlace es el Switch que se encarga de recibir los datos del enrutador y enviar cada uno de estos a sus respectivos destinatarios (servidor -> computador cliente o algún otro dispositivo que reciba información como teléfonos móviles, tabletas y diferentes dispositivos con acceso a la red, etc.), dada esta situación se determina como el medio que se encarga de la corrección de errores, manejo de tramas, protocolización de datos (se llaman protocolos a las "reglas de cortesía" o convenciones que debe seguir cualquier capa del modelo OSI).
+
+
+=== Capa de red - Capa 3 ===
+
+Se encarga de identificar el enrutamiento existente entre una o más redes. Las unidades de datos se denominan paquetes, y se pueden clasificar en protocolos enrutables y protocolos de enrutamiento.​
+
+Enrutables: viajan con los paquetes (IP, IPX,  APPLETALK)
+Enrutamiento: permiten seleccionar las rutas (RIP, IGRP, EIGRP, OSPF, BGP)
+El objetivo de la capa de red es hacer que los datos lleguen desde el origen al destino, aun cuando ambos no estén conectados directamente sino que utilicen dispositivos intermedios. Los dispositivos que facilitan tal tarea se denominan encaminadores o enrutadores. Los enrutadores trabajan en esta capa, aunque pueden actuar como concentrador de nivel 2 en determinados casos, dependiendo de la función que se le asigne. Los muros de fuego actúan sobre esta capa principalmente, para descartar direcciones de determinadas máquinas o limitar el acceso a ciertas de ellas.
+En este nivel se realiza el direccionamiento lógico y la determinación de la ruta de los datos hasta su receptor final.
+
+
+=== Capa de transporte - Capa 4 ===
+
+Capa encargada de efectuar el transporte de los datos libres de errores (que se encuentran dentro del paquete) de la máquina origen a la de destino, independientemente del tipo de red física que esté utilizando.​
+La PDU (unidad de información) de la capa 4 se llama segmento o datagrama, dependiendo de si corresponde a TCP o UDP, el primero orientado a conexión (transmisión verificada, finalmente retransmitida) y el otro sin conexión (pueden perderse algunos datos por el camino).​ Trabajan, por lo tanto, con puertos lógicos y junto con la capa red dan forma a los conocidos como Sockets IP:Puerto (ejemplo: 191.16.200.54:80).
+
+
+=== Capa de sesión - Capa 5 ===
+
+Esta capa es la que se encarga de mantener y controlar el enlace establecido entre dos computadores que están transmitiendo datos de cualquier índole. Por lo tanto, el servicio provisto por esta capa es la capacidad de asegurar que, dada una sesión establecida entre dos máquinas, la misma se pueda efectuar para las operaciones definidas de principio a fin, reanudándolas en caso de interrupción.​ En muchos casos, los servicios de la capa de sesión son parcial o totalmente prescindibles.
+
+
+=== Capa de presentación - Capa 6 ===
+
+El objetivo es encargarse de la representación de la información, de manera que, aunque distintos equipos puedan tener diferentes representaciones internas de caracteres, los datos lleguen de manera reconocible.​
+Esta capa es la primera en trabajar más el contenido de la comunicación que el cómo se establece la misma. En ella se tratan aspectos tales como la semántica y la sintaxis de los datos transmitidos, ya que distintas computadoras pueden tener diferentes formas de manejarlas. Por ejemplo, un mismo sitio web puede adecuar la presentación de sus datos según se acceda desde un computador convencional, una tableta, o un teléfono inteligente. 
+Esta capa también permite cifrar los datos y comprimirlos. Por lo tanto, podría decirse que esta capa actúa como un traductor.
+
+
+=== Capa de aplicación - Capa 7 ===
+
+Ofrece a las aplicaciones la posibilidad de acceder a los servicios de las demás capas y define los protocolos que utilizan las aplicaciones para intercambiar datos, como correo electrónico (Post Office Protocol y SMTP), gestores de bases de datos y servidor de ficheros (FTP). Hay tantos protocolos como aplicaciones distintas y puesto que continuamente se desarrollan nuevas aplicaciones el número de protocolos crece sin parar.​
+Cabe aclarar que el usuario normalmente no interactúa directamente con el nivel de aplicación. Suele interactuar con programas que a su vez interactúan con el nivel de aplicación pero ocultando la complejidad subyacente.
+
+
+== Regla nemotécnica ==
+A fin de facilitar el aprendizaje y memorización de los nombres de las capas que componen el modelo; una regla sencilla consiste en memorizarlas como una sigla nemotécnica: FERTSPA, que en inglés sonaría como First Spa (primer spa en castellano), que se define de la siguiente manera:[cita requerida]
+
+Física
+Enlace
+Red
+Transporte
+Sesión
+Presentación
+Aplicación
+
+
+== Unidades de datos ==
+
+El intercambio de información entre dos capas OSI consiste en que cada capa en el sistema fuente le agrega información de control a los datos, y cada capa en el sistema de destino analiza y quita la información de control de los datos como sigue:
+Si una computadora (A) desea enviar datos a otra (B), en primer término los datos deben empaquetarse a través de un proceso denominado encapsulamiento, es decir, a medida que los datos se desplazan a través de las capas del modelo OSI, reciben encabezados, información final y otros tipos de información.
+
+
+=== N-PDU ===
+La unidad de datos de protocolo (N-PDU) es la información intercambiada entre entidades pares, es decir, dos entidades pertenecientes a la misma capa pero en dos sistemas diferentes, utilizando una conexión N-1. Está compuesta por:
+
+N-SDU (Unidad de Datos del Servicio): son los datos que necesitan la entidades N para realizar funciones del servicio pedido por la entidad N+1.
+N-PCI (Información de Control del Protocolo): información intercambiada entre entidades N utilizando una conexión N-1 para coordinar su operación conjunta.
+
+
+=== N-IDU ===
+La Unidad de Datos de Interfaz (N-IDU): es la información transferida entre dos niveles adyacentes, es decir, dos capas contiguas. Está compuesta por:
+
+ N-ICI (Información de Control de Interfaz): información intercambiada entre una entidad N+1 y una entidad N para coordinar su operación conjunta.
+Datos de Interfaz-(N): información transferida entre una entidad-(N+1) y una entidad-(N) y que normalmente coincide con la (N+1)-PDU.
+
+
+== Transmisión de los datos ==
+
+La capa de aplicación recibe el mensaje del usuario y le añade una cabecera constituyendo así la PDU de la capa de aplicación. La PDU se transfiere a la capa de aplicación del modo destino, este elimina la cabecera y entrega el mensaje al usuario.
+Para ello ha sido necesario todo este proceso:
+
+Ahora hay que entregar la PDU a la capa de presentación para ello hay que añadirle la correspondiente cabecera ICI y transformarla así en una IDU, la cual se transmite a dicha capa.
+La capa de presentación recibe la IDU, le quita la cabecera y extrae la información, es decir, la SDU, a esta le añade su propia cabecera (PCI) constituyendo así la PDU de la capa de presentación.
+Esta PDU es transferida a su vez a la capa de sesión mediante el mismo proceso, repitiéndose así para todas las capas.
+Al llegar al nivel físico se envían los datos que son recibidos por la capa física del receptor.
+Cada capa del receptor se ocupa de extraer la cabecera, que anteriormente había añadido su capa homóloga, interpretarla y entregar la PDU a la capa superior.
+Finalmente, llegará a la capa de aplicación, la cual entregará el mensaje al usuario.
+
+
+== Formato de los datos ==
+Otros datos reciben una serie de nombres y formatos específicos en función de la capa en la que se encuentren, debido a como se describió anteriormente la adhesión de una serie de encabezados e información final.
+Los formatos de información son los que muestra el gráfico:
+
+APDU
+(capa 7) unidad de datos en la capa de aplicación.
+PPDU
+(capa 6) unidad de datos en la capa de presentación.
+SPDU
+(capa 5) unidad de datos en la capa de sesión.
+TPDU
+(capa 4) unidad de datos en el Segmento de transporte  o Datagrama.
+Paquete
+(capa 3) unidad de datos en el capa de red.
+Trama
+(capa 2) unidad de datos en la capa de enlace de datos.
+Bit
+(capa 1) unidad de datos en la capa física.
+
+
+== Operaciones sobre los datos ==
+En determinadas situaciones es necesario realizar una serie de operaciones sobre las PDU y así facilitar su transporte, debido a que son demasiado grandes o bien porque son demasiado pequeñas y estaríamos desaprovechando la capacidad del enlace.
+
+
+=== Bloqueo y desbloqueo ===
+El bloqueo hace corresponder varias (p)-SDU en una (p)-PDU.
+El desbloqueo identifica varias (p)-SDU, que están contenidas en una (p)-PDU.
+
+
+=== Concatenación y separación ===
+La concatenación es una función-(N) que realiza el nivel-(N) y que hace corresponder varias (N)-PDU en una sola (N-1)-SDU.
+La separación identifica varias (N)-PDU que están contenidas en una sola (N-1)-SDU.
+
+
+== Seguridad ==
+Las redes permiten la comunicación entre computadoras y otros dispositivos "inteligentes" como tabletas y teléfonos, pero también son el principal medio por el que estos dispositivos son infectados con virus o son atacados para robar información. Los entornos de red seguros son una necesidad cada vez mayor.​ El modelo OSI facilita la clasificación de los diferentes ataques conocidos y las acciones que permiten evitarlos o al menos mitigar sus consecuencias.
