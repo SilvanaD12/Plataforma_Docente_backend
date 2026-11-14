@@ -135,3 +135,51 @@ def test_main_uses_the_fake_judge_and_explains_a_skipped_recall(ragas, tmp_path,
     summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
     assert summary["contexts"] == "cited" and summary["samples"] == 1 and summary["skipped"] == ["c02"]
     assert [row["retrieved_contexts"] for row in evaluator.inputs] == [["TCP es confiable."]]
+
+
+# answer_relevancy con una pregunta por llamada (T068)
+
+
+class FakeMetric:
+    """Métrica falsa de Ragas: guarda con qué argumentos se construyó."""
+
+    name = "falsa"
+
+    def __init__(self, **kwargs) -> None:
+        self.kwargs = kwargs
+
+
+def fake_ragas_metrics(monkeypatch) -> None:
+    """`ragas.metrics` falso: la prueba no necesita Ragas instalado ni llama a ningún modelo."""
+    import types
+
+    metrics = types.ModuleType("ragas.metrics")
+    for name in ("Faithfulness", "ResponseRelevancy", "LLMContextPrecisionWithoutReference", "LLMContextRecall"):
+        setattr(metrics, name, type(name, (FakeMetric,), {}))
+    monkeypatch.setitem(sys.modules, "ragas", types.ModuleType("ragas"))
+    monkeypatch.setitem(sys.modules, "ragas.metrics", metrics)
+
+
+@pytest.mark.parametrize(("with_recall", "names"), [
+    (False, ["Faithfulness", "ResponseRelevancy", "LLMContextPrecisionWithoutReference"]),
+    (True, ["Faithfulness", "ResponseRelevancy", "LLMContextPrecisionWithoutReference", "LLMContextRecall"]),
+])
+def test_answer_relevancy_asks_one_question_per_call(ragas, monkeypatch, with_recall, names):
+    fake_ragas_metrics(monkeypatch)
+    metrics = ragas.build_ragas_metrics(with_recall)
+    assert [type(metric).__name__ for metric in metrics] == names
+    [relevancy] = [metric for metric in metrics if type(metric).__name__ == "ResponseRelevancy"]
+    # El juez rechaza n>1 («Multiple candidates is not enabled for this model»): una pregunta por llamada.
+    assert relevancy.kwargs == {"strictness": 1} and ragas.RELEVANCY_STRICTNESS == 1
+    assert all(metric.kwargs == {} for metric in metrics if metric is not relevancy)
+
+
+def test_the_summary_reports_the_strictness_next_to_the_judge(ragas, tmp_path):
+    rows = [{"case_id": "C-01", "stage": "explain", "resource_type": "explicacion", "cites_material": True,
+             "faithfulness": 1.0, "answer_relevancy": 0.9, "context_precision": 0.5}]
+    metrics = ragas.metric_names(False)
+    ragas.write_outputs(rows, ragas.summarize(rows, metrics), tmp_path, "juez-falso", metrics)
+    summary = json.loads((tmp_path / "summary.json").read_text(encoding="utf-8"))
+    assert summary["judge"] == "juez-falso" and summary["answer_relevancy_strictness"] == 1
+    first_line = (tmp_path / "summary.md").read_text(encoding="utf-8").splitlines()[2]
+    assert first_line.startswith("Juez: juez-falso (answer_relevancy con strictness=1) · ")
