@@ -29,6 +29,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from platform5e.application.services.provider_errors import redact_secrets
 from platform5e.application.ports.outbound.resource_regeneration_port import RegenerationStatus
 from platform5e.application.use_cases.generation.get_generation_request import (
     GenerationRequestView,
@@ -146,7 +147,7 @@ class GenerationRegenerationAdapter:
         except GenerationError as error:  # rechazo por los datos del docente: Revisión responde con su código
             return RegenerationStatus(key, "failed", (), error.message, str(error.code))
         except Exception as error:  # fallo inesperado: sin código, Revisión responde 502
-            logger.warning("No se pudo iniciar la regeneración de %s: %s", resource_id, str(error)[:200])
+            logger.warning("No se pudo iniciar la regeneración de %s: %s", resource_id, redact_secrets(str(error))[:200])
             return RegenerationStatus(key, "failed", (), UNEXPECTED_ERROR)
         return self._wait(teacher_id, started.request)
 
@@ -180,7 +181,9 @@ class GenerationRegenerationAdapter:
             if request.status in FINAL_STATUSES and view is None:
                 view = self._find(teacher_id, request.id)  # terminado al crearlo (misma clave): se revisa la vista
         except Exception as error:
-            logger.warning("No se pudo consultar el pedido de regeneración %s: %s", request.id, str(error)[:200])
+            logger.warning(
+                "No se pudo consultar el pedido de regeneración %s: %s", request.id, redact_secrets(str(error))[:200]
+            )
             in_progress = "pending" if request.status == RequestStatus.QUEUED else "running"
             return RegenerationStatus(request.id, in_progress)
         if request.status in FINAL_STATUSES and view is None:

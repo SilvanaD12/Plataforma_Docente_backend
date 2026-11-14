@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from platform5e.application.ports.outbound.language_model_port import ResourceGeneratorPort
 from platform5e.application.services.generation.prompt_drafting import normalize_generated_resources
+from platform5e.application.services.provider_errors import public_reason, redact_secrets
 from platform5e.domain.generation.grounding import hallucination_rate
 from platform5e.domain.generation.resource_formats import resource_format
 from platform5e.domain.generation.sequence import SIMILARITY_THRESHOLD, most_similar, resource_text
@@ -112,7 +113,9 @@ def draft_resources(
                     f"{primary_generator.description} no devolvió recursos con citas válidas del material."
                 )
         except Exception as exc:
-            warning_message = f"{primary_generator.description} no respondió ({str(exc)[:160]})."
+            # Al paso (y a la API) va solo el motivo genérico; el detalle del proveedor, al registro y sin claves.
+            logger.warning("%s no respondió: %s", primary_generator.description, redact_secrets(str(exc))[:500])
+            warning_message = f"{primary_generator.description} no respondió ({public_reason(exc)[:160]})."
 
     if not resources and fallback_generator is not None and fallback_generator is not primary_generator:
         raw_response = fallback_generator.generate(generation_context)
@@ -167,10 +170,11 @@ def draft_step(
             **context["solicitud"],
             "indicaciones": " ".join(filter(None, [context["solicitud"]["indicaciones"], NO_REPEAT_INSTRUCTION])),
         }
-        retried, generator_retry, _ = draft_resources(
+        retried, generator_retry, warning_retry = draft_resources(
             {**context, "solicitud": retry_request}, primary_generator, fallback_generator, rejections
         )
         generator = generator_retry or generator
+        warning = warning_retry if generator_retry is not None else warning  # el aviso del generador que quedó
         kept_retry, repeated = filter_repeated(retried[: len(repeated)], accepted + kept)
         kept += kept_retry
     return StepDraft(kept=kept, repeated=repeated, generator=generator, warning=warning)

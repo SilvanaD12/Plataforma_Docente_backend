@@ -5,6 +5,9 @@ Soporta proveedores: Gemini, Anthropic y OpenAI (o compatibles como Groq/OpenRou
 
 from __future__ import annotations
 
+import logging
+import re
+from copy import deepcopy
 from typing import Any
 
 import httpx
@@ -14,6 +17,7 @@ from platform5e.application.services.generation.prompt_drafting import (
     build_prompt_instructions,
     parse_json_response,
 )
+from platform5e.application.services.provider_errors import redact_secrets
 
 DEFAULT_MODELS: dict[str, str] = {
     "gemini": "gemini-3.8-flash",  # gemini-2.5-flash responde 404 a las claves nuevas
@@ -33,6 +37,11 @@ DEFAULT_BASE_URLS: dict[str, str] = {
 RETRY_PROMPT_SUFFIX: str = (
     "\n\nTu respuesta anterior no era JSON válido. Responde solo con el objeto JSON pedido."
 )
+# Caracteres del comienzo y del final de una respuesta inválida que se guardan en el registro.
+INVALID_TEXT_PREVIEW_CHARS: int = 300
+ATTEMPTS: int = 2
+
+logger = logging.getLogger("platform5e.llm")
 
 _STRING_TYPE: dict[str, str] = {"type": "STRING"}
 _TAGS_ARRAY_TYPE: dict[str, Any] = {"type": "ARRAY", "items": _STRING_TYPE}
@@ -148,12 +157,86 @@ GEMINI_RESPONSE_SCHEMA: dict[str, Any] = {
 }
 
 
-class AIProviderError(Exception):
-    """Excepción para errores de conectividad, cuota o respuestas inválidas del proveedor de IA."""
+# Esquema propio de la actividad kinestésica (T073). Con el esquema compartido, todos los campos de «estructura» son
+# opcionales y gemini-3.5-flash-lite los devolvía vacíos: la actividad se rechazaba sin pasos, tiempo ni espacio. Aquí
+# son obligatorios y con límites. `minItems` y `maxItems` van como texto: así los documenta el esquema de Gemini (int64).
+# Los demás tipos siguen con GEMINI_RESPONSE_SCHEMA sin cambios.
+_KINESTHETIC_STRUCTURE_SCHEMA: dict[str, Any] = {
+    "type": "OBJECT",
+    "properties": {
+        "pasos_guiados": {
+            "type": "ARRAY",
+            "minItems": "3",
+            "maxItems": "5",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "titulo": _STRING_TYPE,
+                    "consigna": _STRING_TYPE,
+                    "pregunta": _STRING_TYPE,  # opcional: la pregunta de cierre del paso
+                    "fragmentos": {**_TAGS_ARRAY_TYPE, "maxItems": "3"},
+                },
+                "required": ["titulo", "consigna", "fragmentos"],
+            },
+        },
+        "minutos_estimados": {"type": "INTEGER"},
+        "espacio": _STRING_TYPE,
+        "materiales": {**_TAGS_ARRAY_TYPE, "maxItems": "8"},
+    },
+    "required": ["pasos_guiados", "minutos_estimados", "espacio", "materiales"],
+}
 
-    def __init__(self, message: str, status_code: int | None = None) -> None:
-        super().__init__(message)
+
+def response_schema(resource_type: str | None, quantity: int | None = None) -> dict[str, Any]:
+    """Esquema de respuesta de Gemini para el tipo pedido. Solo la actividad kinestésica tiene uno propio: exige su
+    «estructura» y limita «recursos» a la cantidad pedida. Los demás tipos reciben GEMINI_RESPONSE_SCHEMA tal cual."""
+    if resource_type != "actividad_kinestesica":
+        return GEMINI_RESPONSE_SCHEMA
+    schema = deepcopy(GEMINI_RESPONSE_SCHEMA)
+    resources = schema["properties"]["recursos"]
+    if isinstance(quantity, int) and not isinstance(quantity, bool) and quantity > 0:
+        resources["maxItems"] = str(quantity)
+    item = resources["items"]
+    item["properties"]["estructura"] = deepcopy(_KINESTHETIC_STRUCTURE_SCHEMA)
+    item["required"] = [*item["required"], "estructura"]
+    return schema
+
+
+class AIProviderError(Exception):
+    """Excepción para errores de conectividad, cuota o respuestas inválidas del proveedor de IA.
+
+    El mensaje (para el registro) puede traer el texto del proveedor, con las claves ocultas. `public_reason` es lo
+    único que se guarda o se devuelve al docente: nunca lleva el texto del proveedor (revisión del PR #43). Si quien
+    lanza el error no lo indica, es genérico."""
+
+    def __init__(self, message: str, status_code: int | None = None, public_reason: str | None = None) -> None:
+        super().__init__(redact_secrets(message))
         self.status_code = status_code
+        generic = f"el proveedor respondió {status_code}" if status_code else "el proveedor no respondió"
+        self.public_reason = redact_secrets(public_reason or generic)
+
+
+class InvalidModelResponse(ValueError):
+    """El texto del modelo no es JSON válido. El mensaje solo trae el diagnóstico (finishReason, tokens y caracteres),
+    así que también es el motivo público."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.public_reason = message
+
+
+def _grouped(number: int) -> str:
+    """65536 -> «65 536»."""
+    return f"{number:,}".replace(",", " ")
+
+
+def response_details(text: str, finish_reason: str | None, output_tokens: int | None) -> str:
+    """Diagnóstico corto de una respuesta: por qué terminó, cuántos tokens y cuántos caracteres tiene."""
+    parts = [f"finishReason {finish_reason}"] if finish_reason else []
+    if isinstance(output_tokens, int) and not isinstance(output_tokens, bool):
+        parts.append(f"{_grouped(output_tokens)} tokens")
+    parts.append(f"{_grouped(len(text))} caracteres")
+    return ", ".join(parts)
 
 
 class GeminiLanguageModel(ResourceGeneratorPort):
@@ -185,21 +268,49 @@ class GeminiLanguageModel(ResourceGeneratorPort):
     def generate(self, context: dict[str, Any]) -> dict[str, Any]:
         """Envía el contexto estructurado y extrae el JSON validado."""
         system_instruction, user_prompt = build_prompt_instructions(context)
+        request = context.get("solicitud") or {}
+        schema = response_schema(request.get("tipo"), request.get("cantidad"))
         try:
-            raw_text = self._complete(system_instruction, user_prompt)
-            parsed_data = parse_json_response(raw_text)
+            parsed_data = self._complete_json(system_instruction, user_prompt, schema, attempt=1)
         except ValueError:
-            raw_text = self._complete(system_instruction, user_prompt + RETRY_PROMPT_SUFFIX)
-            parsed_data = parse_json_response(raw_text)
+            # Si también falla el reintento, su error (con su diagnóstico) es el que se informa.
+            parsed_data = self._complete_json(
+                system_instruction, user_prompt + RETRY_PROMPT_SUFFIX, schema, attempt=2
+            )
 
         return parsed_data if isinstance(parsed_data, dict) else {"recursos": parsed_data}
 
-    def _complete(self, system_instruction: str, user_prompt: str) -> str:
-        """Invoca el endpoint específico según el proveedor seleccionado."""
+    def _complete_json(
+        self, system_instruction: str, user_prompt: str, schema: dict[str, Any], attempt: int
+    ) -> Any:
+        """Pide la respuesta y la lee como JSON. Si no lo es, el error dice por qué terminó la respuesta y cuánto
+        medía (un JSON cortado por el límite de tokens termina con finishReason MAX_TOKENS), y el registro guarda su
+        comienzo y su final. Nunca se registran la clave ni el prompt."""
+        raw_text, finish_reason, output_tokens = self._complete(system_instruction, user_prompt, schema)
+        try:
+            return parse_json_response(raw_text)
+        except ValueError as exc:
+            details = response_details(raw_text, finish_reason, output_tokens)
+            logger.warning(
+                "%s: respuesta que no es JSON válido (intento %d de %d; %s). Comienzo: %r · Final: %r",
+                self.description,
+                attempt,
+                ATTEMPTS,
+                details,
+                redact_secrets(raw_text[:INVALID_TEXT_PREVIEW_CHARS]),
+                redact_secrets(raw_text[-INVALID_TEXT_PREVIEW_CHARS:]),
+            )
+            raise InvalidModelResponse(f"{str(exc).rstrip('.')} ({details}).") from exc
+
+    def _complete(
+        self, system_instruction: str, user_prompt: str, schema: dict[str, Any] | None = None
+    ) -> tuple[str, str | None, int | None]:
+        """Invoca el endpoint del proveedor. Devuelve el texto y, si el proveedor los informa (Gemini), por qué terminó
+        la respuesta (finishReason) y cuántos tokens tiene; si no, None."""
         if self.provider == "gemini":
             generation_config: dict[str, Any] = {"responseMimeType": "application/json"}
             if self._enforce_schema:
-                generation_config["responseSchema"] = GEMINI_RESPONSE_SCHEMA
+                generation_config["responseSchema"] = schema or GEMINI_RESPONSE_SCHEMA
 
             try:
                 response_data = self._post_request(
@@ -215,16 +326,22 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 if exc.status_code != 400 or not self._enforce_schema:
                     raise
                 self._enforce_schema = False  # El modelo rechazó el esquema: reintento en JSON libre
-                return self._complete(system_instruction, user_prompt)
+                return self._complete(system_instruction, user_prompt, schema)
 
             candidates = response_data.get("candidates") or []
             if not candidates:
                 block_reason = (response_data.get("promptFeedback") or {}).get(
                     "blockReason", "sin candidatos"
                 )
-                raise AIProviderError(f"Gemini no devolvió texto ({block_reason}).")
+                # blockReason es un valor fijo de Gemini (SAFETY, OTHER…); si no lo parece, no se muestra.
+                shown = f" ({block_reason})" if re.fullmatch(r"[A-Z_]{1,40}", str(block_reason)) else ""
+                raise AIProviderError(
+                    f"Gemini no devolvió texto ({block_reason}).", public_reason=f"Gemini no devolvió texto{shown}."
+                )
             parts = (candidates[0].get("content") or {}).get("parts") or []
-            return "".join(part.get("text", "") for part in parts if not part.get("thought"))
+            text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
+            output_tokens = (response_data.get("usageMetadata") or {}).get("candidatesTokenCount")
+            return text, candidates[0].get("finishReason"), output_tokens
 
         if self.provider == "anthropic":
             response_data = self._post_request(
@@ -237,11 +354,12 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                     "messages": [{"role": "user", "content": user_prompt}],
                 },
             )
-            return "".join(
+            text = "".join(
                 block.get("text", "")
                 for block in response_data.get("content", [])
                 if block.get("type") == "text"
             )
+            return text, None, None
 
         # openai o compatibles
         response_data = self._post_request(
@@ -256,7 +374,7 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 ],
             },
         )
-        return response_data["choices"][0]["message"]["content"] or ""
+        return response_data["choices"][0]["message"]["content"] or "", None, None
 
     def _post_request(self, endpoint_url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
         """Envía la petición HTTP post con manejo de excepciones y errores de tasa límite."""
@@ -268,9 +386,8 @@ class GeminiLanguageModel(ResourceGeneratorPort):
             )
         except httpx.HTTPError as exc:
             provider_name = PROVIDER_DISPLAY_NAMES[self.provider]
-            raise AIProviderError(
-                f"sin conexión con {provider_name}: {exc.__class__.__name__}"
-            ) from exc
+            message = f"sin conexión con {provider_name}: {exc.__class__.__name__}"
+            raise AIProviderError(message, public_reason=message) from exc
 
         if response.status_code >= 400:
             provider_name = PROVIDER_DISPLAY_NAMES[self.provider]
@@ -285,12 +402,13 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 detail_msg = response.text[:200]
 
             if response.status_code == 429:
-                raise AIProviderError(
-                    f"límite de uso de {provider_name} alcanzado (429). Espera un minuto.", 429
-                )
+                message = f"límite de uso de {provider_name} alcanzado (429). Espera un minuto."
+                raise AIProviderError(message, 429, public_reason=message)
+            # El texto del proveedor va solo al registro: puede traer la clave o datos del proyecto.
             raise AIProviderError(
                 f"{provider_name} respondió {response.status_code}: {detail_msg[:200]}",
                 response.status_code,
+                public_reason=f"{provider_name} respondió {response.status_code}",
             )
 
         return response.json()
