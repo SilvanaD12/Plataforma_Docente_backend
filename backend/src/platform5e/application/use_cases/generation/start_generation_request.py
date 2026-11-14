@@ -35,6 +35,8 @@ from platform5e.domain.generation.generation_request import (
     payload_hash,
     validate_idempotency_key,
 )
+from platform5e.domain.generation.resource_catalog import RESOURCE_TYPES
+from platform5e.domain.generation.resource_formats import types_outside_modality
 from platform5e.domain.generation.sequence import SequenceError, plan_steps
 
 MAX_ACTIVE_REQUESTS: int = 2
@@ -49,8 +51,19 @@ TOO_MANY_ACTIVE_MESSAGE: str = (
 )
 
 
+TYPE_NAMES: dict[str, str] = {entry.id: entry.name for entry in RESOURCE_TYPES}
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _outside_modality_message(modality: str, outside: list[str]) -> str:
+    names = ", ".join(TYPE_NAMES.get(resource_type, resource_type) for resource_type in outside)
+    return (
+        f"Estos tipos de recurso no pertenecen a la modalidad {modality}: {names}. "
+        "Quítalos o elige otra modalidad."
+    )
 
 
 @dataclass(frozen=True)
@@ -116,6 +129,16 @@ class StartGenerationRequest:
             planned = plan_steps(command.mode, list(command.parameters.resource_types), command.parameters.quantity)
         except SequenceError as error:
             raise GenerationError(GenerationErrorCode.INVALID_SEQUENCE, str(error)) from error
+
+        # 5b. HU-024: con modalidad, todos los tipos deben pertenecer a ella. La regeneración no la comprueba: rehace un
+        #     recurso que ya existe, con su propio tipo (research R11).
+        modality = command.parameters.modality
+        if modality is not None and command.mode != GenerationMode.REGENERATION:
+            outside = types_outside_modality(modality, command.parameters.resource_types)
+            if outside:
+                raise GenerationError(
+                    GenerationErrorCode.RESOURCE_TYPE_NOT_IN_MODALITY, _outside_modality_message(modality, outside)
+                )
 
         # 6. Sin material procesado no se crea el pedido (GEN-C6).
         if not self._evidence.has_processed_material(command.teacher_id, command.unit_id):

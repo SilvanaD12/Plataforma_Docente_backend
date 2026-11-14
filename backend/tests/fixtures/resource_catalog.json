@@ -10,7 +10,10 @@
     "stage": "engage",
     "group": "Para iniciar la clase",
     "format": "text",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
   },
   {
     "id": "sondeo_diagnostico",
@@ -23,7 +26,10 @@
     "stage": "engage",
     "group": "Para iniciar la clase",
     "format": "text",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
   },
   {
     "id": "audio_detonante",
@@ -36,7 +42,10 @@
     "stage": "engage",
     "group": "Para iniciar la clase",
     "format": "audio",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Multimedia"
+    ]
   },
   {
     "id": "reto_prediccion",
@@ -49,7 +58,10 @@
     "stage": "engage",
     "group": "Para iniciar la clase",
     "format": "interactive",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Gamificado"
+    ]
   },
   {
     "id": "guia_exploracion",
@@ -62,7 +74,10 @@
     "stage": "explore",
     "group": "Para explorar",
     "format": "text",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
   },
   {
     "id": "caso_indagacion",
@@ -75,7 +90,10 @@
     "stage": "explore",
     "group": "Para explorar",
     "format": "text",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
   },
   {
     "id": "imagen_ilustrativa",
@@ -88,7 +106,10 @@
     "stage": "explore",
     "group": "Para explorar",
     "format": "image",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Multimedia"
+    ]
   },
   {
     "id": "diagrama_proceso",
@@ -101,7 +122,10 @@
     "stage": "explore",
     "group": "Para explorar",
     "format": "visual",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Multimedia"
+    ]
   },
   {
     "id": "exploracion_guiada",
@@ -114,7 +138,26 @@
     "stage": "explore",
     "group": "Para explorar",
     "format": "interactive",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
+  },
+  {
+    "id": "actividad_kinestesica",
+    "name": "Actividad kinestésica",
+    "singular": "Actividad kinestésica",
+    "count": [
+      "actividad kinestésica",
+      "actividades kinestésicas"
+    ],
+    "stage": "explore",
+    "group": "Para explorar",
+    "format": "interactive",
+    "hasOptions": false,
+    "modalities": [
+      "Kinestésico"
+    ]
   },
   {
     "id": "explicacion",
@@ -127,7 +170,10 @@
     "stage": "explain",
     "group": "Para explicar",
     "format": "text",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
   },
   {
     "id": "glosario",
@@ -140,7 +186,10 @@
     "stage": "explain",
     "group": "Para explicar",
     "format": "text",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
   },
   {
     "id": "mapa_conceptual",
@@ -153,7 +202,10 @@
     "stage": "explain",
     "group": "Para explicar",
     "format": "visual",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Multimedia"
+    ]
   },
   {
     "id": "infografia",
@@ -166,7 +218,10 @@
     "stage": "explain",
     "group": "Para explicar",
     "format": "visual",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Multimedia"
+    ]
   },
   {
     "id": "podcast_resumen",
@@ -179,7 +234,10 @@
     "stage": "explain",
     "group": "Para explicar",
     "format": "audio",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Multimedia"
+    ]
   },
   {
     "id": "ejercicio_aplicacion",
@@ -192,7 +250,10 @@
     "stage": "elaborate",
     "group": "Para aplicar",
     "format": "text",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
   },
   {
     "id": "caso_aplicado",
@@ -205,7 +266,10 @@
     "stage": "elaborate",
     "group": "Para aplicar",
     "format": "interactive",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Textual"
+    ]
   },
   {
     "id": "emparejamiento",
@@ -218,7 +282,10 @@
     "stage": "elaborate",
     "group": "Para aplicar",
     "format": "interactive",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Gamificado"
+    ]
   },
   {
     "id": "ordenar_pasos",
@@ -231,7 +298,10 @@
     "stage": "elaborate",
     "group": "Para aplicar",
     "format": "interactive",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Gamificado"
+    ]
   },
   {
     "id": "item_opcion_multiple",
@@ -244,7 +314,11 @@
     "stage": "evaluate",
     "group": "Para evaluar",
     "format": "text",
-    "hasOptions": true
+    "hasOptions": true,
+    "modalities": [
+      "Textual",
+      "Gamificado"
+    ]
   },
   {
     "id": "verdadero_falso",
@@ -257,7 +331,10 @@
     "stage": "evaluate",
     "group": "Para evaluar",
     "format": "interactive",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Gamificado"
+    ]
   },
   {
     "id": "completar_espacios",
@@ -270,6 +347,9 @@
     "stage": "evaluate",
     "group": "Para evaluar",
     "format": "interactive",
-    "hasOptions": false
+    "hasOptions": false,
+    "modalities": [
+      "Gamificado"
+    ]
   }
 ]

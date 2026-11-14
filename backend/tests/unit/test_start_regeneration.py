@@ -105,7 +105,7 @@ def test_a_regeneration_request_has_one_step_with_the_saved_params(setup):
         instructions="Usa un ejemplo de videollamadas.",
         audience="Primer ciclo",
         competency="Pensamiento crítico",
-        modalities=("Textual", "Visual"),
+        modality=None,  # `modalities` de antes de HU-024 se lee como «sin modalidad» (research R11)
     )
 
 

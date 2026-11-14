@@ -23,6 +23,7 @@ RequestStatus = Literal["queued", "running", "succeeded", "partially_succeeded",
 StepStatus = Literal["pending", "running", "succeeded", "rejected", "failed", "interrupted"]
 RejectionKind = Literal["grounding", "repetition", "structure", "distractor"]
 VerificationStatus = Literal["current", "insufficient", "pending"]
+Modality = Literal["Textual", "Gamificado", "Multimedia", "Kinestésico"]
 
 
 class StartGenerationRequest(ApiRequest):
@@ -52,9 +53,14 @@ class StartGenerationRequest(ApiRequest):
     instructions: str = Field(default="", max_length=500, description="Free text from the teacher.")
     audience: str = Field(default="", max_length=200, examples=["Tercer ciclo"])
     competency: str = Field(default="", max_length=200)
-    # Pydantic copia el valor por defecto en cada instancia; así OpenAPI muestra el default del contrato.
-    modalities: list[Literal["Textual"]] = Field(
-        default=["Textual"], max_length=1, description="Only text in this delivery."
+    modalities: list[Modality] = Field(
+        default_factory=list,
+        max_length=1,
+        description=(
+            "Optional. One modality per request (HU-024). When sent, every type in `resourceTypes` must belong to it "
+            "(422 RESOURCE_TYPE_NOT_IN_MODALITY, nothing is created). When omitted, types are not filtered and the "
+            "request is saved without a modality. There is no server default."
+        ),
     )
 
     def to_parameters(self) -> GenerationParameters:
@@ -70,9 +76,71 @@ class StartGenerationRequest(ApiRequest):
             instructions=self.instructions,
             audience=self.audience,
             competency=self.competency,
-            modalities=tuple(self.modalities),
+            modality=self.modalities[0] if self.modalities else None,
         )
 
+class InterpretGenerationRequest(ApiRequest):
+    """Cuerpo de POST /generation-requests/interpret."""
+
+    unit_id: str = Field(
+        min_length=1,
+        description="The unit open in the Generation tab.",
+    )
+    message: str = Field(
+        min_length=1,
+        max_length=2000,
+        pattern=r"\S",
+        description="Teacher message, trimmed before validation.",
+    )
+
+class GenerationInterpretationOption(ApiResponse):
+    value: str | int
+    label: str
+
+
+class GenerationInterpretationIssue(ApiResponse):
+    field: Literal[
+        "unitId", "resourceTypes", "quantity", "modalities",
+        "outcomeId", "audience", "competency", "instructions",
+    ]
+    kind: Literal["missing", "ambiguous", "not_allowed"]
+    message: str
+    options: list[GenerationInterpretationOption]
+
+
+class GenerationInterpretationStage(ApiResponse):
+    resource_type: ResourceType
+    stage: Stage
+
+
+class GenerationInterpretationSuggestedUnit(ApiResponse):
+    unit_id: str
+    label: str
+
+
+class GenerationInterpretationDraft(ApiResponse):
+    unit_id: str
+    resource_types: list[ResourceType] = Field(max_length=MAX_SEQUENCE_TYPES)
+    mode: RequestMode | None = None
+    quantity: int | None = Field(
+        default=None,
+        ge=MIN_QUANTITY_PER_TYPE,
+        le=MAX_QUANTITY_PER_TYPE,
+    )
+    modalities: list[Modality] | None = Field(
+        default=None, min_length=1, max_length=1
+    )
+    outcome_id: str | None = None
+    audience: str | None = Field(default=None, max_length=200)
+    competency: str | None = Field(default=None, max_length=200)
+    instructions: str | None = Field(default=None, max_length=500)
+
+
+class GenerationInterpretation(ApiResponse):
+    draft: GenerationInterpretationDraft
+    stages: list[GenerationInterpretationStage]
+    issues: list[GenerationInterpretationIssue]
+    suggested_unit: GenerationInterpretationSuggestedUnit | None = None
 
 class Problem(ApiResponse):
     code: str = Field(examples=["DEADLINE_EXCEEDED"])
@@ -92,7 +160,13 @@ class GenerationParametersView(ApiResponse):
     instructions: str
     audience: str
     competency: str
-    modalities: list[str]
+    modalities: list[Modality] = Field(
+        max_length=1,
+        description=(
+            "The modality chosen by the teacher, as a list of 0 or 1 items (HU-024), with the same shape as the "
+            "request body. Empty when the request did not send one. Requests saved before HU-024 return an empty list."
+        ),
+    )
 
 
 class GenerationRequestSummary(ApiResponse):
@@ -168,3 +242,37 @@ class GenerationRequestStatus(GenerationRequestSummary):
     failure: Problem | None = None
     started_at: str | None = None
     steps: list[GenerationStep] = Field(description="One step per resource type, in 5E order.")
+
+
+class RetrievedFragment(ApiResponse):
+    """Un fragmento recuperado por el pedido, con su procedencia (TA-010)."""
+
+    chunk_id: str
+    document_id: str
+    document_name: str
+    location: str
+    text: str
+    relevance: float = Field(ge=0.0, le=1.0, description="Relevance reported by Material, from 0 to 1.")
+    source_url: str | None = None
+    license: str | None = None
+
+
+class GenerationEvidence(ApiResponse):
+    """Todo lo que el pedido recuperó del material y entregó al modelo, no solo lo citado (TA-010, research R12)."""
+
+    request_id: str
+    retrieval_mode: Literal["hybrid", "bm25_fallback"] | None = Field(
+        description="Search fallback reported by Material. `null` while the request is queued."
+    )
+    limit: int = Field(
+        ge=1, description="Maximum number of chunks the request retrieved: its `topK`, bounded from 3 to 12."
+    )
+    retrieved_at: str | None = Field(
+        description="When the request retrieved the chunks (ISO 8601). `null` while the request is queued."
+    )
+    fragments: list[RetrievedFragment] = Field(
+        description=(
+            "Every retrieved chunk, in retrieval order. The resources cite a subset of them. Empty while the request "
+            "is queued or if the retrieval failed."
+        )
+    )

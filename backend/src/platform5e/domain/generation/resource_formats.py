@@ -23,11 +23,33 @@ RESOURCE_CATALOG: dict[str, tuple[str, str]] = {
     entry.id: (entry.stage, entry.format) for entry in RESOURCE_TYPES
 }
 
+# HU-024 (research R11): una modalidad es un grupo de tipos, no un modo distinto de generar. Un tipo puede estar en
+# más de una.
+MODALITIES: tuple[str, ...] = ("Textual", "Gamificado", "Multimedia", "Kinestésico")
+MODALITY_TYPES: dict[str, frozenset[str]] = {
+    "Textual": frozenset({
+        "pregunta_detonante", "sondeo_diagnostico", "guia_exploracion", "caso_indagacion", "exploracion_guiada",
+        "explicacion", "glosario", "ejercicio_aplicacion", "caso_aplicado", "item_opcion_multiple",
+    }),
+    "Gamificado": frozenset({
+        "reto_prediccion", "emparejamiento", "ordenar_pasos", "verdadero_falso", "completar_espacios",
+        "item_opcion_multiple",
+    }),
+    "Multimedia": frozenset({
+        "imagen_ilustrativa", "audio_detonante", "podcast_resumen", "diagrama_proceso", "mapa_conceptual",
+        "infografia",
+    }),
+    "Kinestésico": frozenset({"actividad_kinestesica"}),
+}
+
 BLANK = "____"
 MAX_ITEMS = 10
 MAX_SHORT = 160
 MAX_LONG = 600
 MAX_SCRIPT = 2400
+MAX_MATERIAL = 80
+MIN_MINUTES = 5
+MAX_MINUTES = 90
 
 # Mínimo de elementos para que la actividad o el gráfico tengan sentido.
 MIN_ITEMS: dict[str, int] = {
@@ -35,6 +57,7 @@ MIN_ITEMS: dict[str, int] = {
     "infografia": 3,
     "diagrama_proceso": 3,
     "exploracion_guiada": 3,
+    "actividad_kinestesica": 3,
     "reto_prediccion": 3,
     "caso_aplicado": 3,
     "emparejamiento": 3,
@@ -46,6 +69,17 @@ MIN_ITEMS: dict[str, int] = {
 
 def resource_format(resource_type: str) -> str:
     return RESOURCE_CATALOG.get(resource_type, ("", TEXT))[1]
+
+
+def modalities_of(resource_type: str) -> list[str]:
+    """Modalidades que incluyen el tipo, en el orden de `MODALITIES`."""
+    return [modality for modality in MODALITIES if resource_type in MODALITY_TYPES[modality]]
+
+
+def types_outside_modality(modality: str, resource_types: list[str] | tuple[str, ...]) -> list[str]:
+    """Tipos pedidos que no pertenecen a la modalidad, sin repetir y en el orden recibido."""
+    allowed = MODALITY_TYPES.get(modality, frozenset())
+    return [resource_type for resource_type in dict.fromkeys(resource_types) if resource_type not in allowed]
 
 
 def resource_stage(resource_type: str) -> str:
@@ -88,8 +122,10 @@ def _with_blank(sentence: str, answer: str) -> str:
     return masked if masked != sentence else ""
 
 
-def _guided_steps(value: Any) -> list[dict[str, Any]]:
-    """HU-048: pasos de la exploración guiada. Cada paso conserva los fragmentos del material que lo respaldan."""
+def _guided_steps(value: Any, question_required: bool = True) -> list[dict[str, Any]]:
+    """HU-048: pasos de la exploración guiada. Cada paso conserva los fragmentos del material que lo respaldan.
+
+    En la actividad kinestésica (HU-024) la pregunta de cierre del paso es opcional."""
     steps = []
     for item in _items(value):
         if not isinstance(item, dict):
@@ -100,9 +136,28 @@ def _guided_steps(value: Any) -> list[dict[str, Any]]:
             "question": _short(item.get("question"), MAX_LONG),
             "fragmentIds": [f for f in (item.get("fragmentIds") or []) if isinstance(f, str) and f][:3],
         }
-        if step["title"] and step["instruction"] and step["question"]:
+        if step["title"] and step["instruction"] and (step["question"] or not question_required):
             steps.append(step)
     return steps
+
+
+def _materials(value: Any) -> list[str]:
+    """HU-024: materiales de la actividad kinestésica, sin repetir. Puede quedar vacía."""
+    materials: list[str] = []
+    for item in _items(value):
+        text = _short(item, MAX_MATERIAL) if isinstance(item, str) else ""
+        if text and text.casefold() not in {material.casefold() for material in materials}:
+            materials.append(text)
+    return materials
+
+
+def _estimated_minutes(value: Any) -> int | None:
+    """HU-024: minutos enteros de 5 a 90. Acepta un número entero o un texto con solo dígitos; si no, None."""
+    if isinstance(value, str) and value.strip().isdigit():
+        value = int(value.strip())
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value if MIN_MINUTES <= value <= MAX_MINUTES else None
 
 
 def _predictions(value: Any) -> list[dict[str, Any]]:
@@ -170,6 +225,18 @@ def normalize_structure(resource_type: str, raw: Any) -> dict[str, Any] | None:
         structure = {"steps": _titled_points(data.get("steps"))}
     elif resource_type == "exploracion_guiada":
         structure = {"guidedSteps": _guided_steps(data.get("guidedSteps"))}
+    elif resource_type == "actividad_kinestesica":
+        # HU-024: los pasos van primero (el mínimo se cuenta sobre la primera lista). Materiales, tiempo y espacio
+        # quedan dentro de `structure` para que la huella de REV-01 los cubra; no se contrastan con el material.
+        minutes = _estimated_minutes(data.get("estimatedMinutes"))
+        structure = {
+            "guidedSteps": _guided_steps(data.get("guidedSteps"), question_required=False),
+            "materials": _materials(data.get("materials")),
+            "estimatedMinutes": minutes,
+            "space": _short(data.get("space"), MAX_MATERIAL),
+        }
+        if minutes is None or not structure["space"]:
+            return None
     elif resource_type == "reto_prediccion":
         structure = {"predictions": _predictions(data.get("predictions"))}
     elif resource_type == "caso_aplicado":

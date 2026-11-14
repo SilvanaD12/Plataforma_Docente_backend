@@ -11,7 +11,7 @@ from platform5e.infrastructure.http.schemas.generations import ResourceType
 
 
 def test_catalog_matches_generation_validation_and_export_metadata():
-    assert len(RESOURCE_TYPES) == 21
+    assert len(RESOURCE_TYPES) == 22
     assert len({entry.id for entry in RESOURCE_TYPES}) == len(RESOURCE_TYPES)
     assert set(RESOURCE_CATALOG) == set(get_args(ResourceType))
     assert {entry.stage for entry in RESOURCE_TYPES} == {"engage", "explore", "explain", "elaborate", "evaluate"}

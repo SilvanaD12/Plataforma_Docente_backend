@@ -65,6 +65,12 @@ RESOURCE_TYPES: dict[str, tuple[str, str]] = {
         "Una actividad interactiva de 3 a 5 pasos para que el estudiante explore el material: en cada paso, qué "
         "observa o hace y una pregunta guía para registrar lo que encuentra. Cada paso se apoya en un fragmento.",
     ),
+    "actividad_kinestesica": (
+        "Actividad kinestésica",
+        "Una actividad de 3 a 5 pasos que los estudiantes hacen con el cuerpo en el aula: se mueven, manipulan "
+        "objetos o representan ideas del material. En cada paso, qué hacen y, si ayuda, una pregunta para comentar "
+        "lo que observaron. Cada paso se apoya en un fragmento. Indica los materiales, el tiempo y el espacio.",
+    ),
     "caso_indagacion": (
         "Caso con preguntas de indagación",
         "Un caso breve basado en el material y de 3 a 4 preguntas reflexivas.",
@@ -150,6 +156,13 @@ STRUCTURE_INSTRUCTIONS: dict[str, str] = {
         'el material", "pregunta": "pregunta guía para registrar lo que encontró", "fragmentos": ["F1"]}]}. '
         "Cada paso cita en «fragmentos» la etiqueta del fragmento en que se apoya"
     ),
+    "actividad_kinestesica": (
+        '"estructura": {"pasos_guiados": [{"titulo": "...", "consigna": "qué hacen los estudiantes con el cuerpo o '
+        'con objetos del aula", "pregunta": "pregunta para comentar lo que observaron (opcional)", "fragmentos": '
+        '["F1"]}], "materiales": ["objetos del aula que se necesitan"], "minutos_estimados": 20, "espacio": "dónde se '
+        'hace: aula, patio…"}. Cada paso cita en «fragmentos» la etiqueta del fragmento en que se apoya; '
+        "«minutos_estimados» es un entero de 5 a 90"
+    ),
     "reto_prediccion": (
         '"estructura": {"predicciones": [{"pregunta": "¿Qué crees que pasa si…?", "correcta": "opción que dice el '
         'material", "otra": "opción equivocada pero creíble", "extra": "otra opción equivocada (opcional)", '
@@ -182,16 +195,35 @@ FORMAT_RULES: dict[str, str] = {
 
 # Tipos interactivos que no se califican automáticamente: la solución la valora el docente.
 TYPE_FORMAT_RULES: dict[str, str] = {
+    "actividad_kinestesica": (
+        "La plataforma arma la actividad con tu estructura: los estudiantes la hacen en el aula guiados por el "
+        "docente, que marca cuándo la terminaron; no se califica automáticamente."
+    ),
     "caso_aplicado": (
         "La plataforma arma la actividad con tu estructura: el estudiante escribe su solución y la revisa con los "
         "criterios de logro; la califica el docente."
     ),
 }
 
+# HU-024 (T055): intención de cada modalidad. Se agrega una línea al pedido; no cambia las reglas de citas ni de formato.
+MODALITY_INTENTS: dict[str, str] = {
+    "Textual": "Recursos para leer, escribir y responder por escrito.",
+    "Gamificado": "Recursos con dinámica de juego: retos, puntos o niveles que motiven a participar.",
+    "Multimedia": "Recursos visuales o de audio que apoyen la comprensión con imágenes, gráficos o sonido.",
+    "Kinestésico": "Una actividad que los estudiantes hacen con el cuerpo en el aula: se mueven, manipulan objetos o "
+    "representan ideas.",
+}
+
 DIFFICULTY_LABELS: dict[str, str] = {
     "basica": "básica",
     "intermedia": "intermedia",
     "avanzada": "avanzada",
+}
+
+# Tipos cuyos pasos (`guidedSteps`) se enlazan con su fragmento, y cómo se nombra la actividad en el motivo.
+GUIDED_STEP_TYPES: dict[str, str] = {
+    "exploracion_guiada": "la exploración",
+    "actividad_kinestesica": "la actividad kinestésica",
 }
 
 MAX_TITLE_CHARS: int = 160
@@ -240,7 +272,7 @@ def build_generation_context(
             "indicaciones": request_data.get("instructions", ""),
             "publico": request_data.get("audience", ""),
             "competencia": request_data.get("competency", ""),
-            "modalidades": request_data.get("modalities", []),
+            "modalidades": [request_data["modality"]] if request_data.get("modality") else [],
             "umbralEvidencia": request_data.get("evidenceThreshold", DEFAULT_THRESHOLD),
         },
         "fragmentos": [
@@ -313,6 +345,9 @@ def build_prompt_instructions(context: dict[str, Any]) -> tuple[str, str]:
         f"PEDIDO: {req['cantidad']} recurso(s) de tipo «{type_name}». {format_desc}",
         f"Dificultad: {DIFFICULTY_LABELS.get(req['dificultad'], req['dificultad'])}.",
     ]
+    modality = next(iter(req.get("modalidades") or []), None)
+    if modality in MODALITY_INTENTS:
+        lines.append(f"Modalidad de la clase: {modality}. {MODALITY_INTENTS[modality]}")
 
     if req["tipo"] == "item_opcion_multiple":
         lines.append(
@@ -437,7 +472,7 @@ def structure_from_model(
         }
     elif resource_type == "diagrama_proceso":
         converted = {"steps": [{"title": i.get("titulo"), "text": i.get("texto")} for i in _list_of_dicts(data.get("pasos"))]}
-    elif resource_type == "exploracion_guiada":
+    elif resource_type in ("exploracion_guiada", "actividad_kinestesica"):
         converted = {
             "guidedSteps": [
                 {
@@ -449,6 +484,15 @@ def structure_from_model(
                 for i in _list_of_dicts(data.get("pasos_guiados"))
             ]
         }
+        if resource_type == "actividad_kinestesica":
+            # HU-024: datos de la actividad; van en `structure`, pero no se contrastan con el material.
+            converted.update(
+                {
+                    "materials": data.get("materiales"),
+                    "estimatedMinutes": data.get("minutos_estimados"),
+                    "space": data.get("espacio"),
+                }
+            )
     elif resource_type == "reto_prediccion":
         converted = {
             "predictions": [
@@ -596,18 +640,20 @@ def normalize_generated_resources(
             structure = structure_from_model(req["tipo"], raw_item.get("estructura"), body, title, tag_mapping)
             if structure is None:
                 continue
-            if req["tipo"] == "exploracion_guiada":
-                # HU-048 C02: cada paso queda enlazado al fragmento que lo respalda; los que no se apoyan se quitan.
+            if req["tipo"] in GUIDED_STEP_TYPES:
+                # HU-048 C02 y HU-024: cada paso queda enlazado al fragmento que lo respalda; los que no se apoyan se
+                # quitan. En la actividad kinestésica, materiales, tiempo y espacio no se contrastan con el material.
                 linked = link_step_sources(structure["guidedSteps"], fragments_by_id)
                 verification.update(linked.summary())
-                if len(linked.steps) < MIN_ITEMS["exploracion_guiada"]:
+                minimum = MIN_ITEMS[req["tipo"]]
+                if len(linked.steps) < minimum:
                     if rejections is not None:
                         rejections.append(
                             {
                                 "title": title,
                                 "reason": (
                                     f"«{title}»: solo {len(linked.steps)} paso(s) se apoyan en el material; "
-                                    f"la exploración necesita al menos {MIN_ITEMS['exploracion_guiada']}."
+                                    f"{GUIDED_STEP_TYPES[req['tipo']]} necesita al menos {minimum}."
                                 ),
                                 "grounding": verification,
                                 "kind": "grounding",

@@ -11,9 +11,14 @@ from fastapi import APIRouter, Depends, Header, Query, status
 from fastapi.responses import JSONResponse
 
 from platform5e.application.services.accounts.account_service import AccountService
+from platform5e.application.use_cases.generation.get_generation_evidence import GetGenerationEvidence
 from platform5e.application.use_cases.generation.get_generation_request import (
     GenerationRequestView,
     GetGenerationRequest,
+)
+from platform5e.application.use_cases.generation.interpret_generation_request import (
+    InterpretGenerationCommand,
+    InterpretGenerationRequest as InterpretGenerationUseCase,
 )
 from platform5e.application.use_cases.generation.start_generation_request import (
     StartGenerationCommand,
@@ -33,8 +38,11 @@ from platform5e.infrastructure.http.dependencies import current_teacher_dependen
 from platform5e.infrastructure.http.error_handlers import error_json
 from platform5e.infrastructure.http.schemas.common import error_responses
 from platform5e.infrastructure.http.schemas.generation_requests import (
+    GenerationEvidence,
+    GenerationInterpretation,
     GenerationRequestStatus,
     GenerationRequestSummary,
+    InterpretGenerationRequest,
     StartGenerationRequest,
 )
 from platform5e.infrastructure.http.schemas.generations import GeneratorInfo
@@ -52,6 +60,7 @@ ERROR_STATUS: dict[str, int] = {
     GenerationErrorCode.GENERATION_REQUEST_NOT_FOUND: 404,
     GenerationErrorCode.IDEMPOTENCY_KEY_REUSED: 409,
     GenerationErrorCode.INVALID_PARAMETERS: 422,
+    GenerationErrorCode.RESOURCE_TYPE_NOT_IN_MODALITY: 422,
     GenerationErrorCode.TOO_MANY_ACTIVE_REQUESTS: 429,
     GenerationErrorCode.EVIDENCE_UNAVAILABLE: 503,
     # Regeneración: hoy solo llegan por la ruta de Revisión, que decide su propio estado; aquí quedan coherentes.
@@ -113,6 +122,9 @@ def _step_payload(step: DomainStep, view: GenerationRequestView | None) -> dict[
 def status_payload(request: GenerationRequest, view: GenerationRequestView | None = None) -> dict[str, Any]:
     """El pedido en la forma de `GenerationRequestStatus` (camelCase)."""
     parameters = request.parameters.to_payload()
+    # La respuesta conserva la forma del cuerpo (research R11): una lista de 0 o 1 modalidad.
+    modality = parameters.pop("modality")
+    parameters["modalities"] = [modality] if modality else []
     return {
         **summary_payload(request),
         "parameters": parameters,
@@ -128,11 +140,58 @@ def _validated(payload: dict[str, Any]) -> dict[str, Any]:
     return GenerationRequestStatus.model_validate(payload).model_dump(by_alias=True, mode="json")
 
 
+def create_generation_interpretation_router(
+    interpreter: InterpretGenerationUseCase,
+    account_service: AccountService,
+) -> APIRouter:
+    router = APIRouter()
+    current_teacher = current_teacher_dependency(account_service)
+
+    @router.post(
+        f"{BASE_PATH}/interpret",
+        tags=["generations"],
+        operation_id="interpretGenerationRequest",
+        summary="Interpret a generation request",
+        response_model=GenerationInterpretation,
+        response_model_exclude_unset=True,
+        responses=error_responses(401, 404, 422),
+    )
+    def interpret_generation_request(
+        body: InterpretGenerationRequest,
+        teacher_id: str = Depends(current_teacher),
+    ) -> GenerationInterpretation | JSONResponse:
+        """Interprets a teacher's message for a unit they own and returns an editable draft.
+        The endpoint uses deterministic rules and creates no generation request.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Replace unidad-1 with the ID of a unit you own.
+
+        ```bash
+        curl -X POST "$BASE_URL/api/v1/generation-requests/interpret" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data '{"unitId":"unidad-1","message":"Quiero dos glosarios"}'
+        ```
+
+        Expected 200 with the draft, derived 5E stages, and interpretation issues.
+        """
+        command = InterpretGenerationCommand(
+            teacher_id=teacher_id,
+            unit_id=body.unit_id,
+            message=body.message,
+        )
+        try:
+            result = interpreter.execute(command)
+        except GenerationError as error:
+            return generation_error_response(error)
+        return GenerationInterpretation.model_validate(result)
+
+    return router
+
+
 def create_generation_requests_router(
     start_generation: StartGenerationUseCase,
     get_generation: GetGenerationRequest,
     account_service: AccountService,
     generator_info: dict[str, Any],
+    get_evidence: GetGenerationEvidence,
 ) -> APIRouter:
     router = APIRouter()
     current_teacher = current_teacher_dependency(account_service)
@@ -264,6 +323,39 @@ def create_generation_requests_router(
         except GenerationError as error:
             return generation_error_response(error)
         return status_payload(view.request, view)
+
+    @router.get(
+        f"{BASE_PATH}/{{request_id}}/evidence",
+        tags=["generations"],
+        response_model=GenerationEvidence,
+        summary="Get the evidence retrieved by a generation request",
+        responses=error_responses(401, 404),
+    )
+    def get_generation_evidence(request_id: str, teacher_id: str = Depends(current_teacher)) -> Any:
+        """Every chunk the request retrieved from the material and gave to the model, in retrieval order, not only
+        the ones its resources cite. The Ragas evaluation uses it as the retrieved context (TA-010). A queued request
+        answers 200 with no fragments. Requests of other teachers answer 404 GENERATION_REQUEST_NOT_FOUND, the same
+        as missing ones.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/generation-requests/${REQUEST_ID}/evidence" -H "Authorization: Bearer $TOKEN"
+        ```
+
+        Expected 200. See the response schema below for the returned fields."""
+        try:
+            evidence = get_evidence.execute(teacher_id, request_id)
+        except GenerationError as error:
+            return generation_error_response(error)
+        return {
+            "requestId": evidence.request_id,
+            "retrievalMode": evidence.retrieval_mode,
+            "limit": evidence.limit,
+            "retrievedAt": evidence.retrieved_at,
+            "fragments": list(evidence.fragments),
+        }
 
     @router.get(
         "/api/v1/generator",

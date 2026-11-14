@@ -23,8 +23,13 @@ from platform5e.application.services.materials.chunk_embedding_service import Ch
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
+from platform5e.application.use_cases.generation.get_generation_evidence import GetGenerationEvidence
 from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
+from platform5e.application.use_cases.generation.interpret_generation_request import (
+    InterpretGenerationRequest,
+    SuggestedUnit,
+)
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
 from platform5e.application.use_cases.generation.start_regeneration import StartRegeneration
 from platform5e.application.use_cases.media.get_resource_media import GetResourceMediaUseCase
@@ -58,7 +63,10 @@ from platform5e.infrastructure.http.routers.downloads import (
     create_teacher_downloads_router,
 )
 from platform5e.infrastructure.http.routers.exports import create_exports_router
-from platform5e.infrastructure.http.routers.generation_requests import create_generation_requests_router
+from platform5e.infrastructure.http.routers.generation_requests import (
+    create_generation_interpretation_router,
+    create_generation_requests_router,
+)
 from platform5e.infrastructure.http.routers.generations import create_generations_router
 from platform5e.infrastructure.http.routers.health import create_health_router
 from platform5e.infrastructure.http.routers.resources import create_resources_router
@@ -201,6 +209,15 @@ def create_application() -> FastAPI:
     # Adaptador T007 para validación de pertenencia de unidades y resultados; lo comparten Material y Generación.
     unit_membership = AccountUnitMembershipAdapter(account_repository)
 
+    def list_owned_units(teacher_id: str) -> list[SuggestedUnit]:
+        return [
+            {"unitId": unit["id"], "label": unit["title"]}
+            for course in account_service.list_courses(teacher_id)
+            for unit in course["units"]
+        ]
+
+    interpret_generation = InterpretGenerationRequest(unit_membership, list_owned_units)
+
     material_service = MaterialService(
         teacher_repository=account_repository,
         chunk_repository=chunk_repository,
@@ -232,6 +249,7 @@ def create_application() -> FastAPI:
         unit_membership, evidence_provider, generation_request_repository, generation_runner
     )
     get_generation = GetGenerationRequest(generation_request_repository, unit_membership, resource_repository)
+    get_evidence = GetGenerationEvidence(generation_request_repository)
     # REV-01 (D10) y GEN-01 (T029): Revisión pide la regeneración por su puerto; el adaptador de Generación crea un
     # pedido `regeneration` en segundo plano y espera su resultado hasta GENERATION_REGENERATION_WAIT_SECONDS.
     review_service = ResourceReviewService(
@@ -268,9 +286,14 @@ def create_application() -> FastAPI:
     app.include_router(create_accounts_router(account_service))
     app.include_router(create_courses_router(account_service))
     app.include_router(create_documents_router(account_service, material_service))
+    app.include_router(create_generation_interpretation_router(interpret_generation, account_service))
     app.include_router(
         create_generation_requests_router(
-            start_generation, get_generation, account_service, describe_generator(primary_generator)
+            start_generation,
+            get_generation,
+            account_service,
+            describe_generator(primary_generator),
+            get_evidence,
         )
     )
     app.include_router(create_generations_router(account_service))

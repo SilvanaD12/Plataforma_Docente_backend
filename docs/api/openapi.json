@@ -1084,6 +1084,73 @@
         }
       }
     },
+    "/api/v1/generation-requests/interpret": {
+      "post": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Interpret a generation request",
+        "description": "Interprets a teacher's message for a unit they own and returns an editable draft.\nThe endpoint uses deterministic rules and creates no generation request.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nReplace unidad-1 with the ID of a unit you own.\n\n```bash\ncurl -X POST \"$BASE_URL/api/v1/generation-requests/interpret\" -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" --data '{\"unitId\":\"unidad-1\",\"message\":\"Quiero dos glosarios\"}'\n```\n\nExpected 200 with the draft, derived 5E stages, and interpretation issues.",
+        "operationId": "interpretGenerationRequest",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterpretGenerationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationInterpretation"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
     "/api/v1/generation-requests": {
       "post": {
         "tags": [
@@ -1368,6 +1435,74 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GenerationRequestStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generation-requests/{request_id}/evidence": {
+      "get": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Get the evidence retrieved by a generation request",
+        "description": "Every chunk the request retrieved from the material and gave to the model, in retrieval order, not only\nthe ones its resources cite. The Ragas evaluation uses it as the retrieved context (TA-010). A queued request\nanswers 200 with no fragments. Requests of other teachers answer 404 GENERATION_REQUEST_NOT_FOUND, the same\nas missing ones.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generation-requests/${REQUEST_ID}/evidence\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "get_generation_evidence_api_v1_generation_requests__request_id__evidence_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationEvidence"
                 }
               }
             }
@@ -3388,6 +3523,67 @@
         ],
         "title": "GeneratedChunk"
       },
+      "GenerationEvidence": {
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "title": "Requestid"
+          },
+          "retrievalMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "hybrid",
+                  "bm25_fallback"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievalmode",
+            "description": "Search fallback reported by Material. `null` while the request is queued."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Limit",
+            "description": "Maximum number of chunks the request retrieved: its `topK`, bounded from 3 to 12."
+          },
+          "retrievedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievedat",
+            "description": "When the request retrieved the chunks (ISO 8601). `null` while the request is queued."
+          },
+          "fragments": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievedFragment"
+            },
+            "type": "array",
+            "title": "Fragments",
+            "description": "Every retrieved chunk, in retrieval order. The resources cite a subset of them. Empty while the request is queued or if the retrieval failed."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "requestId",
+          "retrievalMode",
+          "limit",
+          "retrievedAt",
+          "fragments"
+        ],
+        "title": "GenerationEvidence",
+        "description": "Todo lo que el pedido recuperó del material y entregó al modelo, no solo lo citado (TA-010, research R12)."
+      },
       "GenerationGenerator": {
         "properties": {
           "description": {
@@ -3413,6 +3609,331 @@
         ],
         "title": "GenerationGenerator"
       },
+      "GenerationInterpretation": {
+        "properties": {
+          "draft": {
+            "$ref": "#/components/schemas/GenerationInterpretationDraft"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/GenerationInterpretationStage"
+            },
+            "type": "array",
+            "title": "Stages"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/GenerationInterpretationIssue"
+            },
+            "type": "array",
+            "title": "Issues"
+          },
+          "suggestedUnit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GenerationInterpretationSuggestedUnit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "draft",
+          "stages",
+          "issues"
+        ],
+        "title": "GenerationInterpretation"
+      },
+      "GenerationInterpretationDraft": {
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "resourceTypes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "pregunta_detonante",
+                "sondeo_diagnostico",
+                "guia_exploracion",
+                "caso_indagacion",
+                "explicacion",
+                "glosario",
+                "ejercicio_aplicacion",
+                "item_opcion_multiple",
+                "audio_detonante",
+                "imagen_ilustrativa",
+                "diagrama_proceso",
+                "exploracion_guiada",
+                "actividad_kinestesica",
+                "reto_prediccion",
+                "mapa_conceptual",
+                "infografia",
+                "podcast_resumen",
+                "caso_aplicado",
+                "emparejamiento",
+                "ordenar_pasos",
+                "verdadero_falso",
+                "completar_espacios"
+              ]
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Resourcetypes"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "individual",
+                  "sequence"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "modalities": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "Textual",
+                    "Gamificado",
+                    "Multimedia",
+                    "Kinestésico"
+                  ]
+                },
+                "type": "array",
+                "maxItems": 1,
+                "minItems": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modalities"
+          },
+          "outcomeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomeid"
+          },
+          "audience": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audience"
+          },
+          "competency": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Competency"
+          },
+          "instructions": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "unitId",
+          "resourceTypes"
+        ],
+        "title": "GenerationInterpretationDraft"
+      },
+      "GenerationInterpretationIssue": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "enum": [
+              "unitId",
+              "resourceTypes",
+              "quantity",
+              "modalities",
+              "outcomeId",
+              "audience",
+              "competency",
+              "instructions"
+            ],
+            "title": "Field"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "ambiguous",
+              "not_allowed"
+            ],
+            "title": "Kind"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/GenerationInterpretationOption"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "field",
+          "kind",
+          "message",
+          "options"
+        ],
+        "title": "GenerationInterpretationIssue"
+      },
+      "GenerationInterpretationOption": {
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Value"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "value",
+          "label"
+        ],
+        "title": "GenerationInterpretationOption"
+      },
+      "GenerationInterpretationStage": {
+        "properties": {
+          "resourceType": {
+            "type": "string",
+            "enum": [
+              "pregunta_detonante",
+              "sondeo_diagnostico",
+              "guia_exploracion",
+              "caso_indagacion",
+              "explicacion",
+              "glosario",
+              "ejercicio_aplicacion",
+              "item_opcion_multiple",
+              "audio_detonante",
+              "imagen_ilustrativa",
+              "diagrama_proceso",
+              "exploracion_guiada",
+              "actividad_kinestesica",
+              "reto_prediccion",
+              "mapa_conceptual",
+              "infografia",
+              "podcast_resumen",
+              "caso_aplicado",
+              "emparejamiento",
+              "ordenar_pasos",
+              "verdadero_falso",
+              "completar_espacios"
+            ],
+            "title": "Resourcetype"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "engage",
+              "explore",
+              "explain",
+              "elaborate",
+              "evaluate"
+            ],
+            "title": "Stage"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "resourceType",
+          "stage"
+        ],
+        "title": "GenerationInterpretationStage"
+      },
+      "GenerationInterpretationSuggestedUnit": {
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "unitId",
+          "label"
+        ],
+        "title": "GenerationInterpretationSuggestedUnit"
+      },
       "GenerationParametersView": {
         "properties": {
           "resourceTypes": {
@@ -3431,6 +3952,7 @@
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
+                "actividad_kinestesica",
                 "reto_prediccion",
                 "mapa_conceptual",
                 "infografia",
@@ -3496,10 +4018,18 @@
           },
           "modalities": {
             "items": {
-              "type": "string"
+              "type": "string",
+              "enum": [
+                "Textual",
+                "Gamificado",
+                "Multimedia",
+                "Kinestésico"
+              ]
             },
             "type": "array",
-            "title": "Modalities"
+            "maxItems": 1,
+            "title": "Modalities",
+            "description": "The modality chosen by the teacher, as a list of 0 or 1 items (HU-024), with the same shape as the request body. Empty when the request did not send one. Requests saved before HU-024 return an empty list."
           }
         },
         "additionalProperties": true,
@@ -3609,6 +4139,7 @@
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
+                "actividad_kinestesica",
                 "reto_prediccion",
                 "mapa_conceptual",
                 "infografia",
@@ -3765,6 +4296,7 @@
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
+                "actividad_kinestesica",
                 "reto_prediccion",
                 "mapa_conceptual",
                 "infografia",
@@ -3964,6 +4496,7 @@
               "imagen_ilustrativa",
               "diagrama_proceso",
               "exploracion_guiada",
+              "actividad_kinestesica",
               "reto_prediccion",
               "mapa_conceptual",
               "infografia",
@@ -4218,6 +4751,32 @@
           "status"
         ],
         "title": "HealthResponse"
+      },
+      "InterpretGenerationRequest": {
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Unitid",
+            "description": "The unit open in the Generation tab."
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "pattern": "\\S",
+            "title": "Message",
+            "description": "Teacher message, trimmed before validation."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unitId",
+          "message"
+        ],
+        "title": "InterpretGenerationRequest",
+        "description": "Cuerpo de POST /generation-requests/interpret."
       },
       "LearningOutcomeInput": {
         "properties": {
@@ -5242,6 +5801,21 @@
           "hasOptions": {
             "type": "boolean",
             "title": "Hasoptions"
+          },
+          "modalities": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "Textual",
+                "Gamificado",
+                "Multimedia",
+                "Kinestésico"
+              ]
+            },
+            "type": "array",
+            "minItems": 1,
+            "title": "Modalities",
+            "description": "Modalities that include this type (HU-024). Every catalog type belongs to at least one."
           }
         },
         "additionalProperties": true,
@@ -5254,9 +5828,75 @@
           "stage",
           "group",
           "format",
-          "hasOptions"
+          "hasOptions",
+          "modalities"
         ],
         "title": "ResourceTypeResponse"
+      },
+      "RetrievedFragment": {
+        "properties": {
+          "chunkId": {
+            "type": "string",
+            "title": "Chunkid"
+          },
+          "documentId": {
+            "type": "string",
+            "title": "Documentid"
+          },
+          "documentName": {
+            "type": "string",
+            "title": "Documentname"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "relevance": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance",
+            "description": "Relevance reported by Material, from 0 to 1."
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceurl"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "chunkId",
+          "documentId",
+          "documentName",
+          "location",
+          "text",
+          "relevance"
+        ],
+        "title": "RetrievedFragment",
+        "description": "Un fragmento recuperado por el pedido, con su procedencia (TA-010)."
       },
       "ReviewedOptionInput": {
         "properties": {
@@ -5549,6 +6189,7 @@
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
+                "actividad_kinestesica",
                 "reto_prediccion",
                 "mapa_conceptual",
                 "infografia",
@@ -5651,15 +6292,17 @@
           "modalities": {
             "items": {
               "type": "string",
-              "const": "Textual"
+              "enum": [
+                "Textual",
+                "Gamificado",
+                "Multimedia",
+                "Kinestésico"
+              ]
             },
             "type": "array",
             "maxItems": 1,
             "title": "Modalities",
-            "description": "Only text in this delivery.",
-            "default": [
-              "Textual"
-            ]
+            "description": "Optional. One modality per request (HU-024). When sent, every type in `resourceTypes` must belong to it (422 RESOURCE_TYPE_NOT_IN_MODALITY, nothing is created). When omitted, types are not filtered and the request is saved without a modality. There is no server default."
           }
         },
         "additionalProperties": false,

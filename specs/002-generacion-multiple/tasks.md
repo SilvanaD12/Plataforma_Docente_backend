@@ -2,7 +2,7 @@
 
 [Ficha GEN-01](spec.md) · [Plan](plan.md) · [Research](research.md) · [Modelo de datos](data-model.md) · [Contrato](contracts/generation-requests.openapi.yaml) · [Puertos](contracts/ports.md) · [Validación](quickstart.md)
 
-Las tareas siguen el [orden de entrega del plan](plan.md#orden-de-entrega). Las rutas `backend/…` son del repositorio `Plataforma_Docente_backend`, y las rutas `src/…` son del repositorio `Plataforma_Docente_frontend`. Los casos GEN-C1 a GEN-C6 son de la historia de pedido y recuperación; GEN-C7 a GEN-C9, de la historia de evidencia verificada.
+Las tareas siguen el [orden de entrega del plan](plan.md#orden-de-entrega). Las rutas `backend/…` son del repositorio `Plataforma_Docente_backend`, y las rutas `src/…` son del repositorio `Plataforma_Docente_frontend`. Los casos GEN-C1 a GEN-C6 son de la historia de pedido y recuperación; GEN-C7 a GEN-C9, de la historia de evidencia verificada; GEN-C10 y GEN-C11, de la historia de modalidad (HU-024).
 
 Dependencias externas que bloquean tareas:
 
@@ -253,6 +253,88 @@ Dependencias externas que bloquean tareas:
 - [x] T048 [BE] Proponer a CC-01 un paso en `.github/workflows/backend-ci.yml` que compare la exportación de OpenAPI con `docs/api/openapi.json`. Constitución II. [PR #25 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/25) (propuesta a CC-01).
 - [x] T049 [E2E] Enlazar en este archivo la evidencia de cada caso, de GEN-C1 a GEN-C9, y de los criterios de éxito de la ficha: orden de etapas, recuperación, resultados parciales, no duplicación, aislamiento, huella, verificación y copia histórica completa en los recursos vigentes (los pendientes no pueden aprobarse ni exportarse), y regeneración fallida que conserva el anterior. Ver [Evidencia de los casos y criterios](#evidencia-de-los-casos-y-criterios-t049). [PR #26 del backend](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/26).
 
+## 7. Modalidades (HU-024)
+
+Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con Silvana (CC-01, frontend) y Juan (REV-01). Las tareas de GEN-01 son de Yan; las de coordinación indican su responsable.
+
+- [x] T050 [BE] Ampliar el contrato en `backend/src/platform5e/infrastructure/http/schemas/generation_requests.py`. Caso GEN-C10. PR del backend (enlace pendiente).
+  - `modalities`: lista opcional de `Textual`, `Gamificado`, `Multimedia` o `Kinestésico`, con como máximo un elemento y sin valor por defecto en el servidor.
+  - La vista de parámetros sigue devolviendo `modalities`, con la misma forma que el cuerpo: `[modalidad]`, o `[]` si el pedido no la envió. Así no cambia para los clientes actuales. El dominio y los parámetros guardados usan `modality` (`str | None`).
+  - Código nuevo `RESOURCE_TYPE_NOT_IN_MODALITY` en `domain/generation/errors.py`, con estado 422 en `ERROR_STATUS` de `routers/generation_requests.py`.
+- [x] T051 [BE] Agregar `MODALITY_TYPES` en `backend/src/platform5e/domain/generation/resource_formats.py` y la lista `modalities` de cada tipo en `GET /api/v1/resource-types` (`use_cases/catalog/list_resource_types.py` y `schemas/catalog.py`). Caso GEN-C10. PR del backend (enlace pendiente).
+  - Prueba: los tipos de cada modalidad, `item_opcion_multiple` en Textual y Gamificado, `exploracion_guiada` y `caso_aplicado` en Textual, y que todo tipo de `RESOURCE_TYPES` pertenece al menos a una modalidad.
+- [x] T052 [BE] **Depende de T050 y T051.** Validar la modalidad en `StartGenerationRequest`, junto con el plan de pasos y después de buscar la clave. Caso GEN-C10. PR del backend (enlace pendiente).
+  - `GenerationParameters.modality` (`str | None`), en `to_payload()` y en `payload_hash`.
+  - Con modalidad, un tipo que no pertenece a ella responde `422 RESOURCE_TYPE_NOT_IN_MODALITY` y no crea el pedido. Sin modalidad, no se filtran los tipos y el pedido se guarda con `modality = null`.
+  - El repositorio lee los parámetros guardados antes de HU-024 (`modalities: ["Textual"]`) como `modality = null`.
+  - Pruebas unitarias: el 422 sin pedido creado, el pedido sin modalidad, el hash con y sin modalidad, y que reenviar la misma clave de un pedido aceptado lo devuelve sin volver a validar.
+- [x] T053 [BE] **Depende de T052.** Guardar `modality` en los `params` de cada recurso (`step_drafting.py`), solo si el pedido la trae (con el formulario, casi siempre: «Textual» viene preseleccionado), y conservarla al regenerar sin comprobarla (`start_regeneration.py`). Casos GEN-C7 y GEN-C10. PR del backend (enlace pendiente).
+  - Prueba obligatoria: regenerar una imagen y un audio antiguos guardados con `modalities: ["Textual"]` sigue funcionando.
+- [x] T054 [BE] Agregar el tipo `actividad_kinestesica` (etapa Explorar, formato `interactive`). Caso GEN-C11. PR del backend (enlace pendiente).
+  - Catálogo en `resource_catalog.py`; estructura en `resource_formats.py` (`guidedSteps` como en `exploracion_guiada`, `MIN_ITEMS = 3`, `materials`, `estimatedMinutes` de 5 a 90 y `space`).
+  - `materials`, `estimatedMinutes` y `space` van dentro de `structure`, y `normalize_structure` debe conservarlos: la huella se calcula sobre la estructura normalizada.
+  - Instrucción de estructura y conversión en `prompt_drafting.py`; enlace de los pasos con `link_step_sources` de `grounding.py`.
+  - Redactor del generador por reglas en `rule_based_generator.py`, con al menos 3 pasos citados.
+  - Pruebas: normalización, redactor por reglas, copia histórica de los fragmentos de los pasos y verificación vigente.
+- [x] T055 [BE] **Depende de T052.** Agregar en `prompt_drafting.py` la línea de la modalidad cuando el pedido la trae. No cambia las reglas de citas ni de formato del tipo. Caso GEN-C10. PR del backend (enlace pendiente).
+- [x] T056 [E2E] **Depende de T050 a T055.** Probar en `backend/tests/e2e/test_generation_requests_api.py`, con el generador por reglas. Casos GEN-C10 y GEN-C11. PR del backend (enlace pendiente).
+  - Un pedido por modalidad, con tipos compatibles.
+  - Un tipo que no pertenece a la modalidad: `422 RESOURCE_TYPE_NOT_IN_MODALITY` y ningún pedido guardado.
+  - Un pedido sin `modalities` funciona como hoy y devuelve `parameters.modalities = []`.
+  - Actualizar `test_text_only_rejects_other_modalities` de `test_courses_and_documents_api.py`, que hoy espera 422 para Multimedia y Gamificado.
+- [x] T057 [BE] **Depende de T050 y T051.** Exportar OpenAPI (`scripts/export_openapi.py`) y actualizar `docs/api/openapi.json`; la CI compara el contrato (T048). PR del backend (enlace pendiente).
+- [ ] T058 [FE] **Silvana.** Formulario de generación en `src/features/generation`. Caso GEN-C10.
+  - Selector de modalidad, con «Textual» por defecto, que filtra el selector de tipos con `modalities` de `GET /resource-types` y envía `modalities: [modalidad]`.
+  - Al cambiar de modalidad, el formulario conserva los tipos elegidos que siguen siendo compatibles y quita los demás. Si no queda ninguno, el docente debe elegir uno antes de generar: el botón de generar queda deshabilitado, con un mensaje. Por ejemplo, de Textual a Gamificado se conserva `item_opcion_multiple` y se quita `glosario`.
+  - Una sección Contexto, aparte, agrupa Resultado de aprendizaje, Audiencia y Competencia (HU-024 C02). La modalidad no forma parte de Contexto.
+  - Mostrar el mensaje de `RESOURCE_TYPE_NOT_IN_MODALITY` si el servidor lo devuelve.
+- [x] T059 [BE] **Juan (REV-01).** Soportar `actividad_kinestesica` en Revisión y exportación. Caso GEN-C11.
+  - `domain/review/resource_verification.py`: enlazar sus `guidedSteps` como en `exploracion_guiada` (`LINKED_ITEMS`), con mínimo 3 pasos.
+  - `domain/review/content_fingerprint.py` (**depende de T054**): `materials`, `estimatedMinutes` y `space` entran en la huella porque están en `structure` y `normalize_structure` los conserva; no se agregan a `UNVERIFIED_STRUCTURE_FIELDS`. Prueba: editar cualquiera de los tres cambia la huella y devuelve el recurso a revisión.
+  - `infrastructure/exporters/unit_document_exporter.py`: `RESOURCE_LABELS` con «Para explorar · Actividad kinestésica», y mostrar los materiales, el tiempo estimado y el espacio antes de los pasos.
+  - `infrastructure/exporters/scorm_package_exporter.py`: `SOURCED_LISTS` con sus `guidedSteps` y la actividad en `ACTIVITY_JS`, con la casilla «Lo hicimos». También muestra los materiales, el tiempo estimado y el espacio antes de los pasos.
+  - Agregar el tipo no cambia las reglas de los tipos existentes, así que no se espera subir `VERIFICATION_RULE_VERSION`. Juan lo confirma.
+  - **Hecho (2026-11-14, rama `feat/rev-t059-kinesthetic`).**
+    - **Verificación.** `actividad_kinestesica` entra en `LINKED_ITEMS` con `link_step_sources` y el mínimo de `MIN_ITEMS` (3 pasos). Se quitó el `xfail(strict=True)` de `test_review_rejects_an_edited_activity_whose_steps_are_not_in_the_material`, que ahora pasa, y se agregó `test_review_needs_three_supported_steps_and_gives_the_reason` (motivo «solo 2 pasos… al menos 3 pasos»).
+    - **Huella.** Sin cambios en `content_fingerprint.py` ni en `UNVERIFIED_STRUCTURE_FIELDS`: `test_the_fingerprint_covers_materials_time_and_space` (T054) ya lo cubría. De punta a punta por HTTP, `tests/e2e/test_kinesthetic_review_api.py`: editar `materials`, `estimatedMinutes` o `space` en una actividad aprobada la devuelve a `pendiente` con `reviewReset: true` y la verificación sigue vigente; quitarle pasos respaldados la deja `insufficient` con su motivo.
+    - **Documento de la unidad.** «Para explorar · Actividad kinestésica»; materiales (o «Sin materiales especiales»), «N minutos» y espacio antes de los pasos; cada paso con su fuente y «☐ Lo hicimos», y sin la línea de la pregunta cuando el paso no la tiene. Prueba nueva: todo tipo del catálogo tiene su etiqueta, así que ninguno cae en «Pregunta de opción múltiple».
+    - **SCORM.** `SOURCED_LISTS` incluye sus `guidedSteps`. La página muestra «Antes de empezar» (materiales, tiempo y espacio, escapados en el servidor) y, en `ACTIVITY_JS`, un bloque por paso con consigna, pregunta opcional, fuente, casilla «Lo hicimos» y campo opcional «¿Qué observaron?», todo con `textContent`. Usa el mismo formulario y botón «Comprobar» de la exploración guiada; la actividad se registra como `completed` (puntaje 100) solo cuando todos los pasos están marcados y, mientras tanto, queda `incomplete`.
+    - **`VERIFICATION_RULE_VERSION`.** Juan confirma que **no se sube**: el tipo nuevo no cambia las reglas de los tipos existentes.
+    - **Pruebas.** `tests/unit/test_kinesthetic_activity.py`, `tests/unit/test_kinesthetic_export.py` y `tests/e2e/test_kinesthetic_review_api.py`. Suite completa con `LLM_PROVIDER=rules`: 1179 passed. `scripts/export_openapi.py` sin cambios en `docs/api/openapi.json` (31 rutas).
+    - **Prueba manual en local** (backend temporal con `LLM_PROVIDER=rules`): actividad generada con el corpus de protocolos (4 pasos, 3 materiales, 30 minutos), aprobada y exportada como documento y SCORM. El SCO, abierto en Chromium con una API SCORM simulada, quedó `incomplete` con 3 de 4 pasos marcados y `completed` (puntaje 100) con 4 de 4. Capturas en la carpeta del equipo `docs_equipo/capturas/T059` (fuera del repositorio).
+- T060 (movida al seguimiento del sprint 2)
+- [ ] T061 [E2E] **Depende de T056, T058 y T059.** Enlazar en la [tabla de evidencia](#evidencia-de-los-casos-y-criterios-t049) los casos GEN-C10 y GEN-C11 y el criterio de éxito de modalidades (un pedido por modalidad, rechazo de un tipo incompatible y exportación de una actividad kinestésica).
+- Seguimiento fuera de esta entrega (REV-01, sprint 2): exportar a Moodle XML verdadero o falso y relacionar; verificar el guion de audio oración por oración (sube `VERIFICATION_RULE_VERSION`); y decidir qué cuenta como elección explícita de Textual para el `item_opcion_multiple` en SCORM, porque Textual viene preseleccionado en el formulario y un `modality: "Textual"` guardado no indica por sí solo que el docente cambió el selector (hasta entonces, todos los ítems de opción múltiple van a la evaluación por niveles). Esta última era T060.
+
+## 8. Evaluación RAG (TA-010)
+
+Decisiones en [research R12](research.md#r12-contexto-de-la-evaluación-rag): la evaluación usa como contexto todo lo que recuperó el pedido, no solo lo citado (regresión del commit 6ed774a, PR #16).
+
+- [x] T062 [BE] Caso de uso `GetGenerationEvidence` en `backend/src/platform5e/application/use_cases/generation/get_generation_evidence.py`. PR del backend (enlace pendiente).
+  - Devuelve `requestId`, `retrievalMode`, `limit` (`retrieval_limit` del `topK` del pedido), `retrievedAt` y los fragmentos en el orden de la recuperación, sin `retrievedAt` en cada uno.
+  - Un pedido en cola devuelve `[]`; uno ajeno o inexistente, `GENERATION_REQUEST_NOT_FOUND`.
+  - Pruebas en `backend/tests/unit/test_generation_evidence.py`: orden, `[]` en cola, límite, aislamiento entre docentes y que lo citado por los recursos es parte de lo recuperado.
+- [x] T063 [BE] **Depende de T062.** Ruta `GET /api/v1/generation-requests/{id}/evidence` y esquemas `GenerationEvidence` y `RetrievedFragment` (`routers/generation_requests.py`, `schemas/generation_requests.py`, `main.py`). Pruebas e2e en `test_generation_requests_api.py`: todo lo recuperado en orden, lo citado como subconjunto, y `404` para otro docente con el mismo cuerpo que un pedido inexistente. PR del backend (enlace pendiente).
+- [x] T064 [BE] **Depende de T063.** Agregar la ruta a [contracts/generation-requests.openapi.yaml](contracts/generation-requests.openapi.yaml) y exportar `docs/api/openapi.json`; la CI compara el contrato (T048). PR del backend (enlace pendiente).
+- [x] T065 [BE] **Depende de T063.** `backend/evaluation/collect_samples.py`. PR del backend (enlace pendiente).
+  - `retrieved_contexts` con todo lo de la ruta, en orden; `cited_contexts` con la copia de cada recurso; `retrieved_count`, `limit`, `retrieval_mode` y `retrieval_query` en cada muestra. Sin `modalities` en el pedido.
+  - Campos opcionales de `cases.json`: `unitTitle`, `outcomeText`, `competency`, `reference`, `expectedFragments` y `mode: "sequence"` con `resourceTypes`. Los casos sin ellos se piden igual que antes.
+  - Pruebas en `backend/tests/unit/test_collect_samples_cases.py` y `backend/tests/e2e/test_collect_samples.py`.
+- [x] T066 [BE] **Depende de T065.** `backend/evaluation/run_ragas.py`: `--contexts retrieved|cited` (por defecto `retrieved`) y `context_recall` solo si todas las muestras calificadas traen `reference`; si no, se omite con un mensaje. Pruebas con un evaluador falso, sin modelo, en `backend/tests/unit/test_run_ragas.py`. PR del backend (enlace pendiente).
+- [ ] T067 [Sergio] Corpus de evaluación: de 4 a 6 documentos con licencia o permiso de uso (unos 50 a 60 fragmentos), con 1 o 2 documentos de otro tema, y una respuesta de referencia (`reference`) por caso de `cases.json`; de forma opcional, `expectedFragments`, `unitTitle`, `outcomeText` y `competency`. Validar también la redacción de las indicaciones y la cobertura de etapas y tipos.
+- [ ] T068 [E2E] **Depende de T065, T066 y T067.** Correr `collect_samples.py` y `run_ragas.py` con el corpus de T067, con `--contexts retrieved` y `--contexts cited`, y registrar aquí los resultados (promedios, por etapa, `context_recall` y muestras de respaldo por reglas).
+
+## 9. Interpretación de pedidos (HU-038)
+
+Decisiones en [research R13](research.md#r13-interpretación-de-pedidos-hu-038).
+
+- [X] T069 [BE] Implementar `InterpretGenerationRequest` con reglas deterministas. Reutilizar la validación de pertenencia, los resultados de la unidad y el catálogo de Generación. Probar mensajes sin tipos reconocidos, con uno o varios tipos, con tipos repetidos o fuera del orden 5E, con solo una etapa, con un resultado ambiguo o con una solicitud explícita de quitarlo, con cantidades incompatibles o fuera de rango y con tipos incompatibles con la modalidad. Caso GEN-C12.
+  - Evidencia: [implementación en el PR #37](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/37) y [pruebas unitarias del intérprete](../../backend/tests/unit/test_interpret_generation_request.py). Pasaron 21 pruebas en la ejecución local.
+- [X] T070 [BE] **Depende de T069.** Conectar la ruta autenticada, exportar sus esquemas en el OpenAPI de la aplicación y agregar pruebas HTTP para la validación del cuerpo, el 401 de sesión y el mismo 404 para una unidad ajena y una inexistente. Comprobar que interpretar solo devuelve un borrador y sus problemas, sin crear un pedido, llamar a un proveedor ni recuperar evidencia.
+  - Evidencia: [ruta y OpenAPI en el PR #37](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/37) y [pruebas HTTP](../../backend/tests/e2e/test_generation_interpretation_api.py). Se verificó el borrador con HTTP 200 y cero pedidos creados, el 401 sin sesión, el mismo 404 para unidades ajenas e inexistentes y el 422 para mensajes en blanco.
+- [ ] T071 [FE] **Usa el contrato de T070.** Agregar el chat a Generación y aplicar el borrador al formulario editable. Mostrar la unidad activa, la etapa de cada tipo, los problemas y, cuando corresponda, una sugerencia de unidad propia. Permitir editar cada parámetro aplicado, incluidas las instrucciones opcionales. Omitir un campo conserva su valor y `outcomeId: null` limpia el resultado de aprendizaje. Reutilizar las validaciones del formulario y confirmar con «Generar». **Dependencia de la vista previa:** usarla cuando HU-040 esté integrada. Hasta entonces, usar el formulario normal.
+- [ ] T072 [E2E] **Depende de T070 y T071.** En TCP/IP, interpretar «Para TCP/IP, quiero dos glosarios», corregir la cantidad a 1 y confirmar desde el formulario. Comprobar que antes de confirmar hay cero pedidos nuevos y después hay exactamente uno con la cantidad editada. Verificar que mencionar solo una etapa pide elegir un tipo y que sugerir otra unidad propia mantiene la unidad activa. Enlazar aquí la evidencia.
+
 ## Evidencia de los casos y criterios (T049)
 
 Pruebas automáticas en `main` (rutas desde la raíz de cada repositorio; las del frontend están en `Plataforma_Docente_frontend` y se citan con la descripción de `it`), PR donde se implementó cada caso y evidencia manual de los informes de GEN-01 en Notion.
@@ -290,4 +372,6 @@ Despliegue en Render: «Informe GEN-01 2 (backend, Swagger)», Evidencias 12 y 1
   - **REV-01 PR 1:** T025 a T030.
   - **CC-01 httpClient:** T034, y en cadena T036 a T038, T042 y T043.
   - **MAT-01 retrieval_mode:** T031 a T033.
+- HU-024: T050 y T051 son independientes; T052 depende de los dos, y T053 y T055 de T052. T058 (Silvana) puede empezar con el contrato de T050 y T051. T059 (Juan) puede avanzar en paralelo con T054, sobre la estructura de [data-model](data-model.md#actividad_kinestesica), salvo su parte de la huella, que depende de T054 (`normalize_structure` debe conservar `materials`, `estimatedMinutes` y `space`).
+- TA-010: T062 a T066 van en cadena; T067 (Sergio) es independiente y T068 necesita T065, T066 y T067.
 - El backend no se integra a `main` sin T026, para que ningún recurso llegue a Revisión sin `verification` y los que no tengan copia histórica completa lleguen pendientes.

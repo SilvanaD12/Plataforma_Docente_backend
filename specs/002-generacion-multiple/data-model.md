@@ -32,7 +32,21 @@ Es el pedido persistido. Lo crea `StartGenerationRequest` o `StartRegeneration` 
 | `resourceTypes` | `list[ResourceType]` | Sin repetidos y ordenados por `order_resource_types`. En modo individual tienen exactamente un elemento. |
 | `quantity` | `int` | Va de 1 a 5 y es común a todos los tipos (GEN-R2). |
 | `outcomeId` | `str \| null` | Si se envía, debe pertenecer a la unidad (`400 INVALID_OUTCOME`). |
-| `difficulty`, `optionCount`, `topK`, `evidenceThreshold`, `instructions`, `audience`, `competency`, `modalities` | — | Tienen los mismos rangos que hoy tiene `GenerationRequest` en `schemas/generations.py`. |
+| `difficulty`, `optionCount`, `topK`, `evidenceThreshold`, `instructions`, `audience`, `competency` | — | Tienen los rangos de `StartGenerationRequest` en `schemas/generation_requests.py`. |
+| `modality` | `Textual` \| `Gamificado` \| `Multimedia` \| `Kinestésico` \| `null` | HU-024. Campo interno del dominio y de los parámetros guardados. Sale de `modalities` del cuerpo (lista de 0 o 1 elemento), y la respuesta la devuelve con la misma forma: `parameters.modalities` es `[modality]`, o `[]` si es `null`. Es `null` si el pedido no la envía; el servidor no aplica un valor por defecto. El formulario del frontend envía «Textual» si el docente no cambia el selector, así que con él casi nunca es `null`. Si no es `null`, cada tipo de `resourceTypes` debe estar en `MODALITY_TYPES[modality]` (`422 RESOURCE_TYPE_NOT_IN_MODALITY`). Entra en `payload_hash`. Los pedidos y recursos guardados antes de HU-024 traen `modalities: ["Textual"]`, que era el valor por defecto del servidor y no una elección del docente: se leen como `modality = null` ([research R11](research.md#r11-modalidades-hu-024)). |
+
+### MODALITY_TYPES
+
+Grupos de tipos por modalidad, en `domain/generation/resource_formats.py`. Un tipo puede estar en más de una modalidad. `GET /resource-types` informa en cada tipo la lista `modalities` que lo incluye.
+
+| Modalidad | Tipos |
+| --- | --- |
+| `Textual` | `pregunta_detonante`, `sondeo_diagnostico`, `guia_exploracion`, `caso_indagacion`, `exploracion_guiada`, `explicacion`, `glosario`, `ejercicio_aplicacion`, `caso_aplicado`, `item_opcion_multiple` |
+| `Gamificado` | `reto_prediccion`, `emparejamiento`, `ordenar_pasos`, `verdadero_falso`, `completar_espacios`, `item_opcion_multiple` |
+| `Multimedia` | `imagen_ilustrativa`, `audio_detonante`, `podcast_resumen`, `diagrama_proceso`, `mapa_conceptual`, `infografia` |
+| `Kinestésico` | `actividad_kinestesica` |
+
+Todo tipo del catálogo pertenece al menos a una modalidad. `exploracion_guiada` y `caso_aplicado` están en Textual porque se responden por escrito.
 
 ### RegenerationTarget
 
@@ -114,7 +128,7 @@ Se mantiene el diccionario actual de `_build_resource_dict` (`ep002_recursos.dat
 | --- | --- | --- |
 | `requestId` | `str` | `GenerationRequest.id` (hoy `sol-api-…`). |
 | `agent` | `str` | Agente de la etapa. |
-| `params` | `GenerationParameters` del paso | Ya existe. Lo usa la regeneración (GEN-R6). |
+| `params` | `GenerationParameters` del paso | Ya existe. Lo usa la regeneración (GEN-R6). Incluye `modality` solo si el pedido la trae (HU-024). Con el formulario del frontend casi siempre la trae, porque «Textual» viene preseleccionado: un `modality: "Textual"` guardado no indica por sí solo que el docente cambió el selector. Los recursos anteriores no la tienen y conservan su comportamiento al exportarse. La regeneración no la comprueba. |
 | `generatorKind` | `ia` \| `respaldo` | Ya existe. |
 | `evidence` | `list[EvidenceSnapshotItem]` | Es la copia histórica de **todos** los fragmentos referenciados ([research R6](research.md#r6-copia-histórica-de-la-evidencia)). |
 | `verification` | `VerificationResult` | Lo calcula `ResourceVerificationPort.verify`. Incluye la huella en `verification.fingerprint` (GEN-R7). |
@@ -132,6 +146,19 @@ Los ids referenciados se obtienen con `referenced_fragment_ids(resource)` de REV
 - `structure.guidedSteps[].fragmentIds`
 - `structure.predictions[].fragmentIds`
 - `structure.criteria[].fragmentIds`
+
+### actividad_kinestesica
+
+Tipo nuevo de la etapa Explorar (HU-024, modalidad Kinestésico). Formato `interactive`. La estructura sigue la de `exploracion_guiada`. Los cuatro campos van dentro de `structure`, no a nivel del recurso:
+
+| Campo de `structure` | Tipo | Reglas |
+| --- | --- | --- |
+| `guidedSteps` | `list[{title, instruction, question, fragmentIds}]` | Mínimo 3 pasos (`MIN_ITEMS`). `question` puede ser la pregunta de cierre del paso, por ejemplo «¿Qué observaron?». Cada paso cita sus fragmentos; la verificación los enlaza como en `exploracion_guiada`. |
+| `materials` | `list[str]` | Materiales para la actividad. Puede estar vacía. |
+| `estimatedMinutes` | `int` | Tiempo estimado, de 5 a 90 minutos. |
+| `space` | `str` | Texto corto: dónde se hace la actividad (aula, patio…). |
+
+Solo los pasos se verifican contra el material. `materials`, `estimatedMinutes` y `space` no se contrastan con la evidencia, pero forman parte de la huella (`content_fingerprint`). La huella solo cubre el tipo, el cuerpo, las citas, las alternativas y la estructura, y se calcula sobre la estructura normalizada: por eso los tres campos van en `structure` y `normalize_structure` debe conservarlos. Si quedaran fuera, editarlos no devolvería el recurso a revisión. La casilla «Lo hicimos» es del paquete SCORM, no del contenido. Los fragmentos de `guidedSteps[].fragmentIds` ya entran en la copia histórica.
 
 ### VerificationResult
 
