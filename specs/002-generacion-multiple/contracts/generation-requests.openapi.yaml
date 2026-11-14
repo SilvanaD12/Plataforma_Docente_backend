@@ -111,6 +111,28 @@ paths:
         '404': { $ref: '#/components/responses/RequestNotFound' }
         '422': { $ref: '#/components/responses/InvalidParameters' }
 
+  /generation-requests/{request_id}/evidence:
+    get:
+      tags: [generations]
+      operationId: getGenerationEvidence
+      summary: Get the evidence retrieved by a generation request
+      description: |
+        TA-010 (research R12). Every chunk the request retrieved from the material and gave to the model, in
+        retrieval order, not only the ones its resources cite. The Ragas evaluation uses it as the retrieved context.
+        A queued request answers 200 with no fragments. Requests of other teachers answer 404, the same as missing
+        ones.
+      parameters:
+        - { name: request_id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          description: Evidence retrieved by the request.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationEvidence' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/RequestNotFound' }
+        '422': { $ref: '#/components/responses/InvalidParameters' }
+
   # `POST /generations` (synchronous generation) was removed in T046. `GET /generations` and `GET /generations/{id}`
   # remain only to read the history saved before GEN-01; they are outside this contract.
 
@@ -343,6 +365,45 @@ components:
         evaluatedDistractors: { type: integer }
         discardedAsCorrect: { type: integer }
         reliabilityErrorRate: { type: [number, 'null'] }
+
+    RetrievedFragment:
+      type: object
+      description: A chunk retrieved by the request, with its origin. Same fields as the stored evidence, without
+        `retrievedAt`, which is at the top level.
+      required: [chunkId, documentId, documentName, location, text, relevance]
+      properties:
+        chunkId: { type: string }
+        documentId: { type: string }
+        documentName: { type: string }
+        location: { type: string }
+        text: { type: string }
+        relevance: { type: number, minimum: 0, maximum: 1, description: Relevance reported by Material. }
+        sourceUrl: { type: [string, 'null'] }
+        license: { type: [string, 'null'] }
+
+    GenerationEvidence:
+      type: object
+      required: [requestId, retrievalMode, limit, retrievedAt, fragments]
+      properties:
+        requestId: { type: string }
+        retrievalMode:
+          type: [string, 'null']
+          enum: [hybrid, bm25_fallback, null]
+          description: Search fallback reported by Material. `null` while the request is queued.
+        limit:
+          type: integer
+          minimum: 1
+          description: Maximum number of chunks the request retrieved, its `topK` bounded from 3 to 12.
+        retrievedAt:
+          type: [string, 'null']
+          format: date-time
+          description: When the request retrieved the chunks. `null` while the request is queued.
+        fragments:
+          type: array
+          items: { $ref: '#/components/schemas/RetrievedFragment' }
+          description: |
+            Every retrieved chunk, in retrieval order. The resources cite a subset of them. Empty while the request is
+            queued or if the retrieval failed.
 
     Problem:
       type: object

@@ -298,6 +298,24 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
 - [ ] T061 [E2E] **Depende de T056, T058 y T059.** Enlazar en la [tabla de evidencia](#evidencia-de-los-casos-y-criterios-t049) los casos GEN-C10 y GEN-C11 y el criterio de éxito de modalidades (un pedido por modalidad, rechazo de un tipo incompatible y exportación de una actividad kinestésica).
 - Seguimiento fuera de esta entrega (REV-01, sprint 2): exportar a Moodle XML verdadero o falso y relacionar; verificar el guion de audio oración por oración (sube `VERIFICATION_RULE_VERSION`); y mostrar en SCORM un `item_opcion_multiple` como cuestionario simple, sin puntos, solo cuando el docente eligió explícitamente la modalidad «Textual» (`modality = "Textual"`; sin modalidad, sigue en la evaluación por niveles). Esta última era T060.
 
+## 8. Evaluación RAG (TA-010)
+
+Decisiones en [research R12](research.md#r12-contexto-de-la-evaluación-rag): la evaluación usa como contexto todo lo que recuperó el pedido, no solo lo citado (regresión del commit 6ed774a, PR #16).
+
+- [x] T062 [BE] Caso de uso `GetGenerationEvidence` en `backend/src/platform5e/application/use_cases/generation/get_generation_evidence.py`. PR del backend (enlace pendiente).
+  - Devuelve `requestId`, `retrievalMode`, `limit` (`retrieval_limit` del `topK` del pedido), `retrievedAt` y los fragmentos en el orden de la recuperación, sin `retrievedAt` en cada uno.
+  - Un pedido en cola devuelve `[]`; uno ajeno o inexistente, `GENERATION_REQUEST_NOT_FOUND`.
+  - Pruebas en `backend/tests/unit/test_generation_evidence.py`: orden, `[]` en cola, límite, aislamiento entre docentes y que lo citado por los recursos es parte de lo recuperado.
+- [x] T063 [BE] **Depende de T062.** Ruta `GET /api/v1/generation-requests/{id}/evidence` y esquemas `GenerationEvidence` y `RetrievedFragment` (`routers/generation_requests.py`, `schemas/generation_requests.py`, `main.py`). Pruebas e2e en `test_generation_requests_api.py`: todo lo recuperado en orden, lo citado como subconjunto, y `404` para otro docente con el mismo cuerpo que un pedido inexistente. PR del backend (enlace pendiente).
+- [x] T064 [BE] **Depende de T063.** Agregar la ruta a [contracts/generation-requests.openapi.yaml](contracts/generation-requests.openapi.yaml) y exportar `docs/api/openapi.json`; la CI compara el contrato (T048). PR del backend (enlace pendiente).
+- [x] T065 [BE] **Depende de T063.** `backend/evaluation/collect_samples.py`. PR del backend (enlace pendiente).
+  - `retrieved_contexts` con todo lo de la ruta, en orden; `cited_contexts` con la copia de cada recurso; `retrieved_count`, `limit`, `retrieval_mode` y `retrieval_query` en cada muestra. Sin `modalities` en el pedido.
+  - Campos opcionales de `cases.json`: `unitTitle`, `outcomeText`, `competency`, `reference`, `expectedFragments` y `mode: "sequence"` con `resourceTypes`. Los casos sin ellos se piden igual que antes.
+  - Pruebas en `backend/tests/unit/test_collect_samples_cases.py` y `backend/tests/e2e/test_collect_samples.py`.
+- [x] T066 [BE] **Depende de T065.** `backend/evaluation/run_ragas.py`: `--contexts retrieved|cited` (por defecto `retrieved`) y `context_recall` solo si todas las muestras calificadas traen `reference`; si no, se omite con un mensaje. Pruebas con un evaluador falso, sin modelo, en `backend/tests/unit/test_run_ragas.py`. PR del backend (enlace pendiente).
+- [ ] T067 [Sergio] Corpus de evaluación: de 4 a 6 documentos con licencia o permiso de uso (unos 50 a 60 fragmentos), con 1 o 2 documentos de otro tema, y una respuesta de referencia (`reference`) por caso de `cases.json`; de forma opcional, `expectedFragments`, `unitTitle`, `outcomeText` y `competency`. Validar también la redacción de las indicaciones y la cobertura de etapas y tipos.
+- [ ] T068 [E2E] **Depende de T065, T066 y T067.** Correr `collect_samples.py` y `run_ragas.py` con el corpus de T067, con `--contexts retrieved` y `--contexts cited`, y registrar aquí los resultados (promedios, por etapa, `context_recall` y muestras de respaldo por reglas).
+
 ## Evidencia de los casos y criterios (T049)
 
 Pruebas automáticas en `main` (rutas desde la raíz de cada repositorio; las del frontend están en `Plataforma_Docente_frontend` y se citan con la descripción de `it`), PR donde se implementó cada caso y evidencia manual de los informes de GEN-01 en Notion.
@@ -336,4 +354,5 @@ Despliegue en Render: «Informe GEN-01 2 (backend, Swagger)», Evidencias 12 y 1
   - **CC-01 httpClient:** T034, y en cadena T036 a T038, T042 y T043.
   - **MAT-01 retrieval_mode:** T031 a T033.
 - HU-024: T050 y T051 son independientes; T052 depende de los dos, y T053 y T055 de T052. T058 (Silvana) puede empezar con el contrato de T050 y T051. T059 (Juan) puede avanzar en paralelo con T054, sobre la estructura de [data-model](data-model.md#actividad_kinestesica), salvo su parte de la huella, que depende de T054 (`normalize_structure` debe conservar `materials`, `estimatedMinutes` y `space`).
+- TA-010: T062 a T066 van en cadena; T067 (Sergio) es independiente y T068 necesita T065, T066 y T067.
 - El backend no se integra a `main` sin T026, para que ningún recurso llegue a Revisión sin `verification` y los que no tengan copia histórica completa lleguen pendientes.

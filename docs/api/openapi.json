@@ -1405,6 +1405,74 @@
         }
       }
     },
+    "/api/v1/generation-requests/{request_id}/evidence": {
+      "get": {
+        "tags": [
+          "generations"
+        ],
+        "summary": "Get the evidence retrieved by a generation request",
+        "description": "Every chunk the request retrieved from the material and gave to the model, in retrieval order, not only\nthe ones its resources cite. The Ragas evaluation uses it as the retrieved context (TA-010). A queued request\nanswers 200 with no fragments. Requests of other teachers answer 404 GENERATION_REQUEST_NOT_FOUND, the same\nas missing ones.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generation-requests/${REQUEST_ID}/evidence\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200. See the response schema below for the returned fields.",
+        "operationId": "get_generation_evidence_api_v1_generation_requests__request_id__evidence_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Request Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationEvidence"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/generator": {
       "get": {
         "tags": [
@@ -3388,6 +3456,67 @@
         ],
         "title": "GeneratedChunk"
       },
+      "GenerationEvidence": {
+        "properties": {
+          "requestId": {
+            "type": "string",
+            "title": "Requestid"
+          },
+          "retrievalMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "hybrid",
+                  "bm25_fallback"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievalmode",
+            "description": "Search fallback reported by Material. `null` while the request is queued."
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Limit",
+            "description": "Maximum number of chunks the request retrieved: its `topK`, bounded from 3 to 12."
+          },
+          "retrievedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievedat",
+            "description": "When the request retrieved the chunks (ISO 8601). `null` while the request is queued."
+          },
+          "fragments": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievedFragment"
+            },
+            "type": "array",
+            "title": "Fragments",
+            "description": "Every retrieved chunk, in retrieval order. The resources cite a subset of them. Empty while the request is queued or if the retrieval failed."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "requestId",
+          "retrievalMode",
+          "limit",
+          "retrievedAt",
+          "fragments"
+        ],
+        "title": "GenerationEvidence",
+        "description": "Todo lo que el pedido recuperó del material y entregó al modelo, no solo lo citado (TA-010, research R12)."
+      },
       "GenerationGenerator": {
         "properties": {
           "description": {
@@ -5285,6 +5414,71 @@
           "modalities"
         ],
         "title": "ResourceTypeResponse"
+      },
+      "RetrievedFragment": {
+        "properties": {
+          "chunkId": {
+            "type": "string",
+            "title": "Chunkid"
+          },
+          "documentId": {
+            "type": "string",
+            "title": "Documentid"
+          },
+          "documentName": {
+            "type": "string",
+            "title": "Documentname"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "relevance": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance",
+            "description": "Relevance reported by Material, from 0 to 1."
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceurl"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "chunkId",
+          "documentId",
+          "documentName",
+          "location",
+          "text",
+          "relevance"
+        ],
+        "title": "RetrievedFragment",
+        "description": "Un fragmento recuperado por el pedido, con su procedencia (TA-010)."
       },
       "ReviewedOptionInput": {
         "properties": {
