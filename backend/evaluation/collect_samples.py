@@ -140,7 +140,8 @@ def ensure_unit(client: httpx.Client, headers: dict, code: str = COURSE_CODE, ti
                 outcome: str = DEFAULT_OUTCOME) -> dict:
     """La unidad del curso de evaluación `code`; si el curso no existe, lo crea con una unidad y un resultado."""
     courses = request(client, 'GET', '/api/v1/courses', headers=headers).json()
-    course = next((c for c in courses if c.get('code') == code), None)
+    # El backend guarda el código en mayúsculas y course_code() arma el hash en minúsculas: se compara sin distinguir.
+    course = next((c for c in courses if (c.get('code') or '').casefold() == code.casefold()), None)
     if course is None:
         name = 'Redes de computadoras (evaluación RAG)' if code == COURSE_CODE else f'Evaluación RAG: {title}'[:150]
         response = request(client, 'POST', '/api/v1/courses', headers=headers, json={

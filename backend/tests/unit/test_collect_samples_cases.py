@@ -113,6 +113,19 @@ def test_an_existing_course_of_the_unit_is_reused_without_creating_another(colle
     assert unit["id"] == "unidad-9" and not [call for call in calls if call[0] == "POST"]
 
 
+def test_an_existing_course_stored_in_upper_case_is_reused_without_a_post(collect):
+    """El backend guarda los códigos en mayúsculas («EVAL-RAG-68293C1532FB») y `course_code` arma el hash en
+    minúsculas: la segunda corrida debe encontrar el curso en vez de crear otro (409 DUPLICATE_CODE)."""
+    case = {**OLD_CASE, "unitTitle": "Capa de red", "outcomeText": "Explica el enrutamiento IP"}
+    stored = collect.course_code("Capa de red", "Explica el enrutamiento IP").upper()
+    assert stored != collect.course_code("Capa de red", "Explica el enrutamiento IP")  # el hash tiene letras
+    existing = [{"id": "curso-9", "code": stored, "units": [{"id": "unidad-9", "title": "Capa de red", "outcomes": []}]}]
+    handler, calls = _courses_server(existing)
+    with client_for(handler) as client:
+        unit = collect.ensure_case_unit(client, {}, case, {})
+    assert unit["id"] == "unidad-9" and not [call for call in calls if call[0] == "POST"]
+
+
 def test_the_course_code_depends_on_the_title_and_the_outcome(collect):
     first = collect.course_code("Capa de red", "Explica el enrutamiento IP")
     assert first == collect.course_code("Capa de red", "Explica el enrutamiento IP")
