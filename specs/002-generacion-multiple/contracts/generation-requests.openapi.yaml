@@ -100,6 +100,8 @@ paths:
         GEN-C12 (HU-038). Uses deterministic rules on the authenticated teacher's current unit.
         Returns a partial draft even if interpretation issues remain. Does not save the message or draft,
         create a request, retrieve evidence, or call an AI provider. No idempotency header is required.
+        Invalid request bodies return 422 INVALID_PARAMETERS. Unresolved or incompatible values in a valid
+        message are interpretation issues in the 200 response.
       requestBody:
         required: true
         content:
@@ -115,9 +117,9 @@ paths:
                 draft: { unitId: unidad-1, mode: individual, resourceTypes: [glosario], quantity: 2 }
                 stages: [{ resourceType: glosario, stage: explain }]
                 issues: []
-        '401': { description: Missing or expired session }
-        '404': { description: UNIT_NOT_FOUND for an unknown unit or a unit owned by another teacher }
-        '422': { description: INVALID_PARAMETERS for an invalid body, including a blank or oversized message }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/UnitNotFound' }
+        '422': { $ref: '#/components/responses/InvalidParameters' }
 
   /generation-requests/{request_id}:
     get:
@@ -262,7 +264,10 @@ components:
         draft: { $ref: '#/components/schemas/GenerationInterpretationDraft' }
         stages:
           type: array
-          description: One read-only catalog stage for each resource type in the draft.
+          uniqueItems: true
+          description: |
+            One read-only catalog stage per draft resource type, in the same 5E order as draft.resourceTypes.
+            Each resource type appears once. Distinct types can share a stage.
           items:
             type: object
             required: [resourceType, stage]
@@ -294,6 +299,7 @@ components:
           type: array
           maxItems: 8
           uniqueItems: true
+          description: Distinct resource types in the generator's 5E order.
           items: { $ref: '#/components/schemas/ResourceType' }
         quantity: { type: integer, minimum: 1, maximum: 5 }
         modalities:
@@ -301,7 +307,11 @@ components:
           minItems: 1
           maxItems: 1
           items: { $ref: '#/components/schemas/Modality' }
-        outcomeId: { type: [string, 'null'] }
+        outcomeId:
+          type: [string, 'null']
+          description: |
+            A valid ID selects the learning outcome. Null clears the selection when the teacher explicitly
+            asks to remove it. Omission preserves the form value, including when a mention cannot be resolved.
         audience: { type: string, maxLength: 200 }
         competency: { type: string, maxLength: 200 }
         instructions: { type: string, maxLength: 500 }
