@@ -88,3 +88,14 @@ def test_interprets_a_message_without_creating_a_request(server: str):
         assert blank_message.status_code == 422, blank_message.text
         assert blank_message.json()["error"]["code"] == "INVALID_PARAMETERS"
         print("HTTP 422 INVALID_PARAMETERS: mensaje en blanco rechazado.")
+
+def test_interpretation_requires_a_session(server: str):
+    with httpx.Client(base_url=server, timeout=30, trust_env=False) as api:
+        response = api.post(
+            "/api/v1/generation-requests/interpret",
+            json={"unitId": "unidad-1", "message": "Quiero dos glosarios"},
+        )
+
+    assert response.status_code == 401, response.text
+    assert response.json()["error"]["code"] == "SESSION_REQUIRED"
+    print("HTTP 401 SESSION_REQUIRED: petición sin sesión rechazada.")
