@@ -283,7 +283,8 @@ Decisiones en [research R11](research.md#r11-modalidades-hu-024), acordadas con 
   - Un pedido sin `modalities` funciona como hoy y devuelve `parameters.modalities = []`.
   - Actualizar `test_text_only_rejects_other_modalities` de `test_courses_and_documents_api.py`, que hoy espera 422 para Multimedia y Gamificado.
 - [x] T057 [BE] **Depende de T050 y T051.** Exportar OpenAPI (`scripts/export_openapi.py`) y actualizar `docs/api/openapi.json`; la CI compara el contrato (T048). PR del backend (enlace pendiente).
-- [ ] T058 [FE] **Silvana.** Formulario de generación en `src/features/generation`. Caso GEN-C10.
+- [x] T058 [FE] **Silvana.** Formulario de generación en `src/features/generation`. Caso GEN-C10.
+  - Evidencia: [implementación integrada en el PR #15 del frontend](https://github.com/SilvanaD12/Plataforma_Docente_frontend/pull/15) y [Frontend CI #40](https://github.com/SilvanaD12/Plataforma_Docente_frontend/actions/runs/43507506741). Se verificó el filtrado al cambiar de Textual a Gamificado y la conservación de los tipos compatibles. La suite local pasó con 273 pruebas.
   - Selector de modalidad, con «Textual» por defecto, que filtra el selector de tipos con `modalities` de `GET /resource-types` y envía `modalities: [modalidad]`.
   - Al cambiar de modalidad, el formulario conserva los tipos elegidos que siguen siendo compatibles y quita los demás. Si no queda ninguno, el docente debe elegir uno antes de generar: el botón de generar queda deshabilitado, con un mensaje. Por ejemplo, de Textual a Gamificado se conserva `item_opcion_multiple` y se quita `glosario`.
   - Una sección Contexto, aparte, agrupa Resultado de aprendizaje, Audiencia y Competencia (HU-024 C02). La modalidad no forma parte de Contexto.
