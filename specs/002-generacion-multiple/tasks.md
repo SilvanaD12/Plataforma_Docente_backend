@@ -316,6 +316,13 @@ Decisiones en [research R12](research.md#r12-contexto-de-la-evaluación-rag): la
 - [ ] T067 [Sergio] Corpus de evaluación: de 4 a 6 documentos con licencia o permiso de uso (unos 50 a 60 fragmentos), con 1 o 2 documentos de otro tema, y una respuesta de referencia (`reference`) por caso de `cases.json`; de forma opcional, `expectedFragments`, `unitTitle`, `outcomeText` y `competency`. Validar también la redacción de las indicaciones y la cobertura de etapas y tipos.
 - [ ] T068 [E2E] **Depende de T065, T066 y T067.** Correr `collect_samples.py` y `run_ragas.py` con el corpus de T067, con `--contexts retrieved` y `--contexts cited`, y registrar aquí los resultados (promedios, por etapa, `context_recall` y muestras de respaldo por reglas).
 
+## 9. Generation request interpretation (HU-038)
+
+- [ ] T069 [BE] Implement `InterpretGenerationRequest` with deterministic rules. Reuse ownership checks, teacher-scoped unit and outcome data, and the generation catalog. Test unrecognized input, one type, multiple types, stage only, ambiguous outcomes, conflicting or out-of-range quantities, and incompatible modalities. Case GEN-C12.
+- [ ] T070 [BE] **Depends on T069.** Wire the authenticated interpretation route, document its schemas in the runtime OpenAPI export, and add HTTP tests for body validation, 401, indistinguishable 404 responses for foreign and missing units, and draft-only behavior. Assert that interpretation never creates a request, calls a provider or retrieves evidence.
+- [ ] T071 [FE] **Uses the T070 contract.** Add the chat to Generation and apply its draft to the editable form. Show the current unit, stage per type, interpretation issues, and an owned-unit suggestion when present. Expose every applied parameter, including optional instructions. Reuse the native form validation and HU-040 preview, with «Generar» as the explicit submission action.
+- [ ] T072 [E2E] **Depends on T070 and T071.** On TCP/IP, interpret «Para TCP/IP, quiero dos glosarios», correct quantity to 1, and confirm from the form. Verify no request before confirmation and exactly one request with the edited parameters afterwards. Also verify that a stage-only message prompts for a type and an owned-unit suggestion leaves the current unit unchanged. Link evidence here.
+
 ## Evidencia de los casos y criterios (T049)
 
 Pruebas automáticas en `main` (rutas desde la raíz de cada repositorio; las del frontend están en `Plataforma_Docente_frontend` y se citan con la descripción de `it`), PR donde se implementó cada caso y evidencia manual de los informes de GEN-01 en Notion.

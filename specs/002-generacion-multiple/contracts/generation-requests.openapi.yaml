@@ -91,6 +91,34 @@ paths:
             application/json:
               schema: { type: array, items: { $ref: '#/components/schemas/ResourceTypeInfo' } }
 
+  /generation-requests/interpret:
+    post:
+      tags: [generations]
+      operationId: interpretGenerationRequest
+      summary: Interpret a generation request without creating it
+      description: |
+        GEN-C12 (HU-038). Uses deterministic rules on the authenticated teacher's current unit.
+        Returns a partial draft even if interpretation issues remain. Does not save the message or draft,
+        create a request, retrieve evidence, or call an AI provider. No idempotency header is required.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/InterpretGenerationRequest' }
+      responses:
+        '200':
+          description: Editable draft and interpretation issues
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/GenerationInterpretation' }
+              example:
+                draft: { unitId: unidad-1, mode: individual, resourceTypes: [glosario], quantity: 2 }
+                stages: [{ resourceType: glosario, stage: explain }]
+                issues: []
+        '401': { description: Missing or expired session }
+        '404': { description: UNIT_NOT_FOUND for an unknown unit or a unit owned by another teacher }
+        '422': { description: INVALID_PARAMETERS for an invalid body, including a blank or oversized message }
+
   /generation-requests/{request_id}:
     get:
       tags: [generations]
@@ -218,6 +246,82 @@ components:
             Optional. One modality per request (HU-024). When sent, every type in `resourceTypes` must belong to it
             (422 RESOURCE_TYPE_NOT_IN_MODALITY, nothing is created). When omitted, types are not filtered and the
             request is saved without a modality. There is no server default.
+
+    InterpretGenerationRequest:
+      type: object
+      additionalProperties: false
+      required: [unitId, message]
+      properties:
+        unitId: { type: string, minLength: 1, description: The unit open in the Generation tab. }
+        message: { type: string, minLength: 1, maxLength: 2000, pattern: '\S', description: Trim before checking length. }
+
+    GenerationInterpretation:
+      type: object
+      required: [draft, stages, issues]
+      properties:
+        draft: { $ref: '#/components/schemas/GenerationInterpretationDraft' }
+        stages:
+          type: array
+          description: One read-only catalog stage for each resource type in the draft.
+          items:
+            type: object
+            required: [resourceType, stage]
+            properties:
+              resourceType: { $ref: '#/components/schemas/ResourceType' }
+              stage: { $ref: '#/components/schemas/Stage' }
+        issues:
+          type: array
+          items: { $ref: '#/components/schemas/GenerationInterpretationIssue' }
+        suggestedUnit:
+          type: object
+          description: Present only for an unambiguous mention of another unit owned by the teacher.
+          required: [unitId, label]
+          properties:
+            unitId: { type: string }
+            label: { type: string }
+
+    GenerationInterpretationDraft:
+      type: object
+      additionalProperties: false
+      required: [unitId, resourceTypes]
+      description: |
+        Uses the same keys as the creation request. Omitted optional fields make no changes to the form.
+        Mode is derived from the number of resolved types and omitted when the list is empty.
+      properties:
+        unitId: { type: string, description: Always the current unit from the request. }
+        mode: { type: string, enum: [individual, sequence] }
+        resourceTypes:
+          type: array
+          maxItems: 8
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/ResourceType' }
+        quantity: { type: integer, minimum: 1, maximum: 5 }
+        modalities:
+          type: array
+          minItems: 1
+          maxItems: 1
+          items: { $ref: '#/components/schemas/Modality' }
+        outcomeId: { type: [string, 'null'] }
+        audience: { type: string, maxLength: 200 }
+        competency: { type: string, maxLength: 200 }
+        instructions: { type: string, maxLength: 500 }
+
+    GenerationInterpretationIssue:
+      type: object
+      required: [field, kind, message, options]
+      properties:
+        field: { type: string, enum: [unitId, resourceTypes, quantity, modalities, outcomeId, audience, competency, instructions] }
+        kind: { type: string, enum: [missing, ambiguous, not_allowed] }
+        message: { type: string, description: Teacher-facing explanation in Spanish. }
+        options:
+          type: array
+          description: Empty when there are no safe suggestions. Values correspond to the field being resolved.
+          items:
+            type: object
+            required: [value, label]
+            properties:
+              value: { type: [string, integer] }
+              label: { type: string }
 
     GenerationRequestSummary:
       type: object
