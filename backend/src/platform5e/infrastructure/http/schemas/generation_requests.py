@@ -79,68 +79,6 @@ class StartGenerationRequest(ApiRequest):
             modality=self.modalities[0] if self.modalities else None,
         )
 
-class InterpretGenerationRequest(ApiRequest):
-    """Cuerpo de POST /generation-requests/interpret."""
-
-    unit_id: str = Field(
-        min_length=1,
-        description="The unit open in the Generation tab.",
-    )
-    message: str = Field(
-        min_length=1,
-        max_length=2000,
-        pattern=r"\S",
-        description="Teacher message, trimmed before validation.",
-    )
-
-class GenerationInterpretationOption(ApiResponse):
-    value: str | int
-    label: str
-
-
-class GenerationInterpretationIssue(ApiResponse):
-    field: Literal[
-        "unitId", "resourceTypes", "quantity", "modalities",
-        "outcomeId", "audience", "competency", "instructions",
-    ]
-    kind: Literal["missing", "ambiguous", "not_allowed"]
-    message: str
-    options: list[GenerationInterpretationOption]
-
-
-class GenerationInterpretationStage(ApiResponse):
-    resource_type: ResourceType
-    stage: Stage
-
-
-class GenerationInterpretationSuggestedUnit(ApiResponse):
-    unit_id: str
-    label: str
-
-
-class GenerationInterpretationDraft(ApiResponse):
-    unit_id: str
-    resource_types: list[ResourceType] = Field(max_length=MAX_SEQUENCE_TYPES)
-    mode: RequestMode | None = None
-    quantity: int | None = Field(
-        default=None,
-        ge=MIN_QUANTITY_PER_TYPE,
-        le=MAX_QUANTITY_PER_TYPE,
-    )
-    modalities: list[Modality] | None = Field(
-        default=None, min_length=1, max_length=1
-    )
-    outcome_id: str | None = None
-    audience: str | None = Field(default=None, max_length=200)
-    competency: str | None = Field(default=None, max_length=200)
-    instructions: str | None = Field(default=None, max_length=500)
-
-
-class GenerationInterpretation(ApiResponse):
-    draft: GenerationInterpretationDraft
-    stages: list[GenerationInterpretationStage]
-    issues: list[GenerationInterpretationIssue]
-    suggested_unit: GenerationInterpretationSuggestedUnit | None = None
 
 class Problem(ApiResponse):
     code: str = Field(examples=["DEADLINE_EXCEEDED"])

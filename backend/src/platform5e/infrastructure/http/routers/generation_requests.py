@@ -16,10 +16,6 @@ from platform5e.application.use_cases.generation.get_generation_request import (
     GenerationRequestView,
     GetGenerationRequest,
 )
-from platform5e.application.use_cases.generation.interpret_generation_request import (
-    InterpretGenerationCommand,
-    InterpretGenerationRequest as InterpretGenerationUseCase,
-)
 from platform5e.application.use_cases.generation.start_generation_request import (
     StartGenerationCommand,
 )
@@ -39,10 +35,8 @@ from platform5e.infrastructure.http.error_handlers import error_json
 from platform5e.infrastructure.http.schemas.common import error_responses
 from platform5e.infrastructure.http.schemas.generation_requests import (
     GenerationEvidence,
-    GenerationInterpretation,
     GenerationRequestStatus,
     GenerationRequestSummary,
-    InterpretGenerationRequest,
     StartGenerationRequest,
 )
 from platform5e.infrastructure.http.schemas.generations import GeneratorInfo
@@ -138,52 +132,6 @@ def status_payload(request: GenerationRequest, view: GenerationRequestView | Non
 
 def _validated(payload: dict[str, Any]) -> dict[str, Any]:
     return GenerationRequestStatus.model_validate(payload).model_dump(by_alias=True, mode="json")
-
-
-def create_generation_interpretation_router(
-    interpreter: InterpretGenerationUseCase,
-    account_service: AccountService,
-) -> APIRouter:
-    router = APIRouter()
-    current_teacher = current_teacher_dependency(account_service)
-
-    @router.post(
-        f"{BASE_PATH}/interpret",
-        tags=["generations"],
-        operation_id="interpretGenerationRequest",
-        summary="Interpret a generation request",
-        response_model=GenerationInterpretation,
-        response_model_exclude_unset=True,
-        responses=error_responses(401, 404, 422),
-    )
-    def interpret_generation_request(
-        body: InterpretGenerationRequest,
-        teacher_id: str = Depends(current_teacher),
-    ) -> GenerationInterpretation | JSONResponse:
-        """Interprets a teacher's message for a unit they own and returns an editable draft.
-        The endpoint uses deterministic rules and creates no generation request.
-
-        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
-        Replace unidad-1 with the ID of a unit you own.
-
-        ```bash
-        curl -X POST "$BASE_URL/api/v1/generation-requests/interpret" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data '{"unitId":"unidad-1","message":"Quiero dos glosarios"}'
-        ```
-
-        Expected 200 with the draft, derived 5E stages, and interpretation issues.
-        """
-        command = InterpretGenerationCommand(
-            teacher_id=teacher_id,
-            unit_id=body.unit_id,
-            message=body.message,
-        )
-        try:
-            result = interpreter.execute(command)
-        except GenerationError as error:
-            return generation_error_response(error)
-        return GenerationInterpretation.model_validate(result)
-
-    return router
 
 
 def create_generation_requests_router(

@@ -26,10 +26,6 @@ from platform5e.application.use_cases.export.export_unit_resources import Export
 from platform5e.application.use_cases.generation.get_generation_evidence import GetGenerationEvidence
 from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
-from platform5e.application.use_cases.generation.interpret_generation_request import (
-    InterpretGenerationRequest,
-    SuggestedUnit,
-)
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationRequest
 from platform5e.application.use_cases.generation.start_regeneration import StartRegeneration
 from platform5e.application.use_cases.media.get_resource_media import GetResourceMediaUseCase
@@ -63,10 +59,7 @@ from platform5e.infrastructure.http.routers.downloads import (
     create_teacher_downloads_router,
 )
 from platform5e.infrastructure.http.routers.exports import create_exports_router
-from platform5e.infrastructure.http.routers.generation_requests import (
-    create_generation_interpretation_router,
-    create_generation_requests_router,
-)
+from platform5e.infrastructure.http.routers.generation_requests import create_generation_requests_router
 from platform5e.infrastructure.http.routers.generations import create_generations_router
 from platform5e.infrastructure.http.routers.health import create_health_router
 from platform5e.infrastructure.http.routers.resources import create_resources_router
@@ -209,15 +202,6 @@ def create_application() -> FastAPI:
     # Adaptador T007 para validación de pertenencia de unidades y resultados; lo comparten Material y Generación.
     unit_membership = AccountUnitMembershipAdapter(account_repository)
 
-    def list_owned_units(teacher_id: str) -> list[SuggestedUnit]:
-        return [
-            {"unitId": unit["id"], "label": unit["title"]}
-            for course in account_service.list_courses(teacher_id)
-            for unit in course["units"]
-        ]
-
-    interpret_generation = InterpretGenerationRequest(unit_membership, list_owned_units)
-
     material_service = MaterialService(
         teacher_repository=account_repository,
         chunk_repository=chunk_repository,
@@ -286,7 +270,6 @@ def create_application() -> FastAPI:
     app.include_router(create_accounts_router(account_service))
     app.include_router(create_courses_router(account_service))
     app.include_router(create_documents_router(account_service, material_service))
-    app.include_router(create_generation_interpretation_router(interpret_generation, account_service))
     app.include_router(
         create_generation_requests_router(
             start_generation,
