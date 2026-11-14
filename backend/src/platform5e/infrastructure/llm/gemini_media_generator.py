@@ -23,6 +23,13 @@ DEFAULT_SPEECH_MODEL = "gemini-3.8-flash-tts"
 DEFAULT_VOICE = "Kore"
 DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 PCM_SAMPLE_RATE = 24000  # la voz de Gemini entrega PCM de 16 bits, mono, 24 kHz
+# Los modelos de imagen escriben rótulos («Step 1», «RULES»…) aunque la descripción guardada pida «sin texto escrito».
+# Esta instrucción se agrega solo al pedido que se envía al modelo, no a structure.prompt: no cambia lo guardado ni la
+# huella del recurso. Va en inglés porque los modelos de imagen la siguen mejor.
+NO_TEXT_IN_IMAGE_INSTRUCTION = (
+    "Do not include any text anywhere in the image: no letters, numbers, words, labels, captions, logos or "
+    "watermarks. Convey the idea only with shapes, objects, people, colors and arrows."
+)
 IMAGE_TYPES = {b"\x89PNG": ("image/png", "png"), b"\xff\xd8\xff": ("image/jpeg", "jpg")}
 
 
@@ -54,6 +61,11 @@ def find_inline_data(payload: Any, prefix: str) -> tuple[bytes, str] | None:
     walk(payload)
     preferred = [item for item in found if item[1].startswith(prefix) or item[1] == prefix.rstrip("/")]
     return (preferred or found or [None])[-1]
+
+
+def image_request_text(prompt: str) -> str:
+    """Texto que se envía al modelo de imágenes: la descripción del recurso y la instrucción de no escribir texto."""
+    return f"{prompt}\n\n{NO_TEXT_IN_IMAGE_INSTRUCTION}"
 
 
 def pcm_to_wav(pcm: bytes, sample_rate: int = PCM_SAMPLE_RATE) -> bytes:
@@ -129,7 +141,7 @@ class GeminiMediaGenerator:
     def generate_image(self, prompt: str) -> GeneratedMedia:
         payload = {
             "model": self.image_model,
-            "input": [{"type": "text", "text": prompt}],
+            "input": [{"type": "text", "text": image_request_text(prompt)}],
             "response_format": {"type": "image", "mime_type": "image/jpeg", "aspect_ratio": "16:9", "image_size": "1K"},
         }
         found = find_inline_data(self._post(payload), "image/")
