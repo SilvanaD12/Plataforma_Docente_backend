@@ -173,7 +173,10 @@ def test_if_the_ai_fails_the_rule_based_generator_answers_and_it_is_reported(set
 
     [step] = request.steps
     assert request.status == RequestStatus.SUCCEEDED
-    assert step.generator == {"description": "generador por reglas", "usesAi": False, "fallback": True}
+    assert step.generator == {
+        "description": "generador por reglas", "usesAi": False, "fallback": True,
+        "fallbackReason": "IA caída no respondió (sin respuesta del proveedor). Se usó el generador por reglas.",
+    }
     assert setup.review.all()[0]["generatorKind"] == "respaldo"
 
 

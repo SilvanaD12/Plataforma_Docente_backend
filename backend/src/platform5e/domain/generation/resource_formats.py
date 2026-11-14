@@ -160,6 +160,17 @@ def _estimated_minutes(value: Any) -> int | None:
     return value if MIN_MINUTES <= value <= MAX_MINUTES else None
 
 
+def complete_guided_steps(value: Any, question_required: bool = True) -> int:
+    """Cuántos pasos guiados están completos (título y consigna, y pregunta si se exige). Lo usa la generación para
+    explicar por qué rechaza una actividad."""
+    return len(_guided_steps(value, question_required))
+
+
+def estimated_minutes(value: Any) -> int | None:
+    """Los minutos de la actividad kinestésica si son un entero de 5 a 90; si no, None."""
+    return _estimated_minutes(value)
+
+
 def _predictions(value: Any) -> list[dict[str, Any]]:
     """HU-047: predicciones del reto de Enganchar. El estudiante elige entre dos o tres opciones antes de ver lo que
     dice el material (`reveal`), y cada predicción conserva los fragmentos que la respaldan."""

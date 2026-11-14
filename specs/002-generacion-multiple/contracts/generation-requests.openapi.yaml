@@ -451,6 +451,11 @@ components:
         description: { type: string }
         usesAi: { type: boolean }
         fallback: { type: boolean, description: True when the rule-based generator drafted after the AI failed. }
+        fallbackReason:
+          type: [string, 'null']
+          description: >-
+            In Spanish: why the AI draft was not used (the same warning as the server log). `null` when
+            `fallback` is false.
 
     GroundingReport:
       type: object

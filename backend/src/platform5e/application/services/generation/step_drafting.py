@@ -167,10 +167,11 @@ def draft_step(
             **context["solicitud"],
             "indicaciones": " ".join(filter(None, [context["solicitud"]["indicaciones"], NO_REPEAT_INSTRUCTION])),
         }
-        retried, generator_retry, _ = draft_resources(
+        retried, generator_retry, warning_retry = draft_resources(
             {**context, "solicitud": retry_request}, primary_generator, fallback_generator, rejections
         )
         generator = generator_retry or generator
+        warning = warning_retry if generator_retry is not None else warning  # el aviso del generador que quedó
         kept_retry, repeated = filter_repeated(retried[: len(repeated)], accepted + kept)
         kept += kept_retry
     return StepDraft(kept=kept, repeated=repeated, generator=generator, warning=warning)

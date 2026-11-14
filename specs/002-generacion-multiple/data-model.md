@@ -67,8 +67,8 @@ Es un paso por tipo de recurso, en orden 5E. En los modos `individual` y `regene
 | `agent` | `str` | `stage_agent(resource_type)`. |
 | `status` | `StepStatus` | Ver [transiciones](#reglas-de-transición). |
 | `resource_ids` | `list[str]` | Son los recursos entregados a Revisión en este paso. |
-| `rejections` | `list[{title, reason, kind}]` | `kind` puede ser `grounding`, `repetition`, `structure` o `distractor`. |
-| `generator` | `{description, usesAi, fallback}` \| `null` | `fallback = true` indica que redactó el generador por reglas. |
+| `rejections` | `list[{title, reason, kind}]` | `kind` puede ser `grounding`, `repetition`, `structure` o `distractor`. `structure`: la respuesta del modelo no tiene la forma del tipo (falta la estructura o sus campos obligatorios, el contenido o las alternativas); el motivo dice qué falta. |
+| `generator` | `{description, usesAi, fallback, fallbackReason}` \| `null` | `fallback = true` indica que redactó el generador por reglas. `fallbackReason` dice por qué, con el mismo aviso del registro del servidor; es `null` sin respaldo y en los pasos guardados antes del campo. |
 | `grounding`, `distractor_reliability` | JSON | Son los informes de `build_grounding_report` y `reliability_report` del paso. |
 | `error` | `{code, message}` \| `null` | Solo existe en `failed` o `interrupted`. |
 | `started_at`, `finished_at` | ISO 8601 UTC | — |

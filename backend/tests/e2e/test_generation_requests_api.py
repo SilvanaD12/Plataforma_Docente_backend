@@ -261,6 +261,45 @@ def _kinesthetic_activity(api: httpx.Client, headers: dict[str, str]) -> tuple[d
     return unit, resource
 
 
+@pytest.fixture
+def per_step_gemini(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> Iterator[str]:
+    """Servidor con Gemini falso que devuelve cada paso de la actividad como un recurso aparte."""
+    monkeypatch.setenv("E2E_APP_FACTORY", "tests.e2e.per_step_gemini_app:create_application")
+    yield request.getfixturevalue("server")
+
+
+def test_the_fallback_reason_and_the_structure_rejections_are_returned(per_step_gemini: str):
+    """GEN-01: Gemini devuelve un recurso por paso; cada uno se rechaza con su motivo, redacta el generador por reglas
+    y el pedido dice por qué en `steps[].generator.fallbackReason`."""
+    with httpx.Client(base_url=per_step_gemini, timeout=90) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        accepted = _start(api, headers, {**KINESTHETIC_REQUEST, "unitId": unit["id"]})
+        assert accepted.status_code == 202, accepted.text
+        finished = _wait_until_final(api, headers, accepted.json()["id"])
+
+    [step] = finished["steps"]
+    assert finished["status"] == "succeeded" and step["resourceIds"]
+    assert step["generator"]["fallback"] is True and step["generator"]["usesAi"] is False
+    assert step["generator"]["fallbackReason"] == (
+        "Gemini · gemini-3.5-flash-lite no devolvió recursos con citas válidas del material. "
+        "Se usó el generador por reglas."
+    )
+    structure = [r for r in step["rejections"] if r["kind"] == "structure"]
+    assert structure and all(r["title"].startswith("Paso ") for r in structure)
+    assert all("no un recurso por paso" in r["reason"] for r in structure)
+
+
+def test_without_fallback_the_reason_is_null(server: str):
+    with httpx.Client(base_url=server, timeout=90) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        finished = _wait_until_final(api, headers, _start(api, headers, {**KINESTHETIC_REQUEST, "unitId": unit["id"]})
+                                     .json()["id"])
+    [step] = finished["steps"]
+    assert step["generator"]["fallback"] is False and step["generator"]["fallbackReason"] is None
+
+
 def test_a_kinesthetic_request_delivers_an_activity_with_steps_materials_time_and_space(server: str):
     with httpx.Client(base_url=server, timeout=90) as api:
         headers = _session(api, TEACHER_A)
