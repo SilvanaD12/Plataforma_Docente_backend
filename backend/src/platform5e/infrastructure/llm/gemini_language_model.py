@@ -5,6 +5,7 @@ Soporta proveedores: Gemini, Anthropic y OpenAI (o compatibles como Groq/OpenRou
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import httpx
@@ -33,6 +34,11 @@ DEFAULT_BASE_URLS: dict[str, str] = {
 RETRY_PROMPT_SUFFIX: str = (
     "\n\nTu respuesta anterior no era JSON válido. Responde solo con el objeto JSON pedido."
 )
+# Caracteres del comienzo y del final de una respuesta inválida que se guardan en el registro.
+INVALID_TEXT_PREVIEW_CHARS: int = 300
+ATTEMPTS: int = 2
+
+logger = logging.getLogger("platform5e.llm")
 
 _STRING_TYPE: dict[str, str] = {"type": "STRING"}
 _TAGS_ARRAY_TYPE: dict[str, Any] = {"type": "ARRAY", "items": _STRING_TYPE}
@@ -156,6 +162,20 @@ class AIProviderError(Exception):
         self.status_code = status_code
 
 
+def _grouped(number: int) -> str:
+    """65536 -> «65 536»."""
+    return f"{number:,}".replace(",", " ")
+
+
+def response_details(text: str, finish_reason: str | None, output_tokens: int | None) -> str:
+    """Diagnóstico corto de una respuesta: por qué terminó, cuántos tokens y cuántos caracteres tiene."""
+    parts = [f"finishReason {finish_reason}"] if finish_reason else []
+    if isinstance(output_tokens, int) and not isinstance(output_tokens, bool):
+        parts.append(f"{_grouped(output_tokens)} tokens")
+    parts.append(f"{_grouped(len(text))} caracteres")
+    return ", ".join(parts)
+
+
 class GeminiLanguageModel(ResourceGeneratorPort):
     """Adaptador de infraestructura que implementa la generación con modelos de lenguaje por API REST."""
 
@@ -186,16 +206,36 @@ class GeminiLanguageModel(ResourceGeneratorPort):
         """Envía el contexto estructurado y extrae el JSON validado."""
         system_instruction, user_prompt = build_prompt_instructions(context)
         try:
-            raw_text = self._complete(system_instruction, user_prompt)
-            parsed_data = parse_json_response(raw_text)
+            parsed_data = self._complete_json(system_instruction, user_prompt, attempt=1)
         except ValueError:
-            raw_text = self._complete(system_instruction, user_prompt + RETRY_PROMPT_SUFFIX)
-            parsed_data = parse_json_response(raw_text)
+            # Si también falla el reintento, su error (con su diagnóstico) es el que se informa.
+            parsed_data = self._complete_json(system_instruction, user_prompt + RETRY_PROMPT_SUFFIX, attempt=2)
 
         return parsed_data if isinstance(parsed_data, dict) else {"recursos": parsed_data}
 
-    def _complete(self, system_instruction: str, user_prompt: str) -> str:
-        """Invoca el endpoint específico según el proveedor seleccionado."""
+    def _complete_json(self, system_instruction: str, user_prompt: str, attempt: int) -> Any:
+        """Pide la respuesta y la lee como JSON. Si no lo es, el error dice por qué terminó la respuesta y cuánto
+        medía (un JSON cortado por el límite de tokens termina con finishReason MAX_TOKENS), y el registro guarda su
+        comienzo y su final. Nunca se registran la clave ni el prompt."""
+        raw_text, finish_reason, output_tokens = self._complete(system_instruction, user_prompt)
+        try:
+            return parse_json_response(raw_text)
+        except ValueError as exc:
+            details = response_details(raw_text, finish_reason, output_tokens)
+            logger.warning(
+                "%s: respuesta que no es JSON válido (intento %d de %d; %s). Comienzo: %r · Final: %r",
+                self.description,
+                attempt,
+                ATTEMPTS,
+                details,
+                raw_text[:INVALID_TEXT_PREVIEW_CHARS],
+                raw_text[-INVALID_TEXT_PREVIEW_CHARS:],
+            )
+            raise ValueError(f"{str(exc).rstrip('.')} ({details}).") from exc
+
+    def _complete(self, system_instruction: str, user_prompt: str) -> tuple[str, str | None, int | None]:
+        """Invoca el endpoint del proveedor. Devuelve el texto y, si el proveedor los informa (Gemini), por qué terminó
+        la respuesta (finishReason) y cuántos tokens tiene; si no, None."""
         if self.provider == "gemini":
             generation_config: dict[str, Any] = {"responseMimeType": "application/json"}
             if self._enforce_schema:
@@ -224,7 +264,9 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 )
                 raise AIProviderError(f"Gemini no devolvió texto ({block_reason}).")
             parts = (candidates[0].get("content") or {}).get("parts") or []
-            return "".join(part.get("text", "") for part in parts if not part.get("thought"))
+            text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
+            output_tokens = (response_data.get("usageMetadata") or {}).get("candidatesTokenCount")
+            return text, candidates[0].get("finishReason"), output_tokens
 
         if self.provider == "anthropic":
             response_data = self._post_request(
@@ -237,11 +279,12 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                     "messages": [{"role": "user", "content": user_prompt}],
                 },
             )
-            return "".join(
+            text = "".join(
                 block.get("text", "")
                 for block in response_data.get("content", [])
                 if block.get("type") == "text"
             )
+            return text, None, None
 
         # openai o compatibles
         response_data = self._post_request(
@@ -256,7 +299,7 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                 ],
             },
         )
-        return response_data["choices"][0]["message"]["content"] or ""
+        return response_data["choices"][0]["message"]["content"] or "", None, None
 
     def _post_request(self, endpoint_url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
         """Envía la petición HTTP post con manejo de excepciones y errores de tasa límite."""
