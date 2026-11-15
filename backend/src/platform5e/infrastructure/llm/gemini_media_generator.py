@@ -114,7 +114,10 @@ def as_image_file(image: bytes, mime: str) -> GeneratedMedia:
             return GeneratedMedia(image, mime_type, extension)
     if image[:4] == b"RIFF" and image[8:12] == b"WEBP":
         return GeneratedMedia(image, "image/webp", "webp")
-    raise AIProviderError(f"Gemini devolvió un archivo que no es una imagen ({mime or 'sin tipo'}).")
+    raise AIProviderError(
+        f"Gemini devolvió un archivo que no es una imagen ({mime or 'sin tipo'}).",
+        public_reason="Gemini devolvió un archivo que no es una imagen.",
+    )
 
 
 class GeminiMediaGenerator:
@@ -146,7 +149,7 @@ class GeminiMediaGenerator:
         }
         found = find_inline_data(self._post(payload), "image/")
         if found is None:
-            raise AIProviderError("Gemini no devolvió una imagen.")
+            raise AIProviderError("Gemini no devolvió una imagen.", public_reason="Gemini no devolvió una imagen.")
         return as_image_file(*found)
 
     def synthesize_speech(self, script: str) -> GeneratedMedia:
@@ -158,7 +161,7 @@ class GeminiMediaGenerator:
         }
         found = find_inline_data(self._post(payload), "audio/")
         if found is None:
-            raise AIProviderError("Gemini no devolvió audio.")
+            raise AIProviderError("Gemini no devolvió audio.", public_reason="Gemini no devolvió audio.")
         return as_audio_file(*found)
 
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -169,18 +172,25 @@ class GeminiMediaGenerator:
                 json=payload,
             )
         except httpx.HTTPError as exc:
-            raise AIProviderError(f"sin conexión con Gemini: {exc.__class__.__name__}") from exc
+            message = f"sin conexión con Gemini: {exc.__class__.__name__}"
+            raise AIProviderError(message, public_reason=message) from exc
         if response.status_code >= 400:
             try:
                 detail = response.json().get("error", {})
                 message = detail.get("message", "") if isinstance(detail, dict) else str(detail)
             except ValueError:
                 message = response.text[:200]
-            raise AIProviderError(f"Gemini respondió {response.status_code}: {message[:200]}", response.status_code)
+            # El texto del proveedor va solo al registro: puede traer la clave o datos del proyecto.
+            raise AIProviderError(
+                f"Gemini respondió {response.status_code}: {message[:200]}",
+                response.status_code,
+                public_reason=f"Gemini respondió {response.status_code}",
+            )
         try:
             return response.json()
         except ValueError as exc:
-            raise AIProviderError("Gemini devolvió una respuesta que no es JSON.") from exc
+            message = "Gemini devolvió una respuesta que no es JSON."
+            raise AIProviderError(message, public_reason=message) from exc
 
 
 def wav_duration_seconds(wav_bytes: bytes) -> float:

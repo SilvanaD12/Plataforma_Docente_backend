@@ -30,6 +30,7 @@ RESOURCE_LABELS = {
     "imagen_ilustrativa": ("Para explorar", "Imagen ilustrativa"),
     "diagrama_proceso": ("Para explorar", "Diagrama de proceso"),
     "exploracion_guiada": ("Para explorar", "Exploración guiada"),
+    "actividad_kinestesica": ("Para explorar", "Actividad kinestésica"),
     "mapa_conceptual": ("Para explicar", "Mapa conceptual"),
     "infografia": ("Para explicar", "Infografía"),
     "podcast_resumen": ("Para explicar", "Resumen en pódcast"),
@@ -92,6 +93,30 @@ def _media_html(resource: Mapping) -> str:
                 f"<br><em>{_esc(step.get('question'))}</em> {source_html}<br>__________________________</li>"
             )
         return f'<ol class="activity">{"".join(items)}</ol>'
+    if kind_type == "actividad_kinestesica":
+        # T059 (REV-01): antes de los pasos, lo que hay que preparar (materiales, tiempo y espacio); después, cada paso
+        # como en la exploración guiada, sin la línea de la pregunta si el paso no la tiene.
+        locations = {e.get("id"): e.get("location") for e in resource.get("evidence") or []}
+        materials = [m for m in structure.get("materials") or [] if m]
+        materials_html = (
+            "<ul>" + "".join(f"<li>{_esc(m)}</li>" for m in materials) + "</ul>"
+            if materials else "<p>Sin materiales especiales.</p>"
+        )
+        preparation = (
+            f'<div class="preparation"><p class="meta">Materiales:</p>{materials_html}'
+            f'<p><strong>Tiempo estimado:</strong> {_esc(structure.get("estimatedMinutes"))} minutos</p>'
+            f'<p><strong>Espacio:</strong> {_esc(structure.get("space"))}</p></div>'
+        )
+        items = []
+        for step in structure.get("guidedSteps") or []:
+            source = ", ".join(locations[f] for f in step.get("fragmentIds") or [] if locations.get(f))
+            source_html = f' <span class="src">Fuente: {_esc(source)}</span>' if source else ""
+            question = f"<br><em>{_esc(step.get('question'))}</em>" if step.get("question") else ""
+            items.append(
+                f"<li><strong>{_esc(step.get('title'))}.</strong> {_esc(step.get('instruction'))}"
+                f"{question}{source_html}<br>☐ Lo hicimos · __________________________</li>"
+            )
+        return f'{preparation}<ol class="activity">{"".join(items)}</ol>'
     if kind_type == "caso_aplicado":
         # HU-050: sin clave de respuestas; la situación, la consigna, un espacio para resolver y los criterios de logro
         # con su fuente, para que el estudiante revise su solución y el docente la valore.

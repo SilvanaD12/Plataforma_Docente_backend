@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
+from platform5e.application.services.provider_errors import sanitize_stored_reason
 from platform5e.infrastructure.http.schemas.common import ApiRequest, ApiResponse
 
 Stage = Literal["engage", "explore", "explain", "elaborate", "evaluate"]
@@ -57,6 +58,12 @@ class DocumentResponse(ApiResponse):
     embedding_error: str | None = Field(
         default=None, description="Why the embeddings failed; the document stays processed and BM25 still works."
     )
+
+    @field_validator("embedding_error", mode="before")
+    @classmethod
+    def _without_provider_text(cls, value: object) -> object:
+        # Revisión del PR #43: errores guardados antes de la corrección pueden traer el mensaje del proveedor.
+        return sanitize_stored_reason(value) if isinstance(value, str) else value
     origin: DocumentOrigin | None = None
 
 

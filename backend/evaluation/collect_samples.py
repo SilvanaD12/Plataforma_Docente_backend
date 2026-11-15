@@ -162,7 +162,8 @@ def ensure_unit(client: httpx.Client, headers: dict, code: str = COURSE_CODE, ti
                 outcome: str = DEFAULT_OUTCOME) -> dict:
     """La unidad del curso de evaluación `code`; si el curso no existe, lo crea con una unidad y un resultado."""
     courses = request(client, 'GET', '/api/v1/courses', headers=headers).json()
-    course = next((c for c in courses if c.get('code') == code), None)
+    # El backend guarda el código en mayúsculas y course_code() arma el hash en minúsculas: se compara sin distinguir.
+    course = next((c for c in courses if (c.get('code') or '').casefold() == code.casefold()), None)
     if course is None:
         name = 'Redes de computadoras (evaluación RAG)' if code == COURSE_CODE else f'Evaluación RAG: {title}'[:150]
         response = request(client, 'POST', '/api/v1/courses', headers=headers, json={
@@ -526,6 +527,7 @@ def build_samples(case: dict, status: dict, stored: dict, evidence: dict, unit: 
                 'generator': generator.get('description'),
                 'uses_ai': bool(generator.get('usesAi')),
                 'fallback': bool(generator.get('fallback')),
+                'fallback_reason': generator.get('fallbackReason'),
                 'seconds': elapsed,
                 'request_id': status['id'],
                 'request_status': status['status'],
@@ -565,6 +567,12 @@ def check_no_evidence(case: dict, status: dict | None, failure: dict | None, sto
         return {**record, 'reason': reason}
     reasons = [p.get('message') for p in problems if p.get('message')]
     return {**record, 'outcome': 'pass', 'reason': ' '.join(dict.fromkeys(reasons)) or 'no entregó recursos'}
+
+
+def generator_label(sample: dict) -> str:
+    """El generador de la muestra y, si redactó el respaldo por reglas, por qué no se usó la IA."""
+    reason = sample.get('fallback_reason')
+    return f"{sample['generator']} (motivo: {reason})" if reason else str(sample['generator'])
 
 
 def run_case(client: httpx.Client, headers: dict, unit: dict, case: dict, args: argparse.Namespace,
@@ -706,7 +714,7 @@ def main() -> None:
                 continue
             first = case_samples[0]
             print(f"{label}: {len(case_samples)} recurso(s), {first['retrieved_count']} fragmento(s) recuperado(s) "
-                  f"(límite {first['limit']}), {elapsed} s · {first['generator']} · "
+                  f"(límite {first['limit']}), {elapsed} s · {generator_label(first)} · "
                   f"búsqueda {first['retrieval_mode'] or 'desconocida'}")
 
     with args.out.open('w', encoding='utf-8') as file:

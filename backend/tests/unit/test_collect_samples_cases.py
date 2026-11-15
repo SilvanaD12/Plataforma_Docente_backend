@@ -113,6 +113,19 @@ def test_an_existing_course_of_the_unit_is_reused_without_creating_another(colle
     assert unit["id"] == "unidad-9" and not [call for call in calls if call[0] == "POST"]
 
 
+def test_an_existing_course_stored_in_upper_case_is_reused_without_a_post(collect):
+    """El backend guarda los códigos en mayúsculas («EVAL-RAG-68293C1532FB») y `course_code` arma el hash en
+    minúsculas: la segunda corrida debe encontrar el curso en vez de crear otro (409 DUPLICATE_CODE)."""
+    case = {**OLD_CASE, "unitTitle": "Capa de red", "outcomeText": "Explica el enrutamiento IP"}
+    stored = collect.course_code("Capa de red", "Explica el enrutamiento IP").upper()
+    assert stored != collect.course_code("Capa de red", "Explica el enrutamiento IP")  # el hash tiene letras
+    existing = [{"id": "curso-9", "code": stored, "units": [{"id": "unidad-9", "title": "Capa de red", "outcomes": []}]}]
+    handler, calls = _courses_server(existing)
+    with client_for(handler) as client:
+        unit = collect.ensure_case_unit(client, {}, case, {})
+    assert unit["id"] == "unidad-9" and not [call for call in calls if call[0] == "POST"]
+
+
 def test_the_course_code_depends_on_the_title_and_the_outcome(collect):
     first = collect.course_code("Capa de red", "Explica el enrutamiento IP")
     assert first == collect.course_code("Capa de red", "Explica el enrutamiento IP")
@@ -242,3 +255,25 @@ def test_a_resource_missing_from_review_is_a_problem_not_a_sample(collect):
     problems: list[dict] = []
     assert collect.build_samples(OLD_CASE, STATUS, {}, EVIDENCE, UNIT, 1.0, problems) == []
     assert problems == [{"kind": "missing", "message": "el recurso r1 ya no está en revisión"}]
+
+
+# GEN-01: motivo del respaldo por reglas
+
+
+FALLBACK_REASON = "Gemini · gemini-3.5-flash-lite no devolvió recursos con citas válidas del material. " \
+                  "Se usó el generador por reglas."
+
+
+def test_the_fallback_reason_goes_into_the_sample_and_next_to_the_generator(collect):
+    step = {**STATUS["steps"][0], "generator": {"description": "Generador por reglas (sin IA)", "usesAi": False,
+                                                "fallback": True, "fallbackReason": FALLBACK_REASON}}
+    [sample] = collect.build_samples(OLD_CASE, {**STATUS, "steps": [step]}, {"r1": _resource("r1", ["f1"])},
+                                     EVIDENCE, UNIT, 1.5, [])
+    assert sample["fallback"] is True and sample["fallback_reason"] == FALLBACK_REASON
+    assert collect.generator_label(sample) == f"Generador por reglas (sin IA) (motivo: {FALLBACK_REASON})"
+
+
+def test_without_fallback_the_generator_is_printed_as_before(collect):
+    [sample] = collect.build_samples(OLD_CASE, STATUS, {"r1": _resource("r1", ["f1"])}, EVIDENCE, UNIT, 1.5, [])
+    assert sample["fallback_reason"] is None  # pedidos guardados antes no traen el campo
+    assert collect.generator_label(sample) == "Generador por reglas (sin IA)"

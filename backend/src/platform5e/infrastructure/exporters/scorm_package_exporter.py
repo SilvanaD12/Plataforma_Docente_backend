@@ -101,8 +101,9 @@ def _media_block(resource: Mapping, files: list[tuple[str, bytes]]) -> str:
         data = {"type": resource.get("type"), "structure": _with_item_sources(resource, structure)}
         if resource.get("type") == "reto_prediccion":
             data["badges"] = [{"min": threshold, "name": name} for threshold, name in BADGES]
+        preparation = _preparation(structure) if resource.get("type") == "actividad_kinestesica" else ""
         return (
-            '<form id="activity" class="activity"><div class="activity__items"></div>'
+            f'{preparation}<form id="activity" class="activity"><div class="activity__items"></div>'
             '<button type="submit">Comprobar</button><p class="feedback" role="status" aria-live="polite"></p></form>'
             f'<script type="application/json" id="activity-data">{_json_for_script(data)}</script>'
         )
@@ -110,7 +111,27 @@ def _media_block(resource: Mapping, files: list[tuple[str, bytes]]) -> str:
 
 
 # Actividades cuyos elementos citan su fragmento: tipo -> llave de la lista en la estructura.
-SOURCED_LISTS = {"exploracion_guiada": "guidedSteps", "reto_prediccion": "predictions", "caso_aplicado": "criteria"}
+SOURCED_LISTS = {
+    "exploracion_guiada": "guidedSteps",
+    "actividad_kinestesica": "guidedSteps",  # T059 (REV-01)
+    "reto_prediccion": "predictions",
+    "caso_aplicado": "criteria",
+}
+
+
+def _preparation(structure: Mapping) -> str:
+    """T059 (REV-01): materiales, tiempo estimado y espacio de la actividad kinestésica, antes de sus pasos."""
+    materials = [m for m in structure.get("materials") or [] if m]
+    materials_html = (
+        "<ul>" + "".join(f"<li>{_esc(m)}</li>" for m in materials) + "</ul>"
+        if materials else "<p>Sin materiales especiales.</p>"
+    )
+    return (
+        '<section class="preparation"><h2>Antes de empezar</h2>'
+        f"<p><strong>Materiales:</strong></p>{materials_html}"
+        f'<p><strong>Tiempo estimado:</strong> {_esc(structure.get("estimatedMinutes"))} minutos</p>'
+        f'<p><strong>Espacio:</strong> {_esc(structure.get("space"))}</p></section>'
+    )
 
 
 def _with_item_sources(resource: Mapping, structure: Mapping) -> Mapping:
@@ -453,7 +474,7 @@ button:disabled{background:#d0d7de;color:#57606a;cursor:not-allowed}
 """
 
 ACTIVITY_JS = r"""/* Actividades interactivas: emparejar, verdadero o falso, completar, ordenar, exploración guiada,
-   reto de predicción y caso aplicado.
+   actividad kinestésica, reto de predicción y caso aplicado.
    Envían el puntaje con scorm5e. */
 (function () {
   'use strict';
@@ -539,6 +560,33 @@ ACTIVITY_JS = r"""/* Actividades interactivas: emparejar, verdadero o falso, com
           row.className = 'row step ' + (ok ? 'row--ok' : 'row--bad');
           var out = row.querySelector('.note') || row.appendChild(el('span', { 'class': 'note' }));
           out.textContent = ok ? 'Registro guardado.' : 'Escribe al menos una idea con tus palabras.';
+          return ok;
+        };
+      });
+    },
+    actividad_kinestesica: function (s, box) {
+      // T059 (REV-01): actividad con el cuerpo en el aula. Cada paso con su consigna, la pregunta si la tiene, la
+      // fuente, la casilla «Lo hicimos» y un campo opcional para anotar lo observado. El paso cuenta al marcarlo.
+      return s.guidedSteps.map(function (step, i) {
+        var row = el('fieldset', { 'class': 'row step' });
+        row.appendChild(el('legend', {}, 'Paso ' + (i + 1) + '. ' + step.title));
+        row.appendChild(el('p', {}, step.instruction));
+        if (step.question) row.appendChild(el('p', { 'class': 'question' }, step.question));
+        if (step.source) row.appendChild(el('p', { 'class': 'source' }, 'Fuente: ' + step.source));
+        var doneLabel = el('label', { 'class': 'choice' });
+        var done = el('input', { type: 'checkbox', id: 'k' + i });
+        doneLabel.appendChild(done);
+        doneLabel.appendChild(el('span', {}, 'Lo hicimos'));
+        row.appendChild(doneLabel);
+        var id = 'ko' + i;
+        row.appendChild(el('label', { 'for': id }, '¿Qué observaron? (opcional)'));
+        row.appendChild(el('textarea', { id: id, rows: '2' }));
+        box.appendChild(row);
+        return function () {
+          var ok = done.checked;
+          row.className = 'row step ' + (ok ? 'row--ok' : 'row--bad');
+          var out = row.querySelector('.note') || row.appendChild(el('span', { 'class': 'note' }));
+          out.textContent = ok ? 'Paso hecho.' : 'Marquen «Lo hicimos» cuando terminen este paso.';
           return ok;
         };
       });
@@ -682,6 +730,13 @@ ACTIVITY_JS = r"""/* Actividades interactivas: emparejar, verdadero o falso, com
       var percent = checks.length ? (100 * right) / checks.length : 0;
       var out = form.querySelector('.feedback');
       var selfAssessed = activity.type === 'caso_aplicado';
+      if (activity.type === 'actividad_kinestesica') {
+        // T059 (REV-01): se completa cuando todos los pasos están marcados; mientras tanto queda «incompleta».
+        out.textContent = right + ' de ' + checks.length + ' pasos hechos.';
+        out.className = 'feedback ' + (right === checks.length ? 'is-correct' : 'is-wrong');
+        if (right === checks.length && window.scorm5e && window.scorm5e.complete) window.scorm5e.complete(100);
+        return;
+      }
       out.textContent = activity.type === 'exploracion_guiada'
         ? right + ' de ' + checks.length + ' pasos registrados.'
         : selfAssessed

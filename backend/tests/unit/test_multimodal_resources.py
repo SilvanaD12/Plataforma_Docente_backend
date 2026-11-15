@@ -177,7 +177,9 @@ def test_generated_media_is_saved_or_falls_back_without_stopping_the_generation(
 
     image = {"id": "r2", "format": "image", "structure": {"prompt": "Una red"}}
     assert attach_generated_media("t1", image, FakeMediaGenerator(fail=True), repository) is False
-    assert image["media"]["status"] == "fallback" and "sin cuota" in image["media"]["note"]
+    # Revisión del PR #43: la nota lleva el motivo genérico, no el texto del error.
+    assert image["media"]["status"] == "fallback" and image["media"]["note"].endswith("(el proveedor respondió 429)")
+    assert "sin cuota" not in image["media"]["note"]
 
     text = {"id": "r3", "format": "text"}
     assert attach_generated_media("t1", text, FakeMediaGenerator(), repository) is False

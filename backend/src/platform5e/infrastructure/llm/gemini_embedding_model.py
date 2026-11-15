@@ -77,25 +77,30 @@ class GeminiEmbeddingModel(EmbeddingGeneratorPort):
                 json=payload,
             )
         except httpx.HTTPError as exc:
-            raise AIProviderError(f"sin conexión con Gemini (embeddings): {exc.__class__.__name__}") from exc
+            message = f"sin conexión con Gemini (embeddings): {exc.__class__.__name__}"
+            raise AIProviderError(message, public_reason=message) from exc
 
         if response.status_code >= 400:
             if response.status_code == 429:
-                raise AIProviderError("límite de uso de Gemini alcanzado en los embeddings (429).", 429)
+                message = "límite de uso de Gemini alcanzado en los embeddings (429)."
+                raise AIProviderError(message, 429, public_reason=message)
             try:
                 detail = response.json().get("error", {}).get("message", "")
             except (ValueError, AttributeError):
                 detail = response.text[:200]
+            # El texto del proveedor va solo al registro: puede traer la clave o datos del proyecto.
             raise AIProviderError(
                 f"Gemini respondió {response.status_code} en los embeddings: {str(detail)[:200]}",
                 response.status_code,
+                public_reason=f"Gemini respondió {response.status_code} en los embeddings",
             )
 
         embeddings = response.json().get("embeddings") or []
         vectors = [item.get("values") or [] for item in embeddings]
         if len(vectors) != len(texts) or any(len(vector) != self.dimensions for vector in vectors):
-            raise AIProviderError(
+            message = (
                 f"Gemini devolvió {len(vectors)} vectores para {len(texts)} textos o con otra dimensión "
                 f"(se esperaban {self.dimensions})."
             )
+            raise AIProviderError(message, public_reason=message)
         return [normalize([float(value) for value in vector]) for vector in vectors]
