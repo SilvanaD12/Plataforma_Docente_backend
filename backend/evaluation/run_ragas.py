@@ -13,12 +13,16 @@ Contexto (--contexts, TA-010, research R12):
 
 Métricas:
 - faithfulness: qué parte de lo que afirma el recurso está respaldada por el contexto.
-- answer_relevancy: qué tan bien responde el recurso al pedido (no usa el contexto).
+- answer_relevancy: qué tan bien responde el recurso al pedido (no usa el contexto). Se calcula con strictness=1: el
+  juez genera una sola pregunta por llamada. Ragas usa strictness=3 por defecto y lo envía como n=3 (tres candidatos en
+  una llamada), y el endpoint compatible con OpenAI de Gemini lo rechaza («400 Multiple candidates is not enabled for
+  this model»), así que answer_relevancy quedaba en None en todas las muestras (T068).
 - context_precision: qué tan útiles fueron los fragmentos del contexto para el recurso, y si los útiles van primero.
 - context_recall: qué parte de la respuesta de referencia está en el contexto. Solo se calcula si todas las muestras
   traen `reference` (el campo reference de cases.json); si no, se omite y se explica por qué.
 
-Escribe evaluation/results/scores.csv, summary.json y summary.md, con el contexto y las métricas usadas.
+Escribe evaluation/results/scores.csv, summary.json y summary.md, con el contexto, las métricas usadas y, junto al
+juez, el strictness de answer_relevancy.
 """
 from __future__ import annotations
 
@@ -37,6 +41,8 @@ GEMINI_OPENAI_URL = 'https://generativelanguage.googleapis.com/v1beta/openai/'
 METRICS = ('faithfulness', 'answer_relevancy', 'context_precision')
 RECALL = 'context_recall'
 CONTEXT_FIELDS = {'retrieved': 'retrieved_contexts', 'cited': 'cited_contexts'}
+# Una pregunta por llamada: el juez rechaza n>1 («Multiple candidates is not enabled»), que es lo que envía el 3 por defecto.
+RELEVANCY_STRICTNESS = 1
 
 
 def metric_names(with_recall: bool) -> tuple[str, ...]:
@@ -81,7 +87,8 @@ def build_judge(model: str, embedding_model: str):
         sys.exit('Error: define GEMINI_API_KEY con la clave de Google AI Studio.')
     warnings.filterwarnings('ignore', category=DeprecationWarning)
     from langchain_community.chat_models import ChatOpenAI
-    from langchain_community.embeddings import OpenAIEmbeddings
+    # langchain_openai, no langchain_community: la de community no tiene check_embedding_ctx_length y lo enviaba a la API.
+    from langchain_openai import OpenAIEmbeddings
     from ragas.embeddings import LangchainEmbeddingsWrapper
     from ragas.llms import LangchainLLMWrapper
 
@@ -91,15 +98,22 @@ def build_judge(model: str, embedding_model: str):
     return LangchainLLMWrapper(llm), LangchainEmbeddingsWrapper(embeddings)
 
 
+def build_ragas_metrics(with_recall: bool) -> list:
+    """Las métricas de Ragas, en el orden de metric_names(with_recall)."""
+    from ragas.metrics import Faithfulness, LLMContextPrecisionWithoutReference, LLMContextRecall, ResponseRelevancy
+
+    metrics = [Faithfulness(), ResponseRelevancy(strictness=RELEVANCY_STRICTNESS), LLMContextPrecisionWithoutReference()]
+    if with_recall:
+        metrics.append(LLMContextRecall())
+    return metrics
+
+
 def ragas_evaluator(llm, embeddings, with_recall: bool):
     """Evaluador real: califica una muestra con las métricas de Ragas y el juez dado. Devuelve {métrica: valor}."""
     from ragas import EvaluationDataset, evaluate
-    from ragas.metrics import Faithfulness, LLMContextPrecisionWithoutReference, LLMContextRecall, ResponseRelevancy
     from ragas.run_config import RunConfig
 
-    metrics = [Faithfulness(), ResponseRelevancy(), LLMContextPrecisionWithoutReference()]
-    if with_recall:
-        metrics.append(LLMContextRecall())
+    metrics = build_ragas_metrics(with_recall)
     names = dict(zip((m.name for m in metrics), metric_names(with_recall)))
     config = RunConfig(max_workers=1, timeout=180, max_retries=5)
 
@@ -164,11 +178,12 @@ def write_outputs(rows: list[dict], summary: dict, out_dir: Path, model: str,
         writer = csv.DictWriter(file, fieldnames=['case_id', 'stage', 'resource_type', 'cites_material', *metrics])
         writer.writeheader()
         writer.writerows(rows)
-    (out_dir / 'summary.json').write_text(json.dumps(summary | {'judge': model}, ensure_ascii=False, indent=2), encoding='utf-8')
+    judge = {'judge': model, 'answer_relevancy_strictness': RELEVANCY_STRICTNESS}
+    (out_dir / 'summary.json').write_text(json.dumps(summary | judge, ensure_ascii=False, indent=2), encoding='utf-8')
     fmt = lambda v: '—' if v is None else f'{v:.2f}'
     lines = [
         '# Evaluación RAG con Ragas', '',
-        f"Juez: {model} · Muestras: {summary['samples']} · Trazabilidad (I22): {summary['traceability_I22']} recursos citan el material",
+        f"Juez: {model} (answer_relevancy con strictness={RELEVANCY_STRICTNESS}) · Muestras: {summary['samples']} · Trazabilidad (I22): {summary['traceability_I22']} recursos citan el material",
         f"Contexto: {summary.get('contexts', 'retrieved')}", *summary.get('notes', []), '',
         '| Métrica | Promedio |', '|---|---|',
         *[f'| {m} | {fmt(v)} |' for m, v in summary['means'].items()], '',

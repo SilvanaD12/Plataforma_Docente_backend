@@ -1,0 +1,125 @@
+{
+  "description": "T067 (Sergio): 6 casos de explicación sobre el corpus de corpus_t067. C-01 a C-05 tienen respuesta de referencia y usan los 6 archivos (el texto de bases de datos es ruido para context_precision); C-06 pregunta por bases de datos en una unidad sin ese material y espera que no haya evidencia. sourceDocument indica el archivo de donde sale la respuesta y solo documenta el caso.",
+  "cases": [
+    {
+      "id": "C-01",
+      "unitTitle": "Redes de computadoras: modelo OSI, transporte y enrutamiento",
+      "outcomeText": "Explica el modelo OSI, los protocolos de transporte y el enrutamiento IP",
+      "stage": "explain",
+      "resourceType": "explicacion",
+      "quantity": 1,
+      "topK": 8,
+      "documents": [
+        "Modelo OSI.txt",
+        "Protocolo de datagramas de usuario.txt",
+        "direccionamiento_ip_enrutamiento.pptx",
+        "protocolos_tcp_udp.pdf",
+        "guia_laboratorio_wireshark.docx.pdf",
+        "bases_datos_relacionales.txt"
+      ],
+      "sourceDocument": "Modelo OSI.txt",
+      "instructions": "¿Qué es el modelo OSI y cuántas capas lo conforman?",
+      "reference": "Modelo de referencia ISO/IEC 7498-1 conformado por 7 capas: física, enlace de datos, red, transporte, sesión, presentación y aplicación."
+    },
+    {
+      "id": "C-02",
+      "unitTitle": "Redes de computadoras: modelo OSI, transporte y enrutamiento",
+      "outcomeText": "Explica el modelo OSI, los protocolos de transporte y el enrutamiento IP",
+      "stage": "explain",
+      "resourceType": "explicacion",
+      "quantity": 1,
+      "topK": 8,
+      "documents": [
+        "Modelo OSI.txt",
+        "Protocolo de datagramas de usuario.txt",
+        "direccionamiento_ip_enrutamiento.pptx",
+        "protocolos_tcp_udp.pdf",
+        "guia_laboratorio_wireshark.docx.pdf",
+        "bases_datos_relacionales.txt"
+      ],
+      "sourceDocument": "Protocolo de datagramas de usuario.txt",
+      "instructions": "¿Cuáles son las características principales de UDP?",
+      "reference": "Protocolo de la capa de transporte sin conexión que envía datagramas sin establecer sesión previa y sin garantizar entrega, orden ni control de duplicados, priorizando baja latencia."
+    },
+    {
+      "id": "C-03",
+      "unitTitle": "Redes de computadoras: modelo OSI, transporte y enrutamiento",
+      "outcomeText": "Explica el modelo OSI, los protocolos de transporte y el enrutamiento IP",
+      "stage": "explain",
+      "resourceType": "explicacion",
+      "quantity": 1,
+      "topK": 8,
+      "documents": [
+        "Modelo OSI.txt",
+        "Protocolo de datagramas de usuario.txt",
+        "direccionamiento_ip_enrutamiento.pptx",
+        "protocolos_tcp_udp.pdf",
+        "guia_laboratorio_wireshark.docx.pdf",
+        "bases_datos_relacionales.txt"
+      ],
+      "sourceDocument": "protocolos_tcp_udp.pdf",
+      "instructions": "¿Qué diferencia principal existe entre TCP y UDP en la capa de transporte?",
+      "reference": "TCP es orientado a conexión y garantiza la entrega ordenada y confiable mediante acuses de recibo (ACK) y retransmisión, mientras que UDP no establece conexión ni garantiza la entrega."
+    },
+    {
+      "id": "C-04",
+      "unitTitle": "Redes de computadoras: modelo OSI, transporte y enrutamiento",
+      "outcomeText": "Explica el modelo OSI, los protocolos de transporte y el enrutamiento IP",
+      "stage": "explain",
+      "resourceType": "explicacion",
+      "quantity": 1,
+      "topK": 8,
+      "documents": [
+        "Modelo OSI.txt",
+        "Protocolo de datagramas de usuario.txt",
+        "direccionamiento_ip_enrutamiento.pptx",
+        "protocolos_tcp_udp.pdf",
+        "guia_laboratorio_wireshark.docx.pdf",
+        "bases_datos_relacionales.txt"
+      ],
+      "sourceDocument": "direccionamiento_ip_enrutamiento.pptx",
+      "instructions": "¿Cuál es la función del direccionamiento IP y el enrutamiento en una red?",
+      "reference": "El direccionamiento IP identifica de forma lógica a cada host/interfaz en la red, y el enrutamiento determina la ruta óptima para reenviar paquetes entre distintas subredes hasta su destino."
+    },
+    {
+      "id": "C-05",
+      "unitTitle": "Redes de computadoras: modelo OSI, transporte y enrutamiento",
+      "outcomeText": "Explica el modelo OSI, los protocolos de transporte y el enrutamiento IP",
+      "stage": "explain",
+      "resourceType": "explicacion",
+      "quantity": 1,
+      "topK": 8,
+      "documents": [
+        "Modelo OSI.txt",
+        "Protocolo de datagramas de usuario.txt",
+        "direccionamiento_ip_enrutamiento.pptx",
+        "protocolos_tcp_udp.pdf",
+        "guia_laboratorio_wireshark.docx.pdf",
+        "bases_datos_relacionales.txt"
+      ],
+      "sourceDocument": "guia_laboratorio_wireshark.docx.pdf",
+      "instructions": "¿Para qué se utiliza Wireshark en el análisis de redes?",
+      "reference": "Es un analizador de protocolos que permite capturar e inspeccionar en tiempo real los paquetes y tramas que circulan por una interfaz de red."
+    },
+    {
+      "id": "C-06",
+      "unitTitle": "Redes de computadoras: sin bases de datos",
+      "outcomeText": "Explica el modelo OSI, los protocolos de transporte y el enrutamiento IP",
+      "stage": "explain",
+      "resourceType": "explicacion",
+      "quantity": 1,
+      "topK": 8,
+      "documents": [
+        "Modelo OSI.txt",
+        "Protocolo de datagramas de usuario.txt",
+        "direccionamiento_ip_enrutamiento.pptx",
+        "protocolos_tcp_udp.pdf",
+        "guia_laboratorio_wireshark.docx.pdf"
+      ],
+      "sourceDocument": "bases_datos_relacionales.txt",
+      "expect": "no_evidence",
+      "instructions": "¿Cómo se estructuran las tablas y llaves primarias en un modelo relacional?",
+      "reference": "Indicar que no existe evidencia suficiente en los materiales de la unidad para responder sobre bases de datos relacionales (sin alucinar)."
+    }
+  ]
+}

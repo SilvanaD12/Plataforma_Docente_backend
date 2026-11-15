@@ -1,0 +1,138 @@
+FUNDAMENTOS DE BASES DE DATOS RELACIONALES
+Material educativo. Contenido original de libre uso educativo.
+
+==============================================================
+1. EL MODELO RELACIONAL
+==============================================================
+
+El modelo relacional, propuesto por Edgar F. Codd en 1970, organiza la información en relaciones, que en la práctica se representan como tablas. Cada tabla se compone de filas (tuplas o registros) y columnas (atributos o campos). Cada columna tiene un dominio: un tipo de dato y un conjunto de valores permitidos.
+
+Un Sistema Gestor de Bases de Datos Relacional (SGBDR), como PostgreSQL, MySQL, SQL Server u Oracle, almacena los datos, garantiza su consistencia y atiende consultas escritas en SQL (Structured Query Language). Sus ventajas principales son la reducción de la redundancia, la consistencia de los datos, la independencia entre los datos y las aplicaciones, y el soporte de transacciones.
+
+En este documento se usa un ejemplo sencillo de tienda con dos tablas: clientes y pedidos.
+
+==============================================================
+2. CLAVES E INTEGRIDAD REFERENCIAL
+==============================================================
+
+2.1 Clave primaria
+
+La clave primaria (PRIMARY KEY) identifica de forma única cada fila de una tabla. No admite valores nulos ni duplicados, y cada tabla tiene una sola. Puede estar formada por una columna o por varias (clave compuesta). Entre las claves candidatas, es decir, las columnas que podrían identificar una fila, se elige una como primaria. Suele preferirse una clave sustituta numérica, como id_cliente, porque no cambia con el tiempo.
+
+2.2 Clave foránea
+
+La clave foránea (FOREIGN KEY) es una columna, o conjunto de columnas, que referencia la clave primaria de otra tabla. Así se establecen las relaciones entre tablas. En el ejemplo, pedidos.id_cliente referencia clientes.id_cliente: un cliente puede tener muchos pedidos, pero cada pedido pertenece a un solo cliente (relación uno a muchos).
+
+2.3 Integridad referencial
+
+La integridad referencial exige que todo valor de una clave foránea exista como clave primaria en la tabla referenciada, o sea nulo cuando la columna lo permite. Evita pedidos "huérfanos" que apunten a clientes inexistentes. Al borrar o modificar una fila referenciada, el gestor aplica la acción definida:
+
+- RESTRICT o NO ACTION: rechaza la operación si existen filas dependientes.
+- CASCADE: propaga el borrado o el cambio a las filas dependientes.
+- SET NULL: coloca valores nulos en las claves foráneas dependientes.
+
+2.4 Tipos de relaciones
+
+Las relaciones entre tablas se clasifican por su cardinalidad. En una relación uno a uno, cada fila de una tabla se asocia con una sola fila de la otra, como un empleado y su credencial. En una relación uno a muchos, una fila se asocia con varias, como un cliente y sus pedidos. En una relación muchos a muchos, como pedidos y productos, se necesita una tabla intermedia (detalle_pedido) cuya clave primaria compuesta combina las claves foráneas de ambas tablas. Identificar bien la cardinalidad es el primer paso del diseño.
+
+==============================================================
+3. NORMALIZACIÓN
+==============================================================
+
+La normalización es el proceso de organizar las tablas para eliminar redundancia y evitar anomalías de inserción, actualización y eliminación. Se aplica mediante formas normales sucesivas.
+
+3.1 Primera forma normal (1FN)
+
+Una tabla está en 1FN cuando todos sus valores son atómicos, sin grupos repetitivos ni listas dentro de una celda, y cada fila es única. Ejemplo de incumplimiento: una columna telefonos con el valor "555-1111, 555-2222". La solución es crear una tabla telefonos con una fila por número.
+
+3.2 Segunda forma normal (2FN)
+
+Una tabla está en 2FN cuando cumple 1FN y no tiene dependencias parciales: todo atributo que no es clave depende de la clave completa. Esto importa en claves compuestas. En detalle_pedido(id_pedido, id_producto, nombre_producto, cantidad), el atributo nombre_producto depende solo de id_producto. Se corrige moviéndolo a una tabla productos.
+
+3.3 Tercera forma normal (3FN)
+
+Una tabla está en 3FN cuando cumple 2FN y no tiene dependencias transitivas: los atributos que no son clave dependen únicamente de la clave, y no de otro atributo que tampoco es clave. En empleados(id_empleado, id_depto, nombre_depto), nombre_depto depende de id_depto. Se separa en empleados y departamentos.
+
+==============================================================
+4. CONSULTAS SQL
+==============================================================
+
+4.1 DDL: definición de estructuras
+
+El Lenguaje de Definición de Datos (DDL) crea y modifica objetos mediante CREATE, ALTER, DROP y TRUNCATE.
+
+CREATE TABLE clientes (
+    id_cliente INT PRIMARY KEY,
+    nombre VARCHAR(80) NOT NULL,
+    correo VARCHAR(120) UNIQUE
+);
+
+CREATE TABLE pedidos (
+    id_pedido INT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    fecha DATE NOT NULL,
+    total DECIMAL(10,2),
+    FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
+        ON DELETE RESTRICT
+);
+
+4.2 DML: manipulación de datos
+
+El Lenguaje de Manipulación de Datos (DML) incluye INSERT, UPDATE, DELETE y SELECT.
+
+INSERT INTO clientes (id_cliente, nombre, correo) VALUES
+    (1, 'Ana Torres', 'ana@example.com'),
+    (2, 'Luis Rojas', 'luis@example.com'),
+    (3, 'Marta Silva', 'marta@example.com');
+
+INSERT INTO pedidos (id_pedido, id_cliente, fecha, total) VALUES
+    (101, 1, '2026-03-10', 150.00),
+    (102, 1, '2026-03-15', 80.50),
+    (103, 2, '2026-03-18', 200.00);
+
+UPDATE pedidos SET total = 90.50 WHERE id_pedido = 102;
+
+4.3 INNER JOIN
+
+INNER JOIN devuelve solo las filas que tienen coincidencia en ambas tablas.
+
+SELECT c.nombre, p.id_pedido, p.total
+FROM clientes c
+INNER JOIN pedidos p ON c.id_cliente = p.id_cliente;
+
+Marta no aparece en el resultado porque no tiene pedidos.
+
+4.4 LEFT JOIN
+
+LEFT JOIN conserva todas las filas de la tabla izquierda y completa con NULL cuando no hay coincidencia.
+
+SELECT c.nombre, p.id_pedido
+FROM clientes c
+LEFT JOIN pedidos p ON c.id_cliente = p.id_cliente;
+
+Ahora Marta aparece con id_pedido nulo. Es útil para detectar clientes sin pedidos.
+
+4.5 GROUP BY
+
+GROUP BY agrupa filas para aplicar funciones de agregación como COUNT, SUM, AVG, MIN y MAX. WHERE filtra filas antes de agrupar; HAVING filtra los grupos ya calculados.
+
+SELECT c.nombre,
+       COUNT(p.id_pedido) AS num_pedidos,
+       SUM(p.total) AS total_gastado
+FROM clientes c
+LEFT JOIN pedidos p ON c.id_cliente = p.id_cliente
+GROUP BY c.nombre
+HAVING SUM(p.total) > 100
+ORDER BY total_gastado DESC;
+
+La consulta devuelve a Ana (2 pedidos, 240.50) y a Luis (1 pedido, 200.00), ordenados por gasto.
+
+==============================================================
+5. BUENAS PRÁCTICAS
+==============================================================
+
+- Defina siempre claves primarias y foráneas para que el gestor garantice la integridad.
+- Normalice hasta 3FN y desnormalice solo cuando una medición de rendimiento lo justifique.
+- Cree índices en las claves foráneas y en las columnas que se usan con frecuencia en JOIN y WHERE.
+- Use transacciones para que un conjunto de cambios se aplique completo o no se aplique (propiedades ACID).
+- Realice copias de seguridad periódicas y pruebe la restauración.
