@@ -89,7 +89,7 @@ Respuesta siempre 200 (503 solo si la base de datos está caída). Caché de 30 
 
 **Enfoque:** Medir `context_recall` con pgvector usando la evaluación Ragas. Verificar que los fragmentos del documento distractor no aparecen en C-01 a C-05.
 
-**Dependencia:** PR #40 de Yan (búsqueda híbrida con pgvector).
+**Dependencia:** PR #40 de Yan (corpus de T067 y resultados de Ragas de T068).
 
 ---
 
@@ -161,7 +161,7 @@ flowchart LR
 
 - **QA-01** es el punto de partida: define los escenarios y las tareas.
 - **QA-02** la validan Yan y Sergio (comportamiento con dependencia caída).
-- **QA-07** depende del PR #40 de Yan (búsqueda híbrida con pgvector).
+- **QA-07** depende del PR #40 de Yan (corpus de T067 y resultados de Ragas de T068).
 - **QA-04** va al final, después de todos los PR del equipo.
 - **QA-11** es opcional y solo se hace si las tareas 1 a 4 están integradas.
 - Las demás tareas son independientes entre sí y pueden hacerse en paralelo.
