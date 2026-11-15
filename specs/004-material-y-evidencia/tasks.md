@@ -36,14 +36,14 @@
 
 - [X] T018 [BE] Validar el procesamiento de materiales nuevos con la API key de Gemini activa (`gemini-embedding-001`), verificando en la respuesta del backend `embeddedFragmentCount > 0` y `embeddingError: null` (`backend/tests/unit/test_chunk_embedding_service.py` y captura en comentario del PR)
 - [X] T019 [BE][E2E] Comprobar el funcionamiento del motor de búsqueda híbrida (`HÍBRIDO (RRF)`) en el entorno desplegado mediante `GET /api/v1/documents/search` sobre fragmentos vectorizados nuevos (captura de respuesta `200 OK` en comentario del PR)
-- [X] T020 [BE] Definir estrategia de mantenimiento para registros históricos mediante la ejecución única de `embed_chunks.py` como backfill en producción para indexar materiales previos
+- [X] T020 [BE] Decisión técnica tomada para el mantenimiento de registros históricos: ejecutar `embed_chunks.py` como script único de backfill en producción para vectorizar materiales previos (pendiente de ejecución operativa en despliegue; los materiales nuevos ya se indexan automáticamente al cargarse)
 
 ## Fase 7 - HU-011: Búsqueda Híbrida con Aislamiento por Unidad y Docente
 
 - [X] T021 [BE] Corregir la validación de tipos de documentos permitidos en `ALLOWED_DOCUMENT_TYPES` dentro de `account_service.py` para soportar guías de laboratorio y otros materiales didácticos ([PR #34](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/34))
 - [X] T022 [BE][E2E] Validar pertinencia de búsqueda híbrida en la Unidad 1 (`Protocolos de Transporte y Direccionamiento IP`), comprobando recuperación con `100.0%` de relevancia (`backend/tests/unit/test_material_retrieval.py` y captura en comentario del PR)
 - [X] T023 [BE][E2E] Verificar aislamiento entre unidades del mismo docente creando la Unidad 2 (`Seguridad y Aplicaciones de Red`) y confirmando `0` resultados al consultar términos pertenecientes a la Unidad 1 (captura en comentario del PR)
-- [X] T024 [BE][E2E] Verificar aislamiento estricto entre cuentas docentes distintas (`sergioceli2026@gmail.com` vs `gvertiz@upao.edu.pe`), confirmando `0` filtraciones de cursos ni fragmentos indexados (captura en comentario del PR)
+- [X] T024 [BE][E2E] Verificar aislamiento estricto entre cuentas docentes distintas (`docente A` vs `docente B`), confirmando `0` filtraciones de cursos ni fragmentos indexados (captura en comentario del PR)
 
 ## Fase 8 - HU-055: Importación de Material de Fuente Abierta (Wikipedia)
 
