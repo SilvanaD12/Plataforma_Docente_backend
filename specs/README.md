@@ -7,6 +7,7 @@ La [constitución](../.specify/memory/constitution.md) y esta carpeta son la ref
 | REV-01 · Revisión y Exportación | Juan | [001-revision-citas](001-revision-citas/) |
 | GEN-01 · Generación | Yan | [002-generacion-multiple](002-generacion-multiple/) |
 | CC-01 · Cuentas y Cursos | Silvana Díaz | [003-cuentas-y-cursos](003-cuentas-y-cursos/) |
+ main
 | MAT-01 · Material y Evidencia | Sergio Celi | [004-material-y-evidencia](004-material-y-evidencia/) |
 | QA · Atributos de calidad (Sprint 2) | Juan (líder) | [005-atributos-calidad](005-atributos-calidad/) |
 
