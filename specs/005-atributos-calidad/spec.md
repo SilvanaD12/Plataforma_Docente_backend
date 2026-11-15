@@ -7,7 +7,7 @@
 
 ## Objetivo y alcance
 
-El Sprint 2 mejora los atributos de calidad de la Plataforma 5E según ISO 25010: fiabilidad, compatibilidad, adecuación funcional, eficiencia de desempeño, seguridad y usabilidad. Cada tarea tiene un escenario de calidad con las seis partes (fuente, estímulo, entorno, artefacto, respuesta y medida) y un criterio medible. El sprint cierra el lunes 16 de noviembre de 2026 a las 9:00.
+El Sprint 2 mejora los atributos de calidad de la Plataforma Docente según ISO 25010: fiabilidad, compatibilidad, adecuación funcional, eficiencia de desempeño, seguridad y usabilidad. Cada tarea tiene un escenario de calidad con las seis partes (fuente, estímulo, entorno, artefacto, respuesta y medida) y un criterio medible. El sprint cierra el lunes 16 de noviembre de 2026 a las 9:00.
 
 ## Origen
 
@@ -15,7 +15,7 @@ Hallazgos del Sprint 1 que motivan cada meta:
 
 | Hallazgo | Tarea que lo aborda |
 | --- | --- |
-| Ragas dio `context_recall` 0,20 con SQLite y sin pgvector. Los fragmentos del documento distractor aparecen en los resultados de C-01 a C-05. | QA-07 |
+| Ragas dio context_recall 0,20 con SQLite (solo búsqueda léxica); la búsqueda híbrida con pgvector, que usa producción, no se midió| QA-07 |
 | El caso C-06 de Ragas no pasa: sin material del tema se genera un recurso en vez de rechazarlo. | QA-05 |
 | No hay límite de intentos de inicio de sesión ni cabeceras de seguridad (`X-Content-Type-Options`, `Content-Security-Policy`, `Referrer-Policy`). | QA-08 |
 | `GET /health` no revisa dependencias externas (Gemini, Wikipedia, base de datos); si una cae, no hay forma de saberlo sin probar la función completa. | QA-02 |
@@ -165,4 +165,4 @@ Hallazgos del Sprint 1 que motivan cada meta:
 - Las pruebas de calidad usan `LLM_PROVIDER=rules` en CI y en local salvo que se indique lo contrario.
 - El sandbox de Moodle (sandbox.moodledemo.net) está disponible para la importación manual; se reinicia a cada hora en punto.
 - La clave de Gemini de Render es de Yan y no se usa en CI ni en local sin autorización.
-- QA-07 depende del PR #40 de Yan (búsqueda híbrida con pgvector).
+- QA-07 depende del PR #40 de Yan (corpus de T067 y resultados de Ragas de T068)
