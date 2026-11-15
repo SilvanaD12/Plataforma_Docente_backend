@@ -31,3 +31,21 @@
 - [X] T015 [P] Escribir pruebas de aislamiento vectorial (MAT-C3) en `backend/tests/unit/test_material_retrieval.py`
 - [X] T016 [P] Escribir pruebas unitarias del servicio en `backend/tests/unit/test_material_service.py`
 - [X] T017 [P] Completar la cobertura en `backend/tests/unit/test_chunk_embedding_service.py`
+
+## Fase 6 - EN-013: Generación de Embeddings y Búsqueda Híbrida (Validación en Demo)
+
+- [X] T018 [BE] Validar el procesamiento de materiales nuevos con la API key de Gemini activa (`gemini-embedding-001`), verificando en la respuesta del backend `embeddedFragmentCount > 0` y `embeddingError: null` (`backend/tests/unit/test_chunk_embedding_service.py` y captura en comentario del PR)
+- [X] T019 [BE][E2E] Comprobar el funcionamiento del motor de búsqueda híbrida (`HÍBRIDO (RRF)`) en el entorno desplegado mediante `GET /api/v1/documents/search` sobre fragmentos vectorizados nuevos (captura de respuesta `200 OK` en comentario del PR)
+- [X] T020 [BE] Definir estrategia de mantenimiento para registros históricos mediante la ejecución única de `embed_chunks.py` como backfill en producción para indexar materiales previos
+
+## Fase 7 - HU-011: Búsqueda Híbrida con Aislamiento por Unidad y Docente
+
+- [X] T021 [BE] Corregir la validación de tipos de documentos permitidos en `ALLOWED_DOCUMENT_TYPES` dentro de `account_service.py` para soportar guías de laboratorio y otros materiales didácticos ([PR #34](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/34))
+- [X] T022 [BE][E2E] Validar pertinencia de búsqueda híbrida en la Unidad 1 (`Protocolos de Transporte y Direccionamiento IP`), comprobando recuperación con `100.0%` de relevancia (`backend/tests/unit/test_material_retrieval.py` y captura en comentario del PR)
+- [X] T023 [BE][E2E] Verificar aislamiento entre unidades del mismo docente creando la Unidad 2 (`Seguridad y Aplicaciones de Red`) y confirmando `0` resultados al consultar términos pertenecientes a la Unidad 1 (captura en comentario del PR)
+- [X] T024 [BE][E2E] Verificar aislamiento estricto entre cuentas docentes distintas (`sergioceli2026@gmail.com` vs `gvertiz@upao.edu.pe`), confirmando `0` filtraciones de cursos ni fragmentos indexados (captura en comentario del PR)
+
+## Fase 8 - HU-055: Importación de Material de Fuente Abierta (Wikipedia)
+
+- [X] T025 [BE][FE] Validar en demo el flujo completo de búsqueda e importación de artículos de fuente abierta desde Wikipedia (`Modelo OSI` y `Protocolo de datagramas de usuario`) vía `POST /api/v1/documents/from-topic` (captura de interfaz en comentario del PR)
+- [X] T026 [BE] Inspeccionar el payload de respuesta de `from-topic` confirmando la persistencia de metadatos de procedencia en el objeto `origin` (`url` exacta de Wikipedia y licencia `CC BY-SA 4.0`) junto con su registro como `Artículo de fuente abierta` (captura de DevTools en comentario del PR)

@@ -7,7 +7,7 @@ La [constitución](../.specify/memory/constitution.md) y esta carpeta son la ref
 | REV-01 · Revisión y Exportación | Juan | [001-revision-citas](001-revision-citas/) |
 | GEN-01 · Generación | Yan | [002-generacion-multiple](002-generacion-multiple/) |
 | CC-01 · Cuentas y Cursos | Silvana Díaz | [003-cuentas-y-cursos](003-cuentas-y-cursos/) |
-| MAT-01 · Material y Evidencia | Sergio Celi | Carpeta por registrar con el responsable |
+| MAT-01 · Material y Evidencia | Sergio Celi | [004-material-y-evidencia](004-material-y-evidencia/) |
 
 Cada módulo mantiene `spec.md` para requisitos y criterios de aceptación, `plan.md` para arquitectura y contratos, y `tasks.md` para implementación y verificación. Las tareas indican `[BE]`, `[FE]` o `[E2E]`. Cada PR enlaza la ficha y las tareas que cubre. Si un cambio cruza repositorios, enlacen ambos PR y actualicen juntos la especificación y el contrato OpenAPI.
 
