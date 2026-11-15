@@ -28,7 +28,9 @@ SPANISH = set(
     titulo ubicacion unidad unidades usuario usuarios
     """.split()
 )
-SKIP_DIRS = {".venv", "__pycache__", "results", ".pytest_cache", "fixtures"}
+# corpus_t067: documentos de evaluación (T067) con el nombre de su fuente, como los títulos de Wikipedia; son datos,
+# como fixtures, y los casos de cases_t067.json los nombran así.
+SKIP_DIRS = {".venv", "__pycache__", "results", ".pytest_cache", "fixtures", "corpus_t067"}
 
 
 def words(name: str) -> set[str]:
