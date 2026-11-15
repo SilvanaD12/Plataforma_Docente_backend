@@ -44,7 +44,7 @@ Como docente, quiero elegir la modalidad antes de generar para recibir solo los 
 | Caso | Dado y cuando | Entonces |
 | --- | --- | --- |
 | GEN-C10 | Elijo una modalidad y pido recursos | Solo se ofrecen los tipos de esa modalidad. Si el pedido incluye un tipo que no pertenece a ella, se rechaza con `RESOURCE_TYPE_NOT_IN_MODALITY` antes de crearse. El pedido y sus recursos guardan la modalidad elegida. |
-| GEN-C11 | Pido una actividad kinestésica | El recurso trae al menos 3 pasos con instrucción y pregunta, cada uno con su cita al material, y además materiales, tiempo estimado y espacio. Solo los pasos se verifican contra el material. Si la IA falla, la redacta el generador por reglas. |
+| GEN-C11 | Pido una actividad kinestésica | El recurso trae al menos 3 pasos, cada uno con su instrucción, una pregunta opcional y su cita al material, y además materiales, tiempo estimado y espacio. Solo los pasos se verifican contra el material. Si la IA falla, la redacta el generador por reglas. |
 
 ## Interpretación de pedidos (HU-038)
 
