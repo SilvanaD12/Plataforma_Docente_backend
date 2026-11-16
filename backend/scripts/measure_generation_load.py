@@ -26,6 +26,14 @@ Fallos de red:
 - Los percentiles usan solo los pedidos terminados; si terminaron menos de 5 (contando los envíos fallidos), la
   corrida queda marcada como incompleta (`complete: false` y la línea «Corrida incompleta» en el resumen).
 
+QA-06 (--teachers N): N docentes crean una secuencia al mismo tiempo.
+1. Prepara N cuentas separadas (el correo de EVAL_EMAIL con «.cargaK» antes de la @, la misma contraseña), cada una con
+   su curso, su unidad y su material procesado, con las funciones de evaluation/collect_samples.py.
+2. Envía los N POST de secuencia a la vez (un hilo por docente y una barrera) y mide cada uno: estado HTTP y tiempo de
+   respuesta en ms. El resumen informa p50, p95 y máximo de esos tiempos (meta de QA-06: p95 < 500 ms).
+3. Espera cada pedido hasta su estado final con la sesión de su docente y agrega las duraciones de punta a punta de
+   siempre. Sin --teachers, el script hace la medición de antes, sin cambios.
+
 Llamadas al modelo: la API no las cuenta. El script da una estimación por paso con lo que sí informa la API
 (`generator.usesAi`, `generator.fallback` y los rechazos `repetition`); ver `step_model_calls`.
 
@@ -227,6 +235,29 @@ def summarize(records: list[dict], concurrency: dict | None, expected: int = SEQ
     }
 
 
+def teacher_email(base: str, index: int) -> str:
+    """Correo de la cuenta del docente `index` (desde 0): «carga@correo.pe» → «carga.carga1@correo.pe»."""
+    local, _, domain = base.partition("@")
+    return f"{local}.carga{index + 1}@{domain}"
+
+
+def post_time_summary(answers: list[dict]) -> dict[str, Any]:
+    """p50, p95 y máximo de los tiempos de respuesta de los POST (ms), y cuántos hubo por estado HTTP."""
+    times = [a["ms"] for a in answers if a.get("ms") is not None]
+    by_status: dict[str, int] = {}
+    for answer in answers:
+        label = str(answer["status"]) if answer.get("status") is not None else "sin respuesta"
+        by_status[label] = by_status.get(label, 0) + 1
+    return {
+        "sent": len(answers),
+        "measured": len(times),
+        "p50": percentile(times, 50),
+        "p95": percentile(times, 95),
+        "max": max(times) if times else None,
+        "byStatus": by_status,
+    }
+
+
 def format_summary(summary: dict[str, Any], provider: str) -> str:
     def seconds(value: float | None) -> str:
         return "—" if value is None else f"{value:.1f} s"
@@ -254,6 +285,14 @@ def format_summary(summary: dict[str, Any], provider: str) -> str:
          f"{summary['deadlineExceededSteps']} / {summary['deadlineExceededRequests']}"),
         ("Comprobación 3 simultáneos → 2×202 + 429", summary["concurrencyCheck"] or "—"),
     ]
+    post = summary.get("postMs")
+    if post:  # QA-06 (--teachers)
+        milliseconds = lambda v: "—" if v is None else f"{v:.0f} ms"  # noqa: E731
+        rows[1:1] = [
+            ("POST simultáneos (docentes)", f"{post['sent']} {post['byStatus']}"),
+            ("POST p50 / p95 / máx", f"{milliseconds(post['p50'])} / {milliseconds(post['p95'])} / "
+                                     f"{milliseconds(post['max'])}"),
+        ]
     width = max(len(label) for label, _ in rows)
     text = "\n".join(f"{label.ljust(width)}  {value}" for label, value in rows)
     if not summary["complete"]:
@@ -370,6 +409,95 @@ def concurrency_check(api: str, headers: dict, unit_id: str, run_id: str) -> dic
     return {"answers": answers, "result": "OK" if passed else f"FALLA (estados {statuses})"}
 
 
+def prepare_teachers(
+    client: httpx.Client, collect: ModuleType, email: str, password: str, count: int, corpus: Path, poll: float,
+    deadline: float,
+) -> list[dict[str, Any]]:
+    """QA-06: una cuenta por docente, cada una con su curso, su unidad y su material procesado, y sin pedidos activos
+    de corridas anteriores. El token de cada sesión solo vive en memoria."""
+    teachers = []
+    for index in range(count):
+        headers = collect.login(client, teacher_email(email, index), password)
+        unit = collect.ensure_unit(client, headers)
+        collect.ensure_material(client, headers, unit, corpus)
+        wait_no_active(client, headers, unit["id"], poll, deadline)
+        teachers.append({"index": index, "headers": headers, "unitId": unit["id"]})
+        print(f"  docente {index + 1}/{count} listo (unidad {unit['id']})")
+    return teachers
+
+
+def simultaneous_posts(api: str, teachers: list[dict], run_id: str) -> list[dict[str, Any]]:
+    """QA-06: cada docente envía su secuencia a la vez (un hilo por docente y una barrera). Mide el tiempo de respuesta
+    de cada POST en ms. Un envío que falla por red queda registrado, sin tiempo."""
+    barrier = threading.Barrier(len(teachers))
+    answers: list[dict[str, Any]] = [{} for _ in teachers]
+
+    def start(position: int) -> None:
+        teacher = teachers[position]
+        key = f"load-{run_id}-teacher-{teacher['index']}"
+        base = {"teacher": teacher["index"], "key": key, "status": None, "ms": None, "requestId": None,
+                "errorCode": None}
+        try:
+            with httpx.Client(base_url=api, timeout=60) as client:
+                barrier.wait(timeout=30)
+                started = time.perf_counter()
+                response = post_request(client, teacher["headers"], key, sequence_body(teacher["unitId"]))
+                elapsed_ms = (time.perf_counter() - started) * 1000
+        except (httpx.HTTPError, threading.BrokenBarrierError) as error:
+            answers[position] = {**base, "error": network_error(error)}
+            return
+        body = response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+        answers[position] = {
+            **base,
+            "status": response.status_code,
+            "ms": round(elapsed_ms, 1),
+            "requestId": body.get("id") if response.status_code in (200, 202) else None,
+            "errorCode": (body.get("error") or {}).get("code"),
+        }
+
+    threads = [threading.Thread(target=start, args=(position,)) for position in range(len(teachers))]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=90)
+    for position, answer in enumerate(answers):
+        if not answer:  # el hilo no terminó a tiempo
+            index = teachers[position]["index"]
+            answers[position] = {"teacher": index, "key": f"load-{run_id}-teacher-{index}", "status": None,
+                                 "ms": None, "requestId": None, "errorCode": None,
+                                 "error": {"type": "Timeout", "message": "el envío no terminó a tiempo"}}
+    return answers
+
+
+def run_teachers_measurement(
+    client: httpx.Client, api: str, teachers: list[dict], run_id: str, poll: float, deadline: float
+) -> dict[str, Any]:
+    """QA-06: los POST simultáneos y, después, cada pedido hasta su estado final con la sesión de su docente."""
+    print(f"QA-06: {len(teachers)} docentes envían su secuencia a la vez…")
+    posts = simultaneous_posts(api, teachers, run_id)
+    for answer in posts:
+        shown = f"{answer['ms']:.0f} ms" if answer["ms"] is not None else answer.get("error", {}).get("type", "—")
+        print(f"  docente {answer['teacher'] + 1}: {answer['status'] or 'sin respuesta'} · {shown}")
+    records: list[dict[str, Any]] = []
+    for teacher, answer in zip(teachers, posts):
+        if answer.get("requestId"):
+            ids = {answer["requestId"]: answer["key"]}
+            final, errors = wait_final(client, teacher["headers"], ids, poll, deadline)
+            records += records_for(ids, final, errors)
+    summary = summarize(records, None, expected=len(teachers))
+    summary["postMs"] = post_time_summary(posts)
+    return {
+        "mode": "teachers",
+        "complete": summary["complete"],
+        "teachers": len(teachers),
+        "types": list(SEQUENCE_TYPES),
+        "quantity": QUANTITY,
+        "posts": posts,
+        "requests": records,
+        "summary": summary,
+    }
+
+
 def submit_measured(
     client: httpx.Client, headers: dict, unit_id: str, run_id: str, poll: float, deadline: float
 ) -> tuple[dict[str, str], list[dict], list[dict]]:
@@ -457,6 +585,32 @@ def write_report(report: dict[str, Any], provider: str) -> Path:
     return output
 
 
+def run_teachers_mode(
+    collect: ModuleType, api: str, email: str, password: str, args: argparse.Namespace, deadline: float
+) -> dict[str, Any]:
+    """QA-06 (--teachers N): prepara las cuentas, mide los POST simultáneos, escribe el informe y lo resume."""
+    with httpx.Client(base_url=api, timeout=60) as client:
+        try:  # antes de crear pedidos: si falla la red no hay nada que informar y el script se detiene
+            print(f"Preparando {args.teachers} docentes…")
+            teachers = prepare_teachers(client, collect, email, password, args.teachers, args.corpus, args.poll,
+                                        deadline)
+            generator = client.get("/api/v1/generator").json()
+        except (httpx.HTTPError, ValueError) as error:
+            collect.fail(
+                f"no se pudo preparar la medición contra {api} ({type(error).__name__}). Todavía no se creó ningún "
+                "pedido, así que no hay informe: revisa que el servidor esté en marcha y vuelve a intentarlo."
+            )
+        provider = str(generator.get("provider") or "desconocido")
+        print(f"Generador: {generator.get('description')}")
+        report = run_teachers_measurement(client, api, teachers, args.run_id, args.poll, deadline)
+    report = {"api": api, "runId": args.run_id, "generator": generator, **report}
+    output = write_report(report, provider)
+    print()
+    print(format_summary(report["summary"], provider))
+    print(f"Datos: {output.relative_to(BACKEND) if output.is_relative_to(BACKEND) else output}")
+    return report
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Mide la carga de los pedidos de generación (GEN-01, T044).")
     parser.add_argument("--api", default="http://127.0.0.1:8000", help="URL base del backend (sin / al final)")
@@ -465,6 +619,8 @@ def main() -> None:
                         help="marca de la corrida para las claves de idempotencia")
     parser.add_argument("--timeout", type=float, default=40 * 60, help="segundos máximos de toda la medición")
     parser.add_argument("--poll", type=float, default=2.0, help="segundos entre consultas de estado")
+    parser.add_argument("--teachers", type=int, default=0,
+                        help="QA-06: N docentes crean una secuencia a la vez (cuentas separadas); 0 = medición de antes")
     args = parser.parse_args()
 
     collect = load_collect_samples()
@@ -473,6 +629,10 @@ def main() -> None:
         collect.fail("define EVAL_EMAIL y EVAL_PASSWORD (la contraseña debe tener al menos 8 caracteres)")
     deadline = time.monotonic() + args.timeout
     api = args.api.rstrip("/")
+
+    if args.teachers > 0:
+        run_teachers_mode(collect, api, email, password, args, deadline)
+        return
 
     with httpx.Client(base_url=api, timeout=60) as client:
         try:  # antes de crear pedidos: si falla la red no hay nada que informar y el script se detiene

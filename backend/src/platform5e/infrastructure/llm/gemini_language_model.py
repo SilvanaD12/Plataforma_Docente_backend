@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from copy import deepcopy
 from typing import Any
 
@@ -18,6 +19,12 @@ from platform5e.application.services.generation.prompt_drafting import (
     parse_json_response,
 )
 from platform5e.application.services.provider_errors import redact_secrets
+from platform5e.infrastructure.llm.call_deadline import (
+    DEFAULT_CALL_DEADLINE_SECONDS,
+    CallDeadlineExceeded,
+    post_with_deadline,
+    seconds_label,
+)
 
 DEFAULT_MODELS: dict[str, str] = {
     "gemini": "gemini-3.8-flash",  # gemini-2.5-flash responde 404 a las claves nuevas
@@ -250,8 +257,9 @@ class GeminiLanguageModel(ResourceGeneratorPort):
         api_key: str,
         model: str | None = None,
         base_url: str | None = None,
-        timeout: float = 90.0,
+        timeout: float = 60.0,
         client: httpx.Client | None = None,
+        call_deadline_seconds: float = DEFAULT_CALL_DEADLINE_SECONDS,
     ) -> None:
         if provider not in DEFAULT_MODELS:
             raise ValueError(
@@ -262,6 +270,8 @@ class GeminiLanguageModel(ResourceGeneratorPort):
         self._api_key = api_key
         self._base_url = (base_url or DEFAULT_BASE_URLS[provider]).rstrip("/")
         self._client = client or httpx.Client(timeout=timeout)
+        # QA-06: tiempo límite total de cada generate(), con el reintento por JSON inválido y el de esquema incluidos.
+        self.call_deadline_seconds = call_deadline_seconds
         self._enforce_schema = provider == "gemini"
         self.description = f"{PROVIDER_DISPLAY_NAMES[provider]} · {self.model}"
 
@@ -270,23 +280,25 @@ class GeminiLanguageModel(ResourceGeneratorPort):
         system_instruction, user_prompt = build_prompt_instructions(context)
         request = context.get("solicitud") or {}
         schema = response_schema(request.get("tipo"), request.get("cantidad"))
+        deadline = time.monotonic() + self.call_deadline_seconds
         try:
-            parsed_data = self._complete_json(system_instruction, user_prompt, schema, attempt=1)
+            parsed_data = self._complete_json(system_instruction, user_prompt, schema, attempt=1, deadline=deadline)
         except ValueError:
-            # Si también falla el reintento, su error (con su diagnóstico) es el que se informa.
+            # Si también falla el reintento, su error (con su diagnóstico) es el que se informa. Usa el mismo límite.
             parsed_data = self._complete_json(
-                system_instruction, user_prompt + RETRY_PROMPT_SUFFIX, schema, attempt=2
+                system_instruction, user_prompt + RETRY_PROMPT_SUFFIX, schema, attempt=2, deadline=deadline
             )
 
         return parsed_data if isinstance(parsed_data, dict) else {"recursos": parsed_data}
 
     def _complete_json(
-        self, system_instruction: str, user_prompt: str, schema: dict[str, Any], attempt: int
+        self, system_instruction: str, user_prompt: str, schema: dict[str, Any], attempt: int,
+        deadline: float | None = None,
     ) -> Any:
         """Pide la respuesta y la lee como JSON. Si no lo es, el error dice por qué terminó la respuesta y cuánto
         medía (un JSON cortado por el límite de tokens termina con finishReason MAX_TOKENS), y el registro guarda su
         comienzo y su final. Nunca se registran la clave ni el prompt."""
-        raw_text, finish_reason, output_tokens = self._complete(system_instruction, user_prompt, schema)
+        raw_text, finish_reason, output_tokens = self._complete(system_instruction, user_prompt, schema, deadline)
         try:
             return parse_json_response(raw_text)
         except ValueError as exc:
@@ -303,7 +315,8 @@ class GeminiLanguageModel(ResourceGeneratorPort):
             raise InvalidModelResponse(f"{str(exc).rstrip('.')} ({details}).") from exc
 
     def _complete(
-        self, system_instruction: str, user_prompt: str, schema: dict[str, Any] | None = None
+        self, system_instruction: str, user_prompt: str, schema: dict[str, Any] | None = None,
+        deadline: float | None = None,
     ) -> tuple[str, str | None, int | None]:
         """Invoca el endpoint del proveedor. Devuelve el texto y, si el proveedor los informa (Gemini), por qué terminó
         la respuesta (finishReason) y cuántos tokens tiene; si no, None."""
@@ -321,12 +334,13 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                         "contents": [{"role": "user", "parts": [{"text": user_prompt}]}],
                         "generationConfig": generation_config,
                     },
+                    deadline,
                 )
             except AIProviderError as exc:
                 if exc.status_code != 400 or not self._enforce_schema:
                     raise
                 self._enforce_schema = False  # El modelo rechazó el esquema: reintento en JSON libre
-                return self._complete(system_instruction, user_prompt, schema)
+                return self._complete(system_instruction, user_prompt, schema, deadline)
 
             candidates = response_data.get("candidates") or []
             if not candidates:
@@ -353,6 +367,7 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                     "system": system_instruction,
                     "messages": [{"role": "user", "content": user_prompt}],
                 },
+                deadline,
             )
             text = "".join(
                 block.get("text", "")
@@ -373,17 +388,25 @@ class GeminiLanguageModel(ResourceGeneratorPort):
                     {"role": "user", "content": user_prompt},
                 ],
             },
+            deadline,
         )
         return response_data["choices"][0]["message"]["content"] or "", None, None
 
-    def _post_request(self, endpoint_url: str, headers: dict[str, str], payload: dict[str, Any]) -> dict[str, Any]:
-        """Envía la petición HTTP post con manejo de excepciones y errores de tasa límite."""
+    def _post_request(
+        self, endpoint_url: str, headers: dict[str, str], payload: dict[str, Any], deadline: float | None = None
+    ) -> dict[str, Any]:
+        """Envía la petición HTTP post con manejo de excepciones y errores de tasa límite. Sin `deadline`, el límite
+        empieza ahora (QA-06)."""
+        if deadline is None:
+            deadline = time.monotonic() + self.call_deadline_seconds
         try:
-            response = self._client.post(
-                endpoint_url,
-                headers={"Content-Type": "application/json", **headers},
-                json=payload,
+            response = post_with_deadline(
+                self._client, endpoint_url, deadline, {"Content-Type": "application/json", **headers}, payload
             )
+        except CallDeadlineExceeded as exc:
+            provider_name = PROVIDER_DISPLAY_NAMES[self.provider]
+            reason = f"{provider_name} no respondió en {seconds_label(self.call_deadline_seconds)} s"
+            raise AIProviderError(f"{reason} (tiempo límite por llamada).", public_reason=reason) from exc
         except httpx.HTTPError as exc:
             provider_name = PROVIDER_DISPLAY_NAMES[self.provider]
             message = f"sin conexión con {provider_name}: {exc.__class__.__name__}"
