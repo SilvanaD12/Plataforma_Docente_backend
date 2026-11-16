@@ -2691,6 +2691,38 @@
           }
         }
       }
+    },
+    "/health/dependencies": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Check external dependency health (database, Gemini, Wikipedia)",
+        "description": "Probes every external dependency in parallel with a 3 s timeout per probe.\n\nReturns 200 with `status: ok` or `status: degraded`.\nReturns 503 only when the database is unreachable.\nResults are cached for 30 s to prevent abuse.\n\nExample (Bash/cURL). Set BASE_URL to the API URL.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/health/dependencies\"\n```\n\nExpected 200 (or 503 if the database is down). See the response schema below.",
+        "operationId": "check_dependency_health_health_dependencies_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependencyHealthResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database is unreachable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DependencyHealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2957,6 +2989,84 @@
           "title"
         ],
         "title": "CourseUnitInput"
+      },
+      "DependencyCheckItem": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "enum": [
+              "database",
+              "gemini",
+              "wikipedia"
+            ],
+            "title": "Name",
+            "description": "Dependency identifier."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "up",
+              "down",
+              "slow",
+              "not_configured"
+            ],
+            "title": "Status",
+            "description": "Current status of the dependency."
+          },
+          "latencyMs": {
+            "type": "number",
+            "title": "Latencyms",
+            "description": "Probe round-trip time in milliseconds."
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail",
+            "description": "Human-readable explanation (generic, no secrets)."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "status",
+          "latencyMs",
+          "detail"
+        ],
+        "title": "DependencyCheckItem"
+      },
+      "DependencyHealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Status",
+            "description": "'ok' when all dependencies are up; 'degraded' when an external one is down or slow."
+          },
+          "checkedAt": {
+            "type": "string",
+            "title": "Checkedat",
+            "description": "ISO 8601 UTC timestamp of the check."
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyCheckItem"
+            },
+            "type": "array",
+            "title": "Checks",
+            "description": "Per-dependency results."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "status",
+          "checkedAt",
+          "checks"
+        ],
+        "title": "DependencyHealthResponse"
       },
       "DistractorReliability": {
         "properties": {
