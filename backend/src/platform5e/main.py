@@ -103,6 +103,7 @@ from platform5e.infrastructure.settings import (
     generation_sweep_interval_seconds,
     read_flag,
     read_setting,
+    topic_coverage_threshold,
 )
 from platform5e.infrastructure.sources.wikipedia_source import WikipediaSource
 
@@ -267,6 +268,7 @@ def create_application() -> FastAPI:
         media_generator=media_generator,
         media_repository=media_repository,
         deadline_seconds=generation_request_deadline_seconds(),
+        topic_coverage_threshold=topic_coverage_threshold(),
     )
     generation_runner = ThreadPoolGenerationRunner(
         run_generation.execute, generation_request_repository, max_workers=generation_max_workers()

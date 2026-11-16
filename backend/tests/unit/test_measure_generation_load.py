@@ -311,31 +311,29 @@ def teachers(count=5):
 
 
 def test_the_posts_of_all_teachers_leave_together_and_each_is_timed(load, monkeypatch):
+    """Revisión del PR #58: en vez de medir cuánto se separan los envíos, el POST falso de los 4 docentes que reciben
+    respuesta espera en una barrera de 4 (el 5.º falla por red). Solo pasa si esos envíos están en curso a la vez; si
+    el script los mandara uno por uno, la barrera se rompería y quedarían como errores. Sin `sleep`."""
     import threading
-    import time
 
     import httpx
 
-    started: list[float] = []
-    lock = threading.Lock()
+    together = threading.Barrier(4)  # los 4 envíos que responden; el 5.º falla por red sin esperar
 
     def post_request(client, headers, key, body):
-        with lock:
-            started.append(time.monotonic())
         index = int(key.rsplit("-", 1)[-1])
         assert headers == {"Authorization": f"Bearer t{index}"} and body["unitId"] == f"u{index}"
         if index == 4:
             raise httpx.ConnectError("conexión rechazada")
-        time.sleep(0.02)
+        together.wait(timeout=10)  # amplio: solo se agota si los envíos no salen a la vez
         return httpx.Response(202, json={"id": f"gen-{index}"})
 
     monkeypatch.setattr(load, "post_request", post_request)
     answers = load.simultaneous_posts("http://servidor.test", teachers(), "prueba")
 
-    assert len(started) == 5 and max(started) - min(started) < 0.2  # salen a la vez (barrera)
     assert [a["key"] for a in answers] == [f"load-prueba-teacher-{i}" for i in range(5)]
     assert [a["status"] for a in answers] == [202, 202, 202, 202, None]
-    assert all(a["ms"] >= 20 for a in answers[:4]) and answers[4]["ms"] is None
+    assert all(isinstance(a["ms"], float) and a["ms"] >= 0 for a in answers[:4]) and answers[4]["ms"] is None
     assert [a["requestId"] for a in answers] == ["gen-0", "gen-1", "gen-2", "gen-3", None]
     assert answers[4]["error"]["type"] == "ConnectError"
     assert all("headers" not in a for a in answers)  # la sesión no va al informe
