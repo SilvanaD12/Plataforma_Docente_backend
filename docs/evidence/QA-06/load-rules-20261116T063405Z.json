@@ -1,0 +1,1222 @@
+{
+  "api": "http://127.0.0.1:8000",
+  "runId": "20261116T063402",
+  "generator": {
+    "description": "Generador por reglas (sin IA)",
+    "usesAi": false,
+    "provider": "rules",
+    "model": null
+  },
+  "mode": "teachers",
+  "complete": true,
+  "teachers": 5,
+  "types": [
+    "pregunta_detonante",
+    "sondeo_diagnostico",
+    "guia_exploracion",
+    "caso_indagacion",
+    "explicacion",
+    "glosario",
+    "ejercicio_aplicacion",
+    "item_opcion_multiple"
+  ],
+  "quantity": 5,
+  "posts": [
+    {
+      "teacher": 0,
+      "key": "load-20261116T063402-teacher-0",
+      "status": 202,
+      "ms": 66.2,
+      "requestId": "gen-req-bb18ab1c-7cd7-4f2d-bc6e-250166a79495",
+      "errorCode": null
+    },
+    {
+      "teacher": 1,
+      "key": "load-20261116T063402-teacher-1",
+      "status": 202,
+      "ms": 80.1,
+      "requestId": "gen-req-44975aa2-3d41-466f-8eca-48a0aae290b8",
+      "errorCode": null
+    },
+    {
+      "teacher": 2,
+      "key": "load-20261116T063402-teacher-2",
+      "status": 202,
+      "ms": 52.2,
+      "requestId": "gen-req-ec891cd4-c7eb-4cc1-8d41-4af575d5cf71",
+      "errorCode": null
+    },
+    {
+      "teacher": 3,
+      "key": "load-20261116T063402-teacher-3",
+      "status": 202,
+      "ms": 98.8,
+      "requestId": "gen-req-9964739b-882c-4e34-a45b-dbabbd428862",
+      "errorCode": null
+    },
+    {
+      "teacher": 4,
+      "key": "load-20261116T063402-teacher-4",
+      "status": 202,
+      "ms": 83.1,
+      "requestId": "gen-req-08178e34-7c6b-46a3-b4d2-df8d576b7d3b",
+      "errorCode": null
+    }
+  ],
+  "requests": [
+    {
+      "id": "gen-req-bb18ab1c-7cd7-4f2d-bc6e-250166a79495",
+      "idempotencyKey": "load-20261116T063402-teacher-0",
+      "status": "succeeded",
+      "finished": true,
+      "error": {},
+      "retrievalMode": "bm25_fallback",
+      "failure": null,
+      "createdAt": "2026-11-16T06:34:02.885017+00:00",
+      "startedAt": "2026-11-16T06:34:02.907901+00:00",
+      "finishedAt": "2026-11-16T06:34:03.628208+00:00",
+      "durationSeconds": 0.743191,
+      "runSeconds": 0.720307,
+      "steps": [
+        {
+          "position": 0,
+          "stage": "engage",
+          "resourceType": "pregunta_detonante",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre protocolo TCP?» repetía «¿Qué sabes sobre protocolo TCP?» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre enrutador?» repetía «¿Qué sabes sobre enrutador?» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:02.942717+00:00",
+          "finishedAt": "2026-11-16T06:34:02.965196+00:00"
+        },
+        {
+          "position": 1,
+          "stage": "engage",
+          "resourceType": "sondeo_diagnostico",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:02.985613+00:00",
+          "finishedAt": "2026-11-16T06:34:03.003957+00:00"
+        },
+        {
+          "position": 2,
+          "stage": "explore",
+          "resourceType": "guia_exploracion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.024944+00:00",
+          "finishedAt": "2026-11-16T06:34:03.048320+00:00"
+        },
+        {
+          "position": 3,
+          "stage": "explore",
+          "resourceType": "caso_indagacion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.073385+00:00",
+          "finishedAt": "2026-11-16T06:34:03.100476+00:00"
+        },
+        {
+          "position": 4,
+          "stage": "explain",
+          "resourceType": "explicacion",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.111746+00:00",
+          "finishedAt": "2026-11-16T06:34:03.154020+00:00"
+        },
+        {
+          "position": 5,
+          "stage": "explain",
+          "resourceType": "glosario",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (78 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Sondeo de ideas previas: Protocolos de transporte» (72 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.162655+00:00",
+          "finishedAt": "2026-11-16T06:34:03.285520+00:00"
+        },
+        {
+          "position": 6,
+          "stage": "elaborate",
+          "resourceType": "ejercicio_aplicacion",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: protocolo TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: enrutador» repetía «Ejercicio de aplicación: protocolo TCP» (65 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: UDP» repetía «Ejercicio de aplicación: protocolo TCP» (63 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.296327+00:00",
+          "finishedAt": "2026-11-16T06:34:03.383111+00:00"
+        },
+        {
+          "position": 7,
+          "stage": "evaluate",
+          "resourceType": "item_opcion_multiple",
+          "status": "succeeded",
+          "resources": 4,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Concepto clave 1: Protocolos de transporte» repetía «Concepto clave 1: Protocolos de transporte» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.393234+00:00",
+          "finishedAt": "2026-11-16T06:34:03.615079+00:00"
+        }
+      ]
+    },
+    {
+      "id": "gen-req-44975aa2-3d41-466f-8eca-48a0aae290b8",
+      "idempotencyKey": "load-20261116T063402-teacher-1",
+      "status": "succeeded",
+      "finished": true,
+      "error": {},
+      "retrievalMode": "bm25_fallback",
+      "failure": null,
+      "createdAt": "2026-11-16T06:34:02.884552+00:00",
+      "startedAt": "2026-11-16T06:34:03.632377+00:00",
+      "finishedAt": "2026-11-16T06:34:04.316342+00:00",
+      "durationSeconds": 1.43179,
+      "runSeconds": 0.683965,
+      "steps": [
+        {
+          "position": 0,
+          "stage": "engage",
+          "resourceType": "pregunta_detonante",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre protocolo TCP?» repetía «¿Qué sabes sobre protocolo TCP?» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre enrutador?» repetía «¿Qué sabes sobre enrutador?» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.640422+00:00",
+          "finishedAt": "2026-11-16T06:34:03.669338+00:00"
+        },
+        {
+          "position": 1,
+          "stage": "engage",
+          "resourceType": "sondeo_diagnostico",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.679823+00:00",
+          "finishedAt": "2026-11-16T06:34:03.703851+00:00"
+        },
+        {
+          "position": 2,
+          "stage": "explore",
+          "resourceType": "guia_exploracion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.712638+00:00",
+          "finishedAt": "2026-11-16T06:34:03.741397+00:00"
+        },
+        {
+          "position": 3,
+          "stage": "explore",
+          "resourceType": "caso_indagacion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.754033+00:00",
+          "finishedAt": "2026-11-16T06:34:03.790488+00:00"
+        },
+        {
+          "position": 4,
+          "stage": "explain",
+          "resourceType": "explicacion",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.803891+00:00",
+          "finishedAt": "2026-11-16T06:34:03.852181+00:00"
+        },
+        {
+          "position": 5,
+          "stage": "explain",
+          "resourceType": "glosario",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (78 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Sondeo de ideas previas: Protocolos de transporte» (72 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.863354+00:00",
+          "finishedAt": "2026-11-16T06:34:03.981756+00:00"
+        },
+        {
+          "position": 6,
+          "stage": "elaborate",
+          "resourceType": "ejercicio_aplicacion",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: protocolo TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: enrutador» repetía «Ejercicio de aplicación: protocolo TCP» (65 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: UDP» repetía «Ejercicio de aplicación: protocolo TCP» (63 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.993841+00:00",
+          "finishedAt": "2026-11-16T06:34:04.077777+00:00"
+        },
+        {
+          "position": 7,
+          "stage": "evaluate",
+          "resourceType": "item_opcion_multiple",
+          "status": "succeeded",
+          "resources": 4,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Concepto clave 1: Protocolos de transporte» repetía «Concepto clave 1: Protocolos de transporte» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:04.087802+00:00",
+          "finishedAt": "2026-11-16T06:34:04.305453+00:00"
+        }
+      ]
+    },
+    {
+      "id": "gen-req-ec891cd4-c7eb-4cc1-8d41-4af575d5cf71",
+      "idempotencyKey": "load-20261116T063402-teacher-2",
+      "status": "succeeded",
+      "finished": true,
+      "error": {},
+      "retrievalMode": "bm25_fallback",
+      "failure": null,
+      "createdAt": "2026-11-16T06:34:02.854016+00:00",
+      "startedAt": "2026-11-16T06:34:02.893340+00:00",
+      "finishedAt": "2026-11-16T06:34:03.627877+00:00",
+      "durationSeconds": 0.773861,
+      "runSeconds": 0.734537,
+      "steps": [
+        {
+          "position": 0,
+          "stage": "engage",
+          "resourceType": "pregunta_detonante",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre protocolo TCP?» repetía «¿Qué sabes sobre protocolo TCP?» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre enrutador?» repetía «¿Qué sabes sobre enrutador?» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:02.918905+00:00",
+          "finishedAt": "2026-11-16T06:34:02.942397+00:00"
+        },
+        {
+          "position": 1,
+          "stage": "engage",
+          "resourceType": "sondeo_diagnostico",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:02.972059+00:00",
+          "finishedAt": "2026-11-16T06:34:02.989705+00:00"
+        },
+        {
+          "position": 2,
+          "stage": "explore",
+          "resourceType": "guia_exploracion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.010981+00:00",
+          "finishedAt": "2026-11-16T06:34:03.043793+00:00"
+        },
+        {
+          "position": 3,
+          "stage": "explore",
+          "resourceType": "caso_indagacion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.058762+00:00",
+          "finishedAt": "2026-11-16T06:34:03.093490+00:00"
+        },
+        {
+          "position": 4,
+          "stage": "explain",
+          "resourceType": "explicacion",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.111089+00:00",
+          "finishedAt": "2026-11-16T06:34:03.148786+00:00"
+        },
+        {
+          "position": 5,
+          "stage": "explain",
+          "resourceType": "glosario",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (78 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Sondeo de ideas previas: Protocolos de transporte» (72 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.162300+00:00",
+          "finishedAt": "2026-11-16T06:34:03.280772+00:00"
+        },
+        {
+          "position": 6,
+          "stage": "elaborate",
+          "resourceType": "ejercicio_aplicacion",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: protocolo TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: enrutador» repetía «Ejercicio de aplicación: protocolo TCP» (65 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: UDP» repetía «Ejercicio de aplicación: protocolo TCP» (63 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.295942+00:00",
+          "finishedAt": "2026-11-16T06:34:03.383553+00:00"
+        },
+        {
+          "position": 7,
+          "stage": "evaluate",
+          "resourceType": "item_opcion_multiple",
+          "status": "succeeded",
+          "resources": 4,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Concepto clave 1: Protocolos de transporte» repetía «Concepto clave 1: Protocolos de transporte» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.392835+00:00",
+          "finishedAt": "2026-11-16T06:34:03.613894+00:00"
+        }
+      ]
+    },
+    {
+      "id": "gen-req-9964739b-882c-4e34-a45b-dbabbd428862",
+      "idempotencyKey": "load-20261116T063402-teacher-3",
+      "status": "succeeded",
+      "finished": true,
+      "error": {},
+      "retrievalMode": "bm25_fallback",
+      "failure": null,
+      "createdAt": "2026-11-16T06:34:02.885153+00:00",
+      "startedAt": "2026-11-16T06:34:04.319932+00:00",
+      "finishedAt": "2026-11-16T06:34:04.747574+00:00",
+      "durationSeconds": 1.862421,
+      "runSeconds": 0.427642,
+      "steps": [
+        {
+          "position": 0,
+          "stage": "engage",
+          "resourceType": "pregunta_detonante",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre protocolo TCP?» repetía «¿Qué sabes sobre protocolo TCP?» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre enrutador?» repetía «¿Qué sabes sobre enrutador?» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:04.326467+00:00",
+          "finishedAt": "2026-11-16T06:34:04.343021+00:00"
+        },
+        {
+          "position": 1,
+          "stage": "engage",
+          "resourceType": "sondeo_diagnostico",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:04.351448+00:00",
+          "finishedAt": "2026-11-16T06:34:04.366058+00:00"
+        },
+        {
+          "position": 2,
+          "stage": "explore",
+          "resourceType": "guia_exploracion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:04.374250+00:00",
+          "finishedAt": "2026-11-16T06:34:04.394052+00:00"
+        },
+        {
+          "position": 3,
+          "stage": "explore",
+          "resourceType": "caso_indagacion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:04.403373+00:00",
+          "finishedAt": "2026-11-16T06:34:04.427499+00:00"
+        },
+        {
+          "position": 4,
+          "stage": "explain",
+          "resourceType": "explicacion",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:04.441522+00:00",
+          "finishedAt": "2026-11-16T06:34:04.467457+00:00"
+        },
+        {
+          "position": 5,
+          "stage": "explain",
+          "resourceType": "glosario",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (78 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Sondeo de ideas previas: Protocolos de transporte» (72 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:04.478054+00:00",
+          "finishedAt": "2026-11-16T06:34:04.547359+00:00"
+        },
+        {
+          "position": 6,
+          "stage": "elaborate",
+          "resourceType": "ejercicio_aplicacion",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: protocolo TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: enrutador» repetía «Ejercicio de aplicación: protocolo TCP» (65 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: UDP» repetía «Ejercicio de aplicación: protocolo TCP» (63 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:04.556924+00:00",
+          "finishedAt": "2026-11-16T06:34:04.608263+00:00"
+        },
+        {
+          "position": 7,
+          "stage": "evaluate",
+          "resourceType": "item_opcion_multiple",
+          "status": "succeeded",
+          "resources": 4,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Concepto clave 1: Protocolos de transporte» repetía «Concepto clave 1: Protocolos de transporte» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:04.618199+00:00",
+          "finishedAt": "2026-11-16T06:34:04.733845+00:00"
+        }
+      ]
+    },
+    {
+      "id": "gen-req-08178e34-7c6b-46a3-b4d2-df8d576b7d3b",
+      "idempotencyKey": "load-20261116T063402-teacher-4",
+      "status": "succeeded",
+      "finished": true,
+      "error": {},
+      "retrievalMode": "bm25_fallback",
+      "failure": null,
+      "createdAt": "2026-11-16T06:34:02.886297+00:00",
+      "startedAt": "2026-11-16T06:34:03.632987+00:00",
+      "finishedAt": "2026-11-16T06:34:04.315985+00:00",
+      "durationSeconds": 1.429688,
+      "runSeconds": 0.682998,
+      "steps": [
+        {
+          "position": 0,
+          "stage": "engage",
+          "resourceType": "pregunta_detonante",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre protocolo TCP?» repetía «¿Qué sabes sobre protocolo TCP?» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«¿Qué sabes sobre enrutador?» repetía «¿Qué sabes sobre enrutador?» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.640837+00:00",
+          "finishedAt": "2026-11-16T06:34:03.670165+00:00"
+        },
+        {
+          "position": 1,
+          "stage": "engage",
+          "resourceType": "sondeo_diagnostico",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.679447+00:00",
+          "finishedAt": "2026-11-16T06:34:03.701819+00:00"
+        },
+        {
+          "position": 2,
+          "stage": "explore",
+          "resourceType": "guia_exploracion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.712256+00:00",
+          "finishedAt": "2026-11-16T06:34:03.739069+00:00"
+        },
+        {
+          "position": 3,
+          "stage": "explore",
+          "resourceType": "caso_indagacion",
+          "status": "succeeded",
+          "resources": 5,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.753616+00:00",
+          "finishedAt": "2026-11-16T06:34:03.788320+00:00"
+        },
+        {
+          "position": 4,
+          "stage": "explain",
+          "resourceType": "explicacion",
+          "status": "succeeded",
+          "resources": 3,
+          "rejections": [],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 1,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": false
+          },
+          "startedAt": "2026-11-16T06:34:03.803327+00:00",
+          "finishedAt": "2026-11-16T06:34:03.846636+00:00"
+        },
+        {
+          "position": 5,
+          "stage": "explain",
+          "resourceType": "glosario",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Glosario: Protocolos de transporte» (78 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Glosario: Protocolos de transporte» repetía «Sondeo de ideas previas: Protocolos de transporte» (72 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.863752+00:00",
+          "finishedAt": "2026-11-16T06:34:03.985829+00:00"
+        },
+        {
+          "position": 6,
+          "stage": "elaborate",
+          "resourceType": "ejercicio_aplicacion",
+          "status": "succeeded",
+          "resources": 1,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: protocolo TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: enrutador» repetía «Ejercicio de aplicación: protocolo TCP» (65 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: TCP» repetía «Ejercicio de aplicación: protocolo TCP» (100 %)."
+            },
+            {
+              "kind": "repetition",
+              "reason": "«Ejercicio de aplicación: UDP» repetía «Ejercicio de aplicación: protocolo TCP» (63 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:03.994201+00:00",
+          "finishedAt": "2026-11-16T06:34:04.078603+00:00"
+        },
+        {
+          "position": 7,
+          "stage": "evaluate",
+          "resourceType": "item_opcion_multiple",
+          "status": "succeeded",
+          "resources": 4,
+          "rejections": [
+            {
+              "kind": "repetition",
+              "reason": "«Concepto clave 1: Protocolos de transporte» repetía «Concepto clave 1: Protocolos de transporte» (100 %)."
+            }
+          ],
+          "usesAi": false,
+          "fallback": false,
+          "errorCode": null,
+          "deadlineExceeded": false,
+          "modelCalls": {
+            "generatorCalls": 2,
+            "aiCallsMin": 0,
+            "aiCallsMax": 0,
+            "repetitionRetry": true
+          },
+          "startedAt": "2026-11-16T06:34:04.088174+00:00",
+          "finishedAt": "2026-11-16T06:34:04.303953+00:00"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "requests": 5,
+    "expectedRequests": 5,
+    "finishedRequests": 5,
+    "unfinishedRequests": [],
+    "complete": true,
+    "percentileSample": 5,
+    "byStatus": {
+      "succeeded": 5
+    },
+    "durationSeconds": {
+      "p50": 1.429688,
+      "p95": 1.7762948
+    },
+    "runSeconds": {
+      "p50": 0.683965,
+      "p95": 0.731691
+    },
+    "resources": 125,
+    "rejections": 50,
+    "rejectionsByKind": {
+      "repetition": 50
+    },
+    "fallbackSteps": 0,
+    "steps": 40,
+    "generatorCallsPerStep": {
+      "min": 1,
+      "avg": 1.5,
+      "max": 2
+    },
+    "aiCallsPerStepMin": {
+      "min": 0,
+      "avg": 0.0,
+      "max": 0
+    },
+    "aiCallsPerStepMax": {
+      "min": 0,
+      "avg": 0.0,
+      "max": 0
+    },
+    "deadlineExceededSteps": 0,
+    "deadlineExceededRequests": 0,
+    "concurrencyCheck": null,
+    "postMs": {
+      "sent": 5,
+      "measured": 5,
+      "p50": 80.1,
+      "p95": 95.66,
+      "max": 98.8,
+      "byStatus": {
+        "202": 5
+      }
+    }
+  }
+}

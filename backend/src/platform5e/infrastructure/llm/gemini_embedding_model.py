@@ -9,11 +9,18 @@ pero normalizados también sirven para el producto interno.
 from __future__ import annotations
 
 import math
+import time
 from typing import Any
 
 import httpx
 
 from platform5e.application.ports.outbound.embedding_port import EmbeddingGeneratorPort
+from platform5e.infrastructure.llm.call_deadline import (
+    DEFAULT_CALL_DEADLINE_SECONDS,
+    CallDeadlineExceeded,
+    post_with_deadline,
+    seconds_label,
+)
 from platform5e.infrastructure.llm.gemini_language_model import AIProviderError
 
 DEFAULT_EMBEDDING_MODEL: str = "gemini-embedding-001"
@@ -41,8 +48,10 @@ class GeminiEmbeddingModel(EmbeddingGeneratorPort):
         base_url: str | None = None,
         timeout: float = 60.0,
         client: httpx.Client | None = None,
+        call_deadline_seconds: float = DEFAULT_CALL_DEADLINE_SECONDS,
     ) -> None:
         self.model = model or DEFAULT_EMBEDDING_MODEL
+        self.call_deadline_seconds = call_deadline_seconds  # QA-06: límite total de cada lote
         self._api_key = api_key
         self._base_url = (base_url or GEMINI_BASE_URL).rstrip("/")
         self._client = client or httpx.Client(timeout=timeout)
@@ -71,11 +80,16 @@ class GeminiEmbeddingModel(EmbeddingGeneratorPort):
             ]
         }
         try:
-            response = self._client.post(
+            response = post_with_deadline(
+                self._client,
                 f"{self._base_url}/models/{self.model}:batchEmbedContents",
-                headers={"Content-Type": "application/json", "x-goog-api-key": self._api_key},
-                json=payload,
+                time.monotonic() + self.call_deadline_seconds,
+                {"Content-Type": "application/json", "x-goog-api-key": self._api_key},
+                payload,
             )
+        except CallDeadlineExceeded as exc:
+            reason = f"Gemini no respondió en {seconds_label(self.call_deadline_seconds)} s en los embeddings"
+            raise AIProviderError(f"{reason} (tiempo límite por llamada).", public_reason=reason) from exc
         except httpx.HTTPError as exc:
             message = f"sin conexión con Gemini (embeddings): {exc.__class__.__name__}"
             raise AIProviderError(message, public_reason=message) from exc
