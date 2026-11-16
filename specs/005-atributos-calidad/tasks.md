@@ -1,6 +1,6 @@
 # Tareas de atributos de calidad — Sprint 2
 
-[Ficha QA](spec.md) · [Plan](plan.md)
+[Ficha QA](spec.md) · [Plan](plan.md) · [Informe Final](report.md)
 
 ## Cómo leer las tareas
 
@@ -28,7 +28,7 @@ Formato: `- [ ] QA-xx [BE]/[FE]/[E2E] **Responsable.** Descripción — criterio
 
 - [x] QA-03 [BE] [FE] [E2E] **Juan.** Exportar `verdadero_falso` (`<question type="truefalse">`) y `emparejamiento` (`<question type="matching">`) a Moodle XML. Actualizar la elegibilidad de exportación. Importación real en Moodle 5.3.1, con capturas. Matriz TA-006 en `docs/compatibility/TA-006-matriz.md`. — Criterio: los tres tipos se importan sin errores en Moodle 5.3.1, con calificación y retroalimentación correctas; pruebas unitarias del exportador y del validador; frontend actualizado si hay mensajes que limiten a opción múltiple. — Evidencia: este PR, `docs/evidence/QA-03/` y `docs/compatibility/TA-006-matriz.md`. — Plazo: dom 15/11 20:00.
 
-- [ ] QA-04 [BE] **Juan.** Informe final de calidad en `specs/005-atributos-calidad/report.md`. Tabla con ID, responsable, atributo, escenario, meta, resultado medido, ¿cumple? y evidencia. Conclusión por atributo. Lista de verificación para el despliegue. — Criterio: tabla completa con resultados registrados en el repo; sin resultados inventados. — Plazo: lun 16/11 09:00.
+- [x] QA-04 [BE] **Juan.** Informe final de calidad en `specs/005-atributos-calidad/report.md`. Tabla con ID, responsable, atributo, escenario, meta, resultado medido, ¿cumple? y evidencia. Conclusión por atributo. Lista de verificación para el despliegue. — Criterio: tabla completa con resultados registrados en el repo; sin resultados inventados. — Plazo: lun 16/11 09:00. — **Hecho:** Informe final `report.md` redactado con la matriz consolidada de los 11 escenarios de calidad (ISO 25010), conclusiones por atributo y checklist de despliegue a producción.
 
 - [ ] QA-05 [BE] **Yan.** C-06 pasa: sin material del tema no se genera ningún recurso. C-01 a C-05 siguen generando con `faithfulness` ≥ 0,90. — Criterio: evaluación Ragas con los 6 casos; C-06 rechaza el pedido; C-01 a C-05 con `faithfulness` ≥ 0,90. — Plazo: dom 15/11 20:00.
 
@@ -42,4 +42,8 @@ Formato: `- [ ] QA-xx [BE]/[FE]/[E2E] **Responsable.** Descripción — criterio
 
 - [ ] QA-10 [FE] **Silvana.** JavaScript inicial < 200 kB comprimido. La CI falla si se pasa del presupuesto o si `npm audit` encuentra vulnerabilidades altas. — Criterio: carga diferida implementada; presupuesto en CI; `npm audit` en CI; JavaScript < 200 kB gzip. — Plazo: dom 15/11 20:00.
 
+<<<<<<< Updated upstream
 - [ ] QA-11 [BE] **Juan.** *(Opcional, solo si QA-01 a QA-04 están integrados.)* Cada frase del guion de `audio_detonante` y `podcast_resumen` tiene respaldo en el material. Subir `VERIFICATION_RULE_VERSION`. Los audios aprobados antes del cambio se reverifican al leerlos. — Criterio: pruebas de guion respaldado → `current`; frase sin respaldo → `insufficient` con motivo; aprobado antiguo → reverificado al leer. — Plazo: dom 15/11 20:00.
+=======
+- [x] QA-11 [BE] **Juan.** *(Opcional, solo si QA-01 a QA-04 están integrados.)* Cada frase del guion de `audio_detonante` y `podcast_resumen` tiene respaldo en el material. Subir `VERIFICATION_RULE_VERSION`. Los audios aprobados antes del cambio se reverifican al leerlos. — Criterio: pruebas de guion respaldado → `current`; frase sin respaldo → `insufficient` con motivo; aprobado antiguo → reverificado al leer. — Plazo: dom 15/11 20:00. — **Hecho:** `VERIFICATION_RULE_VERSION = 2`. Verificación frase a frase en `resource_verification.py` y reverificación al leer en `legacy_verification.py`. 11/11 pruebas unitarias en `test_audio_sentence_verification.py`. PR en rama `feat/qa-11-audio-sentence-verification`.
+>>>>>>> Stashed changes
