@@ -73,6 +73,41 @@ Respuesta siempre 200 (503 solo si la base de datos está caída). Caché de 30 
 
 **Enfoque:** C-06 pasa sin generar si no hay material del tema. C-01 a C-05 siguen generando con `faithfulness` ≥ 0,90. Evaluación con Ragas.
 
+**Diseño.** Reemplaza T074 de `specs/002-generacion-multiple`. La comprobación va en el pedido de generación, justo después de recuperar la evidencia y antes de redactar, y no usa IA: funciona igual con `LLM_PROVIDER=rules`.
+
+- **Tema pedido.** Son las indicaciones del docente. Sin indicaciones no hay nada que comprobar: el resultado de aprendizaje siempre es de la unidad. Tampoco se comprueba si las indicaciones dejan menos de 2 términos (por ejemplo, «Usa ejemplos breves» o «¿Cuáles son las características principales de UDP?»).
+- **Términos del tema.** Palabras de las indicaciones en minúsculas y sin tildes, de 3 o más letras, o siglas de 2 en mayúsculas (IP). Se quitan las palabras vacías del español, las de estilo, pedagogía o tipo de recurso (breve, ejemplos, estudiantes, explica, actividad, pregunta, usa, glosario…) y las que solo formulan la pregunta (diferencia, características, principal, función, términos clave, conviene…).
+- **Frases del tema.** Dos términos seguidos, o unidos por «de», «del», «de la»…: «protocolo de transporte», «llaves primarias», «modelo relacional».
+- **Medida absoluta.** Cobertura: qué parte de los términos aparece en los fragmentos recuperados, con igualdad sin tildes y con el singular y el plural («capa» y «capas»). No se usa la relevancia de BM25 ni de la fusión híbrida, que se normaliza y siempre vale 1,0 en el primer fragmento. Tampoco se comparan raíces: «relacional» coincidiría con «relación», que aparece en textos de cualquier tema.
+- **Decisión.** Se rechaza si la cobertura queda por debajo del umbral **y** no aparece ninguna frase del tema. Una frase presente basta, porque las palabras de un escenario no están en el material aunque el tema sí («una empresa que transmite en vivo» sobre «protocolo de transporte», c04). Y una palabra suelta puede coincidir con otro sentido: «tablas» de enrutamiento y «modelo» OSI en C-06.
+- **Umbral.** `TOPIC_COVERAGE_THRESHOLD` (`infrastructure/settings.py`), 0,5 por defecto; 0 apaga la comprobación. En la medición, los casos que deben generar y no tienen ninguna frase presente (c02, c03, c05, c07 y C-05) tienen una cobertura de 0,60 como mínimo (c07), y C-06 tiene 0,40. El umbral de 0,5 queda entre los dos.
+- **Secuencias.** Una secuencia comparte una sola recuperación y las mismas indicaciones, así que se decide una vez por pedido. Si no pasa, ningún paso redacta.
+- **Al rechazar.** No se redacta ni se guarda ningún recurso. El pedido y sus pasos terminan `failed` con el código existente `INSUFFICIENT_EVIDENCE` y un motivo que nombra lo que falta, como lo escribió el docente: «El material de la unidad no trata «llaves primarias, modelo relacional». Sube material sobre ese tema o cambia las indicaciones.». La evidencia recuperada queda guardada (`GET /generation-requests/{id}/evidence`). La regeneración desde Revisión usa la misma ejecución, así que aplica la misma comprobación y responde 409 con ese motivo.
+- **Código.** `domain/generation/topic_coverage.py` (términos, frases y cobertura) y `RunGenerationRequest` (decisión y motivo). Pruebas: `tests/unit/test_topic_coverage.py` y `tests/e2e/test_collect_samples.py`.
+
+**Medición** (16/11/2026; sin IA, en un servidor local con SQLite, `LLM_PROVIDER=rules` y búsqueda `bm25_fallback`, `topK` 8). Casos de `backend/evaluation/cases_t067.json` con `corpus_t067` y de `backend/evaluation/cases.json` con `corpus/protocols.txt`, que tiene un solo fragmento de 155 palabras. Los fragmentos son los que guardó cada pedido. La misma corrida con la comprobación activa dio las mismas decisiones: 15 casos generan y C-06 se rechaza.
+
+| Caso | Fragmentos | Términos del tema | Presentes | Cobertura | Frases del tema (presentes en negrita) | Decisión |
+| --- | --- | --- | --- | --- | --- | --- |
+| c01 | 1 | videollamadas, cortan, protocolo, confirma, entrega | 4 de 5 | 0,80 | **confirma la entrega** | Genera |
+| c02 | 1 | tcp, udp | 2 de 2 | 1,00 | — | Genera |
+| c03 | 1 | tcp, confirma, retransmite, segmentos, perdidos | 4 de 5 | 0,80 | tcp confirma, retransmite los segmentos, segmentos perdidos | Genera |
+| c04 | 1 | empresa, protocolo, transporte, transmitir, vivo | 3 de 5 | 0,60 | **protocolo de transporte** | Genera |
+| c05 | 1 | tcp, udp | 2 de 2 | 1,00 | — | Genera |
+| c06 | 1 | protocolos, transporte, red | 2 de 3 | 0,67 | **protocolos de transporte** | Genera |
+| c07 | 1 | protocolo, juego, linea, transferencia, archivos | 3 de 5 | 0,60 | transferencia de archivos | Genera |
+| c08 | 1 | protocolo, garantiza, entrega, confiable, datos | 5 de 5 | 1,00 | protocolo garantiza, **entrega confiable**, **confiable de los datos** | Genera |
+| c09 | 1 | dispositivo, decide, camino, paquete, destino | 5 de 5 | 1,00 | dispositivo decide, **decide el camino** | Genera |
+| c10 | 1 | protocolo, ip, direccionamiento, enrutamiento | 4 de 4 | 1,00 | **protocolo ip** | Genera |
+| C-01 | 8 | modelo, osi, capas | 3 de 3 | 1,00 | **modelo osi** | Genera |
+| C-02 | 8 | udp | 1 de 1 | 1,00 | — | Genera (menos de 2 términos: no se comprueba) |
+| C-03 | 8 | tcp, udp, capa, transporte | 4 de 4 | 1,00 | **capa de transporte** | Genera |
+| C-04 | 8 | direccionamiento, ip, enrutamiento, red | 4 de 4 | 1,00 | **direccionamiento ip** | Genera |
+| C-05 | 8 | wireshark, analisis, redes | 3 de 3 | 1,00 | análisis de redes | Genera |
+| C-06 | 8 | tablas, llaves, primarias, modelo, relacional | 2 de 5 | 0,40 | llaves primarias, modelo relacional | Rechaza: «llaves primarias, modelo relacional» |
+
+Los resultados medidos con Ragas se agregan en `tasks.md` después de la corrida real.
+
 ---
 
 ### QA-06 · Tiempos de respuesta y límite de Gemini

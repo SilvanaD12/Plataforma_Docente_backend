@@ -23,12 +23,17 @@ GENERATION_MAX_WORKERS      hilos que ejecutan pedidos de generación por proces
 GENERATION_REQUEST_DEADLINE_SECONDS  tiempo máximo de un pedido de generación (por defecto 900)
 GENERATION_REGENERATION_WAIT_SECONDS  segundos que la regeneración desde Revisión espera el pedido antes de responder
                             `running` (por defecto 10; 0 responde enseguida)
+TOPIC_COVERAGE_THRESHOLD    QA-05: parte de los términos de las indicaciones que debe aparecer en la evidencia antes de
+                            redactar, de 0 a 1 (por defecto 0.5). Si no llega y tampoco aparece ninguna frase del tema,
+                            el pedido falla con INSUFFICIENT_EVIDENCE. 0 apaga la comprobación
 """
 
 from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+
+from platform5e.domain.generation.topic_coverage import DEFAULT_COVERAGE_THRESHOLD
 
 LEGACY_NAMES: dict[str, str] = {
     "CORS_ALLOWED_ORIGINS": "CORS_ORIGENES",
@@ -94,6 +99,16 @@ def generation_sweep_interval_seconds(environment: Mapping[str, str] | None = No
     return read_positive_int(
         "GENERATION_SWEEP_INTERVAL_SECONDS", DEFAULT_GENERATION_SWEEP_INTERVAL_SECONDS, environment
     )
+
+
+def topic_coverage_threshold(environment: Mapping[str, str] | None = None) -> float:
+    """QA-05: umbral de cobertura del tema, de 0 a 1. Un valor vacío, no numérico o fuera de rango deja 0.5."""
+    value = read_setting("TOPIC_COVERAGE_THRESHOLD", "", environment).strip()
+    try:
+        threshold = float(value)
+    except ValueError:
+        return DEFAULT_COVERAGE_THRESHOLD
+    return threshold if 0 <= threshold <= 1 else DEFAULT_COVERAGE_THRESHOLD
 
 
 def generation_regeneration_wait_seconds(environment: Mapping[str, str] | None = None) -> float:

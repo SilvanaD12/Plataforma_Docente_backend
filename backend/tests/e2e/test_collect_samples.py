@@ -114,3 +114,28 @@ def test_collect_samples_writes_samples_from_generation_requests(server: str, tm
     invalid = next(f for f in failures if f["case_id"] == "c-invalido")
     assert invalid["problems"][0]["code"] and invalid["problems"][0]["message"]
     assert "c-invalido · engage · tipo_inexistente: sin muestra" in result.stdout
+
+
+def test_t067_cases_with_the_topic_check_reject_c06_and_keep_c01_to_c05(server: str, tmp_path: Path):
+    """QA-05: con el corpus de T068, C-06 (bases de datos en una unidad de redes) ya no entrega recursos y queda como
+    `pass` en expectations.jsonl; C-01 a C-05 siguen dando muestras. Generador por reglas, sin IA."""
+    out = tmp_path / "results" / "samples.jsonl"
+    result = subprocess.run(
+        [
+            sys.executable, str(EVALUATION / "collect_samples.py"),
+            "--api", server, "--cases", str(EVALUATION / "cases_t067.json"), "--corpus", str(EVALUATION / "corpus_t067"),
+            "--out", str(out), "--poll", "0.2", "--timeout", "60", "--retries", "0", "--run-id", "e2e-qa05",
+        ],
+        cwd=BACKEND_ROOT,
+        env={**os.environ, "EVAL_EMAIL": "evaluacion.qa05@correo.pe", "EVAL_PASSWORD": "clave-segura-9",
+             "PYTHONIOENCODING": "utf-8"},
+        capture_output=True, text=True, encoding="utf-8", timeout=300,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+    samples = [json.loads(line) for line in out.read_text(encoding="utf-8").splitlines() if line.strip()]
+    assert sorted({s["case_id"] for s in samples}) == ["C-01", "C-02", "C-03", "C-04", "C-05"]
+    [c06] = [json.loads(line) for line in (out.parent / "expectations.jsonl").read_text(encoding="utf-8").splitlines()]
+    assert c06["case_id"] == "C-06" and c06["outcome"] == "pass" and c06["resources"] == []
+    assert "llaves primarias, modelo relacional" in c06["reason"]
+    assert "C-06 · no_evidence: cumple" in result.stdout
