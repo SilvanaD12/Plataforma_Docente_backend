@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="category"><category><text>$course$/top/HU043 · Unidad 1/Nivel 2 · Intermedio</text></category><info format="html"><text><![CDATA[<p>Cada pregunta vale 20 puntos.</p>]]></text></info><idnumber></idnumber></question>
+  <question type="multichoice">
+    <name><text>Concepto clave 1: Capa de transporte</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Según el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?</p><p>«La ________ ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>Para repasar: La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.</p>]]></text></generalfeedback>
+    <defaultgrade>20.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html"><text><![CDATA[<p>Respuesta correcta.</p>]]></text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text><![CDATA[<p>Respuesta incorrecta.</p>]]></text></incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>UDP</p>]]></text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. «UDP» aparece en el material, pero con otro sentido. La afirmación original es: «La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>TCP</p>]]></text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. «TCP» aparece en el material, pero con otro sentido. La afirmación original es: «La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>SYN</p>]]></text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. «SYN» aparece en el material, pero con otro sentido. La afirmación original es: «La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></feedback>
+    </answer>
+    <answer fraction="100" format="html">
+      <text><![CDATA[<p>capa de transporte</p>]]></text>
+      <feedback format="html"><text><![CDATA[<p>Correcto. El material lo afirma así: «La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></feedback>
+    </answer>
+  </question>
+</quiz>
