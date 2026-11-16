@@ -38,10 +38,14 @@ from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.domain.generation.errors import GenerationError
 from platform5e.domain.materials.chunking import MaterialError
 from platform5e.domain.shared.errors import DuplicateRecordError, EntityNotFoundError, PersistenceUnavailableError
+from platform5e.application.use_cases.health.check_dependencies import CheckDependencies
 from platform5e.infrastructure.adapters.account_unit_membership_adapter import AccountUnitMembershipAdapter
+from platform5e.infrastructure.adapters.database_probe_adapter import DatabaseProbeAdapter
+from platform5e.infrastructure.adapters.gemini_probe_adapter import GeminiProbeAdapter
 from platform5e.infrastructure.adapters.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
 from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
+from platform5e.infrastructure.adapters.wikipedia_probe_adapter import WikipediaProbeAdapter
 from platform5e.infrastructure.exporters.moodle_xml_exporter import MoodleXmlExporter
 from platform5e.infrastructure.exporters.unit_document_exporter import UnitDocumentExporter
 from platform5e.infrastructure.exporters.scorm_package_exporter import ScormPackageExporter
@@ -78,6 +82,7 @@ from platform5e.infrastructure.llm.language_model_factory import (
 )
 from platform5e.infrastructure.jobs.stale_request_sweeper import StaleRequestSweeper
 from platform5e.infrastructure.jobs.thread_pool_generation_runner import ThreadPoolGenerationRunner
+from platform5e.infrastructure.persistence.database import engine as db_engine
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_account_repository import SQLAlchemyAccountRepository
 from platform5e.infrastructure.retrieval.bm25_evidence_retriever import Bm25EvidenceRetriever
 from platform5e.infrastructure.retrieval.hybrid_evidence_retriever import HybridEvidenceRetriever   
@@ -194,6 +199,24 @@ def create_application() -> FastAPI:
         rrf_k=60,
     )
 
+    # EN-028: dependency health probes (database, Gemini, Wikipedia).
+    llm_api_key = read_setting("LLM_API_KEY").strip() or None
+    llm_provider = (read_setting("LLM_PROVIDER") or ("gemini" if llm_api_key else "rules")).lower().strip()
+    gemini_configured = llm_provider not in {"rules", "reglas"} and bool(llm_api_key)
+    gemini_model = read_setting("LLM_MODEL").strip() or "gemini-3.8-flash"
+    gemini_base_url = read_setting("LLM_BASE_URL").strip() or None
+
+    dependency_probes = [
+        DatabaseProbeAdapter(db_engine),
+        GeminiProbeAdapter(
+            api_key=llm_api_key if gemini_configured else None,
+            model=gemini_model,
+            base_url=gemini_base_url,
+        ),
+        WikipediaProbeAdapter(),
+    ]
+    check_dependencies = CheckDependencies(dependency_probes)
+
     # 2. Servicios y casos de uso de la capa de aplicación
     demo_catalog_enabled = read_flag("DEMO_CATALOG", False)
     account_service = AccountService(
@@ -303,7 +326,7 @@ def create_application() -> FastAPI:
     app.include_router(create_downloads_router(review_service, account_service))
     app.include_router(create_teacher_downloads_router(review_service, account_service))
     app.include_router(create_exports_router(export_use_case, account_service))
-    app.include_router(create_health_router())
+    app.include_router(create_health_router(check_dependencies))
     return app
 
 

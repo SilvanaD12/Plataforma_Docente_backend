@@ -39,6 +39,11 @@ Hallazgos del Sprint 1 que motivan cada meta:
 | Respuesta | Responde 200 con el servicio afectado como `degraded` (`down` o `slow`); la aplicación sigue funcionando con el respaldo (generador por reglas para Gemini, subida manual para Wikipedia) |
 | Medida | Si Gemini o Wikipedia no responden en 3 s, la ruta informa `degraded` en menos de 4 s. La base de datos caída produce 503. El resultado se guarda en caché durante 30 s. |
 
+#### Validación de comportamiento con dependencia caída (acuerdo con Yan y Sergio)
+
+- **Yan (Generación):** Si Gemini está caído (`down`) o lento (`slow`), el caso de uso `RunGenerationRequest` recurre al generador por reglas (`RuleBasedGenerator`) registrando `fallback = true` y el motivo genérico en `fallbackReason` (sin exponer claves ni mensajes del proveedor). Los pedidos de los docentes no se interrumpen.
+- **Sergio (Material y Evidencia):** Si Wikipedia no responde o está degradada, la ruta de importación desde fuentes abiertas (`POST /documents/from-topic`) responde 503 (`SOURCE_UNAVAILABLE`) con un mensaje claro al docente. La subida manual de archivos locales (PDF, TXT, PPTX, DOCX) y su procesamiento/vectorización continúan operando normalmente.
+
 ---
 
 ### QA-03 · Compatibilidad — Exportación Moodle XML con tres tipos de pregunta
