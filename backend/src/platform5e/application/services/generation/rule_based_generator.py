@@ -591,15 +591,17 @@ class RuleBasedGenerator:
         if not matched:
             return None
         tag, sentence, term = matched
-        script = (
-            f"Escucha esta idea del material de la unidad. {sentence} "
-            f"Ahora piensa: ¿dónde has visto {term} en tu vida diaria y qué pasaría si no existiera? "
-            "Anota tu respuesta en una frase; la compartiremos al empezar la clase."
-        )
+        candidates = [p for p in sentence_pairs if p[0] == tag]
+        if len(candidates) < 2:
+            candidates = [p for p in sentence_pairs if _contains_word(p[1], term)] or [(tag, sentence)]
+        selected = candidates[:3]
+        if sum(len(s[1].split()) for s in selected) < 15:
+            selected = sentence_pairs[index : index + 3] or sentence_pairs[:3]
+        script = " ".join(s[1] for s in selected)
         return {
             "titulo": f"Para escuchar: {term}",
             "contenido": "Escucha la cápsula y anota tu respuesta antes de empezar el tema.",
-            "citas": [{"afirmacion": sentence, "fragmentos": [tag]}],
+            "citas": [{"afirmacion": s[1], "fragmentos": [s[0]]} for s in selected],
             "alternativas": [],
             "estructura": {"guion": script},
         }
@@ -609,13 +611,10 @@ class RuleBasedGenerator:
         selected = scored[index * 4 : index * 4 + 4] or scored[:4]
         if len(selected) < 2:
             return None
+        if sum(len(s[1].split()) for s in selected) < 15 and len(sentence_pairs) > len(selected):
+            selected = sentence_pairs[:4]
         title = context["unidad"]["titulo"]
-        key_ideas = ", ".join(terms[:3]) if terms else title
-        script = (
-            f"Hola. En este resumen repasamos la unidad «{title}». "
-            + " ".join(sentence for _, sentence in selected)
-            + f" Para cerrar, recuerda estas ideas clave: {key_ideas}. Nos vemos en la próxima clase."
-        )
+        script = " ".join(sentence for _, sentence in selected)
         return {
             "titulo": f"Resumen para escuchar: {title}",
             "contenido": "Escucha el resumen de la unidad y anota una idea que quieras preguntar en clase.",
