@@ -81,6 +81,40 @@ Respuesta siempre 200 (503 solo si la base de datos está caída). Caché de 30 
 
 **Enfoque:** Medir p95 del `POST` con 5 secuencias en paralelo. Configurar un tiempo límite de 60 s por llamada a Gemini para que ninguna quede colgada.
 
+**Tiempo límite por llamada (parte A).** El timeout de httpx (`LLM_TIMEOUT_SECONDS`) se aplica a cada operación de red, no a la llamada completa. Un proveedor que envía la respuesta de a poco nunca lo dispara, y el adaptador de texto puede hacer una segunda llamada si el JSON no es válido.
+
+- `LLM_CALL_DEADLINE_SECONDS` (`infrastructure/settings.py`): tiempo límite total de cada llamada a Gemini, de punta a punta. Por defecto es 60 y nunca pasa de 60; un valor mayor, vacío o inválido queda en 60.
+- Se aplica al texto (todo `generate()`, con el reintento por JSON inválido y el reintento sin esquema dentro del mismo límite), a la imagen, a la voz y a cada lote de embeddings.
+- La llamada corre en un hilo que lee la respuesta por partes (`infrastructure/llm/call_deadline.py`). Quien llama espera solo hasta el límite y sigue con el respaldo de siempre: el generador por reglas, la tarjeta de la imagen o la voz del navegador. El motivo público es genérico, como en `provider_errors.py`: «Gemini no respondió en 60 s», o «… en los embeddings». El hilo de fondo deja de leer en la siguiente parte que llega.
+- `LLM_TIMEOUT_SECONDS` sigue siendo el timeout de cada operación, pero no puede pasar del límite de la llamada. **En Render, `LLM_TIMEOUT_SECONDS` debe ser 60 o menos**: un valor mayor se recorta a `LLM_CALL_DEADLINE_SECONDS`.
+- Pruebas sin red, con un transporte falso que envía la respuesta de a poco (`tests/unit/test_llm_call_deadline.py`). Con un límite de 0,3 s, cada llamada termina antes de 0,55 s y el paso pasa al respaldo con el motivo. Se prueba lo mismo con la imagen, la voz y los embeddings.
+
+**Medición (parte B).** `backend/scripts/measure_generation_load.py --teachers 5` prepara 5 cuentas separadas (el correo de `EVAL_EMAIL` con `.carga1` a `.carga5` antes de la @), cada una con su curso, su unidad y su material procesado. Después envía las 5 secuencias a la vez (un hilo por docente, con una barrera). Por cada `POST` registra el estado HTTP y el tiempo de respuesta en ms, y el resumen informa p50, p95 y máximo, además de las duraciones de punta a punta de siempre. El informe queda en `backend/evaluation/results/load-<proveedor>-<fecha>.json`. Sin `--teachers`, el script hace la medición de antes. La meta de QA-06 es p95 < 500 ms en el `POST`.
+
+Cómo correrla en local con PostgreSQL (Docker), sin ninguna clave de API. Desde `backend/`:
+
+```bash
+# 1. Base de datos: PostgreSQL con pgvector en Docker y migraciones con dbmate
+cp .env.example .env                      # deja LLM_API_KEY vacío
+docker compose up -d --wait db
+docker compose run --rm dbmate up
+
+# 2. Backend con el generador por reglas (terminal 1)
+export DATABASE_URL='postgres://platform5e:cambiar-en-local@localhost:5432/platform5e?sslmode=disable'
+export LLM_PROVIDER=rules EMBEDDINGS_ENABLED=false MEDIA_GENERATION_ENABLED=false TOPIC_SEARCH_ENABLED=false
+unset LLM_API_KEY
+.venv/bin/python -m uvicorn platform5e.main:create_application --factory --app-dir src --host 127.0.0.1 --port 8000
+
+# 3. Medición (terminal 2, también desde backend/)
+export EVAL_EMAIL=carga.qa06@correo.pe EVAL_PASSWORD=clave-segura-9
+.venv/bin/python scripts/measure_generation_load.py --api http://127.0.0.1:8000 --teachers 5
+
+# 4. Al terminar
+docker compose stop                       # o «docker compose down -v» para borrar los datos locales
+```
+
+`DATABASE_URL` usa los valores de `.env.example`; si cambiaste el usuario, la contraseña o `POSTGRES_PORT` en `.env`, usa los tuyos. El backend acepta la URL `postgres://` de dbmate y la convierte a psycopg.
+
 ---
 
 ### QA-07 · Búsqueda híbrida con pgvector

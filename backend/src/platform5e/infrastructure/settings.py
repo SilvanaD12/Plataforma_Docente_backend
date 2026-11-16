@@ -7,7 +7,10 @@ LLM_PROVIDER                gemini | anthropic | openai | rules (por defecto: ge
 LLM_API_KEY                 clave de API del proveedor
 LLM_MODEL                   opcional; por defecto gemini-3.8-flash, claude-sonnet-5-5 o gpt-5.4-mini
 LLM_BASE_URL                opcional; para proxies o servicios compatibles con OpenAI
-LLM_TIMEOUT_SECONDS         tiempo de espera por respuesta (por defecto 90)
+LLM_TIMEOUT_SECONDS         tiempo de espera de cada operación de red con el proveedor (conectar, cada lectura); nunca
+                            pasa de LLM_CALL_DEADLINE_SECONDS. En Render debe ser 60 o menos
+LLM_CALL_DEADLINE_SECONDS   QA-06: tiempo límite total de cada llamada a Gemini (texto, imagen, voz y cada lote de
+                            embeddings), de punta a punta (por defecto 60, máximo 60). Al vencer se usa el respaldo
 TOPIC_SEARCH_ENABLED        true (por defecto) | false: búsqueda de material por tema en Wikipedia
 MEDIA_GENERATION_ENABLED    true (por defecto) | false: imágenes y voz con Gemini (necesita LLM_PROVIDER=gemini)
 IMAGE_MODEL                 opcional; por defecto gemini-3.1-flash-lite-image (requiere facturación en Google AI)
@@ -29,6 +32,8 @@ from __future__ import annotations
 
 import os
 from collections.abc import Mapping
+
+from platform5e.infrastructure.llm.call_deadline import DEFAULT_CALL_DEADLINE_SECONDS, MAX_CALL_DEADLINE_SECONDS
 
 LEGACY_NAMES: dict[str, str] = {
     "CORS_ALLOWED_ORIGINS": "CORS_ORIGENES",
@@ -94,6 +99,31 @@ def generation_sweep_interval_seconds(environment: Mapping[str, str] | None = No
     return read_positive_int(
         "GENERATION_SWEEP_INTERVAL_SECONDS", DEFAULT_GENERATION_SWEEP_INTERVAL_SECONDS, environment
     )
+
+
+def llm_call_deadline_seconds(environment: Mapping[str, str] | None = None) -> float:
+    """QA-06: segundos de la llamada completa a Gemini, mayor que 0 y como máximo 60. Un valor vacío, no numérico o
+    fuera de rango deja 60."""
+    value = read_setting("LLM_CALL_DEADLINE_SECONDS", "", environment).strip()
+    try:
+        seconds = float(value)
+    except ValueError:
+        return DEFAULT_CALL_DEADLINE_SECONDS
+    if not seconds > 0:  # también descarta NaN
+        return DEFAULT_CALL_DEADLINE_SECONDS
+    return min(seconds, MAX_CALL_DEADLINE_SECONDS)
+
+
+def llm_read_timeout_seconds(default: float, environment: Mapping[str, str] | None = None) -> float:
+    """Timeout de httpx por operación: LLM_TIMEOUT_SECONDS (o `default`), sin pasar del tiempo límite de la llamada."""
+    value = read_setting("LLM_TIMEOUT_SECONDS", "", environment).strip()
+    try:
+        seconds = float(value)
+    except ValueError:
+        seconds = default
+    if not seconds > 0:
+        seconds = default
+    return min(seconds, llm_call_deadline_seconds(environment))
 
 
 def generation_regeneration_wait_seconds(environment: Mapping[str, str] | None = None) -> float:

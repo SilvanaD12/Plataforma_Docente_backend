@@ -285,3 +285,145 @@ def test_a_network_failure_before_any_request_stops_with_a_clear_message_and_no_
     assert "no se pudo preparar la medición" in err and "ConnectError" in err and "ningún pedido" in err
     assert "clave-que-no-debe-aparecer" not in err
     assert not (tmp_path / "results").exists()  # no hay informe
+
+
+# --------------------------------------------------------------------------- QA-06: 5 docentes a la vez
+
+
+def test_each_teacher_gets_its_own_account_from_the_base_email(load):
+    assert [load.teacher_email("carga@correo.pe", i) for i in range(3)] == [
+        "carga.carga1@correo.pe", "carga.carga2@correo.pe", "carga.carga3@correo.pe",
+    ]
+
+
+def test_post_times_report_p50_p95_and_max(load):
+    answers = [{"status": 202, "ms": ms} for ms in (100.0, 200.0, 300.0, 400.0, 500.0)]
+    answers.append({"status": None, "ms": None, "error": {"type": "ConnectError", "message": "x"}})
+    summary = load.post_time_summary(answers)
+    assert summary["sent"] == 6 and summary["measured"] == 5
+    assert summary["p50"] == 300.0 and summary["p95"] == pytest.approx(480.0) and summary["max"] == 500.0
+    assert summary["byStatus"] == {"202": 5, "sin respuesta": 1}
+    assert load.post_time_summary([])["p95"] is None
+
+
+def teachers(count=5):
+    return [{"index": i, "headers": {"Authorization": f"Bearer t{i}"}, "unitId": f"u{i}"} for i in range(count)]
+
+
+def test_the_posts_of_all_teachers_leave_together_and_each_is_timed(load, monkeypatch):
+    import threading
+    import time
+
+    import httpx
+
+    started: list[float] = []
+    lock = threading.Lock()
+
+    def post_request(client, headers, key, body):
+        with lock:
+            started.append(time.monotonic())
+        index = int(key.rsplit("-", 1)[-1])
+        assert headers == {"Authorization": f"Bearer t{index}"} and body["unitId"] == f"u{index}"
+        if index == 4:
+            raise httpx.ConnectError("conexión rechazada")
+        time.sleep(0.02)
+        return httpx.Response(202, json={"id": f"gen-{index}"})
+
+    monkeypatch.setattr(load, "post_request", post_request)
+    answers = load.simultaneous_posts("http://servidor.test", teachers(), "prueba")
+
+    assert len(started) == 5 and max(started) - min(started) < 0.2  # salen a la vez (barrera)
+    assert [a["key"] for a in answers] == [f"load-prueba-teacher-{i}" for i in range(5)]
+    assert [a["status"] for a in answers] == [202, 202, 202, 202, None]
+    assert all(a["ms"] >= 20 for a in answers[:4]) and answers[4]["ms"] is None
+    assert [a["requestId"] for a in answers] == ["gen-0", "gen-1", "gen-2", "gen-3", None]
+    assert answers[4]["error"]["type"] == "ConnectError"
+    assert all("headers" not in a for a in answers)  # la sesión no va al informe
+
+
+class TeacherClient:
+    """Consultas de estado con la sesión de cada docente: cada pedido solo lo ve su dueño."""
+
+    def __init__(self, statuses):
+        self.statuses = statuses
+
+    def get(self, path, headers=None, params=None):
+        import httpx
+
+        request_id = path.rsplit("/", 1)[-1]
+        assert headers["Authorization"] == f"Bearer t{request_id.rsplit('-', 1)[-1]}"
+        return httpx.Response(200, json=self.statuses[request_id])
+
+
+def test_the_teachers_mode_reports_post_times_and_end_to_end_durations(load, monkeypatch):
+    import time
+
+    import httpx
+
+    monkeypatch.setattr(load, "post_request",
+                        lambda client, headers, key, body: httpx.Response(202, json={"id": f"gen-{key[-1]}"}))
+    statuses = {f"gen-{i}": final_status(f"gen-{i}", 10 + i) for i in range(5)}
+    report = load.run_teachers_measurement(TeacherClient(statuses), "http://servidor.test", teachers(), "prueba",
+                                           0.01, time.monotonic() + 1)
+
+    assert report["mode"] == "teachers" and report["teachers"] == 5 and report["complete"] is True
+    assert [r["id"] for r in report["requests"]] == [f"gen-{i}" for i in range(5)]
+    summary = report["summary"]
+    assert summary["postMs"]["measured"] == 5 and summary["postMs"]["byStatus"] == {"202": 5}
+    assert summary["durationSeconds"]["p50"] == 12.0 and summary["finishedRequests"] == 5
+    text = load.format_summary(summary, "rules")
+    assert "POST simultáneos (docentes)" in text and "POST p50 / p95 / máx" in text
+    assert "Authorization" not in json.dumps(report)
+
+
+def test_main_with_teachers_prepares_one_account_each_and_writes_the_report(load, monkeypatch, tmp_path, capsys):
+    import sys
+
+    import httpx
+
+    logins: list[str] = []
+
+    class Collect:
+        @staticmethod
+        def login(client, email, password):
+            logins.append(email)
+            return {"Authorization": f"Bearer t{len(logins) - 1}"}
+
+        @staticmethod
+        def ensure_unit(client, headers):
+            return {"id": f"u{headers['Authorization'][-1]}", "outcomes": []}
+
+        @staticmethod
+        def ensure_material(client, headers, unit, corpus):
+            return None
+
+        @staticmethod
+        def fail(message):
+            raise SystemExit(message)
+
+    def server(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/v1/generator":
+            return httpx.Response(200, json={"provider": "rules", "description": "Generador por reglas (sin IA)"})
+        if request.url.params.get("active") == "true":
+            return httpx.Response(200, json=[])
+        request_id = request.url.path.rsplit("/", 1)[-1]
+        return httpx.Response(200, json=final_status(request_id, 9))
+
+    real_client = httpx.Client
+    monkeypatch.setattr(load.httpx, "Client",
+                        lambda **kwargs: real_client(**kwargs, transport=httpx.MockTransport(server)))
+    monkeypatch.setattr(load, "post_request",
+                        lambda client, headers, key, body: httpx.Response(202, json={"id": f"gen-{key[-1]}"}))
+    monkeypatch.setattr(load, "load_collect_samples", lambda: Collect)
+    monkeypatch.setattr(load, "RESULTS", tmp_path)
+    monkeypatch.setenv("EVAL_EMAIL", "carga@correo.pe")
+    monkeypatch.setenv("EVAL_PASSWORD", "clave-que-no-debe-aparecer")
+    monkeypatch.setattr(sys, "argv", ["measure_generation_load.py", "--api", "http://servidor.test", "--teachers",
+                                      "5", "--poll", "0.01", "--run-id", "prueba"])
+    load.main()
+
+    assert logins == [f"carga.carga{i}@correo.pe" for i in range(1, 6)]
+    [written] = list(tmp_path.glob("load-rules-*.json"))
+    report = json.loads(written.read_text(encoding="utf-8"))
+    assert report["mode"] == "teachers" and report["summary"]["postMs"]["measured"] == 5
+    assert "clave-que-no-debe-aparecer" not in written.read_text(encoding="utf-8") + capsys.readouterr().out

@@ -10,12 +10,19 @@ from __future__ import annotations
 import base64
 import binascii
 import io
+import time
 import wave
 from typing import Any
 
 import httpx
 
 from platform5e.application.ports.outbound.media_port import GeneratedMedia
+from platform5e.infrastructure.llm.call_deadline import (
+    DEFAULT_CALL_DEADLINE_SECONDS,
+    CallDeadlineExceeded,
+    post_with_deadline,
+    seconds_label,
+)
 from platform5e.infrastructure.llm.gemini_language_model import AIProviderError
 
 DEFAULT_IMAGE_MODEL = "gemini-3.1-flash-lite-image"
@@ -130,10 +137,12 @@ class GeminiMediaGenerator:
         speech_model: str | None = None,
         voice: str | None = None,
         base_url: str | None = None,
-        timeout: float = 120.0,
+        timeout: float = 60.0,
         client: httpx.Client | None = None,
+        call_deadline_seconds: float = DEFAULT_CALL_DEADLINE_SECONDS,
     ) -> None:
         self._api_key = api_key
+        self.call_deadline_seconds = call_deadline_seconds  # QA-06: límite total de cada imagen o audio
         self.image_model = image_model or DEFAULT_IMAGE_MODEL
         self.speech_model = speech_model or DEFAULT_SPEECH_MODEL
         self.voice = voice or DEFAULT_VOICE
@@ -166,11 +175,16 @@ class GeminiMediaGenerator:
 
     def _post(self, payload: dict[str, Any]) -> dict[str, Any]:
         try:
-            response = self._client.post(
+            response = post_with_deadline(
+                self._client,
                 f"{self._base_url}/interactions",
-                headers={"Content-Type": "application/json", "x-goog-api-key": self._api_key},
-                json=payload,
+                time.monotonic() + self.call_deadline_seconds,
+                {"Content-Type": "application/json", "x-goog-api-key": self._api_key},
+                payload,
             )
+        except CallDeadlineExceeded as exc:
+            reason = f"Gemini no respondió en {seconds_label(self.call_deadline_seconds)} s"
+            raise AIProviderError(f"{reason} (tiempo límite por llamada).", public_reason=reason) from exc
         except httpx.HTTPError as exc:
             message = f"sin conexión con Gemini: {exc.__class__.__name__}"
             raise AIProviderError(message, public_reason=message) from exc
