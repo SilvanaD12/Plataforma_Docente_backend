@@ -125,6 +125,45 @@ def test_audio_with_only_empty_or_trivial_sentences_is_insufficient():
     assert "afirmaciones suficientes" in result["reason"].lower()
 
 
+def test_audio_sentence_supported_only_by_uncited_fragment_is_insufficient():
+    # Si una frase del guion solo aparece en un fragmento no citado por el recurso, no se da por respaldada
+    uncited_id = "frag-uncited-extra"
+    uncited_text = "La topología en anillo transmite los paquetes en una dirección secuencial fija."
+    resource = make_audio_resource(
+        title="Cápsula de redes",
+        script=f"El protocolo TCP confirma la entrega de los datos. {uncited_text}",
+        citations=[{"claim": CLAIM_TEXT, "fragmentIds": [FRAGMENT_ID]}],
+        evidence=[
+            {
+                "id": FRAGMENT_ID,
+                "text": EVIDENCE_TEXT,
+                "location": "sección 1",
+                "documentId": "doc-1",
+                "documentName": "redes.txt",
+                "retrievedAt": None,
+            },
+            {
+                "id": uncited_id,
+                "text": uncited_text,
+                "location": "sección 2",
+                "documentId": "doc-1",
+                "documentName": "redes.txt",
+                "retrievedAt": None,
+            },
+        ],
+    )
+    result = verify_resource(resource, threshold=0.6, rule_version=VERIFICATION_RULE_VERSION)
+
+    assert result["status"] == INSUFFICIENT
+    assert "Cápsula de redes" in result["reason"]
+    assert uncited_text in result["reason"]
+    assert "no tiene respaldo en el material" in result["reason"]
+    assert result["summary"]["checkedSentences"] == 2
+    assert result["summary"]["supportedSentences"] == 1
+    assert len(result["summary"]["unsupportedSentences"]) == 1
+    assert result["summary"]["unsupportedSentences"][0]["text"] == uncited_text
+
+
 # --------------------------------------------------------------------------- Reverificación al leer (verificación heredada)
 
 

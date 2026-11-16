@@ -173,8 +173,6 @@ def _check_audio_script(
     raw_sentences = [s.strip() for s in _SENTENCE_END.split(script) if s.strip()]
     cited_ids = referenced_fragment_ids(resource)
     cited_texts = [fragments[f_id] for f_id in cited_ids if f_id in fragments]
-    if not cited_texts:
-        cited_texts = [text for text in fragments.values() if text]
 
     checked_sentences = 0
     supported_sentences = 0
@@ -186,12 +184,6 @@ def _check_audio_script(
             continue
         checked_sentences += 1
         support = terms_support(terms, cited_texts) if cited_texts else 0.0
-        if support < threshold and fragments:
-            for f_id, text in fragments.items():
-                if f_id not in cited_ids:
-                    candidate = terms_support(terms, [text])
-                    if candidate > support:
-                        support = candidate
         if support >= threshold:
             supported_sentences += 1
         else:
