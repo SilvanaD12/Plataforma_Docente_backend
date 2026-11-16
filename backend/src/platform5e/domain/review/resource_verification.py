@@ -19,23 +19,31 @@ Estados:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 from typing import Any
 
 from platform5e.domain.generation.distractor_reliability import assess_distractor
 from platform5e.domain.generation.grounding import (
     DEFAULT_THRESHOLD,
+    MIN_CLAIM_TERMS,
+    _short,
     link_criterion_sources,
     link_prediction_sources,
     link_step_sources,
+    terms_support,
     verify_citations,
     verify_statements,
 )
 from platform5e.domain.generation.resource_formats import MIN_ITEMS
+from platform5e.domain.materials.text_analysis import extract_terms
 from platform5e.domain.review.content_fingerprint import content_fingerprint
 
 CURRENT = "current"
 INSUFFICIENT = "insufficient"
 PENDING = "pending"
+
+AUDIO_SCRIPT_TYPES: frozenset[str] = frozenset({"audio_detonante", "podcast_resumen"})
+_SENTENCE_END = re.compile(r"(?<=[.;!?])\s+|\n+")
 
 # Tipo de actividad -> (lista de la estructura, función que enlaza cada elemento con su fragmento, nombre en singular
 # y en plural para el motivo).
@@ -138,6 +146,80 @@ def _check(resource: dict[str, Any], fragments: dict[str, str], threshold: float
                 f"material; se necesitan al menos {minimum} {plural}.",
                 summary,
             )
+
+    if resource_type in AUDIO_SCRIPT_TYPES:
+        audio_status, audio_reason, audio_summary = _check_audio_script(resource, fragments, threshold)
+        summary.update(audio_summary)
+        if audio_status != CURRENT:
+            return audio_status, audio_reason, summary
+
+    return CURRENT, None, summary
+
+
+def _check_audio_script(
+    resource: dict[str, Any], fragments: dict[str, str], threshold: float
+) -> tuple[str, str | None, dict[str, Any]]:
+    title = str(resource.get("title") or "El recurso")
+    structure = resource.get("structure") if isinstance(resource.get("structure"), dict) else {}
+    script = structure.get("script") or structure.get("guion") or str(resource.get("body") or "")
+    if not isinstance(script, str) or not script.strip():
+        return INSUFFICIENT, f"«{title}» no tiene guion de audio.", {
+            "scriptThreshold": threshold,
+            "checkedSentences": 0,
+            "supportedSentences": 0,
+            "unsupportedSentences": [],
+        }
+
+    raw_sentences = [s.strip() for s in _SENTENCE_END.split(script) if s.strip()]
+    cited_ids = referenced_fragment_ids(resource)
+    cited_texts = [fragments[f_id] for f_id in cited_ids if f_id in fragments]
+    if not cited_texts:
+        cited_texts = [text for text in fragments.values() if text]
+
+    checked_sentences = 0
+    supported_sentences = 0
+    unsupported: list[dict[str, Any]] = []
+
+    for sentence in raw_sentences:
+        terms = set(extract_terms(sentence))
+        if len(terms) < MIN_CLAIM_TERMS:
+            continue
+        checked_sentences += 1
+        support = terms_support(terms, cited_texts) if cited_texts else 0.0
+        if support < threshold and fragments:
+            for f_id, text in fragments.items():
+                if f_id not in cited_ids:
+                    candidate = terms_support(terms, [text])
+                    if candidate > support:
+                        support = candidate
+        if support >= threshold:
+            supported_sentences += 1
+        else:
+            reason = (
+                f"Solo el {round(support * 100)} % de sus palabras aparece en el material "
+                f"(mínimo {round(threshold * 100)} %)."
+            )
+            unsupported.append({"text": sentence, "support": round(support, 2), "reason": reason})
+
+    summary = {
+        "scriptThreshold": threshold,
+        "checkedSentences": checked_sentences,
+        "supportedSentences": supported_sentences,
+        "unsupportedSentences": unsupported,
+    }
+
+    if checked_sentences == 0:
+        return INSUFFICIENT, f"«{title}»: el guion no contiene afirmaciones suficientes para contrastar.", summary
+
+    if unsupported:
+        first = unsupported[0]
+        rejection_reason = (
+            f"«{title}»: la frase «{_short(first['text'])}» no tiene respaldo en el material "
+            f"(solo el {round(first['support'] * 100)} % de sus palabras aparece en el material; "
+            f"mínimo {round(threshold * 100)} %)."
+        )
+        return INSUFFICIENT, rejection_reason, summary
+
     return CURRENT, None, summary
 
 

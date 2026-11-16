@@ -90,7 +90,7 @@ def audio_resource() -> dict[str, Any]:
         "media": {"status": "ready", "id": "media-old", "mimeType": "audio/mpeg", "fileName": "r1.mp3"},
         # REV-01: afirmación y copia histórica que la respalda, como en los recursos de Generación.
         "citations": [{"claim": "El protocolo TCP confirma la entrega de los datos.", "fragmentIds": ["frag-audio"]}],
-        "evidence": [{"id": "frag-audio", "text": "El protocolo TCP confirma la entrega de los datos al receptor.",
+        "evidence": [{"id": "frag-audio", "text": "El protocolo TCP confirma la entrega de los datos al receptor y retransmite lo que se pierde. El protocolo UDP no confirma la entrega y por eso es más rápido en videollamadas.",
                       "location": "página 1", "documentId": "d1", "documentName": "redes.pdf"}],
     }
 
