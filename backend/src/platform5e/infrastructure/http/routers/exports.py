@@ -34,7 +34,7 @@ def create_exports_router(use_case: ExportUnitResourcesUseCase, account_service:
         records the download in the unit history and returns the file.
 
         - `scorm_zip`: SCORM 1.2 package for Chamilo, one page per resource in 5E order; questions are graded.
-        - `moodle_xml`: Moodle question bank with the multiple-choice items.
+        - `moodle_xml`: Moodle question bank with multiple-choice, true/false and matching questions.
         - `documento`: printable HTML document of the approved unit resources, with evidence.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
