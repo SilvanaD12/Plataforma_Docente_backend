@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<quiz>
+  <question type="category"><category><text>$course$/top/RED-402 · Unidad 1/Nivel 2 · Intermedio</text></category><info format="html"><text><![CDATA[<p>Cada pregunta vale 20 puntos.</p>]]></text></info><idnumber></idnumber></question>
+  <question type="matching">
+    <name><text>Relaciona los conceptos: Capa de Transporte</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Relaciona cada término con la descripción que le corresponde según el material.</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>Para repasar: La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos. Los dos protocolos principales de esta capa en Internet son TCP y UDP. El protocolo UDP (User Datagram Protocol) no está orientado a la conexión. Antes de enviar datos, TCP establece la conexión mediante un acuerdo en tres pasos: el cliente envía un segmento SYN, el servidor responde con SYN-ACK y el cliente confirma con ACK. Por estas razones, TCP se usa en la web (HTTP y HTTPS), en el correo electrónico (SMTP) y en la transferencia de archivos (FTP). Por eso UDP se usa en la transmisión de video en vivo, en la voz sobre IP, en los videojuegos en línea y en las consultas DNS.</p>]]></text></generalfeedback>
+    <defaultgrade>20.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <shuffleanswers>true</shuffleanswers>
+    <correctfeedback format="html"><text><![CDATA[<p>Respuesta correcta.</p>]]></text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text><![CDATA[<p>Respuesta incorrecta.</p>]]></text></incorrectfeedback>
+    <shownumcorrect/>
+    <subquestion format="html">
+      <text><![CDATA[<p>Capa de transporte</p>]]></text>
+      <answer>
+        <text>La ________ ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.</text>
+      </answer>
+    </subquestion>
+    <subquestion format="html">
+      <text><![CDATA[<p>TCP</p>]]></text>
+      <answer>
+        <text>Los dos protocolos principales de esta capa en Internet son ________ y UDP.</text>
+      </answer>
+    </subquestion>
+    <subquestion format="html">
+      <text><![CDATA[<p>UDP</p>]]></text>
+      <answer>
+        <text>El protocolo ________ (User Datagram Protocol) no está orientado a la conexión.</text>
+      </answer>
+    </subquestion>
+    <subquestion format="html">
+      <text><![CDATA[<p>SYN</p>]]></text>
+      <answer>
+        <text>Antes de enviar datos, TCP establece la conexión mediante un acuerdo en tres pasos: el cliente envía un segmento ________, el servidor responde con SYN-ACK y el cliente confirma con ACK.</text>
+      </answer>
+    </subquestion>
+    <subquestion format="html">
+      <text><![CDATA[<p>HTTP</p>]]></text>
+      <answer>
+        <text>Por estas razones, TCP se usa en la web (________ y HTTPS), en el correo electrónico (SMTP) y en la transferencia de archivos (FTP).</text>
+      </answer>
+    </subquestion>
+    <subquestion format="html">
+      <text><![CDATA[<p>IP</p>]]></text>
+      <answer>
+        <text>Por eso UDP se usa en la transmisión de video en vivo, en la voz sobre ________, en los videojuegos en línea y en las consultas DNS.</text>
+      </answer>
+    </subquestion>
+  </question>
+  <question type="truefalse">
+    <name><text>Verdadero o falso: Capa de Transporte · 1</text></name>
+    <questiontext format="html"><text><![CDATA[<p>La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>Para repasar: La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos. Los dos protocolos principales de esta capa en Internet son TCP y UDP. Cada proceso se identifica mediante un número de puerto, que va de 0 a 65535. El protocolo TCP (Transmission Control Protocol) está orientado a la conexión. Antes de enviar datos, TCP establece la conexión mediante un acuerdo en tres pasos: el cliente envía un segmento SYN, el servidor responde con SYN-ACK y el cliente confirma con ACK.</p>]]></text></generalfeedback>
+    <defaultgrade>20.0000000</defaultgrade>
+    <penalty>1.0000000</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html"><text><![CDATA[<p>Respuesta correcta.</p>]]></text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text><![CDATA[<p>Respuesta incorrecta.</p>]]></text></incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text>true</text>
+      <feedback format="html"><text><![CDATA[<p>Verdadero. Así lo afirma el material.</p>]]></text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>false</text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. Verdadero. Así lo afirma el material.</p>]]></text></feedback>
+    </answer>
+  </question>
+  <question type="truefalse">
+    <name><text>Verdadero o falso: Capa de Transporte · 2</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Los dos protocolos principales de esta capa en Internet son capa de transporte y UDP.</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>Para repasar: La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos. Los dos protocolos principales de esta capa en Internet son TCP y UDP. Cada proceso se identifica mediante un número de puerto, que va de 0 a 65535. El protocolo TCP (Transmission Control Protocol) está orientado a la conexión. Antes de enviar datos, TCP establece la conexión mediante un acuerdo en tres pasos: el cliente envía un segmento SYN, el servidor responde con SYN-ACK y el cliente confirma con ACK.</p>]]></text></generalfeedback>
+    <defaultgrade>20.0000000</defaultgrade>
+    <penalty>1.0000000</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html"><text><![CDATA[<p>Respuesta correcta.</p>]]></text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text><![CDATA[<p>Respuesta incorrecta.</p>]]></text></incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="0" format="html">
+      <text>true</text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. Falso. El material dice: «Los dos protocolos principales de esta capa en Internet son TCP y UDP.»</p>]]></text></feedback>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>false</text>
+      <feedback format="html"><text><![CDATA[<p>Falso. El material dice: «Los dos protocolos principales de esta capa en Internet son TCP y UDP.»</p>]]></text></feedback>
+    </answer>
+  </question>
+  <question type="truefalse">
+    <name><text>Verdadero o falso: Capa de Transporte · 3</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Cada proceso se identifica mediante un número de puerto, que va de 0 a 65535.</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>Para repasar: La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos. Los dos protocolos principales de esta capa en Internet son TCP y UDP. Cada proceso se identifica mediante un número de puerto, que va de 0 a 65535. El protocolo TCP (Transmission Control Protocol) está orientado a la conexión. Antes de enviar datos, TCP establece la conexión mediante un acuerdo en tres pasos: el cliente envía un segmento SYN, el servidor responde con SYN-ACK y el cliente confirma con ACK.</p>]]></text></generalfeedback>
+    <defaultgrade>20.0000000</defaultgrade>
+    <penalty>1.0000000</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html"><text><![CDATA[<p>Respuesta correcta.</p>]]></text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text><![CDATA[<p>Respuesta incorrecta.</p>]]></text></incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text>true</text>
+      <feedback format="html"><text><![CDATA[<p>Verdadero. Así lo afirma el material.</p>]]></text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>false</text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. Verdadero. Así lo afirma el material.</p>]]></text></feedback>
+    </answer>
+  </question>
+  <question type="truefalse">
+    <name><text>Verdadero o falso: Capa de Transporte · 4</text></name>
+    <questiontext format="html"><text><![CDATA[<p>El protocolo capa de transporte (Transmission Control Protocol) está orientado a la conexión.</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>Para repasar: La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos. Los dos protocolos principales de esta capa en Internet son TCP y UDP. Cada proceso se identifica mediante un número de puerto, que va de 0 a 65535. El protocolo TCP (Transmission Control Protocol) está orientado a la conexión. Antes de enviar datos, TCP establece la conexión mediante un acuerdo en tres pasos: el cliente envía un segmento SYN, el servidor responde con SYN-ACK y el cliente confirma con ACK.</p>]]></text></generalfeedback>
+    <defaultgrade>20.0000000</defaultgrade>
+    <penalty>1.0000000</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html"><text><![CDATA[<p>Respuesta correcta.</p>]]></text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text><![CDATA[<p>Respuesta incorrecta.</p>]]></text></incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="0" format="html">
+      <text>true</text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. Falso. El material dice: «El protocolo TCP (Transmission Control Protocol) está orientado a la conexión.»</p>]]></text></feedback>
+    </answer>
+    <answer fraction="100" format="html">
+      <text>false</text>
+      <feedback format="html"><text><![CDATA[<p>Falso. El material dice: «El protocolo TCP (Transmission Control Protocol) está orientado a la conexión.»</p>]]></text></feedback>
+    </answer>
+  </question>
+  <question type="truefalse">
+    <name><text>Verdadero o falso: Capa de Transporte · 5</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Antes de enviar datos, TCP establece la conexión mediante un acuerdo en tres pasos: el cliente envía un segmento SYN, el servidor responde con SYN-ACK y el cliente confirma con ACK.</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>Para repasar: La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos. Los dos protocolos principales de esta capa en Internet son TCP y UDP. Cada proceso se identifica mediante un número de puerto, que va de 0 a 65535. El protocolo TCP (Transmission Control Protocol) está orientado a la conexión. Antes de enviar datos, TCP establece la conexión mediante un acuerdo en tres pasos: el cliente envía un segmento SYN, el servidor responde con SYN-ACK y el cliente confirma con ACK.</p>]]></text></generalfeedback>
+    <defaultgrade>20.0000000</defaultgrade>
+    <penalty>1.0000000</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html"><text><![CDATA[<p>Respuesta correcta.</p>]]></text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text><![CDATA[<p>Respuesta incorrecta.</p>]]></text></incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text>true</text>
+      <feedback format="html"><text><![CDATA[<p>Verdadero. Así lo afirma el material.</p>]]></text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text>false</text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. Verdadero. Así lo afirma el material.</p>]]></text></feedback>
+    </answer>
+  </question>
+  <question type="multichoice">
+    <name><text>Concepto clave 1: Capa de Transporte</text></name>
+    <questiontext format="html"><text><![CDATA[<p>Según el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?</p><p>«La ________ ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></questiontext>
+    <generalfeedback format="html"><text><![CDATA[<p>Para repasar: La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.</p>]]></text></generalfeedback>
+    <defaultgrade>20.0000000</defaultgrade>
+    <penalty>0.3333333</penalty>
+    <hidden>0</hidden>
+    <idnumber></idnumber>
+    <single>true</single>
+    <shuffleanswers>true</shuffleanswers>
+    <answernumbering>abc</answernumbering>
+    <showstandardinstruction>0</showstandardinstruction>
+    <correctfeedback format="html"><text><![CDATA[<p>Respuesta correcta.</p>]]></text></correctfeedback>
+    <partiallycorrectfeedback format="html"><text><![CDATA[<p>Respuesta parcialmente correcta.</p>]]></text></partiallycorrectfeedback>
+    <incorrectfeedback format="html"><text><![CDATA[<p>Respuesta incorrecta.</p>]]></text></incorrectfeedback>
+    <shownumcorrect/>
+    <answer fraction="100" format="html">
+      <text><![CDATA[<p>capa de transporte</p>]]></text>
+      <feedback format="html"><text><![CDATA[<p>Correcto. El material lo afirma así: «La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>UDP</p>]]></text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. «UDP» aparece en el material, pero con otro sentido. La afirmación original es: «La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>SYN</p>]]></text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. «SYN» aparece en el material, pero con otro sentido. La afirmación original es: «La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></feedback>
+    </answer>
+    <answer fraction="0" format="html">
+      <text><![CDATA[<p>TCP</p>]]></text>
+      <feedback format="html"><text><![CDATA[<p>Incorrecto. «TCP» aparece en el material, pero con otro sentido. La afirmación original es: «La capa de transporte ofrece comunicación de extremo a extremo entre procesos que se ejecutan en distintos equipos.»</p>]]></text></feedback>
+    </answer>
+  </question>
+</quiz>

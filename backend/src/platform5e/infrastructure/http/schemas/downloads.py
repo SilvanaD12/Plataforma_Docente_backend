@@ -28,7 +28,7 @@ class DownloadResponse(ApiResponse):
 
 class ExportRequest(ApiRequest):
     format: DownloadFormat = Field(
-        description="`scorm_zip`: SCORM 1.2 package for Chamilo. `moodle_xml`: Moodle question bank (multiple choice). `documento`: printable unit document (HTML)."
+        description="`scorm_zip`: SCORM 1.2 package for Chamilo. `moodle_xml`: Moodle question bank (multiple choice, true/false and matching). `documento`: printable unit document (HTML)."
     )
     resource_ids: list[str] = Field(
         default_factory=list,
