@@ -1,8 +1,9 @@
-"""Validador del Moodle XML que exporta la plataforma (TA-007, indicadores I17 e I19).
+"""Validador del Moodle XML que exporta la plataforma (TA-007, indicadores I17 e I19, QA-03).
 
-Las reglas salen de la muestra que se importó con éxito en Moodle durante SP-003
-(tests/fixtures/verified_moodle_sample.xml): si lo exportado tiene la misma estructura y
-cumple las reglas de un ítem de opción múltiple, Moodle lo importa sin pérdidas.
+Soporta los tres tipos de pregunta verificados en Moodle:
+- multichoice (opción múltiple)
+- truefalse (verdadero/falso)
+- matching (emparejamiento)
 
 Uso desde la terminal:
     python -m tests.support.moodle_xml_validator archivo.xml
@@ -18,8 +19,9 @@ import sys
 from xml.etree import ElementTree as ET
 
 VERIFIED_SAMPLE = Path(__file__).resolve().parents[1] / "fixtures" / "verified_moodle_sample.xml"
-ALLOWED_TYPES = {"category", "multichoice"}
+ALLOWED_TYPES = {"category", "multichoice", "truefalse", "matching"}
 MIN_OPTIONS, MAX_OPTIONS = 3, 5
+MIN_MATCHING_PAIRS = 3
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,7 @@ class ExportedQuestion:
     prompt: str
     general_feedback: str
     options: list[tuple[str, str, str]]  # (texto, fracción, retroalimentación)
+    kind: str = "multichoice"
 
 
 def plain_text(value: str | None) -> str:
@@ -61,8 +64,9 @@ def validate(content: bytes | str) -> list[str]:
         return [f"La raíz debe ser <quiz> y es <{root.tag}>."]
 
     questions = root.findall("question")
-    if not [q for q in questions if q.get("type") == "multichoice"]:
-        problems.append("No hay ninguna pregunta de opción múltiple.")
+    valid_question_types = {"multichoice", "truefalse", "matching"}
+    if not [q for q in questions if q.get("type") in valid_question_types]:
+        problems.append("No hay ninguna pregunta válida en el archivo.")
 
     reference = reference_tags()
     for position, question in enumerate(questions, start=1):
@@ -81,58 +85,121 @@ def validate(content: bytes | str) -> list[str]:
         if not name:
             problems.append(f"{where}: falta el nombre.")
 
-        missing = reference - _child_tags(question)
-        if missing:
-            problems.append(f"{where}: faltan etiquetas que tenía la muestra verificada: {sorted(missing)}.")
-
         prompt = question.find("questiontext")
         if prompt is None or prompt.get("format") != "html" or not plain_text(prompt.findtext("text")):
             problems.append(f"{where}: el enunciado debe existir, tener texto y formato html.")
 
-        if (question.findtext("single") or "").strip() != "true":
-            problems.append(f"{where}: <single> debe ser true (una sola respuesta correcta).")
+        if kind == "multichoice":
+            missing = reference - _child_tags(question)
+            if missing:
+                problems.append(f"{where}: faltan etiquetas que tenía la muestra verificada: {sorted(missing)}.")
 
-        answers = question.findall("answer")
-        if not MIN_OPTIONS <= len(answers) <= MAX_OPTIONS:
-            problems.append(
-                f"{where}: tiene {len(answers)} alternativas; deben ser entre {MIN_OPTIONS} y {MAX_OPTIONS}."
-            )
+            if (question.findtext("single") or "").strip() != "true":
+                problems.append(f"{where}: <single> debe ser true (una sola respuesta correcta).")
 
-        fractions = [a.get("fraction") for a in answers]
-        if fractions.count("100") != 1:
-            problems.append(
-                f"{where}: debe haber exactamente una alternativa con fraction=\"100\" y hay {fractions.count('100')}."
-            )
-        others = [f for f in fractions if f != "100"]
-        if any(f != "0" for f in others):
-            problems.append(f"{where}: las alternativas incorrectas deben tener fraction=\"0\" y hay {others}.")
+            answers = question.findall("answer")
+            if not MIN_OPTIONS <= len(answers) <= MAX_OPTIONS:
+                problems.append(
+                    f"{where}: tiene {len(answers)} alternativas; deben ser entre {MIN_OPTIONS} y {MAX_OPTIONS}."
+                )
 
-        texts = [plain_text(a.findtext("text")) for a in answers]
-        if any(not t for t in texts):
-            problems.append(f"{where}: hay alternativas sin texto.")
-        if len(set(texts)) != len(texts):
-            problems.append(f"{where}: hay alternativas repetidas.")
-        for letter, answer in zip("ABCDE", answers):
-            if not plain_text(answer.findtext("feedback/text")):
-                problems.append(f"{where}: la alternativa {letter} no tiene retroalimentación (I19).")
+            fractions = [a.get("fraction") for a in answers]
+            if fractions.count("100") != 1:
+                problems.append(
+                    f"{where}: debe haber exactamente una alternativa con fraction=\"100\" y hay {fractions.count('100')}."
+                )
+            others = [f for f in fractions if f != "100"]
+            if any(f != "0" for f in others):
+                problems.append(f"{where}: las alternativas incorrectas deben tener fraction=\"0\" y hay {others}.")
+
+            texts = [plain_text(a.findtext("text")) for a in answers]
+            if any(not t for t in texts):
+                problems.append(f"{where}: hay alternativas sin texto.")
+            if len(set(texts)) != len(texts):
+                problems.append(f"{where}: hay alternativas repetidas.")
+            for letter, answer in zip("ABCDE", answers):
+                if not plain_text(answer.findtext("feedback/text")):
+                    problems.append(f"{where}: la alternativa {letter} no tiene retroalimentación (I19).")
+
+        elif kind == "truefalse":
+            answers = question.findall("answer")
+            if len(answers) != 2:
+                problems.append(f"{where}: debe tener exactamente 2 respuestas (true y false) y tiene {len(answers)}.")
+            else:
+                fractions = [a.get("fraction") for a in answers]
+                if sorted(fractions) != ["0", "100"]:
+                    problems.append(f"{where}: debe haber una respuesta con fraction=\"100\" y una con fraction=\"0\".")
+                texts = [(a.findtext("text") or "").strip().lower() for a in answers]
+                if sorted(texts) != ["false", "true"]:
+                    problems.append(f"{where}: los textos de las respuestas deben ser 'true' y 'false'.")
+                for ans in answers:
+                    if not plain_text(ans.findtext("feedback/text")):
+                        problems.append(f"{where}: la respuesta '{ans.findtext('text')}' no tiene retroalimentación.")
+
+        elif kind == "matching":
+            if (question.findtext("shuffleanswers") or "").strip().lower() != "true":
+                problems.append(f"{where}: <shuffleanswers> debe ser true.")
+            subquestions = question.findall("subquestion")
+            if len(subquestions) < MIN_MATCHING_PAIRS:
+                problems.append(
+                    f"{where}: debe tener al menos {MIN_MATCHING_PAIRS} pares en subpreguntas y tiene {len(subquestions)}."
+                )
+            for idx, sq in enumerate(subquestions, start=1):
+                if not plain_text(sq.findtext("text")):
+                    problems.append(f"{where}: el par {idx} no tiene texto de pregunta.")
+                ans_text = (sq.findtext("answer/text") or "").strip()
+                if not ans_text:
+                    problems.append(f"{where}: el par {idx} no tiene texto de respuesta/definición.")
+
     return problems
 
 
 def read_questions(content: bytes | str) -> list[ExportedQuestion]:
     """Extrae el contenido de cada ítem tal como lo mostrará Moodle."""
     root = ET.fromstring(content)
-    return [
-        ExportedQuestion(
-            name=(q.findtext("name/text") or "").strip(),
-            prompt=plain_text(q.findtext("questiontext/text")),
-            general_feedback=plain_text(q.findtext("generalfeedback/text")),
-            options=[
-                (plain_text(a.findtext("text")), a.get("fraction") or "", plain_text(a.findtext("feedback/text")))
-                for a in q.findall("answer")
-            ],
-        )
-        for q in root.findall("question[@type='multichoice']")
-    ]
+    result: list[ExportedQuestion] = []
+    for q in root.findall("question"):
+        kind = q.get("type")
+        if kind == "multichoice":
+            result.append(
+                ExportedQuestion(
+                    name=(q.findtext("name/text") or "").strip(),
+                    prompt=plain_text(q.findtext("questiontext/text")),
+                    general_feedback=plain_text(q.findtext("generalfeedback/text")),
+                    options=[
+                        (plain_text(a.findtext("text")), a.get("fraction") or "", plain_text(a.findtext("feedback/text")))
+                        for a in q.findall("answer")
+                    ],
+                    kind="multichoice",
+                )
+            )
+        elif kind == "truefalse":
+            result.append(
+                ExportedQuestion(
+                    name=(q.findtext("name/text") or "").strip(),
+                    prompt=plain_text(q.findtext("questiontext/text")),
+                    general_feedback=plain_text(q.findtext("generalfeedback/text")),
+                    options=[
+                        ((a.findtext("text") or "").strip(), a.get("fraction") or "", plain_text(a.findtext("feedback/text")))
+                        for a in q.findall("answer")
+                    ],
+                    kind="truefalse",
+                )
+            )
+        elif kind == "matching":
+            result.append(
+                ExportedQuestion(
+                    name=(q.findtext("name/text") or "").strip(),
+                    prompt=plain_text(q.findtext("questiontext/text")),
+                    general_feedback=plain_text(q.findtext("generalfeedback/text")),
+                    options=[
+                        (plain_text(sq.findtext("text")), "100", (sq.findtext("answer/text") or "").strip())
+                        for sq in q.findall("subquestion")
+                    ],
+                    kind="matching",
+                )
+            )
+    return result
 
 
 if __name__ == "__main__":

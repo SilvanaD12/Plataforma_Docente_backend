@@ -47,6 +47,79 @@ def test_manifest_at_root_with_scos_in_5e_order():
         assert all(f.get("href") in archive.namelist() for f in resource.findall("cp:file", NS))
 
 
+def test_manifest_orders_all_five_5e_stages_correctly():
+    """HU-009: orden en imsmanifest.xml de las 5 etapas: Enganchar -> Explorar -> Explicar -> Elaborar -> Evaluar."""
+    engage_res = {
+        "id": "res_engage",
+        "stage": "engage",
+        "title": "1. Pregunta detonante",
+        "createdAt": "2026-10-10T09:00",
+        "body": "Pregunta de inicio.",
+        "options": None,
+        "evidence": [],
+    }
+    explore_res = {
+        "id": "res_explore",
+        "stage": "explore",
+        "title": "2. Guía de exploración",
+        "createdAt": "2026-10-10T09:10",
+        "body": "Paso 1: observa.",
+        "options": None,
+        "evidence": [],
+    }
+    explain_res = {
+        "id": "res_explain",
+        "stage": "explain",
+        "title": "3. Explicación temática",
+        "createdAt": "2026-10-10T09:20",
+        "body": "El protocolo TCP...",
+        "options": None,
+        "evidence": [],
+    }
+    elaborate_res = {
+        "id": "res_elaborate",
+        "stage": "elaborate",
+        "title": "4. Ejercicio de aplicación",
+        "createdAt": "2026-10-10T09:30",
+        "body": "Aplica lo aprendido.",
+        "options": None,
+        "evidence": [],
+    }
+    evaluate_res = {
+        "id": "res_evaluate",
+        "stage": "evaluate",
+        "title": "5. Ítem de evaluación",
+        "createdAt": "2026-10-10T09:40",
+        "body": "¿Qué protocolo es confiable?",
+        "options": [
+            {"id": "opt1", "text": "TCP", "isCorrect": True, "feedback": "Correcto.", "decision": "aceptado"},
+            {"id": "opt2", "text": "UDP", "isCorrect": False, "feedback": "Incorrecto.", "decision": "aceptado"},
+        ],
+        "evidence": [],
+    }
+    unordered = [evaluate_res, explain_res, engage_res, elaborate_res, explore_res]
+    exported, archive = package(unordered)
+    assert archive.namelist()[0] == "imsmanifest.xml"
+    root = ET.fromstring(archive.read("imsmanifest.xml"))
+    default = root.find("cp:organizations", NS).get("default")
+    items = root.findall(f"cp:organizations/cp:organization[@identifier='{default}']/cp:item", NS)
+    item_titles = [i.find("cp:title", NS).text for i in items]
+    assert item_titles == [
+        "1. Pregunta detonante",
+        "2. Guía de exploración",
+        "3. Explicación temática",
+        "4. Ejercicio de aplicación",
+        "Evaluación por niveles",
+    ]
+    manifest_resources = {r.get("identifier"): r for r in root.findall("cp:resources/cp:resource", NS)}
+    for item in items:
+        sco = manifest_resources[item.get("identifierref")]
+        assert sco.get(f"{{{NS['adlcp']}}}scormtype") == "sco"
+        assert sco.get("href") in archive.namelist()
+        content = archive.read(sco.get("href")).decode("utf-8")
+        assert "shared/scorm.js" in content or "LMSInitialize" in content
+
+
 def test_question_page_grades_and_leaves_out_discarded_distractors():
     _, archive = package([QUESTION])
     page = archive.read("sco/01.html").decode()

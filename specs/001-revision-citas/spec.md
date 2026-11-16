@@ -92,3 +92,43 @@ Como docente, quiero que mis descargas incluyan solo recursos aprobados y verifi
 
 - Qué campos de cada tipo de recurso entran en la normalización y la huella: decisión D1 de [research.md](research.md#d1-huella-del-contenido-verificable-rev-r1-rev-r2--rev-c2-c4-c5) y la tabla por tipo de [data-model.md](data-model.md#normalización-para-la-huella). Se definen sobre el recurso guardado, porque `docs/api/contracts/resource-*.v1.json` describe otro modelo (hallazgo H11).
 - Los nombres de los campos de la copia histórica y del resultado de verificación están en [contracts/review-export.openapi.yaml](contracts/review-export.openapi.yaml). La fecha de recuperación (`retrievedAt`) admite `null`, que significa desconocida, para los recursos migrados.
+
+## Historias del Sprint 1
+
+Cierre y evidencias de las historias y tareas asociadas al módulo de Revisión y Exportación (REV-01) en el Sprint 1:
+
+### HU-043 · Exportación a Moodle XML
+- **Estado:** Hecha.
+- **Alcance comprobado:** Exportación de ítems de opción múltiple con enunciado, distractores calificados (fracciones 100 % en la respuesta correcta y 0 % en las erróneas), retroalimentación específica y general («Para repasar…»), categorización `$course$/top/...` y penalización.
+- **Entorno de prueba:** Moodle 5.3.1 (Build: 20261112), `sandbox.moodledemo.net`.
+- **Evidencias en el repositorio (`docs/evidence/HU-043/`):**
+  - Archivo XML exportado y validado: [hu043-20261112230327-moodle.xml](../../docs/evidence/HU-043/hu043-20261112230327-moodle.xml).
+  - Captura del formulario de importación: [hu043-b01-formulario-con-xml.png](../../docs/evidence/HU-043/hu043-b01-formulario-con-xml.png).
+  - Captura del resultado exitoso («Importing 1 questions from file»): [hu043-b02-resultado-importacion.png](../../docs/evidence/HU-043/hu043-b02-resultado-importacion.png).
+  - Capturas de la categoría en el banco: [hu043-b03-selector-de-categorias.png](../../docs/evidence/HU-043/hu043-b03-selector-de-categorias.png) y [hu043-b03-pregunta-en-categoria.png](../../docs/evidence/HU-043/hu043-b03-pregunta-en-categoria.png).
+  - Capturas de la vista previa interactiva respondida:
+    - Distractor incorrecto con su retroalimentación: [hu043-b04-respuesta-incorrecta-udp.png](../../docs/evidence/HU-043/hu043-b04-respuesta-incorrecta-udp.png).
+    - Opción correcta con su retroalimentación: [hu043-b05-respuesta-correcta.png](../../docs/evidence/HU-043/hu043-b05-respuesta-correcta.png).
+
+### HU-009 · Orden de la secuencia 5E en el paquete SCORM 1.2
+- **Estado:** Hecha.
+- **Alcance comprobado:** En un paquete SCORM exportado a partir de una secuencia de las 5 etapas (Enganchar, Explorar, Explicar, Elaborar y Evaluar), el manifiesto `imsmanifest.xml` organiza los elementos en el orden pedagógico estricto: `engage` → `explore` → `explain` → `elaborate` → `evaluate`. Cada elemento apunta a un recurso SCO con su archivo correspondiente presente en el paquete ZIP, llamando a la API SCORM (`LMSInitialize` y `LMSFinish`).
+- **Prueba automatizada:** fijada en `tests/unit/test_scorm_package_exporter.py::test_manifest_orders_all_five_5e_stages_correctly`, que verifica la ordenación incluso si los recursos se entregan desordenados.
+- **Evidencia en el repositorio (`docs/evidence/HU-009/`):**
+  - Paquete SCORM generado con secuencia 5E completa: [hu009-scorm-5e-sequence.zip](../../docs/evidence/HU-009/hu009-scorm-5e-sequence.zip) (5 SCOs en orden: `¿Qué sabes sobre capa de transporte?`, `Guía de exploración...`, `Capa de transporte: explicación...`, `Ejercicio de aplicación...`, `Evaluación por niveles`).
+
+### HU-008 · Compatibilidad con LMS Chamilo (SCORM 1.2)
+- **Estado:** Comprobada en Chamilo (importación y navegación de lección verificadas; evaluación por niveles pendiente de responder).
+- **Alcance comprobado:** Exportación de paquete SCORM 1.2 e importación en Chamilo. La lección se crea con los 5 elementos en orden; los elementos se abren con contenido, estilos y fuentes, y la API SCORM responde registrando el avance del estudiante.
+- **Entorno de prueba:** Campus Chamilo (`campus.chamilo.net`, Open Campus v2), cuenta de profesor de Juan, curso «HU-008 SCORM».
+- **Evidencias en el repositorio (`docs/evidence/HU-008/`):**
+  - Paquete SCORM probado: [hu008-20261113061913-scorm.zip](../../docs/evidence/HU-008/hu008-20261113061913-scorm.zip).
+  - Capturas de la importación y navegación:
+    - Curso del profesor: [hu008-00-curso-profesor.png](../../docs/evidence/HU-008/hu008-00-curso-profesor.png).
+    - Formulario de importación de lección: [hu008-01-importar-zip.png](../../docs/evidence/HU-008/hu008-01-importar-zip.png).
+    - Lección importada en el listado: [hu008-02-leccion-importada.png](../../docs/evidence/HU-008/hu008-02-leccion-importada.png).
+    - Elemento 1 (Enganchar) abierto con avance registrado: [hu008-03-indice-y-recurso-1.png](../../docs/evidence/HU-008/hu008-03-indice-y-recurso-1.png).
+    - Elemento 3 (Explicar) con estilos y avance registrado: [hu008-04-recurso-3.png](../../docs/evidence/HU-008/hu008-04-recurso-3.png).
+
+### TA-006 · Matriz de compatibilidad de exportaciones
+- La matriz completa de compatibilidad por LMS y formato se encuentra documentada en [docs/compatibility/TA-006-matriz.md](../../docs/compatibility/TA-006-matriz.md).

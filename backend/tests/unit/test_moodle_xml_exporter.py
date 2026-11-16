@@ -86,3 +86,141 @@ def test_items_go_in_one_category_per_level_with_the_points_of_their_level():
         "Nivel 3 · Avanzado", ("Ventana deslizante", "30.0000000"),
     ]
     assert root.find("question/category/text").text == "$course$/top/RED-301 · Unidad 1/Nivel 1 · Básico"
+
+
+TRUE_FALSE_RESOURCE = {
+    "id": "tf1",
+    "type": "verdadero_falso",
+    "title": "Protocolos de transporte V/F",
+    "citations": [{"claim": "UDP no orienta a la conexión.", "fragmentIds": ["f1"]}],
+    "structure": {
+        "statements": [
+            {
+                "text": "TCP garantiza la entrega ordenada de paquetes.",
+                "isTrue": True,
+                "feedback": "Verdadero. TCP usa números de secuencia para ordenar.",
+            },
+            {
+                "text": "UDP realiza un saludo de tres vías antes de enviar datos.",
+                "isTrue": False,
+                "feedback": "Falso. El saludo de tres vías es exclusivo de TCP.",
+            },
+        ]
+    },
+}
+
+MATCHING_RESOURCE = {
+    "id": "match1",
+    "type": "emparejamiento",
+    "title": "Relacionar protocolos y funciones",
+    "body": "Relaciona cada protocolo con su función principal.",
+    "citations": [{"claim": "TCP y UDP operan en capa de transporte.", "fragmentIds": ["f2"]}],
+    "structure": {
+        "pairs": [
+            {"term": "TCP", "definition": "Transmisión confiable con control de flujo."},
+            {"term": "UDP", "definition": "Transmisión rápida sin confirmación."},
+            {"term": "SCTP", "definition": "Transmisión orientada a mensajes multi-homing."},
+        ]
+    },
+}
+
+
+def test_export_true_false_creates_one_question_per_statement_with_correct_fractions():
+    exporter = MoodleXmlExporter()
+    assert exporter.supports(TRUE_FALSE_RESOURCE)
+
+    exported = exporter.export([TRUE_FALSE_RESOURCE], COURSE, UNIT)
+    assert validate(exported.content) == []
+
+    root = ET.fromstring(exported.content)
+    tf_questions = root.findall("question[@type='truefalse']")
+    assert len(tf_questions) == 2
+
+    # Primera afirmación: verdadera
+    q1 = tf_questions[0]
+    assert q1.findtext("name/text") == "Protocolos de transporte V/F · 1"
+    assert "TCP garantiza" in q1.findtext("questiontext/text")
+    answers1 = q1.findall("answer")
+    assert len(answers1) == 2
+    true_ans1 = next(a for a in answers1 if a.findtext("text") == "true")
+    false_ans1 = next(a for a in answers1 if a.findtext("text") == "false")
+    assert true_ans1.get("fraction") == "100"
+    assert "Verdadero" in true_ans1.findtext("feedback/text")
+    assert false_ans1.get("fraction") == "0"
+    assert "Incorrecto" in false_ans1.findtext("feedback/text")
+
+    # Segunda afirmación: falsa
+    q2 = tf_questions[1]
+    assert q2.findtext("name/text") == "Protocolos de transporte V/F · 2"
+    assert "UDP realiza" in q2.findtext("questiontext/text")
+    answers2 = q2.findall("answer")
+    true_ans2 = next(a for a in answers2 if a.findtext("text") == "true")
+    false_ans2 = next(a for a in answers2 if a.findtext("text") == "false")
+    assert true_ans2.get("fraction") == "0"
+    assert "Incorrecto" in true_ans2.findtext("feedback/text")
+    assert false_ans2.get("fraction") == "100"
+    assert "Falso" in false_ans2.findtext("feedback/text")
+
+
+def test_export_matching_creates_matching_question_with_subquestions():
+    exporter = MoodleXmlExporter()
+    assert exporter.supports(MATCHING_RESOURCE)
+
+    exported = exporter.export([MATCHING_RESOURCE], COURSE, UNIT)
+    assert validate(exported.content) == []
+
+    root = ET.fromstring(exported.content)
+    [match_q] = root.findall("question[@type='matching']")
+    assert match_q.findtext("name/text") == "Relacionar protocolos y funciones"
+    assert match_q.findtext("shuffleanswers") == "true"
+    assert "Para repasar" in match_q.findtext("generalfeedback/text")
+
+    subquestions = match_q.findall("subquestion")
+    assert len(subquestions) == 3
+    pairs_map = {sq.findtext("text"): sq.findtext("answer/text") for sq in subquestions}
+    assert any("TCP" in term and "Transmisión confiable" in definition for term, definition in pairs_map.items())
+    assert any("UDP" in term and "sin confirmación" in definition for term, definition in pairs_map.items())
+    assert any("SCTP" in term and "multi-homing" in definition for term, definition in pairs_map.items())
+
+
+def test_matching_requires_at_least_three_pairs_to_be_supported():
+    exporter = MoodleXmlExporter()
+    too_few_pairs = {
+        **MATCHING_RESOURCE,
+        "structure": {"pairs": [{"term": "A", "definition": "B"}, {"term": "C", "definition": "D"}]},
+    }
+    assert not exporter.supports(too_few_pairs)
+
+
+def test_all_three_types_exported_together_pass_validator():
+    exporter = MoodleXmlExporter()
+    exported = exporter.export([QUESTION, TRUE_FALSE_RESOURCE, MATCHING_RESOURCE], COURSE, UNIT)
+    assert validate(exported.content) == []
+
+    questions = read_questions(exported.content)
+    assert len(questions) == 4  # 1 multichoice + 2 truefalse + 1 matching
+    kinds = [q.kind for q in questions]
+    assert kinds == ["multichoice", "truefalse", "truefalse", "matching"]
+
+
+def test_xml_escaping_in_all_fields():
+    special_chars_resource = {
+        "id": "sc1",
+        "type": "verdadero_falso",
+        "title": "A & B < C > D 'quote' \"double\"",
+        "citations": [{"claim": "X & Y > Z", "fragmentIds": ["f1"]}],
+        "structure": {
+            "statements": [
+                {
+                    "text": "¿Es A & B < C?",
+                    "isTrue": True,
+                    "feedback": "Correcto: A & B < C es verdad.",
+                }
+            ]
+        },
+    }
+    exporter = MoodleXmlExporter()
+    exported = exporter.export([special_chars_resource], COURSE, UNIT)
+    assert validate(exported.content) == []
+    assert b"&amp;" in exported.content or b"<![CDATA[" in exported.content
+
