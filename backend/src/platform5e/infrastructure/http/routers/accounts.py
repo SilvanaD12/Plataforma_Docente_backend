@@ -70,7 +70,7 @@ def create_accounts_router(
 
         Expected 200 with a token when the registered e-mail and password match."""
         client_ip = extract_client_ip(request)
-        retry_after = rate_limiter.reserve_attempt(body.email, client_ip)
+        retry_after, attempt_token = rate_limiter.reserve_attempt(body.email, client_ip)
         if retry_after > 0:
             return JSONResponse(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -84,9 +84,9 @@ def create_accounts_router(
             )
 
         session = account_service.login(body.email, body.password)
-        rate_limiter.reset(body.email, client_ip)
+        rate_limiter.release_attempt(body.email, client_ip, attempt_token)
         return session
-
+    
     @router.get(
         "/sessions/current",
         tags=["sessions"],

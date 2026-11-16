@@ -1,6 +1,6 @@
 """
 Controles de seguridad HTTP (QA-08):
-- Límite de intentos fallidos de inicio de sesión por (correo, IP) en 15 minutos con reserva atómica.
+- Límite de intentos fallidos de inicio de sesión por (correo, IP) en 15 minutos con reserva atómica por intento.
 - Resolución segura de IP cliente validando proxies de confianza.
 - Cabeceras de seguridad globales en todas las respuestas HTTP.
 """
@@ -27,54 +27,76 @@ class LoginRateLimiter:
     def __init__(self, max_attempts: int = 5, window_seconds: int = 15 * 60) -> None:
         self._max_attempts = max_attempts
         self._window_seconds = window_seconds
-        self._failures: dict[tuple[str, str], deque[float]] = {}
+        self._failures: dict[tuple[str, str], deque[tuple[float, object]]] = {}
         self._lock = threading.Lock()
 
-    def _prune(self, key: tuple[str, str], now: float) -> deque[float]:
-        timestamps = self._failures.get(key)
-        if timestamps is None:
-            timestamps = deque()
-            self._failures[key] = timestamps
+    def _prune(self, key: tuple[str, str], now: float) -> deque[tuple[float, object]]:
+        entries = self._failures.get(key)
+        if entries is None:
+            entries = deque()
+            self._failures[key] = entries
         cutoff = now - self._window_seconds
-        while timestamps and timestamps[0] <= cutoff:
-            timestamps.popleft()
-        return timestamps
+        while entries and entries[0][0] <= cutoff:
+            entries.popleft()
+        return entries
 
-    def reserve_attempt(self, email: str, client_ip: str, now: float | None = None) -> int:
+    def reserve_attempt(
+        self, email: str, client_ip: str, now: float | None = None
+    ) -> tuple[int, object | None]:
         """Reserva atómicamente un intento antes de verificar credenciales.
 
-        Retorna 0 si el intento fue reservado dentro del cupo permitido, o
-        Retry-After (> 0) en segundos si ya se alcanzó el límite.
+        Retorna (0, token) si el intento fue reservado dentro del cupo permitido,
+        o (retry_after > 0, None) si ya se alcanzó el límite.
         """
         current = time.monotonic() if now is None else now
         key = (email.strip().lower(), client_ip.strip() or "unknown")
         with self._lock:
-            timestamps = self._prune(key, current)
-            if len(timestamps) >= self._max_attempts:
-                remaining = (timestamps[0] + self._window_seconds) - current
-                return max(1, math.ceil(remaining))
-            timestamps.append(current)
-            return 0
+            entries = self._prune(key, current)
+            if len(entries) >= self._max_attempts:
+                remaining = (entries[0][0] + self._window_seconds) - current
+                return max(1, math.ceil(remaining)), None
+            token = object()
+            entries.append((current, token))
+            return 0, token
 
     def retry_after_seconds(self, email: str, client_ip: str, now: float | None = None) -> int:
         """Retorna > 0 con los segundos restantes si la pareja (email, ip) ya alcanzó el límite."""
         current = time.monotonic() if now is None else now
         key = (email.strip().lower(), client_ip.strip() or "unknown")
         with self._lock:
-            timestamps = self._prune(key, current)
-            if len(timestamps) < self._max_attempts:
-                if not timestamps:
+            entries = self._prune(key, current)
+            if len(entries) < self._max_attempts:
+                if not entries:
                     self._failures.pop(key, None)
                 return 0
-            remaining = (timestamps[0] + self._window_seconds) - current
+            remaining = (entries[0][0] + self._window_seconds) - current
             return max(1, math.ceil(remaining))
 
     def record_failure(self, email: str, client_ip: str, now: float | None = None) -> int:
         """Alias compatible para registrar un intento fallido."""
-        return self.reserve_attempt(email, client_ip, now=now)
+        retry_after, _ = self.reserve_attempt(email, client_ip, now=now)
+        return retry_after
 
-    def reset(self, email: str, client_ip: str) -> None:
-        """Limpia el historial de fallos tras un inicio de sesión exitoso."""
+    def release_attempt(self, email: str, client_ip: str, token: object | None) -> None:
+        """Libera únicamente la reserva asociada al token de un inicio de sesión exitoso."""
+        if token is None:
+            return
+        key = (email.strip().lower(), client_ip.strip() or "unknown")
+        with self._lock:
+            entries = self._failures.get(key)
+            if not entries:
+                return
+            remaining_entries = deque(item for item in entries if item[1] is not token)
+            if remaining_entries:
+                self._failures[key] = remaining_entries
+            else:
+                self._failures.pop(key, None)
+
+    def reset(self, email: str, client_ip: str, token: object | None = None) -> None:
+        """Libera la reserva del intento exitoso conservando las demás reservas activas."""
+        if token is not None:
+            self.release_attempt(email, client_ip, token)
+            return
         key = (email.strip().lower(), client_ip.strip() or "unknown")
         with self._lock:
             self._failures.pop(key, None)
