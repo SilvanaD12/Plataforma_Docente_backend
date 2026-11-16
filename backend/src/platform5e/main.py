@@ -74,6 +74,7 @@ from platform5e.infrastructure.http.routers.generation_requests import (
 from platform5e.infrastructure.http.routers.generations import create_generations_router
 from platform5e.infrastructure.http.routers.health import create_health_router
 from platform5e.infrastructure.http.routers.resources import create_resources_router
+from platform5e.infrastructure.http.security import SecurityHeadersMiddleware
 from platform5e.infrastructure.llm.language_model_factory import (
     create_embedding_generator,
     create_generators,
@@ -181,6 +182,8 @@ def create_application() -> FastAPI:
             allow_headers=["*"],
             expose_headers=["Content-Disposition"],
         )
+    
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # 1. Adaptadores de salida
     account_repository = SQLAlchemyAccountRepository()
