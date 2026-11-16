@@ -31,9 +31,14 @@ PENDING_REVIEW = "pendiente"
 def upgrade_resource_verification(
     repository: ResourceReviewRepositoryPort, teacher_id: str, unit_id: str, resource: dict[str, Any]
 ) -> dict[str, Any]:
-    """Devuelve el recurso con su verificación. Si ya la tenía, lo devuelve sin cambios."""
-    if isinstance(resource.get("verification"), dict):
-        return resource
+    """Devuelve el recurso con su verificación. Si ya la tenía y no requiere reverificación, lo devuelve sin cambios."""
+    verification = resource.get("verification")
+    if isinstance(verification, dict):
+        is_audio = resource.get("type") in ("audio_detonante", "podcast_resumen")
+        rule_version = verification.get("ruleVersion", 1)
+        if not (is_audio and rule_version < grounding.VERIFICATION_RULE_VERSION):
+            return resource
+
     upgraded = {**resource, "version": resource.get("version", 1)}
     # REV-R11: la falta de fecha de recuperación no invalida la copia; se registra como desconocida (`null`).
     if isinstance(resource.get("evidence"), list):
@@ -41,7 +46,12 @@ def upgrade_resource_verification(
             {"retrievedAt": None, **fragment} if isinstance(fragment, dict) else fragment
             for fragment in resource["evidence"]
         ]
-    upgraded["verification"] = verify_resource(upgraded, stored_threshold(resource), grounding.VERIFICATION_RULE_VERSION)
+    upgraded["verification"] = verify_resource(
+        upgraded,
+        stored_threshold(resource),
+        grounding.VERIFICATION_RULE_VERSION,
+        previous=verification if isinstance(verification, dict) else None,
+    )
     if upgraded.get("status") == APPROVED and upgraded["verification"]["status"] != CURRENT:
         upgraded["status"] = PENDING_REVIEW
         upgraded["decidedAt"] = None

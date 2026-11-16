@@ -48,6 +48,11 @@ from platform5e.application.services.generation.step_drafting import (
     saved_parameters,
 )
 from platform5e.application.services.media.media_attachment import PendingMedia, generate_media
+from platform5e.domain.generation.topic_coverage import (
+    DEFAULT_COVERAGE_THRESHOLD,
+    TopicCoverage,
+    assess_topic_coverage,
+)
 from platform5e.domain.generation.distractor_reliability import reliability_report
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
 from platform5e.domain.generation.evidence import build_snapshot
@@ -84,6 +89,14 @@ VERIFICATION_FAILED_MESSAGE: str = (
     "La comprobación del respaldo no pudo completarse al generar el recurso. Reintenta la comprobación en la revisión."
 )
 VERIFICATION_INSUFFICIENT_MESSAGE: str = "El material no respalda lo suficiente el contenido del recurso."
+def off_topic_message(coverage: TopicCoverage) -> str:
+    """QA-05: motivo, en palabras del docente, de un pedido cuya evidencia no trata el tema pedido."""
+    return (
+        f"El material de la unidad no trata «{', '.join(coverage.missing_topic())}». "
+        "Sube material sobre ese tema o cambia las indicaciones."
+    )
+
+
 INSUFFICIENT_EVIDENCE_MESSAGE: str = (
     "No se pudieron redactar recursos que citen el material sin repetirse. "
     "Prueba con otros tipos de recurso o agrega más material a la unidad."
@@ -154,6 +167,7 @@ class RunGenerationRequest:
         worker_boot_id: str = PROCESS_BOOT_ID,
         clock: Callable[[], str] = _utc_now,
         monotonic: Callable[[], float] = time.monotonic,
+        topic_coverage_threshold: float = DEFAULT_COVERAGE_THRESHOLD,
     ) -> None:
         self._repository = repository
         self._membership = membership
@@ -169,6 +183,7 @@ class RunGenerationRequest:
         self._worker_boot_id = worker_boot_id
         self._clock = clock
         self._monotonic = monotonic
+        self._topic_coverage_threshold = topic_coverage_threshold
 
     def execute(self, request_id: str) -> None:
         request = self._repository.get_for_runner(request_id)
@@ -209,6 +224,17 @@ class RunGenerationRequest:
         retrieved_at = self._clock()
         if not self._repository.save_evidence(request.id, retrieval, retrieved_at):
             return None
+        # QA-05: antes de redactar, la evidencia debe tratar el tema de las indicaciones. Se decide una vez por pedido:
+        # la secuencia comparte una sola recuperación y unas mismas indicaciones. La evidencia queda guardada.
+        coverage = assess_topic_coverage(
+            parameters.instructions, [fragment.text for fragment in retrieval.fragments], self._topic_coverage_threshold
+        )
+        if not coverage.accepted:
+            logger.info(
+                "Pedido %s sin material del tema: cobertura %.2f, faltan %s.",
+                request.id, coverage.coverage, ", ".join(coverage.missing_topic()),
+            )
+            return RequestStatus.FAILED, Problem(GenerationErrorCode.INSUFFICIENT_EVIDENCE, off_topic_message(coverage))
 
         outcome_id = parameters.outcome_id or (unit.outcomes[0].id if unit.outcomes else "")
         accepted: list[dict[str, Any]] = []  # recursos aceptados (formato del generador), con su etapa
