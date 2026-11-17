@@ -2,12 +2,12 @@
 
 **Ficha** QA · ISO 25010
 **Responsable** Juan (líder del sprint)
-**Estado** Borrador (14 de noviembre de 2026)
+**Estado** Borrador (17 de noviembre de 2026)
 **Referencias** [Constitución](../../.specify/memory/constitution.md), [OpenAPI](../../docs/api/openapi.json), [REV-01](../001-revision-citas/spec.md), [GEN-01](../002-generacion-multiple/spec.md), [CC-01](../003-cuentas-y-cursos/spec.md), [MAT-01](../004-material-y-evidencia/spec.md)
 
 ## Objetivo y alcance
 
-El Sprint 2 mejora los atributos de calidad de la Plataforma Docente según ISO 25010: fiabilidad, compatibilidad, adecuación funcional, eficiencia de desempeño, seguridad y usabilidad. Cada tarea tiene un escenario de calidad con las seis partes (fuente, estímulo, entorno, artefacto, respuesta y medida) y un criterio medible. El sprint cierra el lunes 16 de noviembre de 2026 a las 9:00.
+El Sprint 2 mejora los atributos de calidad de la Plataforma Docente según ISO 25010: fiabilidad, compatibilidad, adecuación funcional, eficiencia de desempeño, seguridad y usabilidad. Cada tarea tiene un escenario de calidad con las seis partes (fuente, estímulo, entorno, artefacto, respuesta y medida) y un criterio medible. El sprint cierra el domingo 22 de noviembre de 2026.
 
 ## Origen
 
@@ -23,6 +23,17 @@ Hallazgos del Sprint 1 que motivan cada meta:
 | El exportador Moodle XML solo soporta `item_opcion_multiple`; `verdadero_falso` y `emparejamiento` no se exportan. | QA-03 |
 | No hay presupuesto del bundle del frontend ni auditoría de dependencias en CI. | QA-10 |
 | Los guiones de `audio_detonante` y `podcast_resumen` no se verifican frase por frase contra el material. | QA-11 |
+| Revisión del profesor del 17/11/2026: dominio propio, ramas, Lighthouse y pruebas medidas con ISO/IEC 25023 (seguridad, usabilidad, rendimiento) | QA-12 a QA-19 |
+
+## Medidas ISO/IEC 25023
+
+| Tarea | Característica ISO 25010 | Medida ISO/IEC 25023 | Fórmula |
+| --- | --- | --- | --- |
+| QA-14 | Usabilidad / Eficiencia de desempeño | UAc-1-G Accesibilidad para usuarios con discapacidad; PTb-1-G Tiempo medio de respuesta | Puntaje de accesibilidad de Lighthouse; LCP medio por pantalla |
+| QA-15 | Seguridad | SCo-1-G Controlabilidad del acceso; SIn-2-G Prevención de corrupción de datos internos | X = 1 − A/B (A = rutas con inyección confirmada, B = rutas probadas) |
+| QA-16 | Fiabilidad | RAv-1-G Disponibilidad del sistema; RFt-1-G Prevención de fallos | X = A/B (A = respuestas 200 de /health durante la ráfaga, B = consultas a /health) |
+| QA-17 | Eficiencia de desempeño | PTb-1-G Tiempo medio de respuesta; PTb-5-G Rendimiento medio; PCa-2-G Capacidad de acceso de usuarios | Media y p95 en ms; peticiones por segundo; máximo de usuarios con p95 < 1 s y errores < 1 % |
+| QA-18 | Eficiencia de desempeño / Fiabilidad | PCa-1-G Capacidad de procesamiento de transacciones; RRe-1-G Tiempo medio de recuperación | Peticiones por segundo en el punto de quiebre; segundos hasta que /health vuelve a 200 en < 1 s |
 
 ## Escenarios de calidad
 
@@ -163,6 +174,126 @@ Hallazgos del Sprint 1 que motivan cada meta:
 | Artefacto | `resource_verification.py` |
 | Respuesta | Cada frase del guion (`script`) tiene respaldo en los fragmentos citados, con el mismo criterio que los demás textos |
 | Medida | Cada frase del guion tiene respaldo en el material. Un guion con una frase sin respaldo queda `insufficient` con el motivo que nombra la frase. Los audios aprobados antes del cambio se reverifican al leerlos. |
+
+---
+
+### QA-12 · Seguridad y compatibilidad — Dominio propio con HTTPS y redirección
+
+**Responsable:** Juan (backend), Yan (frontend)
+
+| Parte | Descripción |
+| --- | --- |
+| Fuente | Docente |
+| Estímulo | El docente accede al frontend y a la API a través del dominio propio con HTTPS y certificado válido (Let's Encrypt / Vercel SSL); las peticiones con HTTP se redirigen a HTTPS y la consola del navegador no muestra advertencias de contenido mixto. |
+| Entorno | Producción en la nube (Render para backend, Vercel para frontend con dominio personalizado) |
+| Artefacto | Configuración de DNS, certificados SSL/TLS y enrutamiento en backend y frontend |
+| Respuesta | La conexión se establece bajo protocolo seguro HTTPS con certificado válido y las peticiones no seguras se redirigen inmediatamente sin advertencias de contenido mixto |
+| Medida | Redirección 301/308 de HTTP a HTTPS permanente en todas las rutas; certificado SSL/TLS válido; 0 advertencias de contenido mixto en la consola del navegador. |
+
+---
+
+### QA-13 · Seguridad y fiabilidad — Protección de la rama principal (main)
+
+**Responsable:** Silvana
+
+| Parte | Descripción |
+| --- | --- |
+| Fuente | Desarrollador o colaborador del repositorio |
+| Estímulo | El docente accede a la rama principal (main) y la encuentra protegida: los cambios solo ingresan por pull request con al menos una revisión aprobada y todos los flujos de CI (pruebas unitarias, lint y cobertura) en verde. |
+| Entorno | Repositorios en GitHub (`Plataforma_Docente_backend` y `Plataforma_Docente_frontend`) |
+| Artefacto | Reglas de protección de ramas (`Branch protection rules` / rulesets de GitHub) en `main` |
+| Respuesta | Se rechazan commits directos a `main` y solo se habilita la fusión tras revisión aprobada y CI obligatoria completada en verde |
+| Medida | 0 commits directos permitidos en `main`; mínimo 1 aprobación obligatoria de revisión; 100 % de los flujos de CI en verde antes de permitir la fusión. |
+
+---
+
+### QA-14 · Usabilidad y eficiencia de desempeño — Auditoría Lighthouse (ISO/IEC 25023: UAc-1-G, PTb-1-G)
+
+**Responsable:** Silvana
+
+| Parte | Descripción |
+| --- | --- |
+| Fuente | Docente |
+| Estímulo | El docente navega por las pantallas principales del frontend (inicio de sesión, asistente de generación, visor de recurso) y Lighthouse reporta un puntaje de accesibilidad ≥ 90/100 y LCP ≤ 2,5 s en simulación móvil y de escritorio. |
+| Entorno | Navegador web con auditoría automatizada de Lighthouse (perfiles móvil y escritorio) |
+| Artefacto | Vistas principales del cliente web (`Plataforma_Docente_frontend`) |
+| Respuesta | Las pantallas cargan con rapidez y ofrecen componentes accesibles sin barreras de navegación |
+| Medida | Medida UAc-1-G: Puntaje de accesibilidad Lighthouse ≥ 90/100 en las 3 vistas. Medida PTb-1-G: Largest Contentful Paint (LCP) ≤ 2,5 s tanto en móvil como en escritorio. |
+
+---
+
+### QA-15 · Seguridad — Pruebas de inyección SQL (ISO/IEC 25023: SCo-1-G, SIn-2-G)
+
+**Responsable:** Sergio
+
+| Parte | Descripción |
+| --- | --- |
+| Fuente | Atacante |
+| Estímulo | Un atacante envía cargas maliciosas de inyección SQL (comillas, OR 1=1, UNION SELECT, caracteres de escape) a todos los parámetros de ruta, consulta y cuerpo de la API; la aplicación responde con 422 Unprocessable Entity o 400 Bad Request, no ejecuta sentencias no parametrizadas y no expone trazas internas del motor relacional. |
+| Entorno | Servidor de API FastAPI local o de staging conectado a PostgreSQL |
+| Artefacto | Puntos finales de la API FastAPI y repositorio de datos con SQLAlchemy |
+| Respuesta | La aplicación valida y sanea todas las entradas, rechaza las cargas con errores 422 o 400 y ejecuta únicamente sentencias parametrizadas sin exponer detalles internos |
+| Medida | Medidas SCo-1-G y SIn-2-G: $X = 1 - A/B = 1,0$ (0 rutas vulnerables entre todas las rutas probadas con `sqlmap`, `bandit` y `semgrep`). 0 hallazgos altos o críticos en el análisis estático. |
+
+---
+
+### QA-16 · Fiabilidad — Límite de tasa por IP y protección ante ráfagas (ISO/IEC 25023: RAv-1-G, RFt-1-G)
+
+**Responsable:** Sergio
+
+| Parte | Descripción |
+| --- | --- |
+| Fuente | Cliente malicioso o error de bucle en el cliente |
+| Estímulo | Un cliente malicioso o un error de bucle en el cliente genera una ráfaga de peticiones a la API; el middleware de límite de tasa responde con 429 Too Many Requests al superar el umbral configurado por IP y por minuto, protegiendo la base de datos y manteniendo /health disponible para el resto de usuarios. |
+| Entorno | Servidor FastAPI en ejecución |
+| Artefacto | Middleware de límite de tasa y control de tamaño de carga útil en FastAPI |
+| Respuesta | El sistema mitiga la saturación respondiendo 429 con cabecera `Retry-After` a las peticiones que exceden el límite, preservando los recursos y la disponibilidad del servicio |
+| Medida | Medidas RAv-1-G y RFt-1-G: $X = A/B = 1,0$ (100 % de respuestas 200 en `/health` durante la ráfaga de saturación). Límite de tasa activo por IP y minuto con cabecera `Retry-After`. |
+
+---
+
+### QA-17 · Eficiencia de desempeño — Prueba de carga con Locust (ISO/IEC 25023: PTb-1-G, PTb-5-G, PCa-2-G)
+
+**Responsable:** Yan
+
+| Parte | Descripción |
+| --- | --- |
+| Fuente | 20 docentes concurrentes |
+| Estímulo | 20 docentes concurrentes generan recursos y consultan la API de forma sostenida durante 5 minutos (prueba de carga con Locust); el tiempo de respuesta p95 de los puntos finales de lectura no supera 1,0 s, la tasa de fallos es < 1 % y la tasa de peticiones por segundo se mantiene estable sin fugas de memoria. |
+| Entorno | Backend local contra base de datos PostgreSQL local (`LLM_PROVIDER=rules`) |
+| Artefacto | Puntos finales de lectura y generación de la API FastAPI |
+| Respuesta | La API atiende concurrentemente la carga sin degradación del rendimiento ni saturación de conexiones |
+| Medida | Medidas PTb-1-G, PTb-5-G y PCa-2-G: Tiempo de respuesta p95 en lectura ≤ 1,0 s; tasa de fallos < 1 %; peticiones por segundo sostenidas y 0 fugas de memoria durante 5 min con 20 usuarios. |
+
+---
+
+### QA-18 · Eficiencia de desempeño y fiabilidad — Prueba de estrés con JMeter (ISO/IEC 25023: PCa-1-G, RRe-1-G)
+
+**Responsable:** Juan
+
+| Parte | Descripción |
+| --- | --- |
+| Fuente | Carga masiva incremental |
+| Estímulo | La carga sobre la API se incrementa progresivamente por encima del tráfico nominal hasta saturar los recursos del servidor (prueba de estrés con JMeter); el sistema identifica el punto de quiebre (p95 > 2 s o tasa de error > 5 %), no corrompe datos ni bloquea conexiones huérfanas, y se recupera automáticamente una vez cesa la sobrecarga. |
+| Entorno | Backend local en `http://localhost:8000` con PostgreSQL en Docker (`LLM_PROVIDER=rules`) |
+| Artefacto | Servidor de API FastAPI y motor de persistencia |
+| Respuesta | El servidor procesa la rampa de estrés, registra el umbral de ruptura sin caída irrecuperable ni corrupción, y restablece su operación nominal al cesar la sobrecarga |
+| Medida | Medidas PCa-1-G y RRe-1-G: Capacidad de procesamiento (RPS) y usuarios en el punto de quiebre (p95 > 2 s o errores > 5 %); tiempo de recuperación hasta responder `/health` en 200 en < 1 s inferior a 10 s tras finalizar la prueba; 0 conexiones huérfanas y 0 datos corruptos. |
+
+---
+
+### QA-19 · Calidad consolidada — Informe final de calidad del Sprint 2
+
+**Responsable:** Juan
+
+| Parte | Descripción |
+| --- | --- |
+| Fuente | Equipo de desarrollo y aseguramiento de calidad |
+| Estímulo | El equipo ejecuta la consolidación de atributos de calidad del Sprint 2; el informe final en specs/005-atributos-calidad/report.md integra las mediciones de QA-01 a QA-19 con evidencia enlazada, trazabilidad a los PR integrados y verificación cruzada contra los requisitos no funcionales del proyecto. |
+| Entorno | Repositorio de código y documentación del Sprint 2 |
+| Artefacto | Informe consolidado `specs/005-atributos-calidad/report.md` |
+| Respuesta | El informe sintetiza los resultados medidos, enlaces a evidencias reales, estado de cumplimiento de los 19 escenarios y lista de verificación de despliegue |
+| Medida | 100 % de las tareas QA-01 a QA-19 documentadas con sus métricas reales (o justificación si alguna no aplica), evidencias enlazadas y trazabilidad a PRs integrados en `main`. |
 
 ## Supuestos
 
