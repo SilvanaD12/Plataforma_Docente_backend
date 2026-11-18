@@ -308,6 +308,7 @@ Comandos (desde backend/):
 ```powershell
 .\.venv\Scripts\python.exe performance\jmeter\prepare_users.py --users 800 --workers 16
 & "$env:USERPROFILE\tools\apache-jmeter-5.6.3\bin\jmeter.bat" -n -t performance\jmeter\stress.jmx -Jhost=localhost -Jport=8000 -l performance\jmeter\results\run1.jtl -e -o performance\jmeter\results\run1-report
+python performance\jmeter\measure_recovery.py --url http://127.0.0.1:8000/health --duration 60 --out ..\docs\evidence\QA-18\run1-recovery.txt
 python performance\jmeter\summarize_jtl.py --jtl performance\jmeter\results\run1.jtl --out ..\docs\evidence\QA-18
 ```
 

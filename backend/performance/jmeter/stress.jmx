@@ -96,7 +96,7 @@ if (code != null &amp;&amp; (code.startsWith("5") || !sampleResult.isSuccessful(
 }
 def stats = props.get("STATS_" + tgName);
 if (stats == null) {
-    stats = [total: 0L, errors: 0L, p95exceeded: 0L];
+    stats = [total: 0L, errors: 0L, p95exceeded: 0L, start_time: sampleResult.getStartTime()];
     props.put("STATS_" + tgName, stats);
 }
 stats.total++;
@@ -105,10 +105,13 @@ if (isError) {
 }
 long p95LimitMs = ${__P(p95_limit_ms,5000)}L;
 double errLimitPct = ${__P(error_limit_pct,5)}.0;
+long minTierSec = ${__P(min_tier_seconds,30)}L;
+long minTierSamples = ${__P(min_tier_samples,300)}L;
 if (sampleResult.getTime() > p95LimitMs) {
     stats.p95exceeded++;
 }
-if (stats.total >= 40) {
+long elapsedSec = (sampleResult.getEndTime() - stats.start_time) / 1000L;
+if (stats.total >= minTierSamples &amp;&amp; elapsedSec >= minTierSec) {
     double errPct = (stats.errors * 100.0) / stats.total;
     double slowPct = (stats.p95exceeded * 100.0) / stats.total;
     if (errPct > errLimitPct || slowPct > errLimitPct) {
