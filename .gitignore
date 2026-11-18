@@ -46,3 +46,7 @@ backend/evaluation/results/
 
 # Entorno virtual raíz
 venv/
+
+# Pruebas de rendimiento y estrés (QA-18)
+backend/performance/jmeter/users.csv
+backend/performance/jmeter/results/

@@ -1,0 +1,81 @@
+# Docker stats muestreados cada 30 s durante Corrida 1 JMeter
+# Inicio: 2026-11-18 08:26:06
+
+--- Muestreo: 2026-11-18 08:26:06 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        0.00%     53.33MiB / 3.718GiB   1.40%     61.5MB / 58.8MB   0B / 116MB        11
+429f84612f41   chamilo-chamilo-1   0.01%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B     39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.02%     149MiB / 3.718GiB     3.91%     1.91kB / 126B     48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:26:39 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        38.62%    69.17MiB / 3.718GiB   1.82%     65.6MB / 64.9MB   0B / 117MB        17
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B     39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.01%     149MiB / 3.718GiB     3.91%     1.91kB / 126B     48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:27:12 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        22.36%    75.01MiB / 3.718GiB   1.97%     72.9MB / 71.4MB   0B / 119MB        19
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B     39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.02%     149MiB / 3.718GiB     3.91%     1.91kB / 126B     48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:27:44 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        14.22%    67.37MiB / 3.718GiB   1.77%     80MB / 77.7MB   0B / 127MB        13
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B   39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.01%     149MiB / 3.718GiB     3.91%     1.91kB / 126B   48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:28:17 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        34.64%    68.06MiB / 3.718GiB   1.79%     87.1MB / 83.9MB   0B / 141MB        12
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B     39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.01%     149MiB / 3.718GiB     3.91%     1.91kB / 126B     48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:28:49 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        42.99%    73.21MiB / 3.718GiB   1.92%     93.8MB / 90MB   0B / 153MB        14
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B   39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.02%     149MiB / 3.718GiB     3.91%     1.91kB / 126B   48.8MB / 4.1kB    10
+
+--- Muestreo: 2026-11-18 08:29:22 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O          BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        45.77%    80.95MiB / 3.718GiB   2.13%     101MB / 96.7MB   0B / 165MB        17
+429f84612f41   chamilo-chamilo-1   0.07%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B    39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.01%     149MiB / 3.718GiB     3.91%     1.91kB / 126B    48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:29:56 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        108.69%   73.48MiB / 3.718GiB   1.93%     108MB / 104MB   0B / 182MB        12
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B   39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.01%     149MiB / 3.718GiB     3.91%     1.91kB / 126B   48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:30:28 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        204.75%   87.31MiB / 3.718GiB   2.29%     113MB / 109MB   0B / 212MB        17
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B   39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.01%     149MiB / 3.718GiB     3.91%     1.91kB / 126B   48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:31:02 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        68.87%    89.23MiB / 3.718GiB   2.34%     118MB / 113MB   0B / 219MB        18
+429f84612f41   chamilo-chamilo-1   0.01%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B   39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.05%     149MiB / 3.718GiB     3.91%     1.91kB / 126B   48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:31:34 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        65.39%    82.81MiB / 3.718GiB   2.18%     125MB / 120MB   0B / 233MB        15
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B   39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.01%     149MiB / 3.718GiB     3.91%     1.91kB / 126B   48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:32:07 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        55.71%    82.82MiB / 3.718GiB   2.18%     132MB / 127MB   0B / 247MB        16
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B   39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.02%     149MiB / 3.718GiB     3.91%     1.91kB / 126B   48.8MB / 4.1kB    9
+
+--- Muestreo: 2026-11-18 08:32:39 ---
+CONTAINER ID   NAME                CPU %     MEM USAGE / LIMIT     MEM %     NET I/O         BLOCK I/O         PIDS
+bcc6538edee2   backend-db-1        27.35%    78.54MiB / 3.718GiB   2.06%     135MB / 130MB   0B / 255MB        12
+429f84612f41   chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   0.52%     1.95kB / 126B   39.8MB / 8.19kB   6
+d8b73c5a4cd6   chamilo-db-1        0.02%     149MiB / 3.718GiB     3.91%     1.91kB / 126B   48.8MB / 4.1kB    9
+
