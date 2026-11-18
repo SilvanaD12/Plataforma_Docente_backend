@@ -103,13 +103,15 @@ stats.total++;
 if (isError) {
     stats.errors++;
 }
-if (sampleResult.getTime() > 5000) {
+long p95LimitMs = ${__P(p95_limit_ms,5000)}L;
+double errLimitPct = ${__P(error_limit_pct,5)}.0;
+if (sampleResult.getTime() > p95LimitMs) {
     stats.p95exceeded++;
 }
 if (stats.total >= 40) {
     double errPct = (stats.errors * 100.0) / stats.total;
     double slowPct = (stats.p95exceeded * 100.0) / stats.total;
-    if (errPct > 5.0 || slowPct > 5.0) {
+    if (errPct > errLimitPct || slowPct > errLimitPct) {
         props.put("BREAKING_POINT_REACHED", "true");
         props.put("BREAKING_TIER", tgName);
     }
@@ -317,6 +319,14 @@ SampleResult.setIgnore();
             <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
           </HTTPSamplerProxy>
           <hashTree>
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Reset Request ID" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters"></stringProp>
+              <stringProp name="filename"></stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">vars.put(&quot;request_id&quot;, &quot;NONE&quot;);</stringProp>
+            </JSR223PreProcessor>
+            <hashTree/>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Accept 200, 202 and 429" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
@@ -338,7 +348,7 @@ SampleResult.setIgnore();
             <hashTree/>
           </hashTree>
           <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If Request Created" enabled="true">
-            <stringProp name="IfController.condition">&quot;${request_id}&quot; != &quot;NONE&quot; &amp;&amp; &quot;${request_id}&quot; != &quot;&quot;</stringProp>
+            <stringProp name="IfController.condition">${__groovy(vars.get(&quot;request_id&quot;) != null &amp;&amp; vars.get(&quot;request_id&quot;) != &quot;NONE&quot;)}</stringProp>
             <boolProp name="IfController.evaluateAll">false</boolProp>
             <boolProp name="IfController.useExpression">true</boolProp>
           </IfController>
@@ -559,6 +569,14 @@ SampleResult.setIgnore();
             <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
           </HTTPSamplerProxy>
           <hashTree>
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Reset Request ID" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters"></stringProp>
+              <stringProp name="filename"></stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">vars.put(&quot;request_id&quot;, &quot;NONE&quot;);</stringProp>
+            </JSR223PreProcessor>
+            <hashTree/>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Accept 200, 202 and 429" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
@@ -580,7 +598,7 @@ SampleResult.setIgnore();
             <hashTree/>
           </hashTree>
           <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If Request Created" enabled="true">
-            <stringProp name="IfController.condition">&quot;${request_id}&quot; != &quot;NONE&quot; &amp;&amp; &quot;${request_id}&quot; != &quot;&quot;</stringProp>
+            <stringProp name="IfController.condition">${__groovy(vars.get(&quot;request_id&quot;) != null &amp;&amp; vars.get(&quot;request_id&quot;) != &quot;NONE&quot;)}</stringProp>
             <boolProp name="IfController.evaluateAll">false</boolProp>
             <boolProp name="IfController.useExpression">true</boolProp>
           </IfController>
@@ -801,6 +819,14 @@ SampleResult.setIgnore();
             <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
           </HTTPSamplerProxy>
           <hashTree>
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Reset Request ID" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters"></stringProp>
+              <stringProp name="filename"></stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">vars.put(&quot;request_id&quot;, &quot;NONE&quot;);</stringProp>
+            </JSR223PreProcessor>
+            <hashTree/>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Accept 200, 202 and 429" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
@@ -822,7 +848,7 @@ SampleResult.setIgnore();
             <hashTree/>
           </hashTree>
           <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If Request Created" enabled="true">
-            <stringProp name="IfController.condition">&quot;${request_id}&quot; != &quot;NONE&quot; &amp;&amp; &quot;${request_id}&quot; != &quot;&quot;</stringProp>
+            <stringProp name="IfController.condition">${__groovy(vars.get(&quot;request_id&quot;) != null &amp;&amp; vars.get(&quot;request_id&quot;) != &quot;NONE&quot;)}</stringProp>
             <boolProp name="IfController.evaluateAll">false</boolProp>
             <boolProp name="IfController.useExpression">true</boolProp>
           </IfController>
@@ -1043,6 +1069,14 @@ SampleResult.setIgnore();
             <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
           </HTTPSamplerProxy>
           <hashTree>
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Reset Request ID" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters"></stringProp>
+              <stringProp name="filename"></stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">vars.put(&quot;request_id&quot;, &quot;NONE&quot;);</stringProp>
+            </JSR223PreProcessor>
+            <hashTree/>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Accept 200, 202 and 429" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
@@ -1064,7 +1098,7 @@ SampleResult.setIgnore();
             <hashTree/>
           </hashTree>
           <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If Request Created" enabled="true">
-            <stringProp name="IfController.condition">&quot;${request_id}&quot; != &quot;NONE&quot; &amp;&amp; &quot;${request_id}&quot; != &quot;&quot;</stringProp>
+            <stringProp name="IfController.condition">${__groovy(vars.get(&quot;request_id&quot;) != null &amp;&amp; vars.get(&quot;request_id&quot;) != &quot;NONE&quot;)}</stringProp>
             <boolProp name="IfController.evaluateAll">false</boolProp>
             <boolProp name="IfController.useExpression">true</boolProp>
           </IfController>
@@ -1285,6 +1319,14 @@ SampleResult.setIgnore();
             <boolProp name="HTTPSampler.DO_MULTIPART_POST">false</boolProp>
           </HTTPSamplerProxy>
           <hashTree>
+            <JSR223PreProcessor guiclass="TestBeanGUI" testclass="JSR223PreProcessor" testname="Reset Request ID" enabled="true">
+              <stringProp name="scriptLanguage">groovy</stringProp>
+              <stringProp name="parameters"></stringProp>
+              <stringProp name="filename"></stringProp>
+              <stringProp name="cacheKey">true</stringProp>
+              <stringProp name="script">vars.put(&quot;request_id&quot;, &quot;NONE&quot;);</stringProp>
+            </JSR223PreProcessor>
+            <hashTree/>
             <ResponseAssertion guiclass="AssertionGui" testclass="ResponseAssertion" testname="Accept 200, 202 and 429" enabled="true">
               <collectionProp name="Asserion.test_strings">
                 <stringProp name="49586">200</stringProp>
@@ -1306,7 +1348,7 @@ SampleResult.setIgnore();
             <hashTree/>
           </hashTree>
           <IfController guiclass="IfControllerPanel" testclass="IfController" testname="If Request Created" enabled="true">
-            <stringProp name="IfController.condition">&quot;${request_id}&quot; != &quot;NONE&quot; &amp;&amp; &quot;${request_id}&quot; != &quot;&quot;</stringProp>
+            <stringProp name="IfController.condition">${__groovy(vars.get(&quot;request_id&quot;) != null &amp;&amp; vars.get(&quot;request_id&quot;) != &quot;NONE&quot;)}</stringProp>
             <boolProp name="IfController.evaluateAll">false</boolProp>
             <boolProp name="IfController.useExpression">true</boolProp>
           </IfController>

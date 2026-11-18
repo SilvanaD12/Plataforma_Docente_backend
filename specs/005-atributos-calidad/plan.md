@@ -308,6 +308,7 @@ Comandos (desde backend/):
 ```powershell
 .\.venv\Scripts\python.exe performance\jmeter\prepare_users.py --users 800 --workers 16
 & "$env:USERPROFILE\tools\apache-jmeter-5.6.3\bin\jmeter.bat" -n -t performance\jmeter\stress.jmx -Jhost=localhost -Jport=8000 -l performance\jmeter\results\run1.jtl -e -o performance\jmeter\results\run1-report
+python performance\jmeter\summarize_jtl.py --jtl performance\jmeter\results\run1.jtl --out ..\docs\evidence\QA-18
 ```
 
 **Criterio de aceptación:** Punto de quiebre = primer escalón con errores (5xx, tiempos agotados o conexiones rechazadas) > 5 % o p95 > 5 s. PCa-1-G = peticiones por segundo del último escalón que cumple. RRe-1-G = segundos desde el fin de la carga hasta que `/health` responde 200 en menos de 1 s (meta: menos de 10 s). Dos corridas: antes y después de QA-16. Los 429 `TOO_MANY_ACTIVE_REQUESTS` son respuesta de negocio esperada y se cuentan aparte.

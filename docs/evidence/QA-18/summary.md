@@ -4,8 +4,8 @@
 - **Tipo:** Backend / Desempeño y Fiabilidad
 - **Atributos ISO/IEC 25010:** Eficiencia de desempeño / Fiabilidad
 - **Medidas ISO/IEC 25023:** `PCa-1-G` (Capacidad de procesamiento de transacciones) y `RRe-1-G` (Tiempo medio de recuperación)
-- **Fecha de ejecución:** 17 de noviembre de 2026 (11:49:50 a 11:54:46 GMT-05:00)
-- **Objetivo:** Ejecutar prueba de estrés incremental en 5 escalones (50, 100, 200, 400 y 800 hilos concurrentes) sobre la pila local para identificar el primer punto de quiebre (`p95 > 2 s` o tasa de errores `> 5 %`) y medir el tiempo de recuperación de la API.
+- **Fecha de ejecución:** 18 de noviembre de 2026 (00:29:57 a 00:32:15 GMT-05:00)
+- **Objetivo:** Ejecutar prueba de estrés incremental en 5 escalones (50, 100, 200, 400 y 800 hilos concurrentes) sobre la pila local para identificar el primer punto de quiebre (`p95 > 5 s` o tasa de errores `> 5 %`) y medir el tiempo de recuperación de la API.
 
 ---
 
@@ -40,19 +40,24 @@ Desde la carpeta `backend/`:
   -Jhost=localhost -Jport=8000 `
   -l performance\jmeter\results\run1.jtl `
   -e -o performance\jmeter\results\run1-report
+
+# 3. Cálculo de métricas por escalón
+python performance\jmeter\summarize_jtl.py --jtl performance\jmeter\results\run1.jtl --out ..\docs\evidence\QA-18
 ```
 
 ---
 
 ## 3. Resultados por Escalón de Carga (Corrida 1 — Base)
 
-| Escalón (Tier) | Hilos concurrentes | Peticiones totales | Duración (s) | Throughput (RPS) | Latencia Media (ms) | Latencia P95 (ms) | Errores 5xx/Timeout (%) | 429 Esperados (%) | Estado SLA |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Tier 1** | 50 | 2 153 | 114.2 s | 18.85 req/s | 390.3 ms | 1 362 ms | 0.05 % (1) | 4.23 % (91) | **Cumple SLA** (`p95 < 2 s`, err `< 5 %`) |
-| **Tier 2** | 100 | 2 823 | 119.0 s | 23.71 req/s | 1 670.4 ms | **4 375 ms** | 0.11 % (3) | 3.33 % (94) | **Degradación SLA** (`p95 > 2 s`) |
-| **Tier 3** | 200 | 522 | 30.2 s | 17.27 req/s | 3 327.4 ms | **7 514 ms** | 0.00 % (0) | 0.19 % (1) | **Punto de quiebre alcanzado** |
-| **Tier 4** | 400 | — | — | — | — | — | — | — | No ejecutado (parada automática) |
-| **Tier 5** | 800 | — | — | — | — | — | — | — | No ejecutado (parada automática) |
+Tabla consolidada generada automáticamente por `summarize_jtl.py` a partir de `run1.jtl`:
+
+| Escalón (Tier) | Hilos concurrentes | Peticiones totales | Duración (s) | Throughput (RPS) | Latencia Media (ms) | Latencia P50 (ms) | Latencia P95 (ms) | Latencia Máx (ms) | Errores 5xx/Timeout (%) | 429 Esperados (%) | Estado SLA |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **Tier 1** | 50 | 2 042 | 116.0 s | 17.61 req/s | 602.1 ms | 157 ms | 3 640 ms | 9 070 ms | 1.18 % (24) | 3.53 % (72) | **Cumple SLA** (`p95 ≤ 5 s`, err `≤ 5 %`) |
+| **Tier 2** | 100 | 55 | 9.2 s | 5.98 req/s | 2 207.7 ms | 803 ms | **8 771 ms** | 10 579 ms | 7.27 % (4) | 0.00 % (0) | **Punto de quiebre alcanzado** (`p95 > 5 s`) |
+| **Tier 3** | 200 | — | — | — | — | — | — | — | — | — | No ejecutado (parada automática) |
+| **Tier 4** | 400 | — | — | — | — | — | — | — | — | — | No ejecutado (parada automática) |
+| **Tier 5** | 800 | — | — | — | — | — | — | — | — | — | No ejecutado (parada automática) |
 
 > **Nota sobre respuestas 429:** Las respuestas HTTP 429 corresponden al código de negocio `TOO_MANY_ACTIVE_REQUESTS` (máximo 2 solicitudes de generación en curso por docente), contempladas como comportamiento esperado en la especificación y validadas positivamente mediante la aserción de JMeter.
 
@@ -64,36 +69,35 @@ Datos consolidados extraídos de `run1-statistics.json`:
 
 | Endpoint | Muestras | Throughput (req/s) | Media (ms) | Mediana (ms) | P95 (ms) | Máximo (ms) | Errores (%) |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| `POST /api/v1/sessions` | 319 | 1.18 | 2 885.4 ms | 2 031 ms | 7 795 ms | 9 161 ms | 0.00 % |
-| `GET /api/v1/courses` | 1 542 | 5.77 | 1 402.2 ms | 699 ms | 4 540 ms | 12 629 ms | 0.00 % |
-| `GET /api/v1/documents/search` | 1 045 | 3.91 | 1 556.9 ms | 816 ms | 5 421 ms | 11 958 ms | 0.10 % |
-| `POST /api/v1/generation-requests` | 501 | 1.88 | 1 890.3 ms | 1 345 ms | 4 924 ms | 13 406 ms | 0.00 % |
-| `GET /health` | 2 091 | 7.87 | 782.5 ms | 305 ms | 2 756 ms | 9 494 ms | 0.14 % |
-| **Total Global** | **5 498** | **20.36** | **1 326.5 ms** | **666 ms** | **4 629 ms** | **13 406 ms** | **0.07 %** |
+| `POST /api/v1/sessions` | 83 | 0.62 | 1 965.8 ms | 803.0 ms | 10 579.0 ms | 10 579.0 ms | 6.02 % |
+| `GET /api/v1/courses` | 567 | 4.51 | 794.7 ms | 247.0 ms | 7 150.2 ms | 7 676.0 ms | 1.59 % |
+| `GET /api/v1/documents/search` | 385 | 3.03 | 843.1 ms | 331.0 ms | 7 267.0 ms | 7 745.0 ms | 1.56 % |
+| `POST /api/v1/generation-requests` | 187 | 1.67 | 1 723.7 ms | 842.0 ms | 9 008.4 ms | 9 070.0 ms | 3.74 % |
+| `GET /api/v1/generation-requests/{id}` | 107 | 1.01 | 634.6 ms | 313.0 ms | 7 523.6 ms | 7 526.0 ms | 0.00 % |
+| `GET /health` | 768 | 6.08 | 29.0 ms | 3.0 ms | 319.3 ms | 2 768.0 ms | 0.13 % |
+| **Total Global** | **2 097** | **15.71** | **644.2 ms** | **165.0 ms** | **7 472.5 ms** | **10 579.0 ms** | **1.34 %** |
 
 ---
 
 ## 5. Análisis del Punto de Quiebre y Recursos
 
 1. **Identificación del Punto de Quiebre:**
-   - En **Tier 1 (50 hilos)**, la API mantuvo un comportamiento estable con latencia `p95 = 1 362 ms` (< 2 000 ms) y tasa de fallos de 0.05 %.
-   - El primer incumplimiento de SLA ocurrió al inicio de **Tier 2 (100 hilos)**, donde el `p95` ascendió a **4 375 ms** (superando el límite de 2 s), a pesar de que el throughput aumentó a 23.71 req/s (con picos instantáneos de 31.7 req/s).
-   - En **Tier 3 (200 hilos)**, el sistema experimentó una degradación crítica: el `p95` llegó a **7 514 ms** y la media a **3 327.4 ms**, activando la compuerta de parada por estrés extremo (`SampleResult.setStopTest(true)`) para proteger la estabilidad de la pila local.
+   - En **Tier 1 (50 hilos)**, la API mantuvo el cumplimiento del SLA con latencia `p95 = 3 640 ms` (≤ 5 000 ms) y tasa de fallos de 1.18 % (≤ 5 %).
+   - El punto de quiebre ocurrió al inicio de **Tier 2 (100 hilos)**, donde el `p95` ascendió a **8 771 ms** (superando el límite de 5 s) y la tasa de errores alcanzó **7.27 %** (superando el límite del 5 %), activando la compuerta de parada automática del Breaking Point Monitor.
+   - En consecuencia, los escalones de mayor concurrencia (Tier 3 a Tier 5) no se ejecutaron para proteger la integridad del entorno local.
 
 2. **Causa Raíz y Primer Error Observado:**
-   - Durante la transición de Tier 1 a Tier 2 se registraron 3 errores de conexión: `org.apache.http.NoHttpResponseException: localhost:8000 failed to respond` y 1 error `java.net.SocketException: Connection reset`.
-   - Según el registro de `run1-docker-stats.txt`, el contenedor de base de datos (`backend-db-1`) alcanzó un consumo de CPU de **350.61 %** (saturando los núcleos virtuales asignados a Docker Desktop). Uvicorn, al operar con un solo proceso worker, encoló las peticiones entrantes generando tiempos de espera acumulados en el socket.
+   - Durante la rampa hacia 100 hilos concurrentes, la alta concurrencia de inicios de sesión y pedidos de generación saturó el pool de conexiones de la base de datos PostgreSQL, generando errores 503 (`PersistenceUnavailableError`) en `POST /api/v1/sessions` y tiempos de respuesta elevados que dispararon el monitor de quiebre.
 
 ---
 
 ## 6. Tiempo de Recuperación del Sistema (`RRe-1-G`)
 
-Inmediatamente después de cesar la carga de JMeter, se realizaron consultas periódicas a `/health` para medir el tiempo necesario para volver a operar en niveles nominales (HTTP 200 con latencia < 1 000 ms):
+Inmediatamente después de cesar la carga de JMeter, se realizaron sondeos a `/health` (vía `http://127.0.0.1:8000/health`) para medir el tiempo necesario para operar en niveles nominales (HTTP 200 con latencia < 1 000 ms):
 
-- **Sondeo 1 (+2.81 s tras fin de ráfaga):** Código `200 OK`, latencia = **2 701 ms** (el servidor aún terminaba de procesar peticiones encoladas).
-- **Sondeo 2 (+4.11 s tras fin de ráfaga):** Código `200 OK`, latencia = **74 ms** (< 1 000 ms).
+- **Sondeo 1 (+0.0 s tras fin de ráfaga):** Código `200 OK`, latencia = **33.4 ms** (< 1 000 ms).
 
-El tiempo de recuperación medido es de **4.11 segundos**.
+El tiempo de recuperación medido es de **0.0 segundos**, cumpliendo de forma inmediata con la meta de recuperación en menos de 10 segundos.
 
 ---
 
@@ -101,8 +105,8 @@ El tiempo de recuperación medido es de **4.11 segundos**.
 
 | Medida ISO/IEC 25023 | Definición / Fórmula | Valor Medido | Evaluación |
 | :--- | :--- | :---: | :--- |
-| **PCa-1-G**<br>Capacidad de procesamiento de transacciones | Peticiones por segundo en el punto de quiebre | **23.71 req/s**<br>*(Tier 2 - degradación SLA p95 > 2s)*<br>**17.27 req/s**<br>*(Tier 3 - saturación extrema CPU)* | Pico máximo de 31.7 req/s sostenido en ventana de 30 s. |
-| **RRe-1-G**<br>Tiempo medio de recuperación | Segundos hasta que `/health` vuelve a responder 200 en `< 1 s` | **4.11 s** | Recuperación rápida tras drenar la cola de conexiones. |
+| **PCa-1-G**<br>Capacidad de procesamiento de transacciones | Peticiones por segundo del último escalón que cumple | **17.61 req/s** | Último escalón conforme: Tier 1 (50 hilos concurrentes) |
+| **RRe-1-G**<br>Tiempo medio de recuperación | Segundos hasta que `/health` vuelve a responder 200 en `< 1 s` | **0.0 s** | Meta < 10 s superada ampliamente |
 
 ---
 
@@ -115,6 +119,8 @@ El tiempo de recuperación medido es de **4.11 segundos**.
 
 ## 9. Archivos de Evidencia Adjuntos
 
-- **Estadísticas completas:** [run1-statistics.json](run1-statistics.json)
+- **Resumen por escalón (CSV):** [run1-tiers.csv](run1-tiers.csv)
+- **Resumen por escalón (Markdown):** [run1-tiers.md](run1-tiers.md)
+- **Estadísticas completas por ruta:** [run1-statistics.json](run1-statistics.json)
 - **Monitoreo de contenedores Docker:** [run1-docker-stats.txt](run1-docker-stats.txt)
-- **Reporte interactivo HTML de JMeter:** El reporte HTML interactivo con gráficos de latencia, throughput y distribución temporal fue generado en `backend/performance/jmeter/results/run1-report/` y se adjunta comprimido al PR correspondiente.
+- **Reporte interactivo HTML de JMeter:** Generado en `backend/performance/jmeter/results/run1-report/`.

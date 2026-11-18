@@ -1,0 +1,6 @@
+tier,threads,samples,duration_s,rps,mean_ms,p50_ms,p95_ms,max_ms,error_pct,error_count,expected_429_pct,expected_429_count,sla_status
+Tier 1,50,2042,115.96,17.61,602.06,157.00,3640.00,9070.00,1.18,24,3.53,72,"Cumple SLA (p95 ≤ 5 s, err ≤ 5 %)"
+Tier 2,100,55,9.20,5.98,2207.75,803.00,8771.00,10579.00,7.27,4,0.00,0,Punto de quiebre alcanzado (p95 > 5 s)
+Tier 3,200,0,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0,0.00,0,No ejecutado (parada automática)
+Tier 4,400,0,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0,0.00,0,No ejecutado (parada automática)
+Tier 5,800,0,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0,0.00,0,No ejecutado (parada automática)
