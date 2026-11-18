@@ -194,127 +194,133 @@ docker compose stop                       # o «docker compose down -v» para bo
 
 ---
 
-### QA-12 · Dominio propio con HTTPS y redirección
+### QA-12 · Dominio propio con HTTPS
 
-**Responsable:** Juan (backend), Yan (frontend) · **Tipo:** Infraestructura / Backend y Frontend · **Atributo:** Seguridad y compatibilidad
+**Responsable:** Juan (backend), Yan (frontend) · **Tipo:** Infraestructura · **Atributo:** Portabilidad y seguridad
 
-**Enfoque:** Configuración de registros DNS (CNAME / ALIAS / A) para el dominio propio del proyecto. En backend (Render), enlazar el dominio personalizado y activar TLS automático mediante Let's Encrypt, forzando la redirección de todo el tráfico HTTP a HTTPS con código de estado permanente (301/308). En frontend (Vercel), vincular el dominio personalizado con certificado SSL de Vercel y asegurar que las llamadas a la API apunten a la URL segura sin advertencias de contenido mixto (`mixed content`).
+**Enfoque:** Registrar el dominio en Name.com (GitHub Student Developer Pack; alternativa: .TECH); en Render, dominio personalizado `api.<dominio>` con su CNAME; en Vercel, `<dominio>` y `www.<dominio>`; variables `CORS_ALLOWED_ORIGINS=https://<dominio>,https://www.<dominio>` y `LLM_TIMEOUT_SECONDS=60` en Render, `VITE_API_URL=https://api.<dominio>` en Vercel; actualizar `README` y guía de despliegue.
 
-**Criterio de aceptación:** Frontend y API accesibles bajo HTTPS seguro con certificado TLS válido; redirección permanente obligatoria desde HTTP; 0 advertencias de contenido mixto en consola.
-
----
-
-### QA-13 · Reglas de protección de ramas main
-
-**Responsable:** Silvana · **Tipo:** Configuración de repositorio / CI · **Atributo:** Seguridad y fiabilidad
-
-**Enfoque:** Establecer reglas de protección de rama (`Branch protection rules` / rulesets) sobre la rama `main` en los repositorios de GitHub de backend y frontend:
-- Exigir pull request para incorporar cambios (`Require a pull request before merging`).
-- Exigir al menos 1 revisión aprobada de un par (`Require approvals: 1`).
-- Exigir que todos los flujos de CI pasen satisfactoriamente (`Require status checks to pass before merging`: pruebas unitarias, linting y cobertura).
-- Bloquear commits directos y rechazar `force push` o eliminación de `main`.
-
-**Criterio de aceptación:** 0 commits directos en `main`; fusiones bloqueadas si el PR carece de aprobación o si algún flujo de CI falla.
-
----
-
-### QA-14 · Auditoría de accesibilidad y LCP con Lighthouse
-
-**Responsable:** Silvana · **Tipo:** Frontend · **Atributo:** Usabilidad y eficiencia de desempeño (ISO/IEC 25023: UAc-1-G, PTb-1-G)
-
-**Enfoque:** Ejecutar auditorías automatizadas con Lighthouse CI (`lhci`) sobre las tres vistas fundamentales del frontend: inicio de sesión, asistente de generación y visor de recursos. Se evalúan el puntaje de accesibilidad y la métrica de Largest Contentful Paint (LCP) simulando perfiles móvil y de escritorio.
-
-Comandos de ejemplo:
+Comandos de verificación:
 ```bash
-lhci autorun
-# o mediante npx:
-npx @lhci/cli autorun --collect.url="http://localhost:5173/" --assert.assertions.categories:accessibility="error:>=0.9"
+curl -I http://api.<dominio>/health      # 301 o 308 hacia https
+curl -i https://api.<dominio>/health     # 200
+grep -rn "vercel.app" .                  # sin resultados en ambos repositorios
 ```
 
-**Criterio de aceptación:** Puntaje de accesibilidad ≥ 90/100 y LCP ≤ 2,5 s en las tres vistas auditadas (móvil y escritorio).
+**Criterio de aceptación:** Certificado válido en ambos; `GET https://api.<dominio>/health` responde 200; redirección permanente (301 o 308) de HTTP a HTTPS; 0 advertencias de contenido mixto en la consola; la dirección `.vercel.app` ya no aparece en los repositorios; `LLM_TIMEOUT_SECONDS=60` en Render.
 
 ---
 
-### QA-15 · Pruebas de inyección SQL con sqlmap, bandit y semgrep
+### QA-13 · Limpieza de ramas y borrado automático
 
-**Responsable:** Sergio · **Tipo:** Backend · **Atributo:** Seguridad (ISO/IEC 25023: SCo-1-G, SIn-2-G)
+**Responsable:** Silvana · **Tipo:** Repositorio · **Atributo:** Mantenibilidad
 
-**Enfoque:** Análisis dinámico y estático de vulnerabilidades de inyección SQL sobre la API FastAPI y la persistencia en SQLAlchemy. Se ejecuta `sqlmap` contra los puntos finales de la API local evaluando parámetros de ruta, cuerpo y consulta, combinado con análisis estático mediante `bandit` y `semgrep` para descartar sentencias dinámicas sin parametrizar.
+**Enfoque:** Cerrar sin fusionar el PR #39 (backend); el PR #19 (frontend) queda cerrado, con sus cambios incorporados en `main` mediante el PR #20; borrar las ramas remotas ya integradas en `main`; activar «Automatically delete head branches» en Settings → General de ambos repositorios.
 
-Comandos de ejemplo:
+Comandos:
 ```bash
-# Pruebas dinámicas contra la API local:
-sqlmap -u "http://localhost:8000/api/v1/generation-requests" --batch
-# Análisis estático de código:
-bandit -r backend/src
-semgrep scan --config auto backend/src
+git fetch origin --prune
+git branch -r --merged origin/main
+git branch -r --no-merged origin/main
+git push origin --delete <rama>
+git fetch origin --prune
+git branch -r
 ```
 
-**Criterio de aceptación:** Medidas SCo-1-G y SIn-2-G: $X = 1 - A/B = 1,0$ (0 rutas vulnerables a inyección SQL entre todas las probadas); 0 advertencias de severidad alta o media en bandit y semgrep.
+Evidencia: `docs/evidence/QA-13/` (rama `docs/qa-13-branch-cleanup`).
+
+**Criterio de aceptación:** 0 ramas remotas ya integradas en `main`, sin contar `main` ni la referencia simbólica `origin/HEAD` (comprobado con `git branch -r --merged origin/main`); «Automatically delete head branches» activado en ambos repositorios; PR #39 del backend cerrado sin fusionar; PR #19 del frontend cerrado, con sus cambios incorporados en `main` mediante el PR #20.
 
 ---
 
-### QA-16 · Límite de tasa por IP y tamaño de carga útil
+### QA-14 · Lighthouse
 
-**Responsable:** Sergio · **Tipo:** Backend · **Atributo:** Fiabilidad (ISO/IEC 25023: RAv-1-G, RFt-1-G)
+**Responsable:** Silvana · **Tipo:** Frontend · **Atributo:** Usabilidad y eficiencia de desempeño (UAc-1-G, PTb-1-G)
 
-**Enfoque:** Implementación y validación de middleware de límite de tasa (rate limiting) por dirección IP de cliente y validación de proxy confiable (`TRUSTED_PROXIES`), junto con restricción del tamaño máximo de carga útil para prevenir denegación de servicio. Se dispara una ráfaga de peticiones continuas comprobando la respuesta 429 Too Many Requests con la cabecera `Retry-After`, al tiempo que el endpoint `/health` se mantiene operativo respondiendo 200 sin reinicio del proceso.
+**Enfoque:** `@lhci/cli` como dependencia de desarrollo; `lighthouserc.json` con `collect.startServerCommand: "npm run preview"` y las URL `http://localhost:4173/login` y `http://localhost:4173/registro`, 3 corridas, perfil de escritorio; aserciones `categories:performance` ≥ 0,90, `categories:accessibility` ≥ 0,95, `categories:best-practices` ≥ 0,90 y `categories:seo` ≥ 0,90 con nivel error; paso en `frontend-ci.yml` después de `npm run build`. En producción, Lighthouse de Chrome en `/login`, `/courses`, una unidad y `/downloads`, escritorio y móvil, antes y después de las correcciones.
 
-Comando de ejemplo:
+Comandos:
 ```bash
-# Simulación de ráfaga con curl / locust y verificación de /health:
-curl -i http://localhost:8000/api/v1/courses # hasta obtener Retry-After o código 429
+npm run build
+npx lhci autorun
 ```
 
-**Criterio de aceptación:** Código 429 con cabecera `Retry-After` al superar el umbral por minuto; medida RAv-1-G / RFt-1-G: $X = A/B = 1,0$ (100 % de respuestas 200 en `/health` durante la ráfaga de saturación).
+**Criterio de aceptación:** Escritorio: Rendimiento ≥ 90, Accesibilidad ≥ 95, Buenas prácticas ≥ 90 y SEO ≥ 90. Móvil: Rendimiento ≥ 80. Se registran también LCP y TBT por pantalla (UAc-1-G = puntaje de accesibilidad; PTb-1-G = LCP medio).
 
 ---
 
-### QA-17 · Prueba de carga con Locust (20 docentes)
+### QA-15 · Inyección SQL
 
-**Responsable:** Yan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño (ISO/IEC 25023: PTb-1-G, PTb-5-G, PCa-2-G)
+**Responsable:** Sergio · **Tipo:** Backend · **Atributo:** Seguridad (SCo-1-G, SIn-2-G)
 
-**Enfoque:** Simulación de carga sostenida durante 5 minutos con 20 docentes concurrentes interactuando con la API mediante Locust en modo headless. Se ejecuta en entorno local contra PostgreSQL (`LLM_PROVIDER=rules`) midiendo tiempos de respuesta de lectura, estabilidad del rendimiento y tasa de errores.
+**Enfoque:** `sqlmap` contra la pila local en las rutas de la tabla de `spec.md`, con token de un docente de prueba; Bandit y Semgrep en `backend-ci.yml` (fallan con hallazgos altos); pruebas e2e en `backend/tests/e2e/test_sql_injection.py`.
 
-Comando de ejemplo:
+Comandos:
 ```bash
-locust -f tests/load/locustfile.py --headless -u 20 -r 2 -t 5m --host http://localhost:8000
+sqlmap -u "http://localhost:8000/api/v1/documents/search?query=redes&unitId=<id>" --headers="Authorization: Bearer <token>" --level=3 --risk=2 --batch --output-dir=docs/evidence/QA-15/sqlmap
+sqlmap -r docs/evidence/QA-15/sessions-request.txt --level=3 --risk=2 --batch   # POST /api/v1/sessions con cuerpo JSON
+bandit -r backend/src -ll
+semgrep scan --config p/python backend/src
 ```
 
-**Criterio de aceptación:** Tiempo de respuesta p95 de endpoints de lectura ≤ 1,0 s; tasa de fallos < 1 %; peticiones por segundo sostenidas sin degradación ni fugas de memoria.
+**Criterio de aceptación:** X = 1 − A/B = 1 (A = rutas con inyección confirmada por sqlmap, B = rutas probadas); 0 hallazgos altos de Bandit y Semgrep (los medios se informan); pruebas e2e con cargas de inyección en verde.
 
 ---
 
-### QA-18 · Prueba de estrés con JMeter y punto de quiebre
+### QA-16 · Protección contra denegación de servicio
 
-**Responsable:** Juan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño y fiabilidad (ISO/IEC 25023: PCa-1-G, RRe-1-G)
+**Responsable:** Sergio · **Tipo:** Backend · **Atributo:** Fiabilidad (RAv-1-G, RFt-1-G)
 
-**Enfoque:** Prueba de estrés incremental (50, 100, 200, 400 y 800 hilos concurrentes en escalones de 2 min con 30 s de rampa) en Apache JMeter sobre el backend local (`http://localhost:8000`, `LLM_PROVIDER=rules`, PostgreSQL local) para someter el servicio a sobrecarga hasta encontrar el primer punto de quiebre (`p95 > 2 s` o errores `> 5 %`). Peticiones distribuidas mediante Throughput Controller (40 % health, 30 % cursos, 20 % búsqueda de evidencia, 10 % creación de pedidos). Respuestas 429 con `TOO_MANY_ACTIVE_REQUESTS` se consideran comportamiento de negocio esperado. La prueba se detiene apenas un escalón quiebra. Medir tiempo de recuperación de `/health` a 200 en `< 1 s`. Se ejecuta antes y después de aplicar el límite de tasa de QA-16 para contrastar saturación y mitigación.
+**Enfoque:** Límite por IP con la misma idea de `LoginRateLimiter` y `TRUSTED_PROXIES` en las rutas costosas de `spec.md`, configurable por variables de entorno; middleware que rechaza con 413 si `Content-Length` supera 25 MB en `POST /api/v1/documents` y 1 MB en las rutas JSON, antes de leer el cuerpo; pruebas e2e del 429 y del 413; OpenAPI regenerado; ráfaga con el locustfile de QA-17.
 
-Comando exacto de ejecución en local (PowerShell):
+Comandos:
+```bash
+pytest tests/e2e -k "rate_limit or payload_size"
+locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 --headless -u 200 -r 50 -t 2m --html docs/evidence/QA-16/burst.html
+```
+
+**Criterio de aceptación:** 429 con `Retry-After` en ráfagas (límite configurable por variable de entorno); 413 cuando `Content-Length` supera 25 MB en la subida de archivos y 1 MB en las rutas JSON; pruebas e2e del 429 y del 413 en verde; durante una ráfaga de 200 usuarios por 2 minutos con el locustfile de QA-17, disponibilidad X = A/B = 1 (A = respuestas 200 de `/health`, B = consultas a `/health`) y el proceso no se reinicia.
+
+---
+
+### QA-17 · Concurrencia y capacidad con Locust
+
+**Responsable:** Yan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño (PTb-1-G, PTb-5-G, PCa-2-G)
+
+**Enfoque:** Cada usuario virtual crea su cuenta, inicia sesión, lista cursos, busca evidencia, crea pedidos y consulta su estado (máximo 2 activos por docente; el 429 de negocio se cuenta aparte); escalones de 10, 25, 50 y 100 usuarios, 3 minutos cada uno; `docker stats --no-stream` cada 30 s.
+
+Comando (por escalón):
+```bash
+locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 --headless -u <usuarios> -r 5 -t 3m --html docs/evidence/QA-17/<usuarios>u.html --csv docs/evidence/QA-17/<usuarios>u
+```
+
+**Criterio de aceptación:** Por escalón (3 minutos cada uno): p50, p95, peticiones por segundo y % de errores. Capacidad (PCa-2-G) = mayor número de usuarios con p95 < 1 s y errores < 1 %.
+
+---
+
+### QA-18 · Punto de quiebre con JMeter
+
+**Responsable:** Juan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño y fiabilidad (PCa-1-G, RRe-1-G)
+
+**Enfoque:** Escalones de 50, 100, 200, 400 y 800 hilos, 2 minutos cada uno con rampa de 30 s; mezcla 40 % `/health`, 30 % cursos, 20 % búsqueda, 10 % creación de pedidos con consulta de su estado; parada automática cuando un escalón tiene errores > 5 % o más del 5 % de muestras sobre 5 s (p95 > 5 s); medición de recuperación de `/health`; corrida 1 sin QA-16 y corrida 2 con QA-16.
+
+Comandos (desde backend/):
 ```powershell
-# 1. Preparación de cuentas y material procesado
 .\.venv\Scripts\python.exe performance\jmeter\prepare_users.py --users 800 --workers 16
-
-# 2. Ejecución no interactiva de JMeter con reporte HTML
-& "$env:USERPROFILE\tools\apache-jmeter-5.6.3\bin\jmeter.bat" -n `
-  -t performance\jmeter\stress.jmx `
-  -Jhost=localhost -Jport=8000 `
-  -l performance\jmeter\results\run1.jtl `
-  -e -o performance\jmeter\results\run1-report
+& "$env:USERPROFILE\tools\apache-jmeter-5.6.3\bin\jmeter.bat" -n -t performance\jmeter\stress.jmx -Jhost=localhost -Jport=8000 -l performance\jmeter\results\run1.jtl -e -o performance\jmeter\results\run1-report
 ```
 
-**Criterio de aceptación:** Identificación del punto de quiebre (RPS y concurrencia máxima sostenible); tiempo de recuperación hasta que `/health` responde 200 en `< 1 s` inferior a 10 s tras cesar la carga; 0 conexiones huérfanas y 0 datos corruptos.
+**Criterio de aceptación:** Punto de quiebre = primer escalón con errores (5xx, tiempos agotados o conexiones rechazadas) > 5 % o p95 > 5 s. PCa-1-G = peticiones por segundo del último escalón que cumple. RRe-1-G = segundos desde el fin de la carga hasta que `/health` responde 200 en menos de 1 s (meta: menos de 10 s). Dos corridas: antes y después de QA-16. Los 429 `TOO_MANY_ACTIVE_REQUESTS` son respuesta de negocio esperada y se cuentan aparte.
 
 ---
 
-### QA-19 · Consolidación del informe final del Sprint 2
+### QA-19 · Informe final con ISO/IEC 25023
 
 **Responsable:** Juan · **Tipo:** Documentación · **Atributo:** Calidad consolidada
 
-**Enfoque:** Consolidar en `specs/005-atributos-calidad/report.md` la matriz completa de evaluación de calidad de las tareas QA-01 a QA-19. Se recopilan las métricas reales y verificadas de cada tarea, evidencias enlazadas en `docs/evidence/<ID>/`, trazabilidad con los PRs fusionados en `main`, análisis de cumplimiento de requisitos no funcionales y la lista de verificación final para el despliegue.
+**Enfoque:** Tabla consolidada QA-01 a QA-19 en `report.md` y tabla de medidas ISO/IEC 25023 (tarea, característica, medida, fórmula, valor medido, meta, ¿cumple?, evidencia), solo con valores de `docs/evidence/` o de los PR integrados.
 
-**Criterio de aceptación:** Informe `report.md` completamente actualizado y consistente con las mediciones reales del repositorio y las aprobaciones del equipo.
+**Criterio de aceptación:** QA-01 a QA-19 en la tabla consolidada; solo valores presentes en `docs/evidence/` o en los PR integrados; lo no medido queda como «pendiente» con su motivo.
 
 ## Dependencias entre tareas
 
@@ -323,7 +329,7 @@ flowchart LR
     QA01["QA-01 Spec"]
     QA02["QA-02 /health/dependencies"]
     QA03["QA-03 Moodle XML"]
-    QA04["QA-04 Informe preliminar"]
+    QA04["QA-04 Informe QA-01 a QA-11"]
     QA05["QA-05 C-06 Ragas"]
     QA06["QA-06 Tiempos"]
     QA07["QA-07 pgvector"]
@@ -332,10 +338,10 @@ flowchart LR
     QA10["QA-10 Bundle"]
     QA11["QA-11 Audio"]
     QA12["QA-12 Dominio propio"]
-    QA13["QA-13 Protección ramas"]
+    QA13["QA-13 Limpieza de ramas"]
     QA14["QA-14 Lighthouse"]
     QA15["QA-15 Inyección SQL"]
-    QA16["QA-16 Límite de tasa"]
+    QA16["QA-16 Límite por IP y 413"]
     QA17["QA-17 Carga Locust"]
     QA18["QA-18 Estrés JMeter"]
     QA19["QA-19 Informe final"]
@@ -358,16 +364,16 @@ flowchart LR
     QA01 --> QA17
     QA01 --> QA18
     QA16 -. "comparación" .-> QA18
-    QA02 --> QA19
-    QA03 --> QA19
+    QA02 --> QA04
+    QA03 --> QA04
+    QA05 --> QA04
+    QA06 --> QA04
+    QA07 --> QA04
+    QA08 --> QA04
+    QA09 --> QA04
+    QA10 --> QA04
+    QA11 --> QA04
     QA04 --> QA19
-    QA05 --> QA19
-    QA06 --> QA19
-    QA07 --> QA19
-    QA08 --> QA19
-    QA09 --> QA19
-    QA10 --> QA19
-    QA11 --> QA19
     QA12 --> QA19
     QA13 --> QA19
     QA14 --> QA19
@@ -379,6 +385,7 @@ flowchart LR
 
 - **QA-01** es el punto de partida: define los escenarios y las tareas.
 - **QA-02** la validan Yan y Sergio (comportamiento con dependencia caída).
+- **QA-04** va después de QA-02 a QA-11 y es la base de QA-19.
 - **QA-07** depende del PR #40 de Yan (corpus de T067 y resultados de Ragas de T068).
 - **QA-11** es opcional y solo se hace si las tareas 1 a 4 están integradas.
 - **QA-14** en producción depende de **QA-12** (dominio propio con HTTPS).
