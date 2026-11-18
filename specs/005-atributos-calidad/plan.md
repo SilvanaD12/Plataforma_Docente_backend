@@ -198,7 +198,7 @@ docker compose stop                       # o «docker compose down -v» para bo
 
 **Responsable:** Juan (backend), Yan (frontend) · **Tipo:** Infraestructura · **Atributo:** Portabilidad y seguridad
 
-**Enfoque:** Registrar el dominio en Name.com (GitHub Student Developer Pack; alternativa: .TECH); en Render, dominio personalizado api.<dominio> con su CNAME; en Vercel, <dominio> y www.<dominio>; variables CORS_ALLOWED_ORIGINS=https://<dominio>,https://www.<dominio> y LLM_TIMEOUT_SECONDS=60 en Render, VITE_API_URL=https://api.<dominio> en Vercel; actualizar README y guía de despliegue.
+**Enfoque:** Registrar el dominio en Name.com (GitHub Student Developer Pack; alternativa: .TECH); en Render, dominio personalizado `api.<dominio>` con su CNAME; en Vercel, `<dominio>` y `www.<dominio>`; variables `CORS_ALLOWED_ORIGINS=https://<dominio>,https://www.<dominio>` y `LLM_TIMEOUT_SECONDS=60` en Render, `VITE_API_URL=https://api.<dominio>` en Vercel; actualizar `README` y guía de despliegue.
 
 Comandos de verificación:
 ```bash
@@ -207,7 +207,7 @@ curl -i https://api.<dominio>/health     # 200
 grep -rn "vercel.app" .                  # sin resultados en ambos repositorios
 ```
 
-**Criterio de aceptación:** Certificado válido en ambos; GET https://api.<dominio>/health responde 200; redirección permanente (301 o 308) de HTTP a HTTPS; 0 advertencias de contenido mixto en la consola; la dirección .vercel.app ya no aparece en los repositorios; LLM_TIMEOUT_SECONDS=60 en Render.
+**Criterio de aceptación:** Certificado válido en ambos; `GET https://api.<dominio>/health` responde 200; redirección permanente (301 o 308) de HTTP a HTTPS; 0 advertencias de contenido mixto en la consola; la dirección `.vercel.app` ya no aparece en los repositorios; `LLM_TIMEOUT_SECONDS=60` en Render.
 
 ---
 
@@ -215,7 +215,7 @@ grep -rn "vercel.app" .                  # sin resultados en ambos repositorios
 
 **Responsable:** Silvana · **Tipo:** Repositorio · **Atributo:** Mantenibilidad
 
-**Enfoque:** Cerrar sin fusionar el PR #39 (backend) y el PR #19 (frontend); borrar las ramas remotas ya integradas en main; activar «Automatically delete head branches» en Settings → General de ambos repositorios.
+**Enfoque:** Cerrar sin fusionar el PR #39 (backend); el PR #19 (frontend) queda cerrado, con sus cambios incorporados en `main` mediante el PR #20; borrar las ramas remotas ya integradas en `main`; activar «Automatically delete head branches» en Settings → General de ambos repositorios.
 
 Comandos:
 ```bash
@@ -227,9 +227,9 @@ git fetch origin --prune
 git branch -r
 ```
 
-Evidencia: docs/evidence/QA-13/ (rama docs/qa-13-branch-cleanup).
+Evidencia: `docs/evidence/QA-13/` (rama `docs/qa-13-branch-cleanup`).
 
-**Criterio de aceptación:** 0 ramas remotas ya integradas en main (comprobado con git branch -r --merged origin/main); «Automatically delete head branches» activado en ambos repositorios; PR #39 del backend y PR #19 del frontend cerrados sin fusionar.
+**Criterio de aceptación:** 0 ramas remotas ya integradas en `main`, sin contar `main` ni la referencia simbólica `origin/HEAD` (comprobado con `git branch -r --merged origin/main`); «Automatically delete head branches» activado en ambos repositorios; PR #39 del backend cerrado sin fusionar; PR #19 del frontend cerrado, con sus cambios incorporados en `main` mediante el PR #20.
 
 ---
 
@@ -237,7 +237,7 @@ Evidencia: docs/evidence/QA-13/ (rama docs/qa-13-branch-cleanup).
 
 **Responsable:** Silvana · **Tipo:** Frontend · **Atributo:** Usabilidad y eficiencia de desempeño (UAc-1-G, PTb-1-G)
 
-**Enfoque:** @lhci/cli como dependencia de desarrollo; lighthouserc.json con collect.startServerCommand: "npm run preview" y las URL http://localhost:4173/login y http://localhost:4173/registro, 3 corridas, perfil de escritorio; aserciones categories:performance ≥ 0,90, categories:accessibility ≥ 0,95, categories:best-practices ≥ 0,90 y categories:seo ≥ 0,90 con nivel error; paso en frontend-ci.yml después de npm run build. En producción, Lighthouse de Chrome en /login, /courses, una unidad y /downloads, escritorio y móvil, antes y después de las correcciones.
+**Enfoque:** `@lhci/cli` como dependencia de desarrollo; `lighthouserc.json` con `collect.startServerCommand: "npm run preview"` y las URL `http://localhost:4173/login` y `http://localhost:4173/registro`, 3 corridas, perfil de escritorio; aserciones `categories:performance` ≥ 0,90, `categories:accessibility` ≥ 0,95, `categories:best-practices` ≥ 0,90 y `categories:seo` ≥ 0,90 con nivel error; paso en `frontend-ci.yml` después de `npm run build`. En producción, Lighthouse de Chrome en `/login`, `/courses`, una unidad y `/downloads`, escritorio y móvil, antes y después de las correcciones.
 
 Comandos:
 ```bash
@@ -253,7 +253,7 @@ npx lhci autorun
 
 **Responsable:** Sergio · **Tipo:** Backend · **Atributo:** Seguridad (SCo-1-G, SIn-2-G)
 
-**Enfoque:** sqlmap contra la pila local en las rutas de la tabla de spec.md, con token de un docente de prueba; Bandit y Semgrep en backend-ci.yml (fallan con hallazgos altos); pruebas e2e en backend/tests/e2e/test_sql_injection.py.
+**Enfoque:** `sqlmap` contra la pila local en las rutas de la tabla de `spec.md`, con token de un docente de prueba; Bandit y Semgrep en `backend-ci.yml` (fallan con hallazgos altos); pruebas e2e en `backend/tests/e2e/test_sql_injection.py`.
 
 Comandos:
 ```bash
@@ -271,7 +271,7 @@ semgrep scan --config p/python backend/src
 
 **Responsable:** Sergio · **Tipo:** Backend · **Atributo:** Fiabilidad (RAv-1-G, RFt-1-G)
 
-**Enfoque:** Límite por IP con la misma idea de LoginRateLimiter y TRUSTED_PROXIES en las rutas costosas de spec.md, configurable por variables de entorno; middleware que rechaza con 413 si Content-Length supera 25 MB en POST /api/v1/documents y 1 MB en las rutas JSON, antes de leer el cuerpo; pruebas e2e del 429 y del 413; OpenAPI regenerado; ráfaga con el locustfile de QA-17.
+**Enfoque:** Límite por IP con la misma idea de `LoginRateLimiter` y `TRUSTED_PROXIES` en las rutas costosas de `spec.md`, configurable por variables de entorno; middleware que rechaza con 413 si `Content-Length` supera 25 MB en `POST /api/v1/documents` y 1 MB en las rutas JSON, antes de leer el cuerpo; pruebas e2e del 429 y del 413; OpenAPI regenerado; ráfaga con el locustfile de QA-17.
 
 Comandos:
 ```bash
@@ -279,7 +279,7 @@ pytest tests/e2e -k "rate_limit or payload_size"
 locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 --headless -u 200 -r 50 -t 2m --html docs/evidence/QA-16/burst.html
 ```
 
-**Criterio de aceptación:** 429 con Retry-After en ráfagas (límite configurable por variable de entorno); 413 cuando Content-Length supera 25 MB en la subida de archivos y 1 MB en las rutas JSON; pruebas e2e del 429 y del 413 en verde; durante una ráfaga de 200 usuarios por 2 minutos con el locustfile de QA-17, disponibilidad X = A/B = 1 (A = respuestas 200 de /health, B = consultas a /health) y el proceso no se reinicia.
+**Criterio de aceptación:** 429 con `Retry-After` en ráfagas (límite configurable por variable de entorno); 413 cuando `Content-Length` supera 25 MB en la subida de archivos y 1 MB en las rutas JSON; pruebas e2e del 429 y del 413 en verde; durante una ráfaga de 200 usuarios por 2 minutos con el locustfile de QA-17, disponibilidad X = A/B = 1 (A = respuestas 200 de `/health`, B = consultas a `/health`) y el proceso no se reinicia.
 
 ---
 
@@ -287,7 +287,7 @@ locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 
 
 **Responsable:** Yan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño (PTb-1-G, PTb-5-G, PCa-2-G)
 
-**Enfoque:** Cada usuario virtual crea su cuenta, inicia sesión, lista cursos, busca evidencia, crea pedidos y consulta su estado (máximo 2 activos por docente; el 429 de negocio se cuenta aparte); escalones de 10, 25, 50 y 100 usuarios, 3 minutos cada uno; docker stats --no-stream cada 30 s.
+**Enfoque:** Cada usuario virtual crea su cuenta, inicia sesión, lista cursos, busca evidencia, crea pedidos y consulta su estado (máximo 2 activos por docente; el 429 de negocio se cuenta aparte); escalones de 10, 25, 50 y 100 usuarios, 3 minutos cada uno; `docker stats --no-stream` cada 30 s.
 
 Comando (por escalón):
 ```bash
@@ -302,7 +302,7 @@ locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 
 
 **Responsable:** Juan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño y fiabilidad (PCa-1-G, RRe-1-G)
 
-**Enfoque:** Escalones de 50, 100, 200, 400 y 800 hilos, 2 minutos cada uno con rampa de 30 s; mezcla 40 % /health, 30 % cursos, 20 % búsqueda, 10 % creación de pedidos con consulta de su estado; parada automática cuando un escalón tiene errores > 5 % o más del 5 % de muestras sobre 5 s (p95 > 5 s); medición de recuperación de /health; corrida 1 sin QA-16 y corrida 2 con QA-16.
+**Enfoque:** Escalones de 50, 100, 200, 400 y 800 hilos, 2 minutos cada uno con rampa de 30 s; mezcla 40 % `/health`, 30 % cursos, 20 % búsqueda, 10 % creación de pedidos con consulta de su estado; parada automática cuando un escalón tiene errores > 5 % o más del 5 % de muestras sobre 5 s (p95 > 5 s); medición de recuperación de `/health`; corrida 1 sin QA-16 y corrida 2 con QA-16.
 
 Comandos (desde backend/):
 ```powershell
@@ -310,7 +310,7 @@ Comandos (desde backend/):
 & "$env:USERPROFILE\tools\apache-jmeter-5.6.3\bin\jmeter.bat" -n -t performance\jmeter\stress.jmx -Jhost=localhost -Jport=8000 -l performance\jmeter\results\run1.jtl -e -o performance\jmeter\results\run1-report
 ```
 
-**Criterio de aceptación:** Punto de quiebre = primer escalón con errores (5xx, tiempos agotados o conexiones rechazadas) > 5 % o p95 > 5 s. PCa-1-G = peticiones por segundo del último escalón que cumple. RRe-1-G = segundos desde el fin de la carga hasta que /health responde 200 en menos de 1 s (meta: menos de 10 s). Dos corridas: antes y después de QA-16. Los 429 TOO_MANY_ACTIVE_REQUESTS son respuesta de negocio esperada y se cuentan aparte.
+**Criterio de aceptación:** Punto de quiebre = primer escalón con errores (5xx, tiempos agotados o conexiones rechazadas) > 5 % o p95 > 5 s. PCa-1-G = peticiones por segundo del último escalón que cumple. RRe-1-G = segundos desde el fin de la carga hasta que `/health` responde 200 en menos de 1 s (meta: menos de 10 s). Dos corridas: antes y después de QA-16. Los 429 `TOO_MANY_ACTIVE_REQUESTS` son respuesta de negocio esperada y se cuentan aparte.
 
 ---
 
@@ -318,9 +318,9 @@ Comandos (desde backend/):
 
 **Responsable:** Juan · **Tipo:** Documentación · **Atributo:** Calidad consolidada
 
-**Enfoque:** Tabla consolidada QA-01 a QA-19 en report.md y tabla de medidas ISO/IEC 25023 (tarea, característica, medida, fórmula, valor medido, meta, ¿cumple?, evidencia), solo con valores de docs/evidence/ o de los PR integrados.
+**Enfoque:** Tabla consolidada QA-01 a QA-19 en `report.md` y tabla de medidas ISO/IEC 25023 (tarea, característica, medida, fórmula, valor medido, meta, ¿cumple?, evidencia), solo con valores de `docs/evidence/` o de los PR integrados.
 
-**Criterio de aceptación:** QA-01 a QA-19 en la tabla consolidada; solo valores presentes en docs/evidence/ o en los PR integrados; lo no medido queda como «pendiente» con su motivo.
+**Criterio de aceptación:** QA-01 a QA-19 en la tabla consolidada; solo valores presentes en `docs/evidence/` o en los PR integrados; lo no medido queda como «pendiente» con su motivo.
 
 ## Dependencias entre tareas
 
