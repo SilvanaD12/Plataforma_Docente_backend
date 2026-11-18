@@ -1,0 +1,54 @@
+=== Docker Stats at 2026-11-17 11:49:51 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        0.02%     43.34MiB / 3.718GiB   16.2MB / 16.1MB   0B / 43.3MB
+chamilo-chamilo-1   0.01%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.02%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
+=== Docker Stats at 2026-11-17 11:50:24 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        135.65%   51.11MiB / 3.718GiB   17.9MB / 17.6MB   0B / 45.7MB
+chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.03%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
+=== Docker Stats at 2026-11-17 11:50:59 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        93.16%    47.16MiB / 3.718GiB   21.3MB / 20.7MB   0B / 50.7MB
+chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.06%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
+=== Docker Stats at 2026-11-17 11:51:33 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        35.30%    50.27MiB / 3.718GiB   24.6MB / 23.8MB   0B / 55.8MB
+chamilo-chamilo-1   0.01%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.05%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
+=== Docker Stats at 2026-11-17 11:52:07 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        13.96%    50.01MiB / 3.718GiB   27.3MB / 26.3MB   0B / 59.9MB
+chamilo-chamilo-1   0.01%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.01%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
+=== Docker Stats at 2026-11-17 11:52:41 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        68.60%    52.97MiB / 3.718GiB   30.3MB / 29.2MB   0B / 63.9MB
+chamilo-chamilo-1   0.01%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.03%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
+=== Docker Stats at 2026-11-17 11:53:15 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        50.01%    58.8MiB / 3.718GiB    33.9MB / 32.7MB   0B / 69MB
+chamilo-chamilo-1   0.01%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.02%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
+=== Docker Stats at 2026-11-17 11:53:51 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        63.18%    66.04MiB / 3.718GiB   36.4MB / 35.1MB   0B / 72.8MB
+chamilo-chamilo-1   0.00%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.02%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
+=== Docker Stats at 2026-11-17 11:54:25 ===
+NAME                CPU %     MEM USAGE / LIMIT     NET I/O           BLOCK I/O
+backend-db-1        350.61%   62.06MiB / 3.718GiB   39.2MB / 37.7MB   0B / 80.1MB
+chamilo-chamilo-1   0.01%     19.71MiB / 3.718GiB   1.95kB / 126B     39.8MB / 8.19kB
+chamilo-db-1        0.03%     149MiB / 3.718GiB     1.91kB / 126B     48.8MB / 4.1kB
+
