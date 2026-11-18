@@ -192,6 +192,136 @@ docker compose stop                       # o «docker compose down -v» para bo
 
 **Enfoque:** En `resource_verification.py`, verificar cada frase del guion de `audio_detonante` y `podcast_resumen` contra los fragmentos citados. Subir `VERIFICATION_RULE_VERSION`. Los audios aprobados antes del cambio se reverifican al leerlos (verificación heredada). Solo se hace si las tareas 1 a 4 están integradas.
 
+---
+
+### QA-12 · Dominio propio con HTTPS
+
+**Responsable:** Juan (backend), Yan (frontend) · **Tipo:** Infraestructura · **Atributo:** Portabilidad y seguridad
+
+**Enfoque:** Registrar el dominio en Name.com (GitHub Student Developer Pack; alternativa: .TECH); en Render, dominio personalizado `api.<dominio>` con su CNAME; en Vercel, `<dominio>` y `www.<dominio>`; variables `CORS_ALLOWED_ORIGINS=https://<dominio>,https://www.<dominio>` y `LLM_TIMEOUT_SECONDS=60` en Render, `VITE_API_URL=https://api.<dominio>` en Vercel; actualizar `README` y guía de despliegue.
+
+Comandos de verificación:
+```bash
+curl -I http://api.<dominio>/health      # 301 o 308 hacia https
+curl -i https://api.<dominio>/health     # 200
+grep -rn "vercel.app" .                  # sin resultados en ambos repositorios
+```
+
+**Criterio de aceptación:** Certificado válido en ambos; `GET https://api.<dominio>/health` responde 200; redirección permanente (301 o 308) de HTTP a HTTPS; 0 advertencias de contenido mixto en la consola; la dirección `.vercel.app` ya no aparece en los repositorios; `LLM_TIMEOUT_SECONDS=60` en Render.
+
+---
+
+### QA-13 · Limpieza de ramas y borrado automático
+
+**Responsable:** Silvana · **Tipo:** Repositorio · **Atributo:** Mantenibilidad
+
+**Enfoque:** Cerrar sin fusionar el PR #39 (backend); el PR #19 (frontend) queda cerrado, con sus cambios incorporados en `main` mediante el PR #20; borrar las ramas remotas ya integradas en `main`; activar «Automatically delete head branches» en Settings → General de ambos repositorios.
+
+Comandos:
+```bash
+git fetch origin --prune
+git branch -r --merged origin/main
+git branch -r --no-merged origin/main
+git push origin --delete <rama>
+git fetch origin --prune
+git branch -r
+```
+
+Evidencia: `docs/evidence/QA-13/` (rama `docs/qa-13-branch-cleanup`).
+
+**Criterio de aceptación:** 0 ramas remotas ya integradas en `main`, sin contar `main` ni la referencia simbólica `origin/HEAD` (comprobado con `git branch -r --merged origin/main`); «Automatically delete head branches» activado en ambos repositorios; PR #39 del backend cerrado sin fusionar; PR #19 del frontend cerrado, con sus cambios incorporados en `main` mediante el PR #20.
+
+---
+
+### QA-14 · Lighthouse
+
+**Responsable:** Silvana · **Tipo:** Frontend · **Atributo:** Usabilidad y eficiencia de desempeño (UAc-1-G, PTb-1-G)
+
+**Enfoque:** `@lhci/cli` como dependencia de desarrollo; `lighthouserc.json` con `collect.startServerCommand: "npm run preview"` y las URL `http://localhost:4173/login` y `http://localhost:4173/registro`, 3 corridas, perfil de escritorio; aserciones `categories:performance` ≥ 0,90, `categories:accessibility` ≥ 0,95, `categories:best-practices` ≥ 0,90 y `categories:seo` ≥ 0,90 con nivel error; paso en `frontend-ci.yml` después de `npm run build`. En producción, Lighthouse de Chrome en `/login`, `/courses`, una unidad y `/downloads`, escritorio y móvil, antes y después de las correcciones.
+
+Comandos:
+```bash
+npm run build
+npx lhci autorun
+```
+
+**Criterio de aceptación:** Escritorio: Rendimiento ≥ 90, Accesibilidad ≥ 95, Buenas prácticas ≥ 90 y SEO ≥ 90. Móvil: Rendimiento ≥ 80. Se registran también LCP y TBT por pantalla (UAc-1-G = puntaje de accesibilidad; PTb-1-G = LCP medio).
+
+---
+
+### QA-15 · Inyección SQL
+
+**Responsable:** Sergio · **Tipo:** Backend · **Atributo:** Seguridad (SCo-1-G, SIn-2-G)
+
+**Enfoque:** `sqlmap` contra la pila local en las rutas de la tabla de `spec.md`, con token de un docente de prueba; Bandit y Semgrep en `backend-ci.yml` (fallan con hallazgos altos); pruebas e2e en `backend/tests/e2e/test_sql_injection.py`.
+
+Comandos:
+```bash
+sqlmap -u "http://localhost:8000/api/v1/documents/search?query=redes&unitId=<id>" --headers="Authorization: Bearer <token>" --level=3 --risk=2 --batch --output-dir=docs/evidence/QA-15/sqlmap
+sqlmap -r docs/evidence/QA-15/sessions-request.txt --level=3 --risk=2 --batch   # POST /api/v1/sessions con cuerpo JSON
+bandit -r backend/src -ll
+semgrep scan --config p/python backend/src
+```
+
+**Criterio de aceptación:** X = 1 − A/B = 1 (A = rutas con inyección confirmada por sqlmap, B = rutas probadas); 0 hallazgos altos de Bandit y Semgrep (los medios se informan); pruebas e2e con cargas de inyección en verde.
+
+---
+
+### QA-16 · Protección contra denegación de servicio
+
+**Responsable:** Sergio · **Tipo:** Backend · **Atributo:** Fiabilidad (RAv-1-G, RFt-1-G)
+
+**Enfoque:** Límite por IP con la misma idea de `LoginRateLimiter` y `TRUSTED_PROXIES` en las rutas costosas de `spec.md`, configurable por variables de entorno; middleware que rechaza con 413 si `Content-Length` supera 25 MB en `POST /api/v1/documents` y 1 MB en las rutas JSON, antes de leer el cuerpo; pruebas e2e del 429 y del 413; OpenAPI regenerado; ráfaga con el locustfile de QA-17.
+
+Comandos:
+```bash
+pytest tests/e2e -k "rate_limit or payload_size"
+locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 --headless -u 200 -r 50 -t 2m --html docs/evidence/QA-16/burst.html
+```
+
+**Criterio de aceptación:** 429 con `Retry-After` en ráfagas (límite configurable por variable de entorno); 413 cuando `Content-Length` supera 25 MB en la subida de archivos y 1 MB en las rutas JSON; pruebas e2e del 429 y del 413 en verde; durante una ráfaga de 200 usuarios por 2 minutos con el locustfile de QA-17, disponibilidad X = A/B = 1 (A = respuestas 200 de `/health`, B = consultas a `/health`) y el proceso no se reinicia.
+
+---
+
+### QA-17 · Concurrencia y capacidad con Locust
+
+**Responsable:** Yan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño (PTb-1-G, PTb-5-G, PCa-2-G)
+
+**Enfoque:** Cada usuario virtual crea su cuenta, inicia sesión, lista cursos, busca evidencia, crea pedidos y consulta su estado (máximo 2 activos por docente; el 429 de negocio se cuenta aparte); escalones de 10, 25, 50 y 100 usuarios, 3 minutos cada uno; `docker stats --no-stream` cada 30 s.
+
+Comando (por escalón):
+```bash
+locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 --headless -u <usuarios> -r 5 -t 3m --html docs/evidence/QA-17/<usuarios>u.html --csv docs/evidence/QA-17/<usuarios>u
+```
+
+**Criterio de aceptación:** Por escalón (3 minutos cada uno): p50, p95, peticiones por segundo y % de errores. Capacidad (PCa-2-G) = mayor número de usuarios con p95 < 1 s y errores < 1 %.
+
+---
+
+### QA-18 · Punto de quiebre con JMeter
+
+**Responsable:** Juan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño y fiabilidad (PCa-1-G, RRe-1-G)
+
+**Enfoque:** Escalones de 50, 100, 200, 400 y 800 hilos, 2 minutos cada uno con rampa de 30 s; mezcla 40 % `/health`, 30 % cursos, 20 % búsqueda, 10 % creación de pedidos con consulta de su estado; parada automática cuando un escalón tiene errores > 5 % o más del 5 % de muestras sobre 5 s (p95 > 5 s); medición de recuperación de `/health`; corrida 1 sin QA-16 y corrida 2 con QA-16.
+
+Comandos (desde backend/):
+```powershell
+.\.venv\Scripts\python.exe performance\jmeter\prepare_users.py --users 800 --workers 16
+& "$env:USERPROFILE\tools\apache-jmeter-5.6.3\bin\jmeter.bat" -n -t performance\jmeter\stress.jmx -Jhost=localhost -Jport=8000 -l performance\jmeter\results\run1.jtl -e -o performance\jmeter\results\run1-report
+```
+
+**Criterio de aceptación:** Punto de quiebre = primer escalón con errores (5xx, tiempos agotados o conexiones rechazadas) > 5 % o p95 > 5 s. PCa-1-G = peticiones por segundo del último escalón que cumple. RRe-1-G = segundos desde el fin de la carga hasta que `/health` responde 200 en menos de 1 s (meta: menos de 10 s). Dos corridas: antes y después de QA-16. Los 429 `TOO_MANY_ACTIVE_REQUESTS` son respuesta de negocio esperada y se cuentan aparte.
+
+---
+
+### QA-19 · Informe final con ISO/IEC 25023
+
+**Responsable:** Juan · **Tipo:** Documentación · **Atributo:** Calidad consolidada
+
+**Enfoque:** Tabla consolidada QA-01 a QA-19 en `report.md` y tabla de medidas ISO/IEC 25023 (tarea, característica, medida, fórmula, valor medido, meta, ¿cumple?, evidencia), solo con valores de `docs/evidence/` o de los PR integrados.
+
+**Criterio de aceptación:** QA-01 a QA-19 en la tabla consolidada; solo valores presentes en `docs/evidence/` o en los PR integrados; lo no medido queda como «pendiente» con su motivo.
+
 ## Dependencias entre tareas
 
 ```mermaid
@@ -199,7 +329,7 @@ flowchart LR
     QA01["QA-01 Spec"]
     QA02["QA-02 /health/dependencies"]
     QA03["QA-03 Moodle XML"]
-    QA04["QA-04 Informe final"]
+    QA04["QA-04 Informe QA-01 a QA-11"]
     QA05["QA-05 C-06 Ragas"]
     QA06["QA-06 Tiempos"]
     QA07["QA-07 pgvector"]
@@ -207,6 +337,14 @@ flowchart LR
     QA09["QA-09 Accesibilidad"]
     QA10["QA-10 Bundle"]
     QA11["QA-11 Audio"]
+    QA12["QA-12 Dominio propio"]
+    QA13["QA-13 Limpieza de ramas"]
+    QA14["QA-14 Lighthouse"]
+    QA15["QA-15 Inyección SQL"]
+    QA16["QA-16 Límite por IP y 413"]
+    QA17["QA-17 Carga Locust"]
+    QA18["QA-18 Estrés JMeter"]
+    QA19["QA-19 Informe final"]
     PR40["PR #40 Yan"]
 
     QA01 --> QA02
@@ -217,6 +355,15 @@ flowchart LR
     QA01 --> QA08
     QA01 --> QA09
     QA01 --> QA10
+    QA01 --> QA11
+    QA01 --> QA12
+    QA01 --> QA13
+    QA12 --> QA14
+    QA01 --> QA15
+    QA17 -. "locustfile" .-> QA16
+    QA01 --> QA17
+    QA01 --> QA18
+    QA16 -. "comparación" .-> QA18
     QA02 --> QA04
     QA03 --> QA04
     QA05 --> QA04
@@ -226,11 +373,23 @@ flowchart LR
     QA09 --> QA04
     QA10 --> QA04
     QA11 --> QA04
+    QA04 --> QA19
+    QA12 --> QA19
+    QA13 --> QA19
+    QA14 --> QA19
+    QA15 --> QA19
+    QA16 --> QA19
+    QA17 --> QA19
+    QA18 --> QA19
 ```
 
 - **QA-01** es el punto de partida: define los escenarios y las tareas.
 - **QA-02** la validan Yan y Sergio (comportamiento con dependencia caída).
+- **QA-04** va después de QA-02 a QA-11 y es la base de QA-19.
 - **QA-07** depende del PR #40 de Yan (corpus de T067 y resultados de Ragas de T068).
-- **QA-04** va al final, después de todos los PR del equipo.
 - **QA-11** es opcional y solo se hace si las tareas 1 a 4 están integradas.
-- Las demás tareas son independientes entre sí y pueden hacerse en paralelo.
+- **QA-14** en producción depende de **QA-12** (dominio propio con HTTPS).
+- **QA-16** usa el locustfile de **QA-17** para disparar ráfagas de prueba.
+- **QA-18** se mide antes y después de aplicar el límite de tasa de **QA-16** para comparar el comportamiento en saturación.
+- **QA-19** depende de que todas las anteriores tengan su PR integrado en `main`.
+- Las demás tareas son independientes entre sí y pueden realizarse en paralelo.
