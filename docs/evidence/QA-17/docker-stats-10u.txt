@@ -1,0 +1,24 @@
+2026-11-19T01:01:16Z
+CONTAINER ID   NAME                                   CPU %     MEM USAGE / LIMIT     MEM %     NET I/O          BLOCK I/O        PIDS
+fe5fcbd883b5   backend-db-1                           12.94%    42.04MiB / 3.828GiB   1.07%     224kB / 961kB    0B / 455kB       11
+fcb86b783e5e   plataforma-5e-taller-integrador-db-1   0.00%     169.9MiB / 3.828GiB   4.33%     200kB / 2.42MB   143kB / 2.55GB   6
+2026-11-19T01:01:48Z
+CONTAINER ID   NAME                                   CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O        PIDS
+fe5fcbd883b5   backend-db-1                           1.88%     43.34MiB / 3.828GiB   1.11%     1.68MB / 2.51MB   0B / 668kB       11
+fcb86b783e5e   plataforma-5e-taller-integrador-db-1   0.06%     169.9MiB / 3.828GiB   4.33%     200kB / 2.42MB    143kB / 2.55GB   6
+2026-11-19T01:02:20Z
+CONTAINER ID   NAME                                   CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O        PIDS
+fe5fcbd883b5   backend-db-1                           1.65%     43.67MiB / 3.828GiB   1.11%     2.72MB / 3.79MB   0B / 684kB       11
+fcb86b783e5e   plataforma-5e-taller-integrador-db-1   5.69%     169.9MiB / 3.828GiB   4.33%     200kB / 2.42MB    143kB / 2.55GB   6
+2026-11-19T01:02:53Z
+CONTAINER ID   NAME                                   CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O        PIDS
+fe5fcbd883b5   backend-db-1                           0.65%     43.81MiB / 3.828GiB   1.12%     3.79MB / 5.27MB   0B / 684kB       11
+fcb86b783e5e   plataforma-5e-taller-integrador-db-1   0.00%     169.9MiB / 3.828GiB   4.33%     200kB / 2.42MB    143kB / 2.55GB   6
+2026-11-19T01:03:26Z
+CONTAINER ID   NAME                                   CPU %     MEM USAGE / LIMIT     MEM %     NET I/O           BLOCK I/O        PIDS
+fe5fcbd883b5   backend-db-1                           2.24%     43.96MiB / 3.828GiB   1.12%     5.06MB / 7.09MB   0B / 684kB       11
+fcb86b783e5e   plataforma-5e-taller-integrador-db-1   0.01%     169.9MiB / 3.828GiB   4.33%     200kB / 2.42MB    143kB / 2.55GB   6
+2026-11-19T01:03:57Z
+CONTAINER ID   NAME                                   CPU %     MEM USAGE / LIMIT     MEM %     NET I/O          BLOCK I/O        PIDS
+fe5fcbd883b5   backend-db-1                           8.19%     44.53MiB / 3.828GiB   1.14%     6MB / 8.59MB     0B / 684kB       11
+fcb86b783e5e   plataforma-5e-taller-integrador-db-1   3.77%     169.9MiB / 3.828GiB   4.33%     200kB / 2.42MB   143kB / 2.55GB   6
