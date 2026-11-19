@@ -71,13 +71,13 @@ Todas las métricas y evidencias registradas en este informe corresponden a resu
 Esta lista debe verificarse de manera previa, durante y posterior al despliegue en los entornos de producción (**Neon PostgreSQL**, **Render Backend** y **Vercel Frontend**):
 
 ### 4.1. Configuración y Variables de Entorno (Antes de desplegar)
-- [ ] `LLM_TIMEOUT_SECONDS`: En Render, configurar `LLM_TIMEOUT_SECONDS = 60` antes de desplegar (QA-06; actualmente configurado en 180 s).
+- [x] `LLM_TIMEOUT_SECONDS`: En Render, configurar `LLM_TIMEOUT_SECONDS = 60` antes de desplegar (QA-06; configurado y verificado en 60 s).
 - [ ] `LLM_CALL_DEADLINE_SECONDS`: Límite máximo de pared por llamada a Gemini fijado en 60 s.
 - [ ] `DATABASE_URL`: Cadena de conexión PostgreSQL hacia Neon configurada con SSL habilitado (`sslmode=require`).
 - [ ] `GEMINI_API_KEY`: Clave de API de Google Gemini activa y con cuota habilitada para los modelos configurados.
 - [ ] `LLM_PROVIDER`: Fijado en `gemini` para entornos desplegados (`rules` reservado para pruebas locales y CI).
 - [ ] `SECRET_KEY`: Llave criptográfica configurada para la firma y verificación de tokens de sesión.
-- [ ] `CORS_ORIGINS`: Lista blanca que incluye exclusivamente los dominios de frontend autorizados en producción.
+- [x] `CORS_ALLOWED_ORIGINS`: Configurada en Render con `https://plataformadocente.dev,https://www.plataformadocente.dev` para admitir únicamente el dominio propio en producción (QA-12).
 
 ### 4.2. Infraestructura y Base de Datos
 - [ ] Extensión `vector` habilitada en Neon:
@@ -128,3 +128,39 @@ Esta lista debe verificarse de manera previa, durante y posterior al despliegue 
 - [ ] **Reversión en Render:** Si el servicio backend presenta errores fatales, revertir de inmediato al commit previo estable de `main` (`f073529`).
 - [ ] **Reversión en Vercel:** Desplegar instantáneamente el alias de producción a la versión de compilación anterior.
 - [ ] **Compatibilidad de Datos:** Las modificaciones de verificación (regla v2 de QA-11) son retrocompatibles y no alteran destructivamente las columnas existentes en la base de datos; la función `upgrade_resource_verification` mantiene compatibilidad con recursos legados sin verificación.
+
+### 4.6. Dominio Propio con HTTPS (QA-12)
+
+- [x] **Registro del dominio:**
+  - Dominio: `plataformadocente.dev`, registrado en Name.com utilizando el GitHub Student Developer Pack a nombre de un integrante del equipo.
+  - Configuración: renovación automática desactivada, vigencia de un año.
+- [x] **Configuración DNS (Name.com):**
+  - Registro `A` para `@` (`plataformadocente.dev`) apuntando a la dirección IP de Vercel (`216.198.79.1`).
+  - Registro `CNAME` para `www` (`www.plataformadocente.dev`) apuntando al dominio de balanceo de Vercel (`57ee545a411b118f.vercel-dns-017.com`).
+  - Registro `CNAME` para `api` (`api.plataformadocente.dev`) apuntando al servicio de Render (`plataforma-docente-api.onrender.com`).
+- [x] **Configuración en Render (Backend):**
+  - Dominio personalizado configurado: `api.plataformadocente.dev` (con emisión y renovación automática de certificado TLS/HTTPS gestionado).
+  - Variable de entorno `CORS_ALLOWED_ORIGINS`: configurada en `https://plataformadocente.dev,https://www.plataformadocente.dev` para restringir el acceso cross-origin exclusivamente al frontend oficial.
+  - Variable de entorno `LLM_TIMEOUT_SECONDS`: configurada en `60` (QA-06).
+- [ ] **Configuración en Vercel (Frontend):**
+  - Dominios asignados: `plataformadocente.dev` (producción) y `www.plataformadocente.dev` (con redirección permanente 308 hacia el principal).
+  - Variable de entorno `VITE_API_URL`: configurada en `https://api.plataformadocente.dev` (requiere nuevo despliegue de compilación de Vite para fijar la URL en los assets empaquetados; actualmente el bundle empaquetado conserva la URL anterior).
+- [x] **Comandos de Verificación:**
+  ```bash
+  # 1. Redirección HTTP a HTTPS en la API (301)
+  curl.exe -sS -I http://api.plataformadocente.dev/health
+
+  # 2. Comprobación de salud HTTPS de la API (200 OK)
+  curl.exe -sS -i https://api.plataformadocente.dev/health
+
+  # 3. Acceso HTTPS al frontend (200 OK)
+  curl.exe -sS -I https://plataformadocente.dev
+
+  # 4. Redirección HTTP a HTTPS en el frontend (308)
+  curl.exe -sS -I http://plataformadocente.dev
+
+  # 5. Preflight CORS para el dominio oficial del frontend (200 OK con access-control-allow-origin)
+  curl.exe -sS -i -X OPTIONS https://api.plataformadocente.dev/api/v1/courses \
+    -H "Origin: https://plataformadocente.dev" \
+    -H "Access-Control-Request-Method: GET"
+  ```

@@ -1,6 +1,14 @@
 # Backend · API REST de Platform 5E
 
-FastAPI y SQLAlchemy con arquitectura hexagonal. Se despliega en Render (`rootDir: backend`) y usa PostgreSQL en Neon; en local usa SQLite si no se define `DATABASE_URL`.
+FastAPI y SQLAlchemy con arquitectura hexagonal. Se despliega en Render (`rootDir: backend`) bajo el dominio personalizado `https://api.plataformadocente.dev` y usa PostgreSQL en Neon; en local usa SQLite si no se define `DATABASE_URL`.
+
+## Despliegue en producción
+
+- **Dominio de la API (Backend):** `https://api.plataformadocente.dev` (servicio Render)
+  - Comprobación de salud: `GET https://api.plataformadocente.dev/health`
+  - Documentación Swagger: `https://api.plataformadocente.dev/docs`
+- **Dominio de la aplicación (Frontend):** `https://plataformadocente.dev` (Vercel, con redirección desde `https://www.plataformadocente.dev`)
+- **Infraestructura:** Render (`rootDir: backend`) para la API, Neon para PostgreSQL con extensión `vector` (pgvector) y Vercel para el frontend.
 
 ## Ejecutar en local
 
