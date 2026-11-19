@@ -289,10 +289,70 @@ locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 
 
 **Enfoque:** Cada usuario virtual crea su cuenta, inicia sesión, lista cursos, busca evidencia, crea pedidos y consulta su estado (máximo 2 activos por docente; el 429 de negocio se cuenta aparte); escalones de 10, 25, 50 y 100 usuarios, 3 minutos cada uno; `docker stats --no-stream` cada 30 s.
 
-Comando (por escalón):
+**Locustfile** (`backend/performance/locust/locustfile.py`, con los cuerpos y la configuración en `payloads.py`, probados en `tests/unit/test_locust_payloads.py`). Locust va en el extra `perf` de `backend/pyproject.toml` (`locust==2.47.0`); la CI no lo instala.
+
+- **Preparación (on_start).** Cada usuario crea su cuenta con un correo único (`POST /api/v1/accounts`), inicia sesión (`POST /api/v1/sessions`) y prepara un curso con una unidad y el material `evaluation/corpus/protocols.txt` procesado, con los mismos cuerpos que `evaluation/collect_samples.py`. Sin material procesado, la generación responde 400. En las estadísticas aparecen como «[preparación] …», aparte de las tareas medidas.
+- **Tareas, con pesos.** `GET /api/v1/courses` (3), `GET /api/v1/documents/search?query=…&unitId=…&topK=8` (3), y `POST /api/v1/generation-requests` con `Idempotency-Key` seguido de `GET /api/v1/generation-requests/[id]` hasta un estado final (1).
+- **Límite de 2 pedidos activos.** Cada usuario espera su pedido antes de crear otro, así que nunca tiene más de 1 activo y nunca envía un tercero.
+  - Un 429 `TOO_MANY_ACTIVE_REQUESTS` se cuenta aparte, como «POST … [429 pedidos activos]» y sin fallo, y se reintenta con la misma clave después de `Retry-After`.
+  - Cualquier otro 429 cuenta como fallo.
+- **Métricas.** Las rutas se nombran por plantilla (`/api/v1/generation-requests/[id]`). «[pedido completo] creado→final» mide el pedido de punta a punta; incluye al menos un intervalo de consulta (`LOCUST_POLL_SECONDS`, 1 s por defecto).
+- **Configuración por variables de entorno**, documentadas al inicio del archivo:
+  - `LOCUST_PROFILE` (`steady` o `burst`);
+  - `LOCUST_WAIT_MIN` y `LOCUST_WAIT_MAX` (1 y 3 s);
+  - los pesos `LOCUST_WEIGHT_COURSES`, `LOCUST_WEIGHT_SEARCH` y `LOCUST_WEIGHT_GENERATION`;
+  - `LOCUST_HEALTH_WEIGHT`, `LOCUST_RESOURCE_TYPES`, `LOCUST_SEARCH_QUERY`, `LOCUST_POLL_SECONDS` y `LOCUST_REQUEST_TIMEOUT`.
+
+  Con `LOCUST_PROFILE=burst`, no hay espera entre tareas y se suma un usuario liviano de `GET /health` (1 por cada 10 docentes).
+- **Seguridad.** El límite de inicio de sesión de QA-08 va por correo e IP: con un correo por usuario no se alcanza, y no se cambia. El locustfile no imprime ni escribe el token ni la contraseña. Solo se usa contra la pila local: nunca contra Render, Neon ni Vercel, ni con una clave de IA real.
+
+**Pila local** (PostgreSQL con pgvector en Docker, sin ninguna clave de API). Desde `backend/`:
+
 ```bash
-locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 --headless -u <usuarios> -r 5 -t 3m --html docs/evidence/QA-17/<usuarios>u.html --csv docs/evidence/QA-17/<usuarios>u
+cp .env.example .env                      # deja LLM_API_KEY vacío
+docker compose up -d --wait db
+docker compose run --rm dbmate up
+.venv/bin/python -m pip install -e ".[dev,perf]"
+
+# Terminal 1: backend con el generador por reglas
+export DATABASE_URL='postgres://platform5e:cambiar-en-local@localhost:5432/platform5e?sslmode=disable'
+export LLM_PROVIDER=rules EMBEDDINGS_ENABLED=false MEDIA_GENERATION_ENABLED=false TOPIC_SEARCH_ENABLED=false
+unset LLM_API_KEY
+.venv/bin/python -m uvicorn platform5e.main:create_application --factory --app-dir src --host 127.0.0.1 --port 8000
 ```
+
+**Escalones de QA-17** (terminal 2, desde la raíz del repositorio). Un escalón por corrida, con `docker stats` cada 30 s mientras corre:
+
+```bash
+mkdir -p docs/evidence/QA-17
+for users in 10 25 50 100; do
+  ( while true; do date -u +%FT%TZ; docker stats --no-stream; sleep 30; done ) > docs/evidence/QA-17/docker-stats-${users}u.txt &
+  STATS=$!
+  backend/.venv/bin/locust -f backend/performance/locust/locustfile.py --host http://127.0.0.1:8000 \
+    --headless -u ${users} -r 5 -t 3m \
+    --html docs/evidence/QA-17/${users}u.html --csv docs/evidence/QA-17/${users}u
+  kill $STATS
+done
+```
+
+`docker stats` mide el contenedor de PostgreSQL. El backend corre fuera de Docker: su uso de CPU y memoria se puede registrar aparte con `ps -o %cpu,rss -p <pid de uvicorn>` en el mismo bucle.
+
+**Ráfaga para Sergio (QA-16).** El mismo locustfile, sin espera y con el usuario de `/health`:
+
+```bash
+LOCUST_PROFILE=burst backend/.venv/bin/locust -f backend/performance/locust/locustfile.py --host http://127.0.0.1:8000 \
+  --headless -u 200 -r 50 -t 2m --html docs/evidence/QA-16/burst.html --csv docs/evidence/QA-16/burst
+```
+
+**Relación con QA-16.** Locust envía todo desde una sola IP. Cuando QA-16 agregue el límite por IP en las rutas costosas, una corrida de QA-17 recibirá 429 de ese límite, y el locustfile los cuenta como fallos. Hay dos maneras válidas de medir QA-17, y la que se use se registra junto con los resultados:
+- antes de integrar QA-16;
+- con ese límite subido por su variable de entorno, que define QA-16.
+
+**Comprobación (18/11/2026, sin Docker).** Backend con SQLite y `LLM_PROVIDER=rules`, en local:
+- 5 usuarios durante 30 s: 115 peticiones, 0 fallos. Preparación de los 5 usuarios, 28 `GET /api/v1/courses`, 29 búsquedas, 11 pedidos y sus consultas. «[pedido completo]» en unos 1,03 s, que es casi todo el intervalo de consulta.
+- Perfil burst con 11 usuarios durante 10 s: 1 usuario de `/health` y 10 docentes, 0 fallos.
+
+No son resultados de QA-17: solo prueban que el locustfile funciona de punta a punta.
 
 **Criterio de aceptación:** Por escalón (3 minutos cada uno): p50, p95, peticiones por segundo y % de errores. Capacidad (PCa-2-G) = mayor número de usuarios con p95 < 1 s y errores < 1 %.
 
