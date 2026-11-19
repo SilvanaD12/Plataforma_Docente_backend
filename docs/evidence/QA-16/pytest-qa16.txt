@@ -1,0 +1,19 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.8, pytest-9.2.0, pluggy-1.7.0 -- C:\Users\USER\Proyectos_5E\Plataforma_Docente_backend\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\USER\Proyectos_5E\Plataforma_Docente_backend\backend
+configfile: pyproject.toml
+plugins: anyio-4.16.0, langsmith-0.14.17, platformdirs-4.14.5, asyncio-1.4.1.post1, cov-7.1.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+backend\tests\e2e\test_rate_limit_and_body_size.py::test_rate_limit_on_expensive_routes_returns_429_with_retry_after PASSED [ 50%]
+backend\tests\e2e\test_rate_limit_and_body_size.py::test_payload_size_limit_rejects_oversized_json_and_upload_with_413 PASSED [100%]
+
+============================== warnings summary ===============================
+backend\src\platform5e\infrastructure\http\routers\documents.py:28
+  C:\Users\USER\Proyectos_5E\Plataforma_Docente_backend\backend\src\platform5e\infrastructure\http\routers\documents.py:28: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.14/migration/
+    class EvidenceSearchResponse(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 2 passed, 1 warning in 3.56s =========================

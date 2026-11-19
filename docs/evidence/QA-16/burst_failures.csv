@@ -1,0 +1,4 @@
+Method,Name,Error,Occurrences,First Seen,Last Seen
+POST,[preparación] POST /api/v1/documents,CatchResponseError('HTTP 429 RATE_LIMIT_EXCEEDED'),132,2026-11-19T08:29:01Z,2026-11-19T08:29:05Z
+POST,POST /api/v1/generation-requests,CatchResponseError('HTTP 429 RATE_LIMIT_EXCEEDED'),837,2026-11-19T08:29:05Z,2026-11-19T08:30:45Z
+POST,[preparación] POST /api/v1/documents/[id]/process,CatchResponseError('HTTP 429 RATE_LIMIT_EXCEEDED'),40,2026-11-19T08:29:02Z,2026-11-19T08:29:04Z
