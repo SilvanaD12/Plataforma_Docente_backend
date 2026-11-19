@@ -74,7 +74,11 @@ from platform5e.infrastructure.http.routers.generation_requests import (
 from platform5e.infrastructure.http.routers.generations import create_generations_router
 from platform5e.infrastructure.http.routers.health import create_health_router
 from platform5e.infrastructure.http.routers.resources import create_resources_router
-from platform5e.infrastructure.http.security import SecurityHeadersMiddleware
+from platform5e.infrastructure.http.security import (
+    IpRateLimitMiddleware,
+    PayloadSizeLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from platform5e.infrastructure.llm.language_model_factory import (
     create_embedding_generator,
     create_generators,
@@ -86,7 +90,7 @@ from platform5e.infrastructure.jobs.thread_pool_generation_runner import ThreadP
 from platform5e.infrastructure.persistence.database import engine as db_engine
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_account_repository import SQLAlchemyAccountRepository
 from platform5e.infrastructure.retrieval.bm25_evidence_retriever import Bm25EvidenceRetriever
-from platform5e.infrastructure.retrieval.hybrid_evidence_retriever import HybridEvidenceRetriever   
+from platform5e.infrastructure.retrieval.hybrid_evidence_retriever import HybridEvidenceRetriever
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_chunk_repository import SQLAlchemyChunkRepository
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import SQLAlchemyMediaRepository
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
@@ -174,6 +178,10 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(PayloadSizeLimitMiddleware)
+    app.add_middleware(IpRateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+
     cors_origins = [o.strip().rstrip("/") for o in read_setting("CORS_ALLOWED_ORIGINS").split(",") if o.strip()]
     if cors_origins:
         app.add_middleware(
@@ -183,8 +191,6 @@ def create_application() -> FastAPI:
             allow_headers=["*"],
             expose_headers=["Content-Disposition"],
         )
-    
-    app.add_middleware(SecurityHeadersMiddleware)
 
     # 1. Adaptadores de salida
     account_repository = SQLAlchemyAccountRepository()
@@ -232,7 +238,7 @@ def create_application() -> FastAPI:
     embedding_service = (
         ChunkEmbeddingService(chunk_repository, embedding_generator) if embedding_generator is not None else None
     )
-    
+
     # Adaptador T007 para validación de pertenencia de unidades y resultados; lo comparten Material y Generación.
     unit_membership = AccountUnitMembershipAdapter(account_repository)
 

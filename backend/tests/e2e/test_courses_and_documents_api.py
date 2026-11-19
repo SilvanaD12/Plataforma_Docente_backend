@@ -240,8 +240,8 @@ def test_file_over_the_limit_is_not_saved(server: str):
     with httpx.Client(base_url=server, timeout=30) as api:
         h = login(api)
         r = upload(api, h, content=b"x" * (25 * 1024 * 1024 + 1))
-        assert r.status_code == 400
-        assert r.json()["error"]["code"] == "INVALID_SIZE"
+        assert r.status_code == 413
+        assert r.json()["error"]["code"] == "PAYLOAD_TOO_LARGE"
         assert api.get("/api/v1/documents", headers=h).json() == []
 
 
