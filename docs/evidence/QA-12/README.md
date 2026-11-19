@@ -3,7 +3,7 @@
 - **Tarea:** QA-12 (`specs/005-atributos-calidad/tasks.md`)
 - **Tipo:** Infraestructura / Portabilidad y Seguridad (ISO/IEC 25010)
 - **Dominio registrado:** `plataformadocente.dev`
-- **Fecha y hora de comprobación:** 18 de noviembre de 2026, 22:23:49 GMT-05:00 (19 de noviembre de 2026, 03:23:49 UTC)
+- **Fecha y hora de comprobación:** 18 de noviembre de 2026, 23:15:20 GMT-05:00 (19 de noviembre de 2026, 04:15:20 UTC)
 - **Responsables:** Juan (Backend, Render), Silvana (Frontend, Vercel) y Sergio (dominio en Name.com)
 
 ---
@@ -12,10 +12,10 @@
 
 1. **Registro del Dominio:**
    - Adquirido en Name.com a través del GitHub Student Developer Pack por Sergio a nombre de un integrante del equipo.
-   - Duración: 1 año, con renovación automática desactivada.
+   - Duración: 1 año, con renovación automática desactivada y privacidad de WHOIS activada (verificado en Name.com, ver `name-com-renovacion.png`).
 
 2. **Asignación de Entornos:**
-   - **Frontend (Vercel):** `https://plataformadocente.dev` (producción) y `https://www.plataformadocente.dev` (redirección 308).
+   - **Frontend (Vercel):** `https://plataformadocente.dev` (producción), `https://www.plataformadocente.dev` (redirección 308) y `https://plataforma-docente-frontend.vercel.app` (redirección 308 hacia el dominio principal).
    - **Backend API (Render):** `https://api.plataformadocente.dev` (servicio `plataforma-docente-api.onrender.com`).
 
 ---
@@ -79,23 +79,16 @@ IP4Address : 216.24.57.16
 
 #### `curl.exe -sS -I https://plataforma-docente-frontend.vercel.app`
 ```http
-HTTP/1.1 200 OK
-Accept-Ranges: bytes
-Access-Control-Allow-Origin: *
-Age: 115
+HTTP/1.1 308 Permanent Redirect
 Cache-Control: public, max-age=0, must-revalidate
-Content-Disposition: inline
-Content-Length: 916
-Content-Type: text/html; charset=utf-8
-Date: Thu, 19 Nov 2026 03:24:22 GMT
-Etag: "0eb376f4a6270cd5997dfcecc4a4da10"
-Last-Modified: Thu, 19 Nov 2026 03:22:26 GMT
+Content-Type: text/plain
+Date: Thu, 19 Nov 2026 04:15:20 GMT
+Location: https://plataformadocente.dev/
+Refresh: 0;url=https://plataformadocente.dev/
 Server: Vercel
 Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
-X-Vercel-Cache: HIT
-X-Vercel-Id: gru1::dtnqg-1795058662141-7e151834017b
+X-Vercel-Id: gru1::dmjd7-1795061720229-df4dad85811d
 ```
-*(Nota: El dominio `.vercel.app` responde `200 OK` porque en el panel de Vercel está asignado como dominio de producción. Para completar la redirección, se debe configurar en Vercel una redirección 308 hacia `plataformadocente.dev`).*
 
 #### `curl.exe -sS -I http://api.plataformadocente.dev/health`
 ```http
@@ -213,8 +206,8 @@ Descarga del HTML de `https://plataformadocente.dev` e inspección del script `/
 | **Redirección permanente de HTTP a HTTPS** | `http://api.plataformadocente.dev/health` retorna `301 Moved Permanently`; `http://plataformadocente.dev` retorna `308 Permanent Redirect` | **Sí** |
 | **Cabecera CORS para `https://plataformadocente.dev`** | Preflight `OPTIONS` desde `https://plataformadocente.dev` devuelve `access-control-allow-origin: https://plataformadocente.dev` | **Sí** |
 | **JS del frontend apunta a la API nueva** | El bundle `/assets/index-BoaTFLHp.js` contiene `api.plataformadocente.dev` y no contiene `onrender.com` | **Sí** |
-| **Dirección `.vercel.app` redirigida a `plataformadocente.dev` y fuera de los repositorios** | `curl` a `https://plataforma-docente-frontend.vercel.app` devuelve `200 OK` (no redirige con 308 en Vercel); no aparece en código ni documentación vigente de los repositorios | **No** (redirección 308 pendiente en Vercel) |
-| **0 advertencias de contenido mixto y 0 errores de CORS en la consola** | La captura `frontend-consola.png` muestra la aplicación cargada en `https://plataformadocente.dev/courses` en producción sin bloqueos visuales, pero no incluye el panel de consola (F12) abierto para verificar logs explícitamente | **Pendiente** (captura con consola F12) |
+| **Dirección `.vercel.app` redirigida a `plataformadocente.dev` y fuera de los repositorios** | `curl` a `https://plataforma-docente-frontend.vercel.app` devuelve `308 Permanent Redirect` con `Location: https://plataformadocente.dev/`; no aparece en código ni documentación vigente de los repositorios | **Sí** |
+| **0 advertencias de contenido mixto y 0 errores de CORS en la consola** | La captura `frontend-consola.png` actual muestra la interfaz de `https://plataformadocente.dev/courses` en producción sin bloqueos visuales, pero no incluye el panel de herramientas de desarrollo (consola F12) abierto para verificar los registros directamente | **Pendiente** (captura con consola F12) |
 
 ---
 
@@ -226,14 +219,18 @@ Las siguientes capturas de pantalla han sido incorporadas en esta carpeta como r
    ![Registros DNS en Name.com](dns-name-com.png)
    *Configuración de DNS en Name.com con el registro `A` de `plataformadocente.dev` hacia `216.198.79.1`, registro `CNAME` de `www.plataformadocente.dev` hacia Vercel y `CNAME` de `api.plataformadocente.dev` hacia `plataforma-docente-api.onrender.com`.*
 
-2. **Dominio personalizado en Render (Backend):**
+2. **Name.com: renovación automática desactivada y privacidad de WHOIS activada:**
+   ![Name.com: renovación automática desactivada y privacidad de WHOIS activada](name-com-renovacion.png)
+   *Panel de administración de `plataformadocente.dev` en Name.com mostrando `Automatic Renewal: OFF`, `Whois Privacy: ON` y `Transfer Locked: ON`.*
+
+3. **Dominio personalizado en Render (Backend):**
    ![Dominio personalizado en Render](render-custom-domain.png)
    *Panel de Render para el servicio `plataforma-docente-api` mostrando `api.plataformadocente.dev` en estado `Verified` y `Certificate Issued`.*
 
-3. **Dominios configurados en Vercel (Frontend):**
+4. **Dominios configurados en Vercel (Frontend):**
    ![Dominios configurados en Vercel](vercel-domains.png)
    *Panel de Domains en Vercel con `plataformadocente.dev` (Production), `www.plataformadocente.dev` (redirección 308) y `plataforma-docente-frontend.vercel.app` en estado `Valid Configuration`.*
 
-4. **Frontend en ejecución en el navegador:**
+5. **Frontend en ejecución en el navegador:**
    ![Frontend en ejecución](frontend-consola.png)
    *Vista de la aplicación web en producción en `https://plataformadocente.dev/courses`.*
