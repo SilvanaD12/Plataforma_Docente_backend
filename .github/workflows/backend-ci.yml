@@ -91,6 +91,6 @@ jobs:
       - name: Install Bandit and Semgrep
         run: python -m pip install bandit semgrep
       - name: Run Bandit
-        run: bandit -r backend/src -ll
+        run: bandit -r backend/src -lll
       - name: Run Semgrep
         run: semgrep --config p/python --config p/sql-injection --error backend/src
