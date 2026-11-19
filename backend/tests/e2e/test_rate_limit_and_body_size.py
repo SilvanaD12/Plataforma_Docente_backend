@@ -1,7 +1,7 @@
 """
 Pruebas E2E de protección contra denegación de servicio (QA-16 — ISO/IEC 25023 RAv-1-G, RFt-1-G):
-- Límite de tasa por IP (429 con Retry-After) en rutas costosas respetando TRUSTED_PROXIES.
-- Límite de tamaño de cuerpo (413 Payload Too Large) antes de leer el payload:
+- Límite de tasa por IP (429 con Retry-After y cabeceras CORS) en rutas costosas respetando TRUSTED_PROXIES.
+- Límite de tamaño de cuerpo (413 Payload Too Large con cabeceras CORS) antes de leer el payload:
   * > 25 MB en POST /api/v1/documents
   * > 1 MB en rutas JSON
 - Disponibilidad intacta de /health bajo ráfaga en rutas costosas.
@@ -39,6 +39,7 @@ def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[str]:
     monkeypatch.setenv("EXPENSIVE_RATE_LIMIT_MAX_REQUESTS", "3")
     monkeypatch.setenv("EXPENSIVE_RATE_LIMIT_WINDOW_SECONDS", "60")
     monkeypatch.setenv("TRUSTED_PROXIES", "127.0.0.1")
+    monkeypatch.setenv("CORS_ALLOWED_ORIGINS", "https://plataformadocente.dev")
 
     port = _free_port()
     app = create_application()
@@ -83,8 +84,8 @@ def _login_demo(api: httpx.Client) -> tuple[dict[str, str], str]:
 def test_rate_limit_on_expensive_routes_returns_429_with_retry_after(server: str) -> None:
     with httpx.Client(base_url=server, timeout=15) as api:
         headers, unit_id = _login_demo(api)
-        ip_a = {**headers, "X-Forwarded-For": "198.51.100.10"}
-        ip_b = {**headers, "X-Forwarded-For": "198.51.100.20"}
+        ip_a = {**headers, "X-Forwarded-For": "198.51.100.10", "Origin": "https://plataformadocente.dev"}
+        ip_b = {**headers, "X-Forwarded-For": "198.51.100.20", "Origin": "https://plataformadocente.dev"}
         payload = {"unitId": unit_id, "message": "Generar una guía de redes de computadoras"}
 
         # Cupo configurado en el fixture: 3 peticiones por ventana para ip_a
@@ -96,7 +97,7 @@ def test_rate_limit_on_expensive_routes_returns_429_with_retry_after(server: str
             )
             assert res.status_code == 200, res.text
 
-        # La 4.ª petición desde ip_a dispara 429 con Retry-After y cabeceras de seguridad
+        # La 4.ª petición desde ip_a dispara 429 con Retry-After, cabecera CORS y cabeceras de seguridad
         blocked = api.post(
             "/api/v1/generation-requests/interpret",
             headers=ip_a,
@@ -106,6 +107,7 @@ def test_rate_limit_on_expensive_routes_returns_429_with_retry_after(server: str
         assert "Retry-After" in blocked.headers
         assert int(blocked.headers["Retry-After"]) >= 1
         assert blocked.json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+        assert blocked.headers.get("access-control-allow-origin") == "https://plataformadocente.dev"
         assert blocked.headers.get("X-Content-Type-Options") == "nosniff"
 
         # Otra IP distinta (ip_b) mantiene su propio cupo independiente
@@ -126,11 +128,12 @@ def test_payload_size_limit_rejects_oversized_json_and_upload_with_413(server: s
     host, port_text = host_port.split(":")
     port = int(port_text)
 
-    # 1. Ruta JSON con Content-Length > 1 MB (1_048_576 bytes): rechazada antes de leer el cuerpo
+    # 1. Ruta JSON con Content-Length > 1 MB (1_048_576 bytes): rechazada antes de leer el cuerpo, con CORS
     with socket.create_connection((host, port), timeout=5) as sock:
         raw_request = (
             f"POST /api/v1/sessions HTTP/1.1\r\n"
             f"Host: {host_port}\r\n"
+            f"Origin: https://plataformadocente.dev\r\n"
             f"Content-Type: application/json\r\n"
             f"Content-Length: {1_048_577}\r\n"
             f"Connection: close\r\n\r\n"
@@ -146,12 +149,14 @@ def test_payload_size_limit_rejects_oversized_json_and_upload_with_413(server: s
     response_text = response_bytes.decode("utf-8", errors="replace")
     assert "HTTP/1.1 413 " in response_text
     assert "PAYLOAD_TOO_LARGE" in response_text
+    assert "access-control-allow-origin: https://plataformadocente.dev" in response_text.lower()
 
-    # 2. Subida en POST /api/v1/documents con Content-Length > 25 MB (26_214_400 bytes)
+    # 2. Subida en POST /api/v1/documents con Content-Length > 25 MB (26_214_400 bytes), con CORS
     with socket.create_connection((host, port), timeout=5) as sock:
         raw_upload = (
             f"POST /api/v1/documents HTTP/1.1\r\n"
             f"Host: {host_port}\r\n"
+            f"Origin: https://plataformadocente.dev\r\n"
             f"Content-Type: multipart/form-data; boundary=----QA16Boundary\r\n"
             f"Content-Length: {25 * 1024 * 1024 + 1}\r\n"
             f"Connection: close\r\n\r\n"
@@ -167,3 +172,4 @@ def test_payload_size_limit_rejects_oversized_json_and_upload_with_413(server: s
     upload_text = upload_bytes.decode("utf-8", errors="replace")
     assert "HTTP/1.1 413 " in upload_text
     assert "PAYLOAD_TOO_LARGE" in upload_text
+    assert "access-control-allow-origin: https://plataformadocente.dev" in upload_text.lower()

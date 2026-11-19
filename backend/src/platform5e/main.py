@@ -178,6 +178,10 @@ def create_application() -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.add_middleware(PayloadSizeLimitMiddleware)
+    app.add_middleware(IpRateLimitMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
+
     cors_origins = [o.strip().rstrip("/") for o in read_setting("CORS_ALLOWED_ORIGINS").split(",") if o.strip()]
     if cors_origins:
         app.add_middleware(
@@ -187,10 +191,6 @@ def create_application() -> FastAPI:
             allow_headers=["*"],
             expose_headers=["Content-Disposition"],
         )
-
-    app.add_middleware(PayloadSizeLimitMiddleware)
-    app.add_middleware(IpRateLimitMiddleware)
-    app.add_middleware(SecurityHeadersMiddleware)
 
     # 1. Adaptadores de salida
     account_repository = SQLAlchemyAccountRepository()
