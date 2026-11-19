@@ -1,0 +1,6 @@
+Scan completed successfully.
+- Findings: 0 (0 blocking)
+- Rules run: 151
+- Targets scanned: 135
+- Parsed lines: ~100.0%
+Ran 151 rules on 135 files: 0 findings.

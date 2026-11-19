@@ -50,3 +50,6 @@ venv/
 # Pruebas de rendimiento y estrés (QA-18)
 backend/performance/jmeter/users.csv
 backend/performance/jmeter/results/
+# Security audit local tools
+.venv-semgrep/
+req_*.txt
