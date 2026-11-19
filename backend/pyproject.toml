@@ -33,6 +33,10 @@ dev = [
 postgres = [
     "psycopg[binary]>=3.1.0",
 ]
+# QA-17 y QA-16: pruebas de carga con Locust (backend/performance/locust). No lo instala la CI.
+perf = [
+    "locust==2.47.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["src"]
