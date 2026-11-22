@@ -86,14 +86,14 @@ Como docente, quiero ver cada página del paquete SCORM tal como saldrá antes d
 
 | Caso | Dado y cuando | Entonces |
 |---|---|---|
-| REV-C16 | El docente solicita la vista previa de exportación SCORM para una unidad con recursos aprobados | El sistema genera las páginas en memoria con su HTML y el listado de recursos excluidos, sin registrar una descarga en el historial. Si no hay recursos elegibles, devuelve 422 `NO_APPROVED_RESOURCES`. |
+| REV-C16 | El docente solicita la vista previa de exportación SCORM para una unidad con recursos aprobados | El sistema genera las páginas en memoria con su HTML, incrustando estilos, scripts y medios en base64 para su renderizado fiel en iframes aislados (`sandbox="allow-scripts"` sin `allow-same-origin`), y el listado de recursos excluidos con motivos legibles, sin registrar una descarga en el historial. Si no hay recursos elegibles, devuelve 422 `NO_APPROVED_RESOURCES`. |
 
 ### REV-P3 · Control de duplicidad entre recursos
 Como docente, quiero identificar recursos o preguntas con contenido repetido o parafraseado dentro de la unidad, para evitar redundancias antes de publicar o exportar.
 
 | Caso | Dado y cuando | Entonces |
 |---|---|---|
-| REV-C17 | Se consulta el reporte de duplicidad de una unidad con recursos generados | El sistema compara los textos completos de los recursos y los enunciados de las preguntas mediante similitud de n-gramas de caracteres y Jaccard de palabras; reporta los pares que superan el umbral configurado (`REVIEW_DUPLICATE_THRESHOLD`) y la tasa de duplicidad (`duplicatePairRate`), como un aviso no bloqueante que no impide la aprobación ni la exportación. |
+| REV-C17 | Se consulta el reporte de duplicidad de una unidad con recursos generados | El sistema compara los textos completos de los recursos y los enunciados de las preguntas mediante raíz ligera (`stem`), similitud combinada de n-gramas de caracteres y Jaccard de palabras; reporta los pares que superan el umbral configurado (`REVIEW_DUPLICATE_THRESHOLD`, por defecto `0.70`) y la tasa de duplicidad (`duplicatePairRate`), como un aviso no bloqueante que no impide la aprobación ni la exportación. |
 
 ## Criterios de éxito
 

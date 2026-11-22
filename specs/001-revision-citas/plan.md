@@ -229,16 +229,17 @@ que no lo envía recibe 422. Por eso:
 ### Enfoque técnico REV-P3 · Control de duplicidad (Backend)
 - **Módulo de dominio (`domain/review/duplication.py`)**: algoritmo en Python puro sin dependencias externas ni costos de LLM (`LLM_PROVIDER=rules`).
   - `normalize(text)`: normalización Unicode NFKD, remoción de diacríticos y puntuación, colapso de espacios en blanco y filtrado de palabras vacías comunes en español.
-  - `similarity(a, b)`: cálculo combinado de similitud mediante coseno sobre vectores de n-gramas de caracteres ($n=3..5$) y coeficiente Jaccard sobre conjuntos de palabras: $\max(\text{coseno}, \text{jaccard})$, redondeado a 3 decimales.
+  - `stem(token)`: remoción de sufijos flexivos y derivativos en español manteniendo raíces de $\ge 3$ caracteres.
+  - `similarity(a, b)`: cálculo combinado de similitud mediante coseno sobre vectores de n-gramas de caracteres ($n=3..5$) y coeficiente Jaccard sobre conjuntos de palabras con raíz: $(\text{coseno} + \text{jaccard}) / 2$, redondeado a 3 decimales.
   - Extracción genérica de textos: `resource_text(resource)` recorre recursivamente cadenas y listas de diccionarios en `structure`, título y `body`. `question_texts(resource)` extrae enunciados de ítems y campos de preguntas en la estructura.
-  - `find_duplicates(resources, threshold)`: compara recursos contra recursos (`scope="resource"`) y preguntas contra preguntas (`scope="question"`, tanto entre recursos distintos como dentro del mismo recurso). Retorna pares que superan el umbral ordenados descendentemente por puntaje, total de pares comparados y tasa de duplicidad (`duplicatePairRate = flaggedPairs / comparedPairs`).
-- **Configuración**: `REVIEW_DUPLICATE_THRESHOLD` en `platform5e/infrastructure/settings.py` (por defecto 0.75, ajustable de 0 a 1).
-- **Servicio y Endpoint**: servicio en `ResourceReviewService` y endpoint `GET /api/v1/units/{unit_id}/duplication-report` en `resources.py` con schemas Pydantic y respuestas en camelCase. Comprobación de aislamiento por docente (404 si la unidad no le pertenece).
+  - `find_duplicates(resources, threshold)`: compara recursos contra recursos (`scope="resource"`) y preguntas contra preguntas (`scope="question"`). Retorna pares que superan el umbral ordenados descendentemente por puntaje, total de pares comparados y tasa de duplicidad (`duplicatePairRate = flaggedPairs / comparedPairs`). Si un par se marca en ambos alcances, se conserva el de mayor puntaje para evitar duplicar el hallazgo.
+- **Configuración**: `REVIEW_DUPLICATE_THRESHOLD` en `platform5e/infrastructure/settings.py` (por defecto `0.70`, ajustable de 0 a 1).
+- **Servicio y Endpoint**: servicio en `ResourceReviewService` (con `default_duplicate_threshold=review_duplicate_threshold()`) y endpoint `GET /api/v1/units/{unit_id}/duplication-report` en `resources.py` con schemas Pydantic y respuestas en camelCase. Comprobación de aislamiento por docente (404 si la unidad no le pertenece).
 
 ### Enfoque técnico REV-P2 · Vista previa y validación SCORM (Backend)
 - **Exportador SCORM (`infrastructure/exporters/scorm_package_exporter.py`)**:
-  - Extracción de función pública reutilizable `build_scorm_pages(resources)` que retorna la lista ordenada de tuplas `(number, title, html)`.
-  - Tratamiento robusto de tipos no reconocidos: generación de página genérica con título, párrafos y fuentes sin excepciones.
+  - Función `build_scorm_pages(resources)` que comparte con `export` la lógica de orden (`_ordered_entries`) y generación de HTML base (`_page_html`), incrustando estilos CSS, scripts (`SCORM_JS` con protección `try/catch` contra `SecurityError`, `ACTIVITY_JS`, `QUIZ_JS`) e imágenes/audios en `data:` URLs base64 para previsualización interactiva y fiel dentro de `srcDoc` sin enlaces relativos rotos.
+  - Exportación sin alteración del comportamiento para tipos conocidos (el cuerpo usa `body_html`).
   - Pruebas exhaustivas de estructura de paquete en `tests/unit/test_scorm_package_structure.py` validando `imsmanifest.xml` bien formado, referencias biunívocas de archivos, unicidad de identificadores, orden de ítems y ausencia de scripts no autorizados o manejadores inline `on*=`.
 - **Endpoint de vista previa**:
   - `POST /api/v1/units/{unit_id}/exports/preview` en `exports.py`.

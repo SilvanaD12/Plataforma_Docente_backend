@@ -332,6 +332,21 @@ implementan en la rama del módulo del repositorio `Plataforma_Docente_frontend`
 - **Código anterior.** Se adapta de `Yansete/plataforma-5e-frontend@feca57c` (`src/features/review`, `src/features/export`).
 - **Pruebas.** Con Vitest, ya configurado. El repositorio no tiene una herramienta de navegador automatizada, así que las tareas `[E2E]` se ejecutan en el navegador con backend local y se documentan con capturas y estados HTTP, como en CC-01.
 
+## D13. Detección de duplicidad de recursos y preguntas (REV-P3)
+
+**Decisión.** El detector de duplicidad (`domain/review/duplication.py`) opera en memoria en Python puro, calculando
+la similitud mediante la media de coseno de n-gramas de caracteres ($n=3..5$) y Jaccard de palabras sobre los tokens
+normalizados con raíz ligera (`stem`).
+El umbral por defecto es `0.70`, configurable mediante la variable de entorno `REVIEW_DUPLICATE_THRESHOLD`.
+
+**Limitación conocida.**
+La comparación es estrictamente léxica (n-gramas + Jaccard con raíz léxica en español). Por diseño, no detecta
+paráfrasis construidas exclusivamente mediante sustitución de sinónimos semánticos sin tokens o raíces compartidas
+(por ejemplo, «Explica cómo funciona TCP...» frente a «Describe el funcionamiento de TCP...» obtiene un puntaje
+cercano a 0.5, por debajo del umbral). Para detectar equivalencias semánticas con vocabulario disjunto se requeriría
+un modelo de incrustaciones vectoriales (*embeddings* neuronales) o un clasificador semántico basado en LLM, que queda
+como trabajo futuro para evitar costos o consumo de cuotas de API de pago.
+
 ## D11. Patrones que se usan
 
 | Patrón | Dónde |
