@@ -43,19 +43,10 @@ class ExportUnitResourcesUseCase:
     def formats(self) -> list[str]:
         return sorted(self._exporters)
 
-    def execute(
-        self, teacher_id: str, unit_id: str, export_format: str, resource_ids: Sequence[str] = ()
-    ) -> ExportedFile:
-        match = find_course_and_unit(self._teacher_repository.get_courses(teacher_id), unit_id)
-        if match is None:
-            raise AccountConfigurationError("UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404)
-        course, unit = match
-
-        exporter = self._exporters.get(export_format)
-        if exporter is None:
-            raise AccountConfigurationError("INVALID_FORMAT", "El formato de exportación no es válido.", 422)
-
-        # REV-R7: el mismo filtro para los tres formatos. Los recursos sin verificación se verifican antes (D7).
+    def _filter_eligible(
+        self, teacher_id: str, unit_id: str, exporter: UnitExporterPort, resource_ids: Sequence[str] = ()
+    ) -> tuple[list[dict], list[dict[str, Any]]]:
+        """REV-R7: el mismo filtro para los tres formatos. Los recursos sin verificación se verifican antes (D7)."""
         wanted = set(resource_ids)
         left_out: Counter[str] = Counter()
         eligible = []
@@ -68,11 +59,24 @@ class ExportUnitResourcesUseCase:
                 left_out[reason] += 1
             else:
                 eligible.append(resource)
+        excluded = [{"reason": reason, "count": count} for reason, count in sorted(left_out.items())]
         if not eligible:
-            raise ExportNotEligibleError(
-                NO_ELIGIBLE_MESSAGE, [{"reason": reason, "count": count} for reason, count in sorted(left_out.items())]
-            )
+            raise ExportNotEligibleError(NO_ELIGIBLE_MESSAGE, excluded)
+        return eligible, excluded
 
+    def execute(
+        self, teacher_id: str, unit_id: str, export_format: str, resource_ids: Sequence[str] = ()
+    ) -> ExportedFile:
+        match = find_course_and_unit(self._teacher_repository.get_courses(teacher_id), unit_id)
+        if match is None:
+            raise AccountConfigurationError("UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404)
+        course, unit = match
+
+        exporter = self._exporters.get(export_format)
+        if exporter is None:
+            raise AccountConfigurationError("INVALID_FORMAT", "El formato de exportación no es válido.", 422)
+
+        eligible, _ = self._filter_eligible(teacher_id, unit_id, exporter, resource_ids)
         exported = exporter.export([self._with_media_file(teacher_id, r) for r in eligible], course, unit)
         # REV-R9: un solo registro por archivo, con el curso y la unidad, para que el historial sobreviva al borrado.
         self._review_repository.save_download(
@@ -109,22 +113,7 @@ class ExportUnitResourcesUseCase:
         if exporter is None:
             raise AccountConfigurationError("INVALID_FORMAT", "El formato de exportación no es válido.", 422)
 
-        wanted = set(resource_ids)
-        left_out: Counter[str] = Counter()
-        eligible = []
-        for stored in self._review_repository.get_resources_by_unit(teacher_id, unit_id):
-            if wanted and stored["id"] not in wanted:
-                continue
-            resource = upgrade_resource_verification(self._review_repository, teacher_id, unit_id, stored)
-            reason = export_ineligibility(resource) or (None if exporter.supports(resource) else UNSUPPORTED_FORMAT)
-            if reason:
-                left_out[reason] += 1
-            else:
-                eligible.append(resource)
-        excluded = [{"reason": reason, "count": count} for reason, count in sorted(left_out.items())]
-        if not eligible:
-            raise ExportNotEligibleError(NO_ELIGIBLE_MESSAGE, excluded)
-
+        eligible, excluded = self._filter_eligible(teacher_id, unit_id, exporter, resource_ids)
         resources_with_media = [self._with_media_file(teacher_id, r) for r in eligible]
         raw_pages = exporter.preview(resources_with_media)
         pages = [{"number": number, "title": title, "html": html_content} for number, title, html_content in raw_pages]

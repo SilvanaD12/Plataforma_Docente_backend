@@ -157,29 +157,88 @@ def test_build_scorm_pages_returns_rendered_pages_and_order():
 
     for _, _, html_content in pages:
         assert "<!doctype html>" in html_content
-        assert "scorm.js" in html_content
+        assert "scorm5e" in html_content
 
 
-def test_export_unknown_resource_type_gracefully_handled():
-    unknown_resource = {
-        "id": "rec-unknown",
-        "type": "tipo_interactivo_futuro_999",
-        "stage": "elaborate",
-        "title": "Actividad experimental no estándar",
-        "body": None,
+def test_guided_exploration_with_empty_body_does_not_leak_fragment_ids_or_paragraphs():
+    guided_resource = {
+        "id": "rec-guided",
+        "type": "exploracion_guiada",
+        "stage": "explore",
+        "title": "Exploración de la memoria caché",
+        "body": "",
         "structure": {
-            "instructions": "Sigue las instrucciones no estándar",
-            "steps": ["Paso A", "Paso B"],
+            "prompt": "Explora los pasos de acceso a caché.",
+            "guidedSteps": [
+                {
+                    "stepNumber": 1,
+                    "title": "Paso 1: Consulta inicial",
+                    "instruction": "Verifica si el dato está en caché L1.",
+                    "fragmentIds": ["frag-123-abc", "frag-456-def"],
+                }
+            ],
         },
         "status": "aprobado",
-        "createdAt": "2026-11-20T12:00:00Z",
+        "createdAt": "2026-11-20T10:00:00Z",
+        "evidence": [
+            {"id": "frag-123-abc", "documentName": "separata.pdf", "location": "p. 5"},
+            {"id": "frag-456-def", "documentName": "separata.pdf", "location": "p. 6"},
+        ],
     }
     exporter = ScormPackageExporter()
-    exported = exporter.export([unknown_resource], COURSE, UNIT)
-    assert exported.content
+    exported = exporter.export([guided_resource], COURSE, UNIT)
+    with zipfile.ZipFile(io.BytesIO(exported.content), "r") as zf:
+        html_content = zf.read("sco/01.html").decode("utf-8")
+        assert "<p>frag-" not in html_content
+        outside_json = re.sub(
+            r'<script\s+type="application/json"[^>]*>.*?</script>', "", html_content, flags=re.DOTALL
+        )
+        assert "frag-123-abc" not in outside_json
+        assert "frag-456-def" not in outside_json
 
-    pages = build_scorm_pages([unknown_resource])
-    assert len(pages) == 1
-    assert pages[0][1] == "Actividad experimental no estándar"
-    assert "Sigue las instrucciones no estándar" in pages[0][2]
-    assert "Paso A" in pages[0][2]
+
+def test_build_scorm_pages_inlines_assets_for_preview():
+    from platform5e.infrastructure.exporters.scorm_package_exporter import ACTIVITY_JS
+
+    resources = _sample_resources()
+    pages = build_scorm_pages(resources)
+    assert len(pages) == 3
+
+    for _, _, html_content in pages:
+        assert "../shared/" not in html_content
+        assert 'src="../' not in html_content
+        assert "<style>" in html_content
+
+    # Página 1 es una imagen: debe contener data:image/ (B3)
+    image_page = pages[0][2]
+    assert "data:image/" in image_page
+
+    # Página interactiva: debe incrustar ACTIVITY_JS
+    interactive_resource = {
+        "id": "rec-activity",
+        "type": "reto_prediccion",
+        "stage": "engage",
+        "title": "Reto inicial",
+        "body": "Predice el resultado",
+        "structure": {"predictions": []},
+        "status": "aprobado",
+        "createdAt": "2026-11-20T08:00:00Z",
+    }
+    activity_pages = build_scorm_pages([interactive_resource])
+    assert ACTIVITY_JS.strip() in activity_pages[0][2]
+
+
+def test_exported_zip_preserves_relative_paths_and_content():
+    exporter = ScormPackageExporter()
+    resources = _sample_resources()
+    exported = exporter.export(resources, COURSE, UNIT)
+    with zipfile.ZipFile(io.BytesIO(exported.content), "r") as zf:
+        manifest = zf.read("imsmanifest.xml").decode("utf-8")
+        sco1 = zf.read("sco/01.html").decode("utf-8")
+
+        assert '<link rel="stylesheet" href="../shared/style.css">' in sco1
+        assert '<script src="../shared/scorm.js"></script>' in sco1
+        assert 'src="../media/01.svg"' in sco1
+        assert "data:image/" not in sco1
+        assert "ADL SCORM" in manifest
+        assert '<file href="sco/01.html"/>' in manifest
