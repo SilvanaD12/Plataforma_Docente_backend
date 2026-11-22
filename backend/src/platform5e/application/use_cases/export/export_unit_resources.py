@@ -93,6 +93,43 @@ class ExportUnitResourcesUseCase:
         )
         return exported
 
+    def preview(
+        self, teacher_id: str, unit_id: str, export_format: str, resource_ids: Sequence[str] = ()
+    ) -> dict[str, Any]:
+        """REV-P2: renderiza en memoria las páginas SCORM de los recursos elegibles sin registrar descargas."""
+        match = find_course_and_unit(self._teacher_repository.get_courses(teacher_id), unit_id)
+        if match is None:
+            raise AccountConfigurationError("UNIT_NOT_FOUND", "La unidad no pertenece a tus cursos.", 404)
+        course, unit = match
+
+        if export_format != "scorm_zip":
+            raise AccountConfigurationError("INVALID_PREVIEW_FORMAT", "Solo el formato SCORM admite vista previa.", 422)
+
+        exporter = self._exporters.get(export_format)
+        if exporter is None:
+            raise AccountConfigurationError("INVALID_FORMAT", "El formato de exportación no es válido.", 422)
+
+        wanted = set(resource_ids)
+        left_out: Counter[str] = Counter()
+        eligible = []
+        for stored in self._review_repository.get_resources_by_unit(teacher_id, unit_id):
+            if wanted and stored["id"] not in wanted:
+                continue
+            resource = upgrade_resource_verification(self._review_repository, teacher_id, unit_id, stored)
+            reason = export_ineligibility(resource) or (None if exporter.supports(resource) else UNSUPPORTED_FORMAT)
+            if reason:
+                left_out[reason] += 1
+            else:
+                eligible.append(resource)
+        excluded = [{"reason": reason, "count": count} for reason, count in sorted(left_out.items())]
+        if not eligible:
+            raise ExportNotEligibleError(NO_ELIGIBLE_MESSAGE, excluded)
+
+        resources_with_media = [self._with_media_file(teacher_id, r) for r in eligible]
+        raw_pages = exporter.preview(resources_with_media)
+        pages = [{"number": number, "title": title, "html": html_content} for number, title, html_content in raw_pages]
+        return {"pages": pages, "excluded": excluded}
+
     def _with_media_file(self, teacher_id: str, resource: dict) -> dict:
         """Agrega el archivo generado (imagen o audio) para que el exportador lo incluya en el paquete."""
         media = resource.get("media") or {}

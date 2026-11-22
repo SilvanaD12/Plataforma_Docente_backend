@@ -184,17 +184,40 @@ def _question(options: list[Mapping]) -> str:
     )
 
 
+def _extract_structure_strings(data: object) -> list[str]:
+    res: list[str] = []
+    if isinstance(data, str):
+        stripped = data.strip()
+        if stripped:
+            res.append(stripped)
+    elif isinstance(data, Mapping):
+        for v in data.values():
+            res.extend(_extract_structure_strings(v))
+    elif isinstance(data, (list, tuple, set)):
+        for item in data:
+            res.extend(_extract_structure_strings(item))
+    return res
+
+
 def _sco_page(resource: Mapping, files: list[tuple[str, bytes]] | None = None) -> str:
     options = _exported_options(resource) if resource.get("options") else []
-    is_activity = resource_format(resource.get("type", "")) == INTERACTIVE
+    rtype = str(resource.get("type", ""))
+    is_activity = resource_format(rtype) == INTERACTIVE
     kind = "question" if options else "activity" if is_activity else "content"
-    stage = STAGE_LABELS.get(resource.get("stage", ""), "")
+    stage_val = resource.get("stage", "")
+    stage = STAGE_LABELS.get(stage_val, stage_val or "")
+    title = resource.get("title") or "Recurso"
+    content_html = body_html(resource)
+    if not content_html and resource.get("structure"):
+        strings = _extract_structure_strings(resource.get("structure"))
+        if strings:
+            content_html = "".join(f"<p>{_esc(s)}</p>" for s in strings)
     return f"""<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{_esc(resource.get("title"))}</title>
+<title>{_esc(title)}</title>
 <link rel="stylesheet" href="../shared/style.css">
 <script src="../shared/scorm.js"></script>
 <script src="../shared/activity.js"></script>
@@ -202,8 +225,8 @@ def _sco_page(resource: Mapping, files: list[tuple[str, bytes]] | None = None) -
 <body data-kind="{kind}">
 <main>
 <p class="stage">{_esc(stage)}</p>
-<h1>{_esc(resource.get("title"))}</h1>
-{body_html(resource)}
+<h1>{_esc(title)}</h1>
+{content_html}
 {_media_block(resource, files or [])}
 {_question(options) if options else ""}
 {_sources(resource)}
@@ -850,6 +873,9 @@ class ScormPackageExporter(UnitExporterPort):
     def supports(self, resource: Mapping) -> bool:
         return True  # cada recurso aprobado es una página de la lección
 
+    def preview(self, resources: Sequence[Mapping]) -> list[tuple[int, str, str]]:
+        return build_scorm_pages(resources)
+
     def export(self, resources: Sequence[Mapping], course: Mapping, unit: Mapping) -> ExportedFile:
         ordered = sorted(
             resources,
@@ -893,3 +919,24 @@ def _with_leveled_quiz(ordered: list[Mapping]) -> list[Mapping | LeveledQuiz]:
         elif resource is items[0]:
             entries.append(LeveledQuiz(items))
     return entries
+
+
+def build_scorm_pages(resources: Sequence[Mapping]) -> list[tuple[int, str, str]]:
+    """Construye las páginas HTML ordenadas de los recursos SCORM para vista previa o exportación."""
+    ordered = sorted(
+        resources,
+        key=lambda r: (STAGE_ORDER.index(r["stage"]) if r.get("stage") in STAGE_ORDER else 99, r.get("createdAt", "")),
+    )
+    entries = _with_leveled_quiz(ordered)
+    pages: list[tuple[int, str, str]] = []
+    for n, entry in enumerate(entries, start=1):
+        if isinstance(entry, LeveledQuiz):
+            title = QUIZ_TITLE
+            html_content = _quiz_page(entry)
+        else:
+            title = str(entry.get("title") or f"Recurso {n}")
+            files = media_files(entry, n)
+            html_content = _sco_page(entry, files)
+        pages.append((n, title, html_content))
+    return pages
+

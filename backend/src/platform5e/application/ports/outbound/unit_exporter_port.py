@@ -30,3 +30,8 @@ class UnitExporterPort(Protocol):
     def export(self, resources: Sequence[Mapping], course: Mapping, unit: Mapping) -> ExportedFile:
         """Arma el archivo con los recursos ya aprobados, en el orden de la clase."""
         ...
+
+    def preview(self, resources: Sequence[Mapping]) -> list[tuple[int, str, str]]:
+        """Páginas HTML ordenadas (número, título, html) para vista previa en memoria."""
+        ...
+
