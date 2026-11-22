@@ -136,3 +136,35 @@ def test_repeated_or_foreign_id_creates_a_new_one():
     )
     outcome_ids = [r["id"] for r in edited["units"][0]["outcomes"]]
     assert outcome_ids[0] == ident and len(set(outcome_ids)) == 3 and "ra-inventado" not in outcome_ids
+
+def test_course_audience_round_trip():
+    from platform5e.infrastructure.http.schemas.courses import CourseInput, CourseResponse
+
+    service = AccountService(MockCoursesRepository(), "docente@5e.demo", "clave")
+    audience = {
+        "educationLevel": "Pregrado",
+        "academicCycle": "Septimo ciclo",
+        "activityType": "workshop",
+    }
+    payload = {
+        "code": "AUD-01",
+        "name": "Redes",
+        "term": "2026-II",
+        "units": [{"title": "Protocolos"}],
+    }
+    body = CourseInput.model_validate({**payload, **audience})
+    created = service.save_course("d", body.model_dump(by_alias=True))
+    response = CourseResponse.model_validate(created).model_dump(by_alias=True)
+    assert {key: response[key] for key in audience} == audience
+
+    payload["units"][0]["id"] = created["units"][0]["id"]
+    body = CourseInput.model_validate(payload)
+    updated = service.save_course("d", body.model_dump(by_alias=True), created["id"])
+    saved = service.list_courses("d")[0]
+    assert {key: updated[key] for key in audience} == audience
+    assert {key: saved[key] for key in audience} == audience
+
+    empty_audience = dict.fromkeys(audience, "")
+    body = CourseInput.model_validate({**payload, **empty_audience})
+    cleared = service.save_course("d", body.model_dump(by_alias=True), created["id"])
+    assert {key: cleared[key] for key in audience} == empty_audience
