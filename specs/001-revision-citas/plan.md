@@ -223,3 +223,36 @@ que no lo envía recibe 422. Por eso:
 | Tres archivos de dominio que no estaban en la tabla (`resource_verification`, `export_eligibility`, `media_change`) | La misma regla la usan guardar, reintentar, migrar y exportar, y debe probarse sin base de datos | Dejarla en `resource_review_service.py`: mezclaría la regla con la coordinación y no la podría usar Exportación sin duplicarla |
 | Ajuste de columna en SQLite dentro del adaptador | `create(checkfirst=True)` no agrega columnas a una tabla existente (H12) | Pedir que se borre `demo.db`: se pierden los datos de prueba |
 | Cambio en `sqlalchemy_account_repository.delete_course`, archivo de CC-01 | REV-R9 exige conservar el historial, y hoy se borra (H5). Lo hace Silvana, o Juan con su aprobación | Copiar los registros a otra tabla antes de borrar: duplica datos sin necesidad |
+
+## Ampliación de asesoría (21/11): REV-P1, REV-P2 y REV-P3
+
+### Enfoque técnico REV-P3 · Control de duplicidad (Backend)
+- **Módulo de dominio (`domain/review/duplication.py`)**: algoritmo en Python puro sin dependencias externas ni costos de LLM (`LLM_PROVIDER=rules`).
+  - `normalize(text)`: normalización Unicode NFKD, remoción de diacríticos y puntuación, colapso de espacios en blanco y filtrado de palabras vacías comunes en español.
+  - `similarity(a, b)`: cálculo combinado de similitud mediante coseno sobre vectores de n-gramas de caracteres ($n=3..5$) y coeficiente Jaccard sobre conjuntos de palabras: $\max(\text{coseno}, \text{jaccard})$, redondeado a 3 decimales.
+  - Extracción genérica de textos: `resource_text(resource)` recorre recursivamente cadenas y listas de diccionarios en `structure`, título y `body`. `question_texts(resource)` extrae enunciados de ítems y campos de preguntas en la estructura.
+  - `find_duplicates(resources, threshold)`: compara recursos contra recursos (`scope="resource"`) y preguntas contra preguntas (`scope="question"`, tanto entre recursos distintos como dentro del mismo recurso). Retorna pares que superan el umbral ordenados descendentemente por puntaje, total de pares comparados y tasa de duplicidad (`duplicatePairRate = flaggedPairs / comparedPairs`).
+- **Configuración**: `REVIEW_DUPLICATE_THRESHOLD` en `platform5e/infrastructure/settings.py` (por defecto 0.75, ajustable de 0 a 1).
+- **Servicio y Endpoint**: servicio en `ResourceReviewService` y endpoint `GET /api/v1/units/{unit_id}/duplication-report` en `resources.py` con schemas Pydantic y respuestas en camelCase. Comprobación de aislamiento por docente (404 si la unidad no le pertenece).
+
+### Enfoque técnico REV-P2 · Vista previa y validación SCORM (Backend)
+- **Exportador SCORM (`infrastructure/exporters/scorm_package_exporter.py`)**:
+  - Extracción de función pública reutilizable `build_scorm_pages(resources)` que retorna la lista ordenada de tuplas `(number, title, html)`.
+  - Tratamiento robusto de tipos no reconocidos: generación de página genérica con título, párrafos y fuentes sin excepciones.
+  - Pruebas exhaustivas de estructura de paquete en `tests/unit/test_scorm_package_structure.py` validando `imsmanifest.xml` bien formado, referencias biunívocas de archivos, unicidad de identificadores, orden de ítems y ausencia de scripts no autorizados o manejadores inline `on*=`.
+- **Endpoint de vista previa**:
+  - `POST /api/v1/units/{unit_id}/exports/preview` en `exports.py`.
+  - Acepta `ExportRequest` (`{"format": "scorm_zip", "resourceIds": []}`); rechaza otros formatos con 422 `INVALID_PREVIEW_FORMAT`.
+  - Aplica el mismo filtro de elegibilidad (`export_ineligibility`) sin registrar descargas en `ep002_descargas`.
+  - Retorna `{"pages": [{"number": 1, "title": "...", "html": "..."}], "excluded": [{"reason": "...", "count": n}]}` o 422 `NO_APPROVED_RESOURCES` si ningún recurso es elegible.
+
+### Enfoque técnico REV-P1 · Editor enriquecido + vista previa + avisos (Frontend)
+- **Dependencias**: integración de Tiptap (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-underline`) con versiones exactas compatibles con React 18.3 y sin alertas altas en `npm audit`.
+- **Componente `RichTextEditor.tsx`**:
+  - Restringido exactamente al subconjunto permitido por `html_sanitizer.py`.
+  - Barra de herramientas accesible con teclado, botones con `aria-label` y `aria-pressed`, y formulario integrado para URLs (sin `window.prompt`).
+  - Accesibilidad: contenedor editable con `role="textbox"`, `aria-multiline="true"` y vinculado a la etiqueta mediante `aria-labelledby`.
+  - Sincronización transparente: si `bodyHtml` existe se carga directamente; en su defecto se genera HTML inicial desde `body` sin marcar el estado como sucio (`isDirty = false`). Al editar, se calcula `body` plano y `bodyHtml`; si el texto plano normalizado coincide con el guardado, se conserva el `body` original enviando únicamente `bodyHtml`, preservando la huella y la verificación.
+- **Avisos de duplicidad en `ReviewPage.tsx`**: consumo no bloqueante de `GET .../duplication-report` mostrando advertencias contextuales con enlace al recurso y recálculo tras guardar.
+- **Vista previa en `ExportPage.tsx`**: modal/sección interactiva con `iframe sandbox=""` para recorrer las páginas SCORM generadas y lista de recursos excluidos.
+- **Verificación de presupuesto**: validación de que el chunk inicial se mantiene < 200 KB gzip (`npm run check:bundle`).

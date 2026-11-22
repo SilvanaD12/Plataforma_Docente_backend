@@ -324,6 +324,30 @@ Acordado con Silvana en la revisión de los PR (2026-11-09). Ninguna bloquea la 
 - [x] T066 [BE] **Respuesta tardía de un intento viejo** (revisión de Silvana en el PR #17 de Yan; va antes del #17). Con el adaptador en segundo plano puede haber un intento fallido y otro nuevo desde la misma versión. El registro del estado, el descarte del anterior y la liberación de la reserva comparan el `attemptId` vigente en el mismo `UPDATE` (columna `regeneration_attempt`, migración `20261111000001_regeneration_attempt.sql`), con `save_resource_if_attempt` y `release_regeneration` por intento. Pruebas: `tests/unit/test_background_regeneration.py` y `tests/integration/test_regeneration_concurrency.py`, con `failed` y `succeeded` tardíos: el registro, la reserva y el recurso del intento nuevo quedan intactos. En Render hay que comprobar que se aplicó la migración, como en T065.
 - [x] T067 [BE] **Escritura de `running` sobre un intento que ya terminó** (revisión de Silvana en el PR #17 de Yan; va antes del #17). Una consulta lee `running` y, antes de que escriba, otra consulta del mismo intento guarda `failed` y libera la reserva; como el `attemptId` es el mismo, T066 no lo impedía y el pedido siguiente respondía «en curso» sin crear uno nuevo. `save_resource_if_attempt` exige además en el mismo `UPDATE` que el intento siga en `running` (columna `regeneration_status`, migración `20261112000001_regeneration_status.sql`). Pruebas: `test_a_running_write_does_not_overwrite_the_same_attempt_once_it_failed` en `tests/unit/test_background_regeneration.py` y en `tests/integration/test_regeneration_concurrency.py`. En Render hay que comprobar que se aplicó la migración, como en T065.
 
+## Ampliación de asesoría (21/11): REV-P1, REV-P2 y REV-P3
+
+### Control de duplicidad (REV-P3)
+- [x] T068 [BE] [REV-P3] Implementar algoritmo de duplicidad en `backend/src/platform5e/domain/review/duplication.py` (`normalize`, `similarity`, `resource_text`, `question_texts`, `find_duplicates`) sin dependencias externas ni llamadas a LLM.
+- [x] T069 [BE] [REV-P3] Agregar configuración `REVIEW_DUPLICATE_THRESHOLD` (por defecto 0.75, rango 0 a 1) en `backend/src/platform5e/infrastructure/settings.py`.
+- [x] T070 [BE] [REV-P3] Implementar servicio y endpoint `GET /api/v1/units/{unit_id}/duplication-report` en `resource_review_service.py` y `resources.py` con schemas Pydantic y respuestas camelCase con verificación de acceso docente.
+- [x] T071 [BE] [REV-P3] Crear pruebas unitarias en `backend/tests/unit/test_duplication.py` y e2e en `backend/tests/e2e/test_duplication_api.py` (probar similitud, normalización, pares de red >= umbral, 5 paráfrasis, 5 distintos, textos vacíos, aislamiento 404/401).
+- [x] T072 [BE] [REV-P3] Ejecutar cálculo de tasa de duplicidad sobre `demo_generation.json` y registrar evidencia en `docs/evidence/REV-P3/duplicate-rate.md`.
+
+### Vista previa y validación SCORM (REV-P2)
+- [x] T073 [BE] [REV-P2] Extraer función pública `build_scorm_pages` y agregar respaldo para tipos no reconocidos en `backend/src/platform5e/infrastructure/exporters/scorm_package_exporter.py`.
+- [x] T074 [BE] [REV-P2] Crear pruebas de estructura de paquete SCORM en `backend/tests/unit/test_scorm_package_structure.py` (`imsmanifest.xml` válido, referencias biunívocas, orden, IDs únicos, scripts permitidos, exportación de tipos desconocidos).
+- [x] T075 [BE] [REV-P2] Implementar caso de uso y endpoint `POST /api/v1/units/{unit_id}/exports/preview` en `export_unit_resources.py` y `exports.py` con validación de formato SCORM, exclusiones y sin registrar descargas en el historial.
+- [x] T076 [BE] [REV-P2] Crear pruebas e2e en `backend/tests/e2e/test_exports_preview_api.py` y actualizar guía manual de Moodle en `specs/001-revision-citas/quickstart.md`.
+
+### Editor enriquecido + vista previa + avisos (REV-P1)
+- [x] T077 [FE] [REV-P1] Instalar dependencias exactas de Tiptap en `Plataforma_Docente_frontend/package.json` (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`, `@tiptap/extension-link`, `@tiptap/extension-underline`) y verificar auditoría limpia sin vulnerabilidades altas.
+- [x] T078 [FE] [REV-P1] Crear componente `src/features/review/components/RichTextEditor.tsx` accesible con barra de herramientas, diálogo interno de enlaces y restricción a etiquetas de `html_sanitizer.py`.
+- [x] T079 [FE] [REV-P1] Actualizar modelo `src/features/review/model/reviewEditor.ts` para sincronizar `bodyHtml` y `body`, conservando `body` sin cambios de texto plano para mantener huella y verificación, con pruebas unitarias en `reviewEditor.test.ts`.
+- [x] T080 [FE] [REV-P1] Integrar `RichTextEditor` en `src/features/review/components/ResourceEditor.tsx` reemplazando el `textarea` del cuerpo del recurso.
+- [x] T081 [FE] [REV-P1] Integrar avisos de duplicidad no bloqueantes en `src/features/review/pages/ReviewPage.tsx` consumiendo `GET .../duplication-report`.
+- [x] T082 [FE] [REV-P1] Implementar vista previa SCORM interactiva con `iframe sandbox=""` y desglose de exclusiones en `src/features/export/pages/ExportPage.tsx`.
+- [x] T083 [FE] [REV-P1] Validar pruebas (`npm test`), linter (`npm run lint`), compilación (`npm run build`) y presupuesto de paquete inicial (< 200 KB gzip con `npm run check:bundle`).
+
 ## Historias del Sprint 1 (Cierre de evidencias)
 
 - [x] HU-043 [E2E] **Exportación a Moodle XML.** Comprobada en Moodle 5.3.1 (`sandbox.moodledemo.net`): formulario con XML, «Importing 1 questions from file», categoría y vista previa respondida (UDP incorrecta con retroalimentación y capa de transporte correcta). Evidencia: `docs/evidence/HU-043/`.
