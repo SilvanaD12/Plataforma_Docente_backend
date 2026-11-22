@@ -15,7 +15,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-DEFAULT_DUPLICATE_THRESHOLD: float = 0.75
+DEFAULT_DUPLICATE_THRESHOLD: float = 0.70
 
 SPANISH_STOPWORDS: frozenset[str] = frozenset(
     {
@@ -55,6 +55,51 @@ SPANISH_STOPWORDS: frozenset[str] = frozenset(
 
 _PUNCTUATION_OR_SPECIAL = re.compile(r"[^\w\s]|_", re.UNICODE)
 
+STEM_SUFFIXES: tuple[str, ...] = tuple(
+    sorted(
+        [
+            "ariamos",
+            "arian",
+            "aria",
+            "ando",
+            "iendo",
+            "aciones",
+            "acion",
+            "ciones",
+            "cion",
+            "mente",
+            "ados",
+            "adas",
+            "ado",
+            "ada",
+            "idos",
+            "ido",
+            "an",
+            "en",
+            "ar",
+            "er",
+            "ir",
+            "as",
+            "es",
+            "os",
+            "s",
+            "a",
+            "o",
+            "e",
+        ],
+        key=len,
+        reverse=True,
+    )
+)
+
+
+def stem(token: str) -> str:
+    """Raíz ligera para español: quita el sufijo más largo si la raíz queda con 3 letras o más."""
+    for suffix in STEM_SUFFIXES:
+        if token.endswith(suffix) and len(token) - len(suffix) >= 3:
+            return token[: -len(suffix)]
+    return token
+
 
 def normalize(text: str | None) -> str:
     """Normaliza texto eliminando diacríticos, puntuación, mayúsculas y stopwords en español."""
@@ -65,6 +110,14 @@ def normalize(text: str | None) -> str:
     cleaned = _PUNCTUATION_OR_SPECIAL.sub(" ", without_accents)
     tokens = [token for token in cleaned.split() if token not in SPANISH_STOPWORDS]
     return " ".join(tokens)
+
+
+def stem_words(text: str | None) -> str:
+    """Aplica la raíz ligera stem a cada palabra después de normalize."""
+    normalized = normalize(text)
+    if not normalized:
+        return ""
+    return " ".join(stem(token) for token in normalized.split())
 
 
 def _char_ngrams(text: str) -> Counter[str]:
@@ -102,7 +155,7 @@ def _word_jaccard(tokens_a: set[str], tokens_b: set[str]) -> float:
 
 
 def similarity(a: str | None, b: str | None) -> float:
-    """Similitud combinada max(coseno, jaccard) redondeada a 3 decimales."""
+    """Similitud combinada (coseno + jaccard) / 2 sobre palabras con raíz redondeada a 3 decimales."""
     normalized_a = normalize(a)
     normalized_b = normalize(b)
     if not normalized_a or not normalized_b:
@@ -110,15 +163,20 @@ def similarity(a: str | None, b: str | None) -> float:
     if normalized_a == normalized_b:
         return 1.0
 
-    ngrams_a = _char_ngrams(normalized_a)
-    ngrams_b = _char_ngrams(normalized_b)
+    stemmed_a = " ".join(stem(t) for t in normalized_a.split())
+    stemmed_b = " ".join(stem(t) for t in normalized_b.split())
+    if stemmed_a == stemmed_b:
+        return 1.0
+
+    ngrams_a = _char_ngrams(stemmed_a)
+    ngrams_b = _char_ngrams(stemmed_b)
     cosine = _cosine_similarity(ngrams_a, ngrams_b)
 
-    words_a = set(normalized_a.split())
-    words_b = set(normalized_b.split())
+    words_a = set(stemmed_a.split())
+    words_b = set(stemmed_b.split())
     jaccard = _word_jaccard(words_a, words_b)
 
-    score = max(cosine, jaccard)
+    score = (cosine + jaccard) / 2
     return min(1.0, max(0.0, round(score, 3)))
 
 
@@ -204,15 +262,17 @@ def _excerpt(text: str, max_length: int = 160) -> str:
 
 def find_duplicates(
     resources: Sequence[Mapping[str, Any]],
-    threshold: float = 0.75,
+    threshold: float = DEFAULT_DUPLICATE_THRESHOLD,
 ) -> dict[str, Any]:
     """
     Compara todos los pares de recursos y preguntas dentro de la colección.
     Retorna pares ordenados con score >= threshold, total comparado y tasa de duplicidad.
+    Si un par de recursos ya se marcó a nivel recurso y sus preguntas generan un hallazgo entre
+    los mismos recursos, conserva el de mayor puntaje para evitar duplicar el hallazgo.
     """
     resource_list = list(resources)
     num_resources = len(resource_list)
-    flagged_pairs: list[dict[str, Any]] = []
+    pair_map: dict[tuple[str, str], dict[str, Any]] = {}
 
     resource_pairs_count = num_resources * (num_resources - 1) // 2
     for i in range(num_resources):
@@ -225,16 +285,15 @@ def find_duplicates(
             text_b = resource_text(resource_b)
             score = similarity(text_a, text_b)
             if score >= threshold:
-                flagged_pairs.append(
-                    {
-                        "resourceIdA": id_a,
-                        "resourceIdB": id_b,
-                        "scope": "resource",
-                        "score": score,
-                        "excerptA": _excerpt(text_a),
-                        "excerptB": _excerpt(text_b),
-                    }
-                )
+                pair_key = (min(id_a, id_b), max(id_a, id_b))
+                pair_map[pair_key] = {
+                    "resourceIdA": id_a,
+                    "resourceIdB": id_b,
+                    "scope": "resource",
+                    "score": score,
+                    "excerptA": _excerpt(text_a),
+                    "excerptB": _excerpt(text_b),
+                }
 
     all_questions: list[tuple[str, int, str]] = []
     for resource in resource_list:
@@ -250,17 +309,22 @@ def find_duplicates(
             res_id_b, idx_b, q_text_b = all_questions[b]
             score = similarity(q_text_a, q_text_b)
             if score >= threshold:
-                flagged_pairs.append(
-                    {
-                        "resourceIdA": res_id_a,
-                        "resourceIdB": res_id_b,
-                        "scope": "question",
-                        "score": score,
-                        "excerptA": _excerpt(q_text_a),
-                        "excerptB": _excerpt(q_text_b),
-                    }
-                )
+                pair_key = (min(res_id_a, res_id_b), max(res_id_a, res_id_b))
+                q_pair = {
+                    "resourceIdA": res_id_a,
+                    "resourceIdB": res_id_b,
+                    "scope": "question",
+                    "score": score,
+                    "excerptA": _excerpt(q_text_a),
+                    "excerptB": _excerpt(q_text_b),
+                }
+                if pair_key in pair_map:
+                    if score > pair_map[pair_key]["score"]:
+                        pair_map[pair_key] = q_pair
+                else:
+                    pair_map[pair_key] = q_pair
 
+    flagged_pairs = list(pair_map.values())
     flagged_pairs.sort(key=lambda p: (p["score"], p["resourceIdA"], p["resourceIdB"]), reverse=True)
     total_compared = resource_pairs_count + question_pairs_count
     duplicate_pair_rate = (

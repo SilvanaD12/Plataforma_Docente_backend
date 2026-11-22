@@ -156,7 +156,7 @@ DEFAULT_REVIEW_DUPLICATE_THRESHOLD: float = DEFAULT_DUPLICATE_THRESHOLD
 
 
 def review_duplicate_threshold(environment: Mapping[str, str] | None = None) -> float:
-    """REV-P3: umbral de similitud para reportar contenido duplicado, de 0 a 1 (por defecto 0.75)."""
+    """REV-P3: umbral de similitud para reportar contenido duplicado, de 0 a 1 (por defecto 0.70)."""
     value = read_setting("REVIEW_DUPLICATE_THRESHOLD", "", environment).strip()
     try:
         threshold = float(value)

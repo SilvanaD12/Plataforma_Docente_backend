@@ -1,8 +1,10 @@
 """REV-P3 · Pruebas e2e de la API de reporte de duplicidad (REV-R15)."""
 
+from collections.abc import Iterator
 import json
 
 import httpx
+import pytest
 
 from tests.e2e.generation_flow import generate
 
@@ -42,7 +44,7 @@ def test_duplication_report_endpoint_authorization_and_isolation(server):
         report_resp = api.get(f"/api/v1/units/{unit_id}/duplication-report", headers=headers_a)
         assert report_resp.status_code == 200
         report = report_resp.json()
-        assert report["threshold"] == 0.75
+        assert report["threshold"] == 0.70
         assert report["comparedPairs"] == 0
         assert report["flaggedPairs"] == []
         assert report["duplicatePairRate"] == 0.0
@@ -87,3 +89,35 @@ def test_duplication_report_endpoint_authorization_and_isolation(server):
         forbidden_resp = api.get(f"/api/v1/units/{unit_id}/duplication-report", headers=headers_b)
         assert forbidden_resp.status_code == 404
         assert forbidden_resp.json()["error"]["code"] == "UNIT_NOT_FOUND"
+
+
+@pytest.fixture
+def custom_threshold_server(monkeypatch: pytest.MonkeyPatch, request: pytest.FixtureRequest) -> Iterator[str]:
+    """B4: Servidor con variable de entorno REVIEW_DUPLICATE_THRESHOLD=0.9."""
+    monkeypatch.setenv("REVIEW_DUPLICATE_THRESHOLD", "0.9")
+    yield request.getfixturevalue("server")
+
+
+def test_duplication_report_configurable_threshold(custom_threshold_server: str):
+    """B4: Comprueba que la variable REVIEW_DUPLICATE_THRESHOLD es respetada por la aplicación."""
+    with httpx.Client(base_url=custom_threshold_server, timeout=60) as api:
+        token = api.post(
+            "/api/v1/accounts",
+            json={"name": "Docente Umbral", "email": "docente_umbral@correo.pe", "password": "clave-segura-1"},
+        ).json()["token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        course = api.post(
+            "/api/v1/courses",
+            headers=headers,
+            json={
+                "code": "THR-101",
+                "name": "Umbral",
+                "term": "2026-II",
+                "units": [{"title": "Unidad 1", "outcomes": [{"text": "Distingue protocolos"}]}],
+            },
+        ).json()
+        unit_id = course["units"][0]["id"]
+
+        report = api.get(f"/api/v1/units/{unit_id}/duplication-report", headers=headers).json()
+        assert report["threshold"] == 0.9

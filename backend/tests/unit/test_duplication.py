@@ -56,7 +56,34 @@ def test_similarity_network_example_pair_exceeds_threshold():
     pair_a = "Los dos protocolos principales de la capa de transporte en Internet son TCP y UDP."
     pair_b = "En la capa de transporte de Internet los dos protocolos principales son TCP y UDP."
     score = similarity(pair_a, pair_b)
-    assert score >= 0.75, f"Expected similarity >= 0.75, got {score}"
+    assert score >= 0.70, f"Expected similarity >= 0.70, got {score}"
+
+
+def test_similarity_professor_example_exact_match():
+    # B5: Ejemplo exacto del profesor (con tildes y signos)
+    pair_a = "¿Cómo se gestionan los paquetes de redes?"
+    pair_b = "¿Cómo se gestionaría los paquetes en una red?"
+    score = similarity(pair_a, pair_b)
+    assert score >= 0.70, f"Professor example failed threshold ({score})"
+    assert score == 1.0, f"Expected 1.0 due to lightweight stemming, got {score}"
+
+
+def test_similarity_fixed_cases_above_and_below_threshold():
+    # B5: Casos fijos que DEBEN marcarse (score >= 0.70)
+    udp_a = "El protocolo UDP no ofrece garantías sobre la entrega o el orden de los paquetes."
+    udp_b = "UDP no ofrece garantías para la entrega o el orden de los paquetes en la red."
+    assert similarity(udp_a, udp_b) >= 0.70
+
+    # B5: Casos fijos que NO deben marcarse (score < 0.70)
+    lifo = "Una pila es una estructura LIFO donde el último elemento en entrar es el primero en salir."
+    fifo = "Una cola es una estructura FIFO donde el primer elemento en entrar es el primero en salir."
+    assert similarity(lifo, fifo) < 0.70
+
+    osi_routing = "¿Qué capa del modelo OSI enruta los paquetes?"
+    osi_encrypt = "¿Qué capa del modelo OSI cifra los datos?"
+    assert similarity(osi_routing, osi_encrypt) < 0.70
+
+    assert similarity("¿Qué es una pila?", "¿Qué es una cola?") < 0.70
 
 
 @pytest.mark.parametrize(
@@ -86,7 +113,7 @@ def test_similarity_network_example_pair_exceeds_threshold():
 )
 def test_similarity_paraphrased_pairs_reach_threshold(text_a: str, text_b: str):
     score = similarity(text_a, text_b)
-    assert score >= 0.75, f"Paraphrase pair failed threshold ({score}): '{text_a}' vs '{text_b}'"
+    assert score >= 0.70, f"Paraphrase pair failed threshold ({score}): '{text_a}' vs '{text_b}'"
 
 
 @pytest.mark.parametrize(
@@ -199,8 +226,8 @@ def test_find_duplicates_detects_resource_and_question_duplication():
         "body": "La fotosintesis es el proceso mediante el cual las plantas convierten la luz solar en energia.",
     }
 
-    report = find_duplicates([res1, res2, res3], threshold=0.75)
-    assert report["threshold"] == 0.75
+    report = find_duplicates([res1, res2, res3], threshold=0.70)
+    assert report["threshold"] == 0.70
     assert report["comparedPairs"] == 3  # 3 * 2 // 2 = 3
     assert len(report["flaggedPairs"]) == 1
 
@@ -208,5 +235,27 @@ def test_find_duplicates_detects_resource_and_question_duplication():
     assert flagged["resourceIdA"] == "res-1"
     assert flagged["resourceIdB"] == "res-2"
     assert flagged["scope"] == "resource"
-    assert flagged["score"] >= 0.75
+    assert flagged["score"] >= 0.70
     assert report["duplicatePairRate"] == round(1 / 3, 3)
+
+
+def test_find_duplicates_deduplicates_same_resource_pair_keeping_highest_score():
+    # B5: Evita contar dos veces el mismo hallazgo entre el mismo par de recursos
+    res_a = {
+        "id": "rec-a",
+        "type": "item_opcion_multiple",
+        "title": "Pregunta de redes TCP",
+        "body": "¿Cómo se gestionan los paquetes de redes?",
+    }
+    res_b = {
+        "id": "rec-b",
+        "type": "item_opcion_multiple",
+        "title": "Pregunta de redes TCP variante",
+        "body": "¿Cómo se gestionaría los paquetes en una red?",
+    }
+    report = find_duplicates([res_a, res_b], threshold=0.70)
+    # Coincidencia tanto a nivel resource como question: deja solo uno (el de mayor puntaje)
+    assert len(report["flaggedPairs"]) == 1
+    flagged = report["flaggedPairs"][0]
+    assert {flagged["resourceIdA"], flagged["resourceIdB"]} == {"rec-a", "rec-b"}
+    assert flagged["score"] >= 0.70
