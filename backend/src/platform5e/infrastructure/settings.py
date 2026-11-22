@@ -29,6 +29,7 @@ GENERATION_REGENERATION_WAIT_SECONDS  segundos que la regeneración desde Revisi
 TOPIC_COVERAGE_THRESHOLD    QA-05: parte de los términos de las indicaciones que debe aparecer en la evidencia antes de
                             redactar, de 0 a 1 (por defecto 0.5). Si no llega y tampoco aparece ninguna frase del tema,
                             el pedido falla con INSUFFICIENT_EVIDENCE. 0 apaga la comprobación
+REVIEW_DUPLICATE_THRESHOLD  REV-P3: umbral de similitud para reportar duplicados, de 0 a 1 (por defecto 0.75)
 """
 
 from __future__ import annotations
@@ -38,6 +39,7 @@ from collections.abc import Mapping
 
 from platform5e.infrastructure.llm.call_deadline import DEFAULT_CALL_DEADLINE_SECONDS, MAX_CALL_DEADLINE_SECONDS
 from platform5e.domain.generation.topic_coverage import DEFAULT_COVERAGE_THRESHOLD
+from platform5e.domain.review.duplication import DEFAULT_DUPLICATE_THRESHOLD
 
 LEGACY_NAMES: dict[str, str] = {
     "CORS_ALLOWED_ORIGINS": "CORS_ORIGENES",
@@ -148,3 +150,17 @@ def generation_regeneration_wait_seconds(environment: Mapping[str, str] | None =
     except ValueError:
         return DEFAULT_GENERATION_REGENERATION_WAIT_SECONDS
     return seconds if seconds >= 0 and seconds == seconds else DEFAULT_GENERATION_REGENERATION_WAIT_SECONDS
+
+
+DEFAULT_REVIEW_DUPLICATE_THRESHOLD: float = DEFAULT_DUPLICATE_THRESHOLD
+
+
+def review_duplicate_threshold(environment: Mapping[str, str] | None = None) -> float:
+    """REV-P3: umbral de similitud para reportar contenido duplicado, de 0 a 1 (por defecto 0.75)."""
+    value = read_setting("REVIEW_DUPLICATE_THRESHOLD", "", environment).strip()
+    try:
+        threshold = float(value)
+    except ValueError:
+        return DEFAULT_REVIEW_DUPLICATE_THRESHOLD
+    return threshold if 0.0 <= threshold <= 1.0 else DEFAULT_REVIEW_DUPLICATE_THRESHOLD
+

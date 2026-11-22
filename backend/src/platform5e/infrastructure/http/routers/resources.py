@@ -15,6 +15,7 @@ from platform5e.application.use_cases.media.regenerate_resource_media import Reg
 from platform5e.infrastructure.http.dependencies import current_teacher_dependency
 from platform5e.infrastructure.http.schemas.common import ErrorResponse, error_responses
 from platform5e.infrastructure.http.schemas.resources import (
+    DuplicationReportResponse,
     RegenerationInput,
     RegenerationResponse,
     RegenerationStatusResponse,
@@ -71,6 +72,33 @@ def create_resources_router(
 
         Expected 200. See the response schema below for the returned fields."""
         return review_service.list_resources(teacher_id, unit_id)
+
+    @router.get(
+        "/units/{unit_id}/duplication-report",
+        response_model=DuplicationReportResponse,
+        summary="Duplication report for unit resources",
+        responses=error_responses(401, 404),
+    )
+    def get_duplication_report(
+        unit_id: str,
+        threshold: float | None = None,
+        teacher_id: str = Depends(current_teacher),
+    ) -> dict[str, Any]:
+        """REV-P3: analyzes content duplication across resources and questions in the unit.
+
+        Compares resources and questions using character n-grams and word Jaccard similarity.
+        Returns pairs with similarity score >= threshold (default from REVIEW_DUPLICATE_THRESHOLD)
+        sorted descending by score.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/units/${UNIT_ID}/duplication-report" -H "Authorization: Bearer $TOKEN"
+        ```
+
+        Expected 200 with the duplication report. 404 if the unit is not owned by the teacher."""
+        return review_service.get_duplication_report(teacher_id, unit_id, threshold)
 
     @router.put(
         "/units/{unit_id}/resources/{resource_id}",
