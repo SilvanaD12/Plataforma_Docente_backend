@@ -23,7 +23,12 @@ from platform5e.application.services.materials.chunk_embedding_service import Ch
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
+from platform5e.application.services.generation.plan_drafting import GenerationPlanner
+from platform5e.application.use_cases.generation.approve_generation_plan import ApproveGenerationPlan
+from platform5e.application.use_cases.generation.create_generation_plan import CreateGenerationPlan
 from platform5e.application.use_cases.generation.get_generation_evidence import GetGenerationEvidence
+from platform5e.application.use_cases.generation.get_generation_plan import GetGenerationPlan
+from platform5e.application.use_cases.generation.update_generation_plan import UpdateGenerationPlan
 from platform5e.application.use_cases.generation.get_generation_request import GetGenerationRequest
 from platform5e.application.use_cases.generation.run_generation_request import RunGenerationRequest
 from platform5e.application.use_cases.generation.interpret_generation_request import (
@@ -44,6 +49,8 @@ from platform5e.infrastructure.adapters.database_probe_adapter import DatabasePr
 from platform5e.infrastructure.adapters.gemini_probe_adapter import GeminiProbeAdapter
 from platform5e.infrastructure.adapters.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
+from platform5e.infrastructure.adapters.plan_context_adapters import NoReferentsAdapter, NoSessionTypologyAdapter
+from platform5e.infrastructure.adapters.resource_catalog_adapter import StaticResourceCatalogAdapter
 from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from platform5e.infrastructure.adapters.wikipedia_probe_adapter import WikipediaProbeAdapter
 from platform5e.infrastructure.exporters.moodle_xml_exporter import MoodleXmlExporter
@@ -67,6 +74,7 @@ from platform5e.infrastructure.http.routers.downloads import (
     create_teacher_downloads_router,
 )
 from platform5e.infrastructure.http.routers.exports import create_exports_router
+from platform5e.infrastructure.http.routers.generation_plans import create_generation_plans_router
 from platform5e.infrastructure.http.routers.generation_requests import (
     create_generation_interpretation_router,
     create_generation_requests_router,
@@ -93,6 +101,9 @@ from platform5e.infrastructure.retrieval.bm25_evidence_retriever import Bm25Evid
 from platform5e.infrastructure.retrieval.hybrid_evidence_retriever import HybridEvidenceRetriever
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_chunk_repository import SQLAlchemyChunkRepository
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import SQLAlchemyMediaRepository
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_plan_repository import (
+    SQLAlchemyGenerationPlanRepository,
+)
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     SQLAlchemyGenerationRequestRepository,
 )
@@ -133,6 +144,10 @@ OPENAPI_TAGS = [
     {"name": "courses", "description": "Courses with their units and learning outcomes."},
     {"name": "documents", "description": "Unit material: upload, text extraction, chunks and open sources."},
     {"name": "generations", "description": "Resource generation from the unit material (RAG) and its history."},
+    {
+        "name": "generation-plans",
+        "description": "The plan reviewed and approved before generating: resources, purposes, concepts and evidence.",
+    },
     {"name": "resources", "description": "Teacher review of the generated resources."},
     {"name": "downloads", "description": "Download history of each unit."},
     {"name": "exports", "description": "Moodle XML and SCORM 1.2 files built in the backend."},
@@ -284,6 +299,24 @@ def create_application() -> FastAPI:
     )
     get_generation = GetGenerationRequest(generation_request_repository, unit_membership, resource_repository)
     get_evidence = GetGenerationEvidence(generation_request_repository)
+
+    # GEN-P1: el plan de generación. La IA arma el plan si el generador activo sabe hacerlo (Gemini); si no, reglas.
+    resource_catalog = StaticResourceCatalogAdapter()
+    generation_plan_repository = SQLAlchemyGenerationPlanRepository()
+    plan_drafter = primary_generator if hasattr(primary_generator, "draft_plan") else None
+    create_plan = CreateGenerationPlan(
+        unit_membership,
+        evidence_provider,
+        NoReferentsAdapter(),
+        NoSessionTypologyAdapter(),
+        resource_catalog,
+        GenerationPlanner(plan_drafter, {entry.id: entry for entry in resource_catalog.entries()}),
+        generation_plan_repository,
+        topic_coverage_threshold=topic_coverage_threshold(),
+    )
+    get_plan = GetGenerationPlan(generation_plan_repository, unit_membership, resource_catalog)
+    update_plan = UpdateGenerationPlan(generation_plan_repository, resource_catalog)
+    approve_plan = ApproveGenerationPlan(generation_plan_repository, resource_catalog)
     # REV-01 (D10) y GEN-01 (T029): Revisión pide la regeneración por su puerto; el adaptador de Generación crea un
     # pedido `regeneration` en segundo plano y espera su resultado hasta GENERATION_REGENERATION_WAIT_SECONDS.
     review_service = ResourceReviewService(
@@ -329,6 +362,9 @@ def create_application() -> FastAPI:
             describe_generator(primary_generator),
             get_evidence,
         )
+    )
+    app.include_router(
+        create_generation_plans_router(create_plan, get_plan, update_plan, approve_plan, account_service)
     )
     app.include_router(create_generations_router(account_service))
     app.include_router(

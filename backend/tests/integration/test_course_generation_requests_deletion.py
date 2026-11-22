@@ -1,4 +1,5 @@
-"""GEN-01 (T047) y CC-C9: al borrar un curso se eliminan los pedidos de generación de sus unidades y sus pasos.
+"""GEN-01 (T047) y CC-C9: al borrar un curso se eliminan los pedidos de generación de sus unidades y sus pasos, y
+también sus planes de generación (GEN-P1).
 
 La descarga registrada se conserva, y los pedidos de otro curso del mismo docente y los de otro docente no se tocan.
 Se prueba en SQLite con la cascada de claves foráneas apagada (el valor por defecto) y encendida.
@@ -29,15 +30,27 @@ from platform5e.infrastructure.persistence.repositories import (
     sqlalchemy_account_repository as accounts,
     sqlalchemy_resource_repository as resources,
 )
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_plan_repository import (
+    SQLAlchemyGenerationPlanRepository,
+)
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     GenerationRequestORM,
     GenerationStepORM,
     SQLAlchemyGenerationRequestRepository,
 )
+from tests.unit.test_generation_plan import VALID
 
 TEACHER = "docente@example.com"
 OTHER_TEACHER = "otra.docente@example.com"
 TYPES = ("pregunta_detonante", "explicacion")
+
+
+def _plan(repository: SQLAlchemyGenerationPlanRepository, teacher_id: str, unit_id: str) -> str:
+    """Guarda un plan en borrador de la unidad (GEN-P1)."""
+    plan_id = f"gen-plan-{uuid4()}"
+    repository.create(replace(VALID, id=plan_id, teacher_id=teacher_id, unit_id=unit_id,
+                              idempotency_key=f"clave-{uuid4().hex}"))
+    return plan_id
 
 
 def _now() -> str:
@@ -90,6 +103,7 @@ def test_deleting_a_course_removes_its_generation_requests_and_keeps_its_downloa
 
     service = AccountService(accounts.SQLAlchemyAccountRepository(), "", "")
     generation_requests = SQLAlchemyGenerationRequestRepository(engine)
+    generation_plans = SQLAlchemyGenerationPlanRepository(engine)
     downloads = resources.SQLAlchemyResourceRepository()
     with engine.connect() as connection:
         assert connection.execute(text("PRAGMA foreign_keys")).scalar() == int(foreign_keys)
@@ -107,6 +121,9 @@ def test_deleting_a_course_removes_its_generation_requests_and_keeps_its_downloa
     # Mismo id de unidad en los datos de otro docente: el borrado también filtra por docente.
     same_unit_request = _finished_request(generation_requests, OTHER_TEACHER, deleted_unit)
     assert generation_requests.get(TEACHER, deleted_request).status == RequestStatus.SUCCEEDED
+    deleted_plan = _plan(generation_plans, TEACHER, deleted_unit)
+    kept_plan = _plan(generation_plans, TEACHER, kept_unit)
+    same_unit_plan = _plan(generation_plans, OTHER_TEACHER, deleted_unit)
 
     download = {
         "id": "descarga-t047",
@@ -143,3 +160,7 @@ def test_deleting_a_course_removes_its_generation_requests_and_keeps_its_downloa
     assert downloads.get_downloads(TEACHER, deleted_unit) == [download]
     assert [c["id"] for c in service.list_courses(TEACHER)] == [kept_course["id"]]
     assert [c["id"] for c in service.list_courses(OTHER_TEACHER)] == [other_course["id"]]
+    # GEN-P1: los planes de las unidades del curso se borran; los de otro curso u otro docente, no.
+    assert generation_plans.get(TEACHER, deleted_plan) is None
+    assert generation_plans.get(TEACHER, kept_plan) is not None
+    assert generation_plans.get(OTHER_TEACHER, same_unit_plan) is not None

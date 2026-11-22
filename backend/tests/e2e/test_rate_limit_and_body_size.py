@@ -123,6 +123,22 @@ def test_rate_limit_on_expensive_routes_returns_429_with_retry_after(server: str
         assert health.status_code == 200
 
 
+def test_creating_a_generation_plan_is_a_costly_route(server: str) -> None:
+    """GEN-P1: crear el plan llama a la IA y recupera evidencia; cuenta para el mismo cupo por IP."""
+    with httpx.Client(base_url=server, timeout=15) as api:
+        headers, unit_id = _login_demo(api)
+        ip_c = {**headers, "X-Forwarded-For": "198.51.100.30"}
+        body = {"unitId": unit_id, "resourceTypes": [{"type": "explicacion"}]}
+        answers = [
+            api.post("/api/v1/generation-plans", headers={**ip_c, "Idempotency-Key": f"plan-cupo-{n:04d}"}, json=body)
+            for n in range(4)
+        ]
+        listed = api.get("/api/v1/generation-plans", headers=ip_c, params={"unitId": unit_id})
+    assert [a.status_code == 429 for a in answers] == [False, False, False, True]
+    assert answers[3].json()["error"]["code"] == "RATE_LIMIT_EXCEEDED"
+    assert listed.status_code == 200  # leer no es costoso
+
+
 def test_payload_size_limit_rejects_oversized_json_and_upload_with_413(server: str) -> None:
     host_port = server.removeprefix("http://")
     host, port_text = host_port.split(":")

@@ -91,6 +91,9 @@ class FakeEvidence:
             raise NoProcessedMaterial()
         return EvidenceRetrieval(fragments=self.fragments, retrieval_mode=self.retrieval_mode)
 
+    def existing_fragment_ids(self, teacher_id: str, unit_id: str, fragment_ids) -> set[str]:
+        return set(fragment_ids) & {fragment.chunk_id for fragment in self.fragments} if self.material else set()
+
 
 class FakeReviewRepository:
     def __init__(self) -> None:

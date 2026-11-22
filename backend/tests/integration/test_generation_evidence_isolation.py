@@ -126,3 +126,19 @@ def test_a_teacher_without_material_in_the_shared_unit_gets_no_evidence(chunk_re
     assert adapter.has_processed_material("otra.docente@correo.pe", SHARED_UNIT) is False
     with pytest.raises(NoProcessedMaterial):
         adapter.retrieve(EvidenceQuery("otra.docente@correo.pe", SHARED_UNIT, QUERY, limit=10))
+
+
+def test_existing_fragment_ids_only_counts_the_teachers_unit_and_forgets_reprocessed_ids(chunk_repository):
+    """GEN-P1 (T004): GEN-P2 comprueba con esto que los fragmentos de un plan siguen en la unidad del docente."""
+    adapter = MaterialEvidenceAdapter(chunk_repository, HybridEvidenceRetriever(chunk_repository, None), NoDocuments())
+    asked = ["frag-rosa-1", "frag-rosa-3", "frag-mario-1", "frag-inexistente"]
+    assert adapter.existing_fragment_ids(TEACHER_A, SHARED_UNIT, asked) == {"frag-rosa-1", "frag-rosa-3"}
+    assert adapter.existing_fragment_ids(TEACHER_A, "otra-unidad", asked) == set()
+    assert adapter.existing_fragment_ids(TEACHER_B, SHARED_UNIT, asked) == {"frag-mario-1"}
+
+    # Al volver a procesar el documento, sus fragmentos reciben ids nuevos: los anteriores dejan de existir. SQLite no
+    # tiene vectores: se guarda sin el índice simulado, como en el fixture.
+    chunk_repository.index_ready = False
+    chunk_repository.replace_chunks(TEACHER_A, "doc-rosa", SHARED_UNIT, _material(TEACHER_A, "frag-rosa-v2"))
+    assert adapter.existing_fragment_ids(TEACHER_A, SHARED_UNIT, asked) == set()
+    assert adapter.existing_fragment_ids(TEACHER_A, SHARED_UNIT, ["frag-rosa-v2-1"]) == {"frag-rosa-v2-1"}

@@ -69,7 +69,7 @@ Entre la aprobación y la generación, el docente puede borrar un documento o vo
 
 **Con reglas (`LLM_PROVIDER=rules`, o como respaldo).** El resultado es determinista: las mismas entradas y la misma evidencia dan el mismo plan.
 
-1. **Conceptos candidatos.** Las frases y los términos del tema que aparecen en la evidencia (`topic_terms` y `topic_phrases` de QA-05), más los términos clave de la evidencia (`extract_key_terms` de `domain/materials/text_analysis.py`). Se ordenan por la relevancia del fragmento donde aparecen primero y, en empate, por orden alfabético.
+1. **Conceptos candidatos.** Primero las frases y los términos del tema que aparecen en la evidencia (`topic_phrases` y `topic_terms` de QA-05), después los términos clave de la evidencia (`extract_key_terms` de `domain/materials/text_analysis.py`). Cada grupo se ordena por el primer fragmento donde aparece cada concepto (el orden de relevancia de la búsqueda); en el mismo fragmento, las frases antes que las palabras sueltas, y en empate, por orden alfabético. Una palabra suelta que ya está dentro de un concepto elegido («modelo» en «modelo OSI») no se agrega.
 2. **Ítems.** Uno por tipo pedido, ordenados por etapa; los tipos con cantidad N reciben N bloques de conceptos.
 3. **Reparto.** Los conceptos se reparten por turnos (round robin) entre los bloques, en el orden de los ítems. Cada bloque recibe al menos un concepto. Si hay menos conceptos que bloques, se baja la cantidad del último ítem que la tenga mayor que 1. Si aun así no alcanzan, se informa como problema de validación, sin inventar conceptos.
 4. **Fragmentos.** Los de cada ítem son los fragmentos donde aparece alguno de sus conceptos, en el orden de la evidencia. Un ítem sin fragmentos queda inválido («sin evidencia»).

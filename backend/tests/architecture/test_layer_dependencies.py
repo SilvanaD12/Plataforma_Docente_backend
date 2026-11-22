@@ -88,6 +88,15 @@ GENERATION_ISOLATED = [
     'application/ports/outbound/generation_request_repository_port.py',
     'application/ports/outbound/generation_job_runner_port.py',
     'application/ports/outbound/resource_verification_port.py',
+    # GEN-P1 (T004): el plan habla con Material (referentes), Cursos (catálogo y tipologías) solo por estos puertos.
+    'application/ports/outbound/generation_plan_repository_port.py',
+    'application/ports/outbound/plan_drafter_port.py',
+    'application/ports/outbound/referents_port.py',
+    'application/ports/outbound/resource_catalog_port.py',
+    'application/ports/outbound/session_typology_port.py',
+    'application/services/generation/plan_drafting.py',
+    'domain/generation/generation_plan.py',
+    'domain/generation/plan_validation.py',
 ]
 GENERATION_FORBIDDEN = (
     'platform5e.application.services.accounts',
@@ -109,6 +118,7 @@ def test_generation_talks_to_other_modules_only_through_ports():
     files = generation_files()
     # Los puertos ya existen; la carpeta de casos de uso llega con T015.
     assert any(f.name == 'unit_membership_port.py' for f in files)
+    assert {'create_generation_plan.py', 'referents_port.py', 'plan_drafting.py'} <= {f.name for f in files}
     failures = []
     for file_path in files:
         relative_parts = file_path.relative_to(ROOT).parent.parts

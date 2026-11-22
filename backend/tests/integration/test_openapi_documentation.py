@@ -56,7 +56,7 @@ def test_every_operation_is_documented(method: str, path: str, operation: dict):
 def test_api_metadata_and_tags():
     assert SPEC["info"]["title"] == "Platform 5E API" and len(SPEC["info"].get("description", "")) > 100
     assert DECLARED_TAGS == {"accounts", "sessions", "courses", "documents", "generations", "resources", "downloads",
-                             "exports", "system", "catalog"}
+                             "exports", "system", "catalog", "generation-plans"}
     assert all(tag.get("description") for tag in SPEC["tags"])
 
 
