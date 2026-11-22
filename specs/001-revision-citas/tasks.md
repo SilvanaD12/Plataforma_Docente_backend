@@ -348,6 +348,22 @@ Acordado con Silvana en la revisión de los PR (2026-11-09). Ninguna bloquea la 
 - [x] T082 [FE] [REV-P1] Implementar vista previa SCORM interactiva con `iframe sandbox=""` y desglose de exclusiones en `src/features/export/pages/ExportPage.tsx`.
 - [x] T083 [FE] [REV-P1] Validar pruebas (`npm test`), linter (`npm run lint`), compilación (`npm run build`) y presupuesto de paquete inicial (< 200 KB gzip con `npm run check:bundle`).
 
+### Correcciones de revisión y robustecimiento (B1..B7, F1..F7)
+- [x] T084 [BE] [B1] Revertir vuelco de cadenas de `structure` en `_sco_page` de `scorm_package_exporter.py` y verificar que páginas no filtren IDs de fragmentos.
+- [x] T085 [BE] [B2] Extraer `_ordered_entries` y `_filter_eligible` para compartir código exacto entre exportación y vista previa SCORM.
+- [x] T086 [BE] [B3] Incrustar estilos, scripts y medios en base64 en páginas de vista previa SCORM y proteger `SCORM_JS` contra `SecurityError`.
+- [x] T087 [BE] [B4] Conectar `review_duplicate_threshold()` en `main.py` y añadir prueba e2e con variable `REVIEW_DUPLICATE_THRESHOLD=0.9`.
+- [x] T088 [BE] [B5] Implementar raíz ligera `stem`, similitud equilibrada `(coseno + jaccard) / 2`, umbral `0.70` y deduplicación entre recursos y preguntas.
+- [x] T089 [BE] [B6] Actualizar evidencia `duplicate-rate.md` por unidad con casos fijos reales y script ejecutable `calculate_duplicate_rate.py`.
+- [x] T090 [FE] [F1] Escapar HTML en `initialContent`, sanear fallback en `RichTextEditor.tsx` y añadir pruebas contra inyecciones XSS.
+- [x] T091 [FE] [F2] Sincronizar contenido externo en `RichTextEditor.tsx` mediante `useEffect` con `setContent` sin disparo en escritura local.
+- [x] T092 [FE] [F3] Normalizar colapso de espacios en blanco en `editDraft` (`reviewEditor.ts`) y configurar `blockSeparator: '\n\n'` en `getText`.
+- [x] T093 [FE] [F4] Subir dependencias `@tiptap` a versión parcheada `3.35.0` en `package.json` integrando Underline y Link en StarterKit.
+- [x] T094 [FE] [F5] Añadir pruebas unitarias completas en `RichTextEditor.test.tsx`, `ReviewPage.test.tsx` y `ExportPage.test.tsx`.
+- [x] T095 [FE] [F6] Manejar error discreto de reporte de duplicidad y enlaces de navegación `#<resourceId>` en `ReviewPage.tsx`.
+- [x] T096 [FE] [F7] Mostrar textos legibles de motivos de exclusión, aislar iframe con `sandbox="allow-scripts"` y mover estilos a `export.css`.
+- [x] T097 [ALL] [B7] Actualizar especificaciones, contratos OpenAPI, registrar investigación D13 y regenerar `docs/api/openapi.json`.
+
 ## Historias del Sprint 1 (Cierre de evidencias)
 
 - [x] HU-043 [E2E] **Exportación a Moodle XML.** Comprobada en Moodle 5.3.1 (`sandbox.moodledemo.net`): formulario con XML, «Importing 1 questions from file», categoría y vista previa respondida (UDP incorrecta con retroalimentación y capa de transporte correcta). Evidencia: `docs/evidence/HU-043/`.
