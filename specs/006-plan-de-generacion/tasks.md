@@ -59,6 +59,10 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - Pruebas e2e en `tests/e2e/test_generation_plans_api.py`: V1, V2 y V4 a V8 de [quickstart](quickstart.md).
   - Pruebas de mensajes: ningún mensaje al docente dice «5E» (PLAN-R8).
 
+- [ ] T023 [BE] [GEN-P1] **Depende de T008.** Referentes dentro de la evidencia del plan ([research R10](research.md#r10-referentes-mat-p2)): al crear el plan, `CreateGenerationPlan` deja en los `fragmentIds` de cada referente solo los ids de `evidence.fragments`, y conserva con `fragmentIds: []` el referente que se queda sin ninguno. No es un problema de validación.
+  - Pruebas unitarias en `tests/unit/test_generation_plan_use_cases.py`, con un doble de `ReferentsPort`: un referente con un id de la evidencia y otro ajeno guarda solo el primero; un referente con solo ids ajenos se guarda con `fragmentIds: []`; el plan sigue válido y sin problemas nuevos; el orden de los referentes no cambia.
+  - Prueba e2e en `tests/e2e/test_generation_plans_api.py`: el `GET` del plan devuelve los referentes ya filtrados.
+
 ## 5. Generación desde el plan (GEN-P2)
 
 - [ ] T011 [BE] [GEN-P2] **Depende de T010.** `StartGenerationRequest` acepta `{planId, planVersion}` ([research R2](research.md#r2-el-plan-es-obligatorio-compatibilidad-del-pedido-sin-plan)).
@@ -77,8 +81,13 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
     - con reglas, cada recurso usa las oraciones de sus conceptos.
 - [ ] T013 [BE] [GEN-P2] **Depende de T012.** Comprobación de cobertura y rechazo `kind: plan`, con un reintento con la indicación del problema; el filtro de repetición actual sigue activo y su reintento nombra los conceptos ajenos. `RejectionKind` suma `plan` en el contrato y en OpenAPI.
   - Pruebas: con un Gemini falso que desarrolla un concepto ajeno, se rechaza con `kind: plan` y motivo; un recurso que no menciona ninguno de sus conceptos se rechaza igual; un recurso correcto pasa sin reintento.
+  - Recursos de un solo párrafo ([research R5](research.md#r5-generación-desde-el-plan-gen-p2)): la regla «en más de un párrafo» no se cumple nunca, así que rige la estricta. Pruebas: una `pregunta_detonante` con un concepto ajeno completo en la pregunta se rechaza con `kind: plan`; un `item_opcion_multiple` con un concepto ajeno completo en una opción se rechaza igual; el mismo concepto solo en la retroalimentación, o una palabra suelta de un concepto de varias palabras, no cuenta; un recurso de varios párrafos sigue con la regla de «más de un párrafo».
+  - Falsos rechazos, con el corpus de T067 (`backend/evaluation/corpus_t067`): un conjunto fijo de recursos cortos (`pregunta_detonante`, `item_opcion_multiple`, `audio_detonante`) armados con sus fragmentos y marcados a mano como correctos o no, guardado en `tests/fixtures/`. La prueba falla si la regla estricta rechaza más del 5 % de los correctos o deja pasar alguno marcado como incorrecto. Si falla por falsos rechazos, se afloja la regla y se registra en research R5. Sin llamadas a Gemini.
 - [ ] T014 [BE] [GEN-P2] **Depende de T012.** Regeneración desde Revisión con el ítem del plan (`params.planId`, `params.planItemPosition`): lee el plan sin escribirlo, así que un plan `used` no responde `PLAN_ALREADY_USED`; comprueba la evidencia vigente de los fragmentos del ítem. Un recurso sin plan se regenera como hoy.
-  - Pruebas: V7 (c) de [quickstart](quickstart.md); regenerar con el plan `used` no cambia su `status`, `version` ni `usedByRequestId`; con un fragmento del ítem borrado, la regeneración falla con `PLAN_EVIDENCE_STALE`, Revisión responde 409 con ese código y el recurso se conserva; un recurso anterior sin plan.
+  - La comprobación se hace al iniciar la regeneración, antes de crear el pedido, como en T011: así Revisión recibe el rechazo en la respuesta de `POST …/regenerations` y no en el estado del pedido.
+  - El 409 `PLAN_EVIDENCE_STALE` de Revisión usa el formato común `{"error": {"code", "message", "details"}}`, con el mismo `details` que en la generación: una lista de [`StaleDocument`](contracts/generation-plans.openapi.yaml) (`documentId`, `documentName`, `missingFragmentIds`), uno por documento afectado. Revisión pasa el `details` de Generación sin cambiarlo.
+  - El contrato de Revisión (`specs/001-revision-citas`, de Juan) debe sumar `PLAN_EVIDENCE_STALE` a la respuesta 409 de `POST …/regenerations`, con este `details`. No se edita desde esta ficha: se le pide a Juan con REV-01.
+  - Pruebas: V7 (c) y V12 de [quickstart](quickstart.md); regenerar con el plan `used` no cambia su `status`, `version` ni `usedByRequestId`; con un fragmento del ítem borrado, la regeneración falla con `PLAN_EVIDENCE_STALE`, Revisión responde 409 con ese código y un `details` igual al de la generación (los mismos campos y documentos, comparados con el esquema `StaleDocument`), y el recurso se conserva; un recurso anterior sin plan.
 - [ ] T015 [BE] [GEN-P2] **Depende de T004 y CUR-P2.** Tipos de texto nuevos del catálogo ([research R6](research.md#r6-catálogo-configurable-cur-p2)): prompt genérico con la `description`, redactor genérico por reglas y verificación de citas y párrafos como `explicacion`.
   - Pruebas: un tipo nuevo de prueba en el catálogo se planifica, se genera con reglas y con Gemini falso, y Revisión lo muestra con su etiqueta.
 
@@ -111,6 +120,6 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 ## Dependencias y trabajo en paralelo
 
 - **Primero:** T001 a T003, en ese orden. T004 y T005 pueden ir en paralelo con T002 y T003.
-- **Backend:** T006 → T007 → T008 → T009 → T010. El frontend (T016 y T017) puede empezar con el [contrato](contracts/generation-plans.openapi.yaml) y un API simulado antes de T010.
+- **Backend:** T006 → T007 → T008 → T009 → T010. T023 va después de T008, en paralelo con T009 y T010. El frontend (T016 y T017) puede empezar con el [contrato](contracts/generation-plans.openapi.yaml) y un API simulado antes de T010.
 - **Generación:** T011 → T012 → T013 y T014. T015 espera el catálogo de CUR-P2 (el adaptador provisional basta para probar).
 - **Cierre:** T019 necesita REV-P3 (o la medición provisional léxica, registrada como tal). T021 va al final, cuando GEN-P3 ya esté integrado.

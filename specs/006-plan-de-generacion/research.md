@@ -86,7 +86,8 @@ Entre la aprobación y la generación, el docente puede borrar un documento o vo
 
 - **Entrada:** el catálogo de los tipos pedidos (nombre, etapa y descripción), la evidencia con etiquetas F1…Fn, los referentes, el contexto de sesión y las entradas del docente.
 - **Cantidad.** Para un tipo con cantidad pedida, el prompt dice «cantidad N» y el servidor conserva N aunque el modelo devuelva otra. Para un tipo con cantidad vacía, dice «cantidad de 1 a 5, según los conceptos», con la regla de que cada ítem tenga al menos tantos conceptos como su cantidad. La cantidad que devuelve el modelo se acota de 1 a 5; si el plan resultante no tiene conceptos suficientes (`NOT_ENOUGH_CONCEPTS`), cuenta como inválido y va al respaldo por reglas.
-- **Esquema de respuesta propio**, como el de la actividad kinestésica en T073: `items` obligatorio, con `minItems` 1 y `maxItems` igual a la suma de tipos pedidos; cada ítem exige `resourceType`, `quantity`, `purpose`, `covers` (con `minItems` 1) y `fragmentos` (con `minItems` 1).
+- **Esquema de respuesta propio**, como el de la actividad kinestésica en T073: `items` obligatorio, con `minItems` 1 y `maxItems` igual a la cantidad de tipos pedidos (como máximo 8, el límite de GEN-01); cada ítem exige `resourceType`, `quantity`, `purpose`, `covers` (con `minItems` 1) y `fragmentos` (con `minItems` 1).
+- **Dos límites de ítems, a propósito.** Al crear el plan, la IA arma un ítem por tipo pedido, así que su esquema tiene como máximo 8 ítems. Un plan editado con `PUT` acepta hasta 40 ítems (`UpdateGenerationPlan.items` del contrato, `maxItems` 40): el docente puede partir un tipo en varios ítems con conceptos distintos (8 tipos × 5 de cantidad = 40). Los dos límites son intencionales: el primero limita lo que la IA propone, y el segundo, lo que el docente puede editar.
 - **Después de la respuesta:** las etiquetas se traducen a ids, se descartan los tipos no pedidos, se calcula `doesNotCover` y se valida.
 - **Respaldo:** si la llamada vence a los 60 s, si la respuesta no es JSON válido, o si el plan resultante no es válido, se arma con reglas y `generator.fallbackReason` guarda el motivo público genérico de `provider_errors.py`.
 
@@ -101,13 +102,15 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 - **Lo que recibe el prompt de cada recurso:**
   - su bloque de conceptos (`covers` del bloque), que debe desarrollar completo;
   - el propósito del ítem;
-  - los conceptos de los demás ítems (`doesNotCover`), que no debe desarrollar: puede nombrarlos, pero no explicarlos;
+  - los conceptos de los demás ítems (`doesNotCover`), que no debe desarrollar: puede nombrarlos, pero no explicarlos (en los recursos de un solo párrafo, no debe nombrarlos; ver la comprobación de cobertura);
   - el resumen de lo ya cubierto: por cada recurso entregado antes en el pedido, su título, sus conceptos y un resumen de hasta 300 caracteres (`secuenciaPrevia`, como hoy);
   - la evidencia, con los fragmentos del ítem primero.
 - **Sin acortar.** Se mantienen las reglas de formato y extensión de cada tipo; se quita la instrucción «si los fragmentos no alcanzan, devuelve menos recursos» para los ítems del plan, porque el plan ya decidió cuántos.
 - **Comprobación de cobertura**, léxica y sin IA, con la normalización de QA-05:
   - el recurso debe mencionar al menos uno de sus conceptos;
   - no debe desarrollar un concepto ajeno: un concepto ajeno que aparece en más de un párrafo cuenta como desarrollado.
+  - **Recursos de un solo párrafo** (`pregunta_detonante`, `item_opcion_multiple`, `audio_detonante` y los demás tipos cortos, también los tipos nuevos de CUR-P2 cuyo contenido salga en un párrafo): la regla anterior nunca se cumple, porque no hay un segundo párrafo. Para ellos rige una regla más estricta: un concepto ajeno que aparece como término completo (todas sus palabras seguidas, con la normalización de QA-05) en el enunciado, la situación, la pregunta o una opción cuenta como desarrollado. La retroalimentación de las opciones no se cuenta. Su prompt dice que no nombre los conceptos ajenos, en vez de «puede nombrarlos». La regla se decide por el contenido entregado (sin línea en blanco que separe párrafos), no por una lista fija de tipos.
+  - **Falsos rechazos.** Las pruebas de T013 con el corpus de T067 deciden si la regla estricta rechaza recursos correctos. Si rechaza más del 5 % de los recursos cortos marcados como correctos, se afloja (por ejemplo, contar solo el enunciado y no las opciones) y el cambio se registra aquí.
   - Si falla, se pide de nuevo una vez con la indicación del problema. Si sigue fallando, se rechaza con `kind: plan` (nuevo tipo de rechazo en el contrato) y su motivo, y el respaldo por reglas lo intenta como hoy.
 - **Verificación de anclaje (HU-016, HU-049, REV-01):** sin cambios. Cada recurso se verifica contra la evidencia del plan.
 - **Control de repetición:** el filtro léxico actual (`SIMILARITY_THRESHOLD` = 0,6 en `domain/generation/sequence.py`) se mantiene como red de seguridad. Con el plan, su reintento agrega los conceptos que el recurso no debe repetir.
@@ -210,9 +213,16 @@ Mientras REV-P3 no esté, la medición provisional usa la similitud léxica de `
 
 **Decisión.** Material entrega `referents_for(teacher_id, unit_id, topic)` → `[{name, description, fragmentIds}]`. Son los autores principales del tema, detectados en el material de la unidad, con los fragmentos donde aparecen.
 
+**Regla al crear el plan.** Los `fragmentIds` de cada referente son un subconjunto de `evidence.fragments` del plan:
+- el servidor descarta los ids que no están en la evidencia congelada (Material puede devolver fragmentos que la búsqueda del plan no trajo);
+- un referente que se queda sin ids se conserva con `fragmentIds: []`: se muestra, pero no se cita;
+- no es un problema de validación: el plan no informa nada ni queda inválido por esto, y la regla se aplica antes de guardar, aunque los referentes lleguen del adaptador de MAT-P2 o de un doble.
+
+Como el `PUT` no edita los referentes, la regla solo hace falta al crear el plan.
+
 **Uso en el plan.**
-- El plan los guarda en `referents`.
+- El plan los guarda en `referents`, ya filtrados.
 - La IA los recibe como contexto para nombrarlos en los propósitos cuando corresponda.
 - La interfaz los muestra.
 
-**Lo que no cambia.** La búsqueda no cambia hasta que el profesor responda P8 ([spec](spec.md#preguntas-abiertas-para-el-profesor)). Un referente sin fragmentos de la evidencia del plan se muestra, pero no se cita.
+**Lo que no cambia.** La búsqueda no cambia hasta que el profesor responda P8 ([spec](spec.md#preguntas-abiertas-para-el-profesor)). Un referente sin fragmentos de la evidencia del plan (`fragmentIds: []`) se muestra, pero no se cita.
