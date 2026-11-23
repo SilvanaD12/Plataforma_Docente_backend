@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import replace
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -41,6 +42,8 @@ from platform5e.domain.generation.generation_plan import (
     SessionContext,
     order_items,
 )
+from platform5e.application.services.generation.concept_extraction import phrase_groups
+from platform5e.domain.generation.plan_coverage import contains_term
 from platform5e.domain.generation.plan_validation import short_concept_problem, validate_items
 from platform5e.domain.generation.topic_coverage import (
     assess_topic_coverage,
@@ -104,6 +107,12 @@ def _variants(word: str) -> set[str]:
     return variants
 
 
+def _same_concept(first_key: str, second_key: str) -> bool:
+    """Dos conceptos normalizados con las mismas palabras, en el mismo orden, salvo el plural regular."""
+    first, second = first_key.split(), second_key.split()
+    return len(first) == len(second) and all(b in _variants(a) or a in _variants(b) for a, b in zip(first, second))
+
+
 def _appears(concept: str, tokens: set[str]) -> bool:
     words = concept_key(concept).split()
     return bool(words) and all(_variants(word) & tokens for word in words)
@@ -121,7 +130,9 @@ class RuleBasedPlanner:
 
     def draft(self, inputs: PlanInputs, evidence: PlanEvidence) -> tuple[PlanItem, ...]:
         token_sets = [_tokens(fragment.text) for fragment in evidence.fragments]
-        candidates = self._candidates(inputs.instructions, [f.text for f in evidence.fragments], token_sets)
+        # Lo mínimo que necesita el plan: un concepto por recurso (1 si la cantidad es libre).
+        minimum = sum(requested.quantity or 1 for requested in inputs.resource_types)
+        candidates = self._candidates(inputs.instructions, [f.text for f in evidence.fragments], token_sets, minimum)
         requested = sorted(
             inputs.resource_types,
             key=lambda r: list(PHASES_5E).index(self._stage(r.type)) if self._stage(r.type) in PHASES_5E else 99,
@@ -137,11 +148,12 @@ class RuleBasedPlanner:
         items = []
         for index, wanted in enumerate(requested):
             covers = [concept for block, owner in zip(blocks, block_owner) if owner == index for concept in block]
-            fragment_ids = [
-                fragment.id
-                for fragment, tokens in zip(evidence.fragments, token_sets)
-                if any(_appears(concept, tokens) for concept in covers)
-            ][:MAX_ITEM_FRAGMENTS]
+            # T027 (b): los fragmentos que mencionan sus conceptos (el término completo), primero los que mencionan más;
+            # en empate, en el orden de la evidencia. Un fragmento que no menciona ninguno no es del ítem.
+            mentions = [(sum(contains_term(fragment.text, concept) for concept in covers), order, fragment.id)
+                        for order, fragment in enumerate(evidence.fragments)]
+            fragment_ids = [fid for count, _, fid in sorted(mentions, key=lambda m: (-m[0], m[1])) if count > 0][
+                :MAX_ITEM_FRAGMENTS]
             entry = self._catalog.get(wanted.type)
             items.append(PlanItem(
                 position=index + 1,
@@ -159,39 +171,24 @@ class RuleBasedPlanner:
         return entry.stage if entry else "explain"
 
     @staticmethod
-    def _candidates(instructions: str, texts: list[str], token_sets: list[set[str]]) -> list[str]:
-        """Conceptos candidatos que aparecen en la evidencia: primero las frases y los términos del tema, después los
-        términos clave del material; cada grupo por el primer fragmento donde aparece, las frases antes que las
-        palabras sueltas y, en empate, alfabético."""
+    def _candidates(
+        instructions: str, texts: list[str], token_sets: list[set[str]], minimum: int = 0
+    ) -> list[str]:
+        """Conceptos candidatos que aparecen en la evidencia (T027 (b), `concept_extraction`): primero las frases del
+        tema, después las frases del material que se repiten, las siglas y los términos de varias palabras que aparecen
+        una vez; cada grupo por el primer fragmento donde aparece cada concepto, las frases antes que las siglas en el
+        mismo fragmento y, en empate, alfabético. Nunca frases pegadas entre signos ni de los encabezados de página."""
 
         def first_index(concept: str) -> int | None:
-            return next((i for i, tokens in enumerate(token_sets) if _appears(concept, tokens)), None)
-
-        coverage = assess_topic_coverage(instructions, texts)
-        labels = dict(coverage.labels)
-        phrases = [phrase.text for phrase in topic_phrases(instructions)]
-        topic = phrases + [labels.get(term, term) for term in coverage.found]
-        # Frases del material (dos términos seguidos o unidos por «de»), de la más frecuente a la menos; después, los
-        # términos clave que nombran algo del tema (sin palabras vacías, de estilo, de formulación ni genéricas).
-        counts: dict[str, int] = {}
-        for text in texts:
-            for phrase in topic_phrases(text):
-                if _is_concept_phrase(phrase.first, phrase.second):
-                    counts[phrase.text.lower()] = counts.get(phrase.text.lower(), 0) + 1
-        by_frequency = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
-        material_phrases = [text for text, count in by_frequency if count > 1]
-        rare_phrases = [text for text, count in by_frequency if count == 1]  # último recurso, con poco material
-        # Las palabras sueltas solo cuentan si son siglas del material («UDP»); una palabra común no es un concepto.
-        acronym_counts: dict[str, int] = {}
-        for text in texts:
-            for acronym in _ACRONYM_IN_TEXT.findall(text):
-                acronym_counts[acronym] = acronym_counts.get(acronym, 0) + 1
-        key_terms = [acronym for acronym, count in acronym_counts.items() if count >= MIN_ACRONYM_COUNT]
+            return next((i for i, text in enumerate(texts) if contains_term(text, concept)), None)
 
         chosen: list[str] = []
         seen_keys: set[str] = set()
-        seen_words: set[str] = set()
-        for group in (topic, material_phrases, key_terms, rare_phrases):
+        preferred, last_resort = phrase_groups(instructions, texts)
+        groups = list(preferred)
+        for group in groups:
+            if group is last_resort and len(chosen) >= minimum:
+                break  # los de último recurso solo entran si los preferidos no alcanzan para el plan
             ranked = []
             for concept in group:
                 if short_concept_problem(concept) is not None:
@@ -199,16 +196,15 @@ class RuleBasedPlanner:
                 index = first_index(concept)
                 if index is not None:
                     key = concept_key(concept)
-                    # En el mismo fragmento, las frases antes que las palabras sueltas que contienen.
                     ranked.append((index, -len(key.split()), key, concept))
             for _, _, key, concept in sorted(ranked):
-                words = key.split()
-                # Una palabra suelta que ya está en un concepto elegido («modelo» en «modelo osi») no suma.
-                if key in seen_keys or (len(words) == 1 and words[0] in seen_words):
+                # Singular y plural son el mismo concepto («bloque de bytes» y «bloques de bytes»).
+                if key in seen_keys or any(_same_concept(key, seen) for seen in seen_keys):
                     continue
                 seen_keys.add(key)
-                seen_words.update(words)
                 chosen.append(concept[:MAX_CONCEPT_CHARS])
+            if group is groups[-1] and group is not last_resort and len(chosen) < minimum:
+                groups.append(last_resort)
         return chosen[:MAX_CANDIDATES]
 
     @staticmethod
@@ -256,36 +252,36 @@ class InvalidPlanResponse(ValueError):
         self.feedback = feedback or detail
 
 
+def _concepts_needed(quantity: int | None) -> int:
+    """Conceptos mínimos de un ítem: uno por recurso; con cantidad libre, al menos uno."""
+    return quantity if quantity is not None else MIN_ITEM_QUANTITY
+
+
 def plan_response_schema(inputs: PlanInputs) -> dict[str, Any]:
-    """Esquema de respuesta del plan (como el de T073): `items` obligatorio, un ítem por tipo pedido, y cada ítem con
-    tipo, cantidad, propósito, conceptos y fragmentos obligatorios. `minItems` y `maxItems` van como texto (int64)."""
-    types = [requested.type for requested in inputs.resource_types]
+    """Esquema de respuesta del plan (como el de T073). T027 (b): `items` es un objeto con una propiedad por tipo
+    pedido, todas obligatorias, y cada una dice su mínimo exacto de conceptos (`covers.minItems` = la cantidad pedida)
+    y su máximo. La cantidad solo se pide si el docente la dejó libre. `minItems` y `maxItems` van como texto (int64)."""
     string = {"type": "STRING"}
+    concept = {"type": "STRING", "description": "Frase nominal de 2 a 4 palabras tomadas del material, o una sigla; "
+               "nunca una oración ni una lista. Distinta de los conceptos de los demás ítems."}
+    by_type: dict[str, Any] = {}
+    for requested in inputs.resource_types:
+        needed = _concepts_needed(requested.quantity)
+        most = MAX_CONCEPTS_PER_BLOCK * (requested.quantity or MAX_ITEM_QUANTITY)
+        required = ["purpose", "covers", "fragmentos"] + (["quantity"] if requested.quantity is None else [])
+        by_type[requested.type] = {
+            "type": "OBJECT",
+            "properties": {
+                "quantity": {"type": "INTEGER"},
+                "purpose": string,
+                "covers": {"type": "ARRAY", "items": concept, "minItems": str(needed), "maxItems": str(most)},
+                "fragmentos": {"type": "ARRAY", "items": string, "minItems": "1"},
+            },
+            "required": required,
+        }
     return {
         "type": "OBJECT",
-        "properties": {
-            "items": {
-                "type": "ARRAY",
-                "minItems": "1",
-                "maxItems": str(len(types)),
-                "items": {
-                    "type": "OBJECT",
-                    "properties": {
-                        "resourceType": {"type": "STRING", "enum": types},
-                        "quantity": {"type": "INTEGER"},
-                        "purpose": string,
-                        "covers": {
-                            "type": "ARRAY",
-                            "items": {"type": "STRING", "description": "Frase nominal de 2 a 4 palabras tomadas del "
-                                      "material, o una sigla; nunca una oración ni una lista."},
-                            "minItems": "1",
-                        },
-                        "fragmentos": {"type": "ARRAY", "items": string, "minItems": "1"},
-                    },
-                    "required": ["resourceType", "quantity", "purpose", "covers", "fragmentos"],
-                },
-            }
-        },
+        "properties": {"items": {"type": "OBJECT", "properties": by_type, "required": list(by_type)}},
         "required": ["items"],
     }
 
@@ -319,8 +315,12 @@ def build_plan_prompt(
         name = entry.name if entry else requested.type
         stage = _stage_name(entry.stage) if entry else ""
         description = entry.description if entry else ""
-        quantity = (f"cantidad {requested.quantity}" if requested.quantity is not None
-                    else f"cantidad de {MIN_ITEM_QUANTITY} a {MAX_ITEM_QUANTITY}, según los conceptos")
+        if requested.quantity is not None:
+            quantity = (f"cantidad {requested.quantity}: al menos {requested.quantity} conceptos distintos "
+                        f"(como máximo {MAX_CONCEPTS_PER_BLOCK * requested.quantity})")
+        else:
+            quantity = (f"cantidad de {MIN_ITEM_QUANTITY} a {MAX_ITEM_QUANTITY}, según los conceptos: al menos tantos "
+                        "conceptos como la cantidad que elijas")
         lines.append(f"- {requested.type} ({name}, etapa {stage}): {description} {quantity}.")
     if referents:
         lines += ["", "REFERENTES DEL TEMA: " + "; ".join(r.name for r in referents)]
@@ -330,11 +330,13 @@ def build_plan_prompt(
     lines += [
         "",
         "FORMATO DE RESPUESTA (JSON):",
-        '{"items": [{"resourceType": "...", "quantity": 1, "purpose": "para qué sirve en la clase",',
-        ' "covers": ["frase corta del material que este recurso desarrolla"], "fragmentos": ["F1"]}]}',
+        '{"items": {"<tipo pedido>": {"quantity": 1, "purpose": "para qué sirve en la clase",',
+        ' "covers": ["frase corta del material que este recurso desarrolla"], "fragmentos": ["F1"]}}}',
+        "Una clave por cada tipo pedido, con el tipo tal cual.",
         SHORT_CONCEPT_INSTRUCTION,
-        "Ningún concepto puede aparecer en dos ítems. Cada ítem tiene al menos tantos conceptos como su cantidad y "
-        "cita en «fragmentos» las etiquetas de los fragmentos donde están sus conceptos.",
+        f"En total hacen falta al menos {sum(_concepts_needed(r.quantity) for r in inputs.resource_types)} conceptos "
+        "distintos. Ningún concepto puede aparecer en dos ítems, tampoco con otra forma (singular o plural, con o sin "
+        "tildes, otro orden). Cada ítem cita en «fragmentos» las etiquetas de los fragmentos donde están sus conceptos.",
         "",
         "FRAGMENTOS DEL MATERIAL:",
     ]
@@ -358,11 +360,19 @@ def _resolve_tags(value: Any, tag_mapping: Mapping[str, str]) -> list[str]:
 
 
 def items_from_model(
-    raw: Any, inputs: PlanInputs, evidence: PlanEvidence, catalog: Mapping[str, CatalogEntry]
+    raw: Any,
+    inputs: PlanInputs,
+    evidence: PlanEvidence,
+    catalog: Mapping[str, CatalogEntry],
+    dropped: dict[str, list[str]] | None = None,
 ) -> tuple[PlanItem, ...]:
     """Traduce el plan de la IA: un ítem por tipo pedido, la cantidad pedida si la hay, conceptos limpios y sin
-    repetir dentro del ítem, y las etiquetas F1…Fn traducidas a los ids de la evidencia."""
+    repetir dentro del ítem, y las etiquetas F1…Fn traducidas a los ids de la evidencia. Acepta `items` como objeto
+    por tipo (el esquema de T027 (b)) o como lista. En `dropped` deja, por tipo, los conceptos descartados por no ser
+    frases cortas, para decírselo a la IA en el reintento."""
     raw_items = raw.get("items") if isinstance(raw, dict) else None
+    if isinstance(raw_items, dict):
+        raw_items = [{**data, "resourceType": key} for key, data in raw_items.items() if isinstance(data, dict)]
     if not isinstance(raw_items, list):
         raise InvalidPlanResponse("sin la lista items")
     tag_mapping = {f"F{number}": fragment.id for number, fragment in enumerate(evidence.fragments, 1)}
@@ -384,7 +394,10 @@ def items_from_model(
         for concept in data.get("covers") or []:
             text = " ".join(str(concept).split())[:MAX_CONCEPT_CHARS]
             if short_concept_problem(text) is not None:
-                continue  # una oración o una lista no es un concepto; si el ítem se queda corto, el plan va a reglas
+                # Una oración o una lista no es un concepto; si el ítem se queda corto, el reintento lo dice.
+                if dropped is not None and text:
+                    dropped.setdefault(resource_type, []).append(text)
+                continue
             if text and concept_key(text) not in keys:
                 keys.add(concept_key(text))
                 covers.append(text)
@@ -433,11 +446,13 @@ class GenerationPlanner:
             try:
                 prompt = build_plan_prompt(inputs, evidence, self._catalog, referents, session_context, unit_title,
                                            retry_feedback=feedback)
-                items = items_from_model(self._drafter.draft_plan(prompt), inputs, evidence, self._catalog)
+                dropped: dict[str, list[str]] = {}
+                items = items_from_model(self._drafter.draft_plan(prompt), inputs, evidence, self._catalog, dropped)
+                items, repairs = repair_items(items, inputs)
                 problems = validate_items(items, evidence.fragment_ids, inputs.modality, known)
                 if problems:
                     raise InvalidPlanResponse(", ".join(sorted({problem.code for problem in problems})),
-                                              problems_feedback(problems, items))
+                                              problems_feedback(problems, items, dropped))
             except InvalidPlanResponse as invalid:
                 logger.warning("%s devolvió un plan no válido (intento %s): %s", description, attempts, invalid)
                 reason = f"{description} devolvió un plan no válido ({invalid.public_reason})."
@@ -447,22 +462,92 @@ class GenerationPlanner:
                 reason = f"{description} no respondió ({public_reason(error)})."
                 break
             else:
+                if repairs:
+                    logger.info("%s: plan arreglado sin otra llamada: %s", description, repairs)
                 return items, {"description": description, "usesAi": True, "fallback": False, "fallbackReason": None,
-                               "attempts": attempts}
+                               "attempts": attempts, "repairs": repairs}
         return self._rules.draft(inputs, evidence), self._generator(f"{reason} Se armó el plan con reglas.", attempts)
 
     @staticmethod
     def _generator(fallback_reason: str | None, attempts: int) -> dict[str, Any]:
         return {"description": RULES_PLANNER_DESCRIPTION, "usesAi": False, "fallback": fallback_reason is not None,
-                "fallbackReason": fallback_reason, "attempts": attempts}
+                "fallbackReason": fallback_reason, "attempts": attempts, "repairs": []}
 
 
-def problems_feedback(problems: Sequence[PlanProblem], items: Sequence[PlanItem]) -> str:
-    """Los problemas del plan para el reintento de la IA: código, ítem (posición y tipo) y mensaje."""
-    types = {item.position: item.resource_type for item in items}
-    lines = []
+def repair_items(
+    items: Sequence[PlanItem], inputs: PlanInputs
+) -> tuple[tuple[PlanItem, ...], list[dict[str, Any]]]:
+    """T027 (b): arreglos seguros de un plan de la IA, sin perder lo que el docente pidió. Devuelve los ítems y la lista
+    de arreglos (para `generator.repairs`).
+    - Un concepto que ya tiene un ítem anterior se quita del posterior, si a este le siguen quedando los conceptos que
+      necesita su cantidad.
+    - Si el docente dejó la cantidad libre y la IA eligió más recursos que conceptos, la cantidad baja al número de
+      conceptos. Una cantidad pedida por el docente nunca cambia."""
+    requested = {r.type: r.quantity for r in inputs.resource_types}
+    repairs: list[dict[str, Any]] = []
+    owners: dict[str, str] = {}
+    repaired: list[PlanItem] = []
+    for item in items:
+        covers = list(item.covers)
+        needed = requested.get(item.resource_type) or 1
+        for concept in list(covers):
+            key = concept_key(concept)
+            owner = owners.get(key)
+            if owner is not None and owner != item.resource_type and len(covers) - 1 >= needed:
+                covers.remove(concept)
+                repairs.append({"code": "CONCEPT_OWNED_TWICE", "resourceType": item.resource_type,
+                                "concept": concept, "action": "removed", "keptIn": owner})
+        for concept in covers:
+            owners.setdefault(concept_key(concept), item.resource_type)
+        quantity = item.quantity
+        if requested.get(item.resource_type) is None and covers and len(covers) < quantity:
+            repairs.append({"code": "NOT_ENOUGH_CONCEPTS", "resourceType": item.resource_type,
+                            "action": "quantity_lowered", "from": quantity, "to": len(covers)})
+            quantity = len(covers)
+        repaired.append(replace(item, covers=tuple(covers), quantity=quantity))
+    return tuple(repaired), repairs
+
+
+def _plural(count: int, singular: str, plural: str) -> str:
+    return singular if count == 1 else plural
+
+
+def problems_feedback(
+    problems: Sequence[PlanProblem], items: Sequence[PlanItem], dropped: Mapping[str, list[str]] | None = None
+) -> str:
+    """T027 (b): los problemas del plan para el reintento de la IA, por ítem (con su tipo), con los conceptos y lo que
+    hay que hacer. Los demás problemas van con su código, su ítem y su mensaje."""
+    by_position = {item.position: item for item in items}
+    dropped = dropped or {}
+    lines: list[str] = []
     for problem in problems:
-        where = (f" en el ítem {problem.item_position} ({types.get(problem.item_position, '?')})"
-                 if problem.item_position is not None else " en el plan")
-        lines.append(f"- {problem.code}{where}: {problem.message}")
-    return "\n".join(lines)
+        item = by_position.get(problem.item_position) if problem.item_position is not None else None
+        if item is not None and problem.code == "NOT_ENOUGH_CONCEPTS":
+            count = len(item.covers)
+            shown = ", ".join(f"«{c}»" for c in item.covers) or "ninguno"
+            missing = item.quantity - count
+            line = (f"- NOT_ENOUGH_CONCEPTS: El ítem «{item.resource_type}» tiene {count} "
+                    f"{_plural(count, 'concepto válido', 'conceptos válidos')} ({shown}) y necesita {item.quantity}: "
+                    f"agrega {missing} {_plural(missing, 'concepto corto', 'conceptos cortos')} del material que ningún "
+                    "otro ítem tenga.")
+            if dropped.get(item.resource_type):
+                line += (" Se descartaron por no ser frases cortas: "
+                         + ", ".join(f"«{c}»" for c in dropped[item.resource_type])
+                         + "; reemplázalos por frases de 2 a 4 palabras del material.")
+            lines.append(line)
+        elif item is not None and problem.code == "CONCEPT_OWNED_TWICE":
+            earlier = {concept_key(c): other.resource_type for other in items if other.position < item.position
+                       for c in other.covers}
+            for concept in item.covers:
+                owner = earlier.get(concept_key(concept))
+                if owner is not None:
+                    lines.append(f"- CONCEPT_OWNED_TWICE: «{concept}» está en «{owner}» y en «{item.resource_type}»: "
+                                 f"déjalo solo en «{owner}» y pon en «{item.resource_type}» otro concepto del "
+                                 "material.")
+                    break
+        else:
+            where = f" en el ítem «{item.resource_type}»" if item is not None else " en el plan"
+            lines.append(f"- {problem.code}{where}: {problem.message}")
+    return "\n".join(dict.fromkeys(lines))
+
+

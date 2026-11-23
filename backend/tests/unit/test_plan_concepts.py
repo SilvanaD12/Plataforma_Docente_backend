@@ -81,7 +81,7 @@ def test_the_rule_based_planner_only_proposes_short_concepts_from_the_material()
 def test_the_gemini_prompt_and_schema_ask_for_short_concepts():
     prompt = build_plan_prompt(REQUESTED, EVIDENCE, CATALOG)
     assert "de 2 a 4 palabras" in prompt.user and "nunca una oración" in prompt.user
-    covers = plan_response_schema(REQUESTED)["properties"]["items"]["items"]["properties"]["covers"]
+    covers = plan_response_schema(REQUESTED)["properties"]["items"]["properties"]["explicacion"]["properties"]["covers"]
     assert "2 a 4 palabras" in covers["items"]["description"]
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -203,6 +203,13 @@ class PlanGenerator(ApiResponse):
         default=0, ge=0, le=2,
         description="AI calls made to draft the plan: 0 without AI, 1, or 2 when the first plan was invalid and was "
         "asked again with its problems.",
+    )
+    repairs: list[dict[str, Any]] = Field(
+        default=[],
+        description="Safe fixes applied to the AI plan without another call (T027 b): a concept repeated in a later "
+        "item removed when that item keeps enough concepts (`CONCEPT_OWNED_TWICE`, `removed`), or a quantity chosen by "
+        "the AI lowered to its concepts when the teacher left it free (`NOT_ENOUGH_CONCEPTS`, `quantity_lowered`). "
+        "Empty when nothing was fixed.",
     )
 
 

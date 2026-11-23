@@ -154,13 +154,14 @@ def test_an_invalid_ai_plan_is_retried_once_with_its_problems_and_the_second_pla
     provider = Recorder(REPEATED_CONCEPT, gemini_answer(VALID_AI_PLAN))
     items, generator = GenerationPlanner(gemini(provider), CATALOG).draft(REQUESTED, EVIDENCE)
     assert generator == {"description": "Gemini · gemini-3.5-flash-lite", "usesAi": True, "fallback": False,
-                         "fallbackReason": None, "attempts": 2}
+                         "fallbackReason": None, "attempts": 2, "repairs": []}
     assert [i.resource_type for i in items] == ["pregunta_detonante", "explicacion"]
     first, second = (body["contents"][-1]["parts"][0]["text"] for body in provider.bodies)
     assert "TU PLAN ANTERIOR NO ERA VÁLIDO" not in first
     assert "TU PLAN ANTERIOR NO ERA VÁLIDO" in second
-    assert "CONCEPT_OWNED_TWICE en el ítem 2 (explicacion)" in second
-    assert "«capas del modelo OSI» ya le corresponde al recurso 1." in second
+    # T027 (b): el reintento nombra el concepto, los dos ítems y qué hacer.
+    assert ("CONCEPT_OWNED_TWICE: «capas del modelo OSI» está en «pregunta_detonante» y en «explicacion»: déjalo "
+            "solo en «pregunta_detonante»") in second
 
 
 def test_a_missing_type_is_also_sent_back_on_the_retry():
@@ -182,18 +183,18 @@ def test_a_valid_first_plan_needs_one_attempt_and_a_provider_error_is_not_retrie
 def test_the_plan_schema_requires_items_with_covers_and_fragments():
     schema = plan_response_schema(REQUESTED)
     items = schema["properties"]["items"]
-    assert schema["required"] == ["items"] and (items["minItems"], items["maxItems"]) == ("1", "2")
-    item = items["items"]
-    assert item["required"] == ["resourceType", "quantity", "purpose", "covers", "fragmentos"]
-    assert item["properties"]["resourceType"]["enum"] == ["pregunta_detonante", "explicacion"]
-    assert item["properties"]["covers"]["minItems"] == "1" and item["properties"]["fragmentos"]["minItems"] == "1"
+    # T027 (b): un objeto por tipo pedido, todos obligatorios, con el mínimo exacto de conceptos de cada uno.
+    assert schema["required"] == ["items"] and items["required"] == ["pregunta_detonante", "explicacion"]
+    for item in items["properties"].values():
+        assert item["required"] == ["purpose", "covers", "fragmentos"]  # cantidad pedida: no se pide
+        assert item["properties"]["covers"]["minItems"] == "1" and item["properties"]["fragmentos"]["minItems"] == "1"
 
 
 def test_a_valid_ai_plan_is_used_with_its_tags_resolved_and_the_stage_order():
     provider = Recorder(gemini_answer(VALID_AI_PLAN))
     items, generator = GenerationPlanner(gemini(provider), CATALOG).draft(REQUESTED, EVIDENCE)
     assert generator == {"description": "Gemini · gemini-3.5-flash-lite", "usesAi": True, "fallback": False,
-                         "fallbackReason": None, "attempts": 1}
+                         "fallbackReason": None, "attempts": 1, "repairs": []}
     assert [i.resource_type for i in items] == ["pregunta_detonante", "explicacion"]
     assert items[1].fragment_ids == (EVIDENCE.fragments[0].id, EVIDENCE.fragments[1].id)
     [body] = provider.bodies
@@ -226,7 +227,7 @@ def test_an_invalid_ai_plan_falls_back_to_the_rules_with_its_reason(answers, rea
     # Un plan no válido se pide otra vez una vez; un JSON inválido no (el adaptador ya reintenta el JSON).
     attempts = 1 if "JSON" in reason else 2
     assert generator == {"description": RULES_PLANNER_DESCRIPTION, "usesAi": False, "fallback": True,
-                         "fallbackReason": reason, "attempts": attempts}
+                         "fallbackReason": reason, "attempts": attempts, "repairs": []}
     assert items == RuleBasedPlanner(CATALOG).draft(REQUESTED, EVIDENCE)
 
 
@@ -246,7 +247,7 @@ def test_a_timeout_falls_back_within_the_deadline():
 def test_without_ai_the_rules_plan_has_no_fallback():
     items, generator = GenerationPlanner(None, CATALOG).draft(REQUESTED, EVIDENCE)
     assert generator == {"description": RULES_PLANNER_DESCRIPTION, "usesAi": False, "fallback": False,
-                         "fallbackReason": None, "attempts": 0}
+                         "fallbackReason": None, "attempts": 0, "repairs": []}
     assert len(items) == 2
 
 

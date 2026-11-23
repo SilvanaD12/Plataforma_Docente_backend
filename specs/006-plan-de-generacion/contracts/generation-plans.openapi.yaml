@@ -384,6 +384,14 @@ components:
           description: |
             AI calls made to draft the plan: 0 without AI, 1, or 2 when the first plan failed validation and the AI was
             asked again with its problems (codes and items). After a second invalid plan the rule-based planner drafts it.
+        repairs:
+          type: array
+          items: { type: object }
+          description: |
+            Safe fixes applied to the AI plan without another call (T027 b), each with `code`, `resourceType` and
+            `action`: `removed` (a concept already owned by an earlier item is dropped from a later item that keeps
+            enough concepts; with `concept` and `keptIn`) or `quantity_lowered` (a quantity chosen by the AI, never one
+            the teacher requested, lowered to its number of concepts; with `from` and `to`). Empty when nothing was fixed.
 
     GenerationPlan:
       type: object

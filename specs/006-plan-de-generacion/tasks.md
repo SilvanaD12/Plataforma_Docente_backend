@@ -126,7 +126,31 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
     - **Motivo del respaldo:** decía «no devolvió recursos con citas válidas» aunque todos los rechazos fueran de estructura. Ahora dice el rechazo que más pesó en la llamada (`fallback_warning` en `step_drafting.py`), con textos fijos sin el texto del proveedor: estructura, citas, distractores, plan o repetición. En un empate, gana en ese orden.
     - **Títulos dañados** («Evaluaci3n», «transmisi3n», «m3nima»): vienen del modelo. Los fragmentos guardados están bien, y nuestro código no cambia los caracteres: se lee el JSON tal cual y solo se normalizan los espacios. Aparecen 14 veces en los 234 recursos de `p4.db`; no se corrigen.
     - Pruebas en `tests/unit/test_mcq_generation.py`, con `tests/fixtures/gemini_mcq_without_misconception.json` (el patrón de las respuestas rechazadas). Hecho en el PR del backend (enlace pendiente). **Pendiente:** confirmarlo en la próxima medición con Gemini.
-  - **(b) Plan de Gemini:** falló la validación dos veces (con su reintento) en 4 de 5 corridas de la v4: `NOT_ENOUGH_CONCEPTS` ×3 y `CONCEPT_OWNED_TWICE` ×1.
+  - [x] **(b) Plan de Gemini:** falló la validación dos veces (con su reintento) en 4 de 5 corridas de la v4: `NOT_ENOUGH_CONCEPTS` ×3 y `CONCEPT_OWNED_TWICE` ×1.
+    - **Causa (planificador con Gemini):**
+      - con 8 tipos y cantidad 2, cada ítem necesita al menos 2 conceptos cortos y distintos: 16 en total, ninguno repetido entre ítems, con 12 fragmentos;
+      - el esquema (`plan_response_schema`) solo pedía `covers.minItems` 1 y el prompt decía «al menos tantos conceptos como su cantidad», sin el número exacto por tipo;
+      - `items_from_model` descartaba en silencio los conceptos que no eran frases cortas (T024), así que un ítem con 2 podía quedar con 1;
+      - el reintento solo decía «Hacen falta al menos 2 conceptos», sin nombrar el concepto descartado ni el ítem por su tipo;
+      - con 3 tipos hacen falta 6 conceptos y casi nunca fallaba (`t027a-mcq-check.json`).
+    - **Arreglo (planificador con Gemini):**
+      - El esquema es un objeto con una propiedad por tipo pedido, cada una con su mínimo exacto (`covers.minItems` = la cantidad); la cantidad solo se pide si el docente la dejó libre. La respuesta en lista se sigue aceptando.
+      - El prompt dice el mínimo de cada tipo, el total y que un concepto no se repite con otra forma.
+      - El reintento nombra el ítem por su tipo, sus conceptos válidos, los descartados por largos y qué hacer; y en un concepto repetido, los dos ítems y en cuál dejarlo.
+      - Arreglos seguros sin otra llamada (`repair_items`), registrados en `generator.repairs`:
+        - un concepto que ya tiene un ítem anterior se quita del posterior si a este le siguen alcanzando sus conceptos;
+        - una cantidad que eligió la IA (nunca una pedida por el docente) baja a su número de conceptos.
+    - **Causa (planificador por reglas):**
+      - las frases se armaban con la lista de palabras de cada fragmento, sin mirar los signos («puerto de destino, longitud» → «destino longitud»; «FTP, SFTP» → «ftp sftp»);
+      - entraban los encabezados de página («Ingeniería de redes  Página 1» → «redes página») y pedazos de oración («udp proporciona»);
+      - a cada ítem se le daban los fragmentos en el orden de la evidencia, aunque no mencionaran sus conceptos.
+    - **Arreglo (planificador por reglas):**
+      - Nuevo `application/services/generation/concept_extraction.py`, que usan el planificador y `candidate_concepts` (la medición). Corta el texto en signos, paréntesis, barras, guiones y «Página N», y quita los encabezados repetidos al comienzo de los fragmentos y las líneas de título (una línea de 8 palabras o menos que no termina como oración, como «Unidad 1: Protocolos de transporte»), porque ninguna oración las desarrolla y el recurso por reglas no podía cubrirlas.
+      - Arma frases de términos unidos por «de» («puerto de destino», «bloqueo de cabeza de línea», «saludo de tres vías»), pares seguidos, nombres con mayúscula («Transmission Control Protocol») y un sustantivo con su sigla («modelo OSI»).
+      - Las siglas (TCP, UDP, RTT) van solas; singular y plural son el mismo concepto.
+      - Las frases que aparecen una sola vez sin «de» quedan de último recurso, solo si faltan conceptos para el plan (con poco material).
+      - Cada ítem recibe los fragmentos que mencionan sus conceptos (el término completo), primero los que mencionan más; la evidencia congelada no cambia.
+    - Pruebas en `tests/unit/test_plan_generator_t027b.py`, con Gemini falso y el texto real del corpus de T067 (la petición de P4: 8 tipos × 2). Hecho en el PR del backend (enlace pendiente). **Pendiente:** confirmarlo en la próxima medición con Gemini.
   - **(c) Fidelidad:** la `faithfulness` de los recursos redactados desde el plan no se midió todavía (meta ≥ 0,90, con `run_ragas.py`).
   - **(d) Tiempos:** los demás respaldos fueron por el límite de 60 s de Gemini.
   - **Pendiente:** analizar cada uno, decidir el arreglo y medir de nuevo.

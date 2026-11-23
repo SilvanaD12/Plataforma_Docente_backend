@@ -6523,6 +6523,16 @@
             "title": "Attempts",
             "description": "AI calls made to draft the plan: 0 without AI, 1, or 2 when the first plan was invalid and was asked again with its problems.",
             "default": 0
+          },
+          "repairs": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Repairs",
+            "description": "Safe fixes applied to the AI plan without another call (T027 b): a concept repeated in a later item removed when that item keeps enough concepts (`CONCEPT_OWNED_TWICE`, `removed`), or a quantity chosen by the AI lowered to its concepts when the teacher left it free (`NOT_ENOUGH_CONCEPTS`, `quantity_lowered`). Empty when nothing was fixed.",
+            "default": []
           }
         },
         "additionalProperties": true,
