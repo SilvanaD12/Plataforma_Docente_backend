@@ -264,7 +264,10 @@ components:
           type: array
           items: { $ref: '#/components/schemas/EditablePlanItem' }
           maxItems: 40
-          description: The new list, in the order the teacher wants inside each stage. An empty list is saved and reported as `PLAN_EMPTY`.
+          description: |
+            The new list, in the order the teacher wants inside each stage. An empty list is saved and reported as
+            `PLAN_EMPTY`. Up to 40 items (8 types × quantity 5): the teacher may split a type into several items. The
+            AI planner proposes at most one item per requested type (8); both limits are intended.
 
     PlanItem:
       type: object
@@ -322,7 +325,13 @@ components:
       properties:
         name: { type: string }
         description: { type: string }
-        fragmentIds: { type: array, items: { type: string }, description: Fragments of the plan evidence that mention the referent. May be empty. }
+        fragmentIds:
+          type: array
+          items: { type: string }
+          description: |
+            Fragments of the plan evidence that mention the referent. Always a subset of `evidence.fragments`: when the
+            plan is created, ids outside the frozen evidence are dropped (not a validation problem). May be empty: the
+            referent is shown but not cited.
 
     PreviousTypology:
       type: object
@@ -405,7 +414,10 @@ components:
 
     StaleDocument:
       type: object
-      description: One entry of `details` in 409 `PLAN_EVIDENCE_STALE`.
+      description: |
+        One entry of `details` in 409 `PLAN_EVIDENCE_STALE`, one per affected document. Review's
+        `POST /units/{unit_id}/resources/{resource_id}/regenerations` (specs/001) answers 409 `PLAN_EVIDENCE_STALE` with
+        the same `{"error": {"code", "message", "details"}}` body and the same `details`.
       required: [documentId, documentName, missingFragmentIds]
       properties:
         documentId: { type: string }

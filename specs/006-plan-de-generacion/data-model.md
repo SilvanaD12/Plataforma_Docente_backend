@@ -50,7 +50,7 @@ Mismas convenciones que el [data-model de GEN-01](../002-generacion-multiple/dat
 | --- | --- | --- |
 | `name` | `str` | Nombre del autor o referente, como aparece en el material. |
 | `description` | `str` | Una línea de por qué es referente del tema. Puede estar vacía. |
-| `fragmentIds` | `list[str]` | Fragmentos de la evidencia del plan donde aparece. Puede estar vacía: entonces se muestra, pero no se cita. |
+| `fragmentIds` | `list[str]` | Fragmentos de la evidencia del plan donde aparece. Al crear el plan, es un subconjunto de `evidence.fragments`: los ids que no están ahí se descartan, sin informar un problema de validación ([research R10](research.md#r10-referentes-mat-p2)). Puede quedar vacía: entonces el referente se muestra, pero no se cita. |
 
 ### SessionContext
 
@@ -134,7 +134,7 @@ El plan congela su evidencia, pero el docente puede borrar o volver a procesar u
 | Momento | Comprobación | Si falla |
 | --- | --- | --- |
 | `POST /generation-requests` con plan | Cada `fragmentId` de los ítems del plan sigue existiendo en la unidad del docente (`EvidenceProviderPort.existing_fragment_ids`). | `409 PLAN_EVIDENCE_STALE`, sin crear el pedido. `details` lista los documentos afectados (`StaleDocument`: `documentId`, `documentName`, `missingFragmentIds`). El plan no cambia; el docente crea un plan nuevo. |
-| Regeneración desde Revisión de un recurso con plan | Los `fragmentIds` del ítem del recurso siguen existiendo. | La regeneración falla con `PLAN_EVIDENCE_STALE` y el mismo detalle; Revisión responde 409 con ese código y conserva el recurso. |
+| Regeneración desde Revisión de un recurso con plan | Los `fragmentIds` del ítem del recurso siguen existiendo, al iniciar la regeneración y antes de crear el pedido. | La regeneración falla con `PLAN_EVIDENCE_STALE`. Revisión responde 409 en el formato común `{"error": {"code", "message", "details"}}`, con el mismo `details` (lista de `StaleDocument`), y conserva el recurso. |
 
 ## Cambios en el pedido de generación (GEN-01)
 
