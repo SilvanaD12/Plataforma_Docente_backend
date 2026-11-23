@@ -309,8 +309,9 @@ def create_application() -> FastAPI:
     # GEN-P1 y GEN-P2: el plan de generación, del que parte todo pedido. La IA arma el plan si el generador activo
     # sabe hacerlo (Gemini); si no, reglas.
     resource_catalog = StaticResourceCatalogAdapter()
-    session_typologies = NoSessionTypologyAdapter()  # CUR-P3: provisional, sin sesiones
     generation_plan_repository = SQLAlchemyGenerationPlanRepository()
+    # CUR-P3: las tipologías de las últimas sesiones del curso, para el plan y para el pedido.
+    session_typologies = CourseSessionTypologyAdapter(account_repository, generation_plan_repository)
     plan_drafter = primary_generator if hasattr(primary_generator, "draft_plan") else None
     create_plan = CreateGenerationPlan(
         unit_membership,
