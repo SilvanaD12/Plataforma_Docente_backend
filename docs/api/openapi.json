@@ -2874,6 +2874,47 @@
             "title": "Learninggoal",
             "description": "Course learning goal (logro)."
           },
+          "educationLevel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Educationlevel"
+          },
+          "academicCycle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Academiccycle"
+          },
+          "activityType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "course",
+                  "workshop",
+                  "conference",
+                  ""
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activitytype"
+          },
           "units": {
             "items": {
               "$ref": "#/components/schemas/CourseUnitInput"
@@ -2934,6 +2975,45 @@
               }
             ],
             "title": "Learninggoal"
+          },
+          "educationLevel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Educationlevel"
+          },
+          "academicCycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Academiccycle"
+          },
+          "activityType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "course",
+                  "workshop",
+                  "conference",
+                  ""
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activitytype"
           },
           "units": {
             "items": {

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import Field
 
 from platform5e.infrastructure.http.schemas.common import ApiRequest, ApiResponse
@@ -19,12 +21,18 @@ class CourseUnitInput(ApiRequest):
     outcomes: list[LearningOutcomeInput] | None = Field(default=None, max_length=20)
 
 
+ActivityType = Literal["course", "workshop", "conference", ""]
+
+
 class CourseInput(ApiRequest):
     code: str = Field(min_length=1, max_length=30, description="Unique per teacher.", examples=["RED-301"])
     name: str = Field(min_length=1, max_length=150, examples=["Redes de computadoras"])
     term: str = Field(min_length=1, max_length=30, examples=["2026-II"])
     summary: str | None = Field(default=None, max_length=3000, description="Official course summary (sumilla).")
     learning_goal: str | None = Field(default=None, max_length=1000, description="Course learning goal (logro).")
+    education_level: str | None = Field(default=None, max_length=60)
+    academic_cycle: str | None = Field(default=None, max_length=40)
+    activity_type: ActivityType | None = None
     units: list[CourseUnitInput] = Field(
         min_length=1, max_length=50, description="Existing units must be sent back with their id."
     )
@@ -51,4 +59,7 @@ class CourseResponse(ApiResponse):
     term: str
     summary: str | None = None
     learning_goal: str | None = None
+    education_level: str | None = None
+    academic_cycle: str | None = None
+    activity_type: ActivityType | None = None
     units: list[UnitResponse]
