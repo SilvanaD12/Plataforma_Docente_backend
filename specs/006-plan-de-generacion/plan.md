@@ -189,6 +189,25 @@ read -rs GEMINI_API_KEY && export GEMINI_API_KEY   # el juez de run_ragas.py; la
 - **Informes anteriores:** `--recompute --faithfulness` también califica la v4; la primera vez lee los textos citados de la API con la misma cuenta.
 - **Qué mirar:** `summary.faithfulness` (media, `atLeastTarget`, `aiOnly`, `byType`) y `comparison.faithfulness` (`difference` y `planMeetsTarget`). Las cifras de conceptos de la v5 no se comparan con las de la v3 y la v4 (otra extracción, T027 b).
 
+**Sin perder corridas.**
+- **Al inicio:** el informe de `--compare` y los de `--from` se comprueban antes de iniciar sesión. Si falta uno o no se puede leer, la medición se detiene sin generar. Si la línea base todavía no existe, se mide sin `--compare` y se compara después con `--recompute --from <informe> --compare <línea base>`.
+- **Durante la medición:** después de cada corrida se escribe `<informe>.partial.json` (por ejemplo `v5-gemini-plan.partial.json`, con `"partial": true`). El informe se escribe antes de calificar, otra vez con cada puntaje del juez y antes de comparar; al terminar, el parcial se borra.
+- **Si la comparación falla:** el informe queda escrito con `comparisonError` y la medición termina con el resumen.
+
+**Rearmar un informe con pedidos que ya terminaron** (`--from-requests`). Si una medición se cortó después de generar, sus pedidos siguen en la base del backend. El informe se rearma con ellos desde la API, como lo habría armado la medición: pasos, generadores, plan, recursos, textos, textos citados y conceptos. Después siguen las métricas, `--faithfulness` y `--compare`, sin generar otra vez.
+- Hace falta el mismo backend y la misma base, `--mode` del modo con que se generaron (se comprueba con el plan de cada pedido) y la misma cuenta.
+- La clave de idempotencia de cada corrida (`key`) queda en `null`: la API no la devuelve.
+- Los ids se leen de la base, solo para lectura. La clave empieza con `p4-<modo>-<run-id>-`:
+
+```bash
+sqlite3 -readonly v5.db "SELECT id, idempotency_key, status FROM gen_generation_requests
+  WHERE idempotency_key LIKE 'p4-plan-%' ORDER BY created_at"
+# Con el backend sobre la misma base (v5.db) y la misma cuenta:
+.venv/bin/python evaluation/measure_duplication.py --mode plan --from-requests <id1> <id2> <id3> <id4> <id5> \
+  --threshold 0.885 --sentence-threshold 0.865 --faithfulness \
+  --out ../docs/evidence/GEN-P4/v5-gemini-plan.json --compare ../docs/evidence/GEN-P4/v5-gemini-baseline.json
+```
+
 **Calibrar los umbrales** con los informes guardados. Los informes traen los textos de los recursos; los anteriores, sin textos, se leen de la API con el mismo backend, la misma base y **la misma cuenta que los creó**. Si la API no devuelve un pedido (otra cuenta, otra base), la calibración se detiene con el motivo.
 
 ```bash

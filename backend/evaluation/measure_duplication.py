@@ -28,6 +28,12 @@ Modos (specs/006-plan-de-generacion, research R7):
   se omiten y se cuentan; un error del juez se registra en el recurso y la medición sigue. Las llamadas al juez van en
   paralelo, con --judge-concurrency hilos (2 por defecto). En un recálculo solo se califican los recursos sin puntaje
   (o todos, con otro juez o con --rescore-faithfulness). Necesita GEMINI_API_KEY en la terminal de la medición.
+- `--from-requests <id> …` (con --mode, --api y la misma cuenta): rearma el informe con pedidos de generación que ya
+  terminaron, leídos de la API como los habría guardado la medición (pasos, generadores, plan, recursos, textos
+  citados y conceptos), sin generar otra vez. Admite --faithfulness y --compare.
+- **Sin pérdidas:** --compare y --from se comprueban al inicio, antes de generar. Después de cada corrida se escribe
+  `<out sin .json>.partial.json`; el informe se escribe antes de calificar y de comparar, y otra vez con cada puntaje del
+  juez. Si la comparación falla, el informe queda escrito con `comparisonError` y se compara después con --recompute.
 - `--calibrate --from informe.json …`: distribuciones de similitud de pares sin repetición y repetidos, y los umbrales
   sugeridos.
 
@@ -566,6 +572,7 @@ def score_faithfulness(
     instructions: str,
     concurrency: int = DEFAULT_JUDGE_CONCURRENCY,
     rescore: bool = False,
+    checkpoint: Callable[[], None] | None = None,
 ) -> int:
     """Califica con el juez los recursos que citan el material y todavía no tienen puntaje (o todos, con `rescore`).
     Los que no citan quedan como omitidos. Devuelve cuántos se enviaron al juez."""
@@ -586,6 +593,8 @@ def score_faithfulness(
         for done, future in enumerate(as_completed(futures), 1):
             futures[future]["faithfulness"] = future.result()
             progress(f"Fidelidad: {done}/{len(pending)}")
+            if checkpoint is not None:
+                checkpoint()  # cada puntaje queda en el informe en cuanto llega
     return len(pending)
 
 
@@ -620,14 +629,16 @@ def judge_info(model: str, concurrency: int) -> dict[str, Any]:
 
 def add_faithfulness(args: argparse.Namespace, report: dict[str, Any],
                      judge_factory: Callable[[str], Callable[[dict], dict]] | None,
-                     evaluate_one: Callable[[dict], dict] | None = None) -> None:
+                     evaluate_one: Callable[[dict], dict] | None = None,
+                     checkpoint: Callable[[], None] | None = None) -> None:
     """Califica los recursos del informe (si se pidió --faithfulness) y resume la fidelidad por corrida y en total."""
     runs = report.get("runs", [])
     if args.faithfulness:
         previous = (report.get("faithfulnessJudge") or {}).get("judge")
         evaluate_one = evaluate_one or (judge_factory or default_judge)(args.judge_model)
         score_faithfulness(runs, evaluate_one, report.get("instructions") or INSTRUCTIONS, args.judge_concurrency,
-                           rescore=args.rescore_faithfulness or (previous is not None and previous != args.judge_model))
+                           rescore=args.rescore_faithfulness or (previous is not None and previous != args.judge_model),
+                           checkpoint=checkpoint)
         report["faithfulnessJudge"] = judge_info(args.judge_model, args.judge_concurrency)
     apply_faithfulness(runs)
     report["summary"] = summarize(runs)
@@ -805,6 +816,24 @@ def measure_run(
     status = wait_final(client, headers, request_id, poll, deadline)
     if status is None:
         return {**record, "failure": {"stage": "wait", "code": "TIMEOUT"}}
+    return run_from_status(client, headers, unit_id, record, status, types, quantity, similarity, threshold,
+                           sentence_threshold)
+
+
+def run_from_status(
+    client: httpx.Client,
+    headers: dict,
+    unit_id: str,
+    record: dict[str, Any],
+    status: dict[str, Any],
+    types: Sequence[str],
+    quantity: int,
+    similarity: Similarity,
+    threshold: float,
+    sentence_threshold: float,
+) -> dict[str, Any]:
+    """La corrida de un pedido terminado: sus pasos, recursos, plan, conceptos y métricas."""
+    request_id = status.get("id") or record["requestId"]
     steps = status.get("steps", [])
     resources = stored_resources(delivered_resources(client, headers, unit_id, status), steps)
     plan = plan_details(client, headers, status.get("planId") or record.get("planId"))
@@ -831,6 +860,37 @@ def measure_run(
                                sentence_threshold))
     with_ai_only(run, similarity, threshold, sentence_threshold)
     return run
+
+
+def rebuild_run(
+    client: httpx.Client,
+    headers: dict,
+    request_id: str,
+    mode: str,
+    types: Sequence[str],
+    quantity: int,
+    similarity: Similarity,
+    threshold: float,
+    sentence_threshold: float,
+) -> dict[str, Any]:
+    """La corrida de un pedido que ya terminó, leída de la API como la habría armado `measure_run` (sin su clave de
+    idempotencia, que la API no devuelve)."""
+    status = _get_or_fail(client, headers, f"{REQUESTS_PATH}/{request_id}", request_id)
+    if status.get("status") not in FINAL_STATUSES:
+        raise SystemExit(f"El pedido {request_id} no terminó todavía (estado {status.get('status')}).")
+    plan_id = status.get("planId")
+    if mode == "baseline" and plan_id:
+        raise SystemExit(f"El pedido {request_id} se generó desde el plan {plan_id}: no es de la línea base "
+                         "(--mode baseline).")
+    if mode == "plan" and not plan_id:
+        raise SystemExit(f"El pedido {request_id} no tiene plan: no es de la medición con plan (--mode plan).")
+    record: dict[str, Any] = {"key": None}
+    if mode == "plan":
+        plan = plan_details(client, headers, plan_id)
+        record.update(planId=plan_id, planItems=len((plan or {}).get("items", [])))
+    record.update(requestId=request_id, requestPlanId=plan_id)
+    return run_from_status(client, headers, status["unitId"], record, {"id": request_id, **status}, types, quantity,
+                           similarity, threshold, sentence_threshold)
 
 
 def choose_similarity(name: str, embedder_factory: Callable[[], Any] | None = None) -> tuple[Similarity, str]:
@@ -1110,11 +1170,7 @@ def run_recompute(args: argparse.Namespace, embedder_factory: Callable[[], Any] 
         if client is not None:
             client.close()
     recomputed["recomputedFrom"] = args.reports[0].name
-    add_faithfulness(args, recomputed, judge_factory)
-    add_comparison(args, recomputed)
-    write_json(args.out, recomputed)
-    print_summary(recomputed, label, args.out)
-    return recomputed
+    return finish_report(args, recomputed, label, judge_factory)
 
 
 # --------------------------------------------------------------------------- informe
@@ -1143,6 +1199,54 @@ def add_comparison(args: argparse.Namespace, report: dict[str, Any]) -> None:
     if args.compare is not None:
         baseline = json.loads(args.compare.read_text(encoding="utf-8"))
         report["comparison"] = compare(baseline["summary"], report["summary"])
+
+
+def partial_path(out: Path) -> Path:
+    """El informe parcial que se escribe después de cada corrida: `v5-gemini-plan.partial.json`."""
+    return out.with_name(f"{out.stem}.partial.json")
+
+
+def _readable_report(path: Path, option: str, needs_summary: bool = False) -> None:
+    if not path.is_file():
+        raise SystemExit(f"No existe el informe de {option}: {path}. Nada se generó. Corre antes ese informe, o mide "
+                         "sin --compare y compara después con --recompute --from <informe> --compare <línea base>.")
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"El informe de {option} no se puede leer ({path}): {error}. Nada se generó.") from error
+    if needs_summary and not isinstance((data or {}).get("summary"), dict):
+        raise SystemExit(f"El informe de {option} no tiene resumen (summary): {path}. Nada se generó.")
+
+
+def check_inputs(args: argparse.Namespace) -> None:
+    """Los informes de --compare y --from se comprueban al inicio, antes de iniciar sesión o generar."""
+    if args.compare is not None:
+        _readable_report(args.compare, "--compare", needs_summary=True)
+    for path in args.reports:
+        _readable_report(path, "--from")
+
+
+def finish_report(args: argparse.Namespace, report: dict[str, Any], label: str,
+                  judge_factory: Callable[[str], Callable[[dict], dict]] | None,
+                  evaluate_one: Callable[[dict], dict] | None = None) -> dict[str, Any]:
+    """Escribe el informe antes de calificar y de comparar, con cada puntaje del juez y al final. Un error al comparar
+    no pierde el informe: queda escrito con `comparisonError`."""
+    report.pop("comparisonError", None)
+    write_json(args.out, report)
+    add_faithfulness(args, report, judge_factory, evaluate_one, checkpoint=lambda: write_json(args.out, report))
+    write_json(args.out, report)
+    try:
+        add_comparison(args, report)
+    except Exception as error:  # el informe ya está escrito: se compara después
+        report["comparisonError"] = f"{type(error).__name__}: {error}"
+        progress(f"No se pudo comparar con {args.compare}: {report['comparisonError']}. El informe quedó en "
+                 f"{args.out}; compáralo después con --recompute --from {args.out} --compare <línea base>.")
+    write_json(args.out, report)
+    partial = partial_path(args.out)
+    if partial.exists():
+        partial.unlink()
+    print_summary(report, label, args.out)
+    return report
 
 
 def write_json(path: Path, data: dict[str, Any]) -> None:
@@ -1188,6 +1292,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="recalcula las métricas con los textos de un informe (con --from), sin generar")
     parser.add_argument("--from", dest="reports", type=Path, nargs="*", default=[],
                         help="informes de corridas anteriores para --calibrate o --recompute")
+    parser.add_argument("--from-requests", nargs="+", default=None, metavar="ID",
+                        help="rearma el informe con pedidos ya terminados (con --mode y la misma cuenta), sin generar")
     parser.add_argument("--run-id", default=datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S"))
     parser.add_argument("--poll", type=float, default=2.0)
     parser.add_argument("--timeout", type=float, default=30 * 60, help="segundos máximos por corrida")
@@ -1213,6 +1319,9 @@ def main(argv: Sequence[str] | None = None, embedder_factory: Callable[[], Any] 
         args.threshold = DEFAULT_THRESHOLD
     if not 0 < args.threshold <= 1:
         raise SystemExit("--threshold va de 0 a 1.")
+    check_inputs(args)
+    if args.from_requests and (args.calibrate or args.recompute):
+        raise SystemExit("--from-requests no va con --calibrate ni con --recompute.")
     if args.calibrate:
         return run_calibration(args, embedder_factory)
     if args.recompute:
@@ -1233,20 +1342,26 @@ def main(argv: Sequence[str] | None = None, embedder_factory: Callable[[], Any] 
     runs: list[dict[str, Any]] = []
     with httpx.Client(base_url=args.api, timeout=120) as client:
         headers = collect.login(client, email, password)
-        unit = collect.ensure_unit(client, headers)
-        collect.ensure_materials(client, headers, unit, collect.corpus_files(args.corpus))
-        for number in range(1, args.runs + 1):
-            key = f"p4-{args.mode}-{args.run_id}-{number}"
-            print(f"Corrida {number} de {args.runs} ({args.mode})…")
-            runs.append(measure_run(client, headers, unit["id"], args.mode, args.types, args.quantity, key,
-                                    similarity, args.threshold, args.poll, time.monotonic() + args.timeout,
-                                    args.sentence_threshold))
+        if args.from_requests:
+            for number, request_id in enumerate(args.from_requests, 1):
+                print(f"Pedido {number} de {len(args.from_requests)} ({args.mode}): {request_id}…")
+                runs.append(rebuild_run(client, headers, request_id, args.mode, args.types, args.quantity,
+                                        similarity, args.threshold, args.sentence_threshold))
+        else:
+            unit = collect.ensure_unit(client, headers)
+            collect.ensure_materials(client, headers, unit, collect.corpus_files(args.corpus))
+            for number in range(1, args.runs + 1):
+                key = f"p4-{args.mode}-{args.run_id}-{number}"
+                print(f"Corrida {number} de {args.runs} ({args.mode})…")
+                runs.append(measure_run(client, headers, unit["id"], args.mode, args.types, args.quantity, key,
+                                        similarity, args.threshold, args.poll, time.monotonic() + args.timeout,
+                                        args.sentence_threshold))
+                # Lo medido hasta ahora queda escrito: una falla después no pierde las corridas.
+                write_json(partial_path(args.out), {**build_report(args, label, runs), "partial": True})
     report = build_report(args, label, runs)
-    add_faithfulness(args, report, judge_factory, judge)
-    add_comparison(args, report)
-    write_json(args.out, report)
-    print_summary(report, label, args.out)
-    return report
+    if args.from_requests:
+        report["fromRequests"] = list(args.from_requests)
+    return finish_report(args, report, label, judge_factory, judge)
 
 
 if __name__ == "__main__":
