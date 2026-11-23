@@ -166,6 +166,25 @@ class SQLAlchemyGenerationPlanRepository(GenerationPlanRepositoryPort):
             return [_from_orm(row) for row in session.scalars(query).all()]
 
     @translate_persistence_errors
+    def list_used_for_units(
+        self, teacher_id: str, unit_ids: Sequence[str], limit: int = 3
+    ) -> Sequence[GenerationPlan]:
+        """Return the most recently used plans in the supplied units."""
+        query = (
+            select(GenerationPlanORM)
+            .where(
+                GenerationPlanORM.teacher_id == teacher_id,
+                GenerationPlanORM.unit_id.in_(unit_ids),
+                GenerationPlanORM.status == PlanStatus.USED.value,
+                GenerationPlanORM.used_at.is_not(None),
+            )
+            .order_by(GenerationPlanORM.used_at.desc(), GenerationPlanORM.id)
+            .limit(limit)
+        )
+        with self._sessions() as session:
+            return [_from_orm(row) for row in session.scalars(query).all()]
+
+    @translate_persistence_errors
     def create(self, plan: GenerationPlan) -> GenerationPlan:
         with self._sessions() as session:
             session.add(_to_orm(plan))
