@@ -49,7 +49,11 @@ Decisiones tomadas a partir de la reunión del 21/11/2026 y del código actual d
 - **El plan congela su evidencia** (`evidence.fragments`, con id, documento, ubicación y texto). Los `fragmentIds` de los ítems solo pueden ser de esa evidencia. La generación usa esa misma evidencia, no una búsqueda nueva, así que lo que el docente aprobó es lo que se cita. La recuperación se hace una sola vez, al crear el plan, igual que hoy se hace una vez por pedido (002, GEN-R2).
 - **`covers`: los conceptos que el ítem desarrolla.** Son frases cortas del docente o del planificador, por ejemplo «control de flujo en TCP». Se comparan normalizadas: minúsculas, sin tildes, sin espacios repetidos y sin palabras vacías, como en `domain/generation/topic_coverage.py`. Ningún concepto normalizado puede estar en dos ítems.
 - **`doesNotCover` lo calcula el servidor** como la unión de los `covers` de los demás ítems, en orden. El docente no lo edita: al cambiar los conceptos de un ítem, los demás se actualizan solos, y no puede quedar una contradicción. El modelo no lo devuelve.
-- **`quantity` por ítem**, de 1 a 5, como hoy. Un ítem con cantidad N reparte sus `covers` entre sus N recursos, en bloques consecutivos y en orden; por eso necesita al menos N conceptos. Sin cantidad pedida, el planificador elige de 1 al máximo permitido según los conceptos disponibles.
+- **`quantity` por ítem**, de 1 a 5, como hoy. Un ítem con cantidad N reparte sus `covers` entre sus N recursos, en bloques consecutivos y en orden; por eso necesita al menos N conceptos. Si el docente deja la cantidad vacía (`null`), la elige el planificador según los conceptos disponibles, con las reglas de [R4](#r4-planificación-con-reglas-y-con-gemini).
+- **Por qué 5 como máximo.**
+  - Es el mismo límite por tipo de GEN-01 (`MAX_QUANTITY_PER_TYPE`), así que el plan no abre un caso nuevo para la generación.
+  - Cada recurso se redacta por separado desde su bloque de conceptos (GEN-P2): el tiempo y el costo crecen con la cantidad, y 8 tipos × 5 ya son 40 recursos en un pedido.
+  - Cada recurso necesita conceptos propios. Con 3 a 12 fragmentos de evidencia, más de 5 recursos del mismo tipo terminarían repitiendo conceptos, que es lo que el plan quiere evitar.
 - **`stage` sale del catálogo y es de solo lectura.** El orden de los ítems sigue el de las etapas y, dentro de cada etapa, el de `position`.
 - **`version`** sube en cada `PUT`. `approve` y el pedido de generación la exigen (concurrencia optimista, como `expectedVersion` en Revisión).
 - **`validation`** se calcula en cada escritura: `{valid, problems[]}`. El borrador se guarda aunque sea inválido, para no perder la edición, pero no se puede aprobar.
@@ -71,6 +75,9 @@ Entre la aprobación y la generación, el docente puede borrar un documento o vo
 
 1. **Conceptos candidatos.** Primero las frases y los términos del tema que aparecen en la evidencia (`topic_phrases` y `topic_terms` de QA-05), después los términos clave de la evidencia (`extract_key_terms` de `domain/materials/text_analysis.py`). Cada grupo se ordena por el primer fragmento donde aparece cada concepto (el orden de relevancia de la búsqueda); en el mismo fragmento, las frases antes que las palabras sueltas, y en empate, por orden alfabético. Una palabra suelta que ya está dentro de un concepto elegido («modelo» en «modelo OSI») no se agrega.
 2. **Ítems.** Uno por tipo pedido, ordenados por etapa; los tipos con cantidad N reciben N bloques de conceptos.
+   - **Cantidad vacía (`null`).** Con C conceptos candidatos y T tipos pedidos, la cantidad es `min(3, max(1, C // (2 × T)))`: un recurso por cada dos conceptos que le tocarían al tipo, al menos 1.
+   - **Por qué hasta 3 y no hasta 5.** El tope automático es más bajo que el máximo que puede pedir el docente (5): si el docente no lo pidió, el planificador no multiplica los recursos, y cada bloque conserva por lo menos dos conceptos. Para tener 4 o 5, el docente escribe la cantidad.
+   - Las cantidades elegidas pasan por el mismo ajuste del paso 3 si los conceptos no alcanzan.
 3. **Reparto.** Los conceptos se reparten por turnos (round robin) entre los bloques, en el orden de los ítems. Cada bloque recibe al menos un concepto. Si hay menos conceptos que bloques, se baja la cantidad del último ítem que la tenga mayor que 1. Si aun así no alcanzan, se informa como problema de validación, sin inventar conceptos.
 4. **Fragmentos.** Los de cada ítem son los fragmentos donde aparece alguno de sus conceptos, en el orden de la evidencia. Un ítem sin fragmentos queda inválido («sin evidencia»).
 5. **Propósito.** Una plantilla por tipo con la descripción del catálogo y los primeros conceptos, por ejemplo: «Explicación citada: desarrolla «control de flujo», «retransmisión»».
@@ -78,6 +85,7 @@ Entre la aprobación y la generación, el docente puede borrar un documento o vo
 **Con Gemini.** Una sola llamada:
 
 - **Entrada:** el catálogo de los tipos pedidos (nombre, etapa y descripción), la evidencia con etiquetas F1…Fn, los referentes, el contexto de sesión y las entradas del docente.
+- **Cantidad.** Para un tipo con cantidad pedida, el prompt dice «cantidad N» y el servidor conserva N aunque el modelo devuelva otra. Para un tipo con cantidad vacía, dice «cantidad de 1 a 5, según los conceptos», con la regla de que cada ítem tenga al menos tantos conceptos como su cantidad. La cantidad que devuelve el modelo se acota de 1 a 5; si el plan resultante no tiene conceptos suficientes (`NOT_ENOUGH_CONCEPTS`), cuenta como inválido y va al respaldo por reglas.
 - **Esquema de respuesta propio**, como el de la actividad kinestésica en T073: `items` obligatorio, con `minItems` 1 y `maxItems` igual a la suma de tipos pedidos; cada ítem exige `resourceType`, `quantity`, `purpose`, `covers` (con `minItems` 1) y `fragmentos` (con `minItems` 1).
 - **Después de la respuesta:** las etiquetas se traducen a ids, se descartan los tipos no pedidos, se calcula `doesNotCover` y se valida.
 - **Respaldo:** si la llamada vence a los 60 s, si la respuesta no es JSON válido, o si el plan resultante no es válido, se arma con reglas y `generator.fallbackReason` guarda el motivo público genérico de `provider_errors.py`.
@@ -123,10 +131,27 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 | `format` | `text`, `visual`, `image`, `audio` o `interactive`. Un tipo nuevo de CUR-P2 solo puede ser `text` mientras no tenga redactor propio. |
 | `description` | Una o dos oraciones de qué es el recurso y cómo lo usa el estudiante. Es la instrucción del prompt genérico. |
 | `structure` | `none` para los tipos nuevos; los tipos actuales conservan la suya (pasos, pares, afirmaciones…). |
-| `lengthHint` | Extensión esperada en palabras (mínimo y máximo), para «no acortar». |
+| `lengthHint` | Opcional. Extensión esperada del recurso en palabras, `{minWords, maxWords}` ([reglas](#extensión-lengthhint)). |
 | `modalities` | Las modalidades que lo incluyen (HU-024). |
 | `hasOptions` | Solo `item_opcion_multiple`. |
 | `active` | Si se ofrece en el formulario. |
+
+**Lo que entrega Cursos (CUR-P2) por cada tipo nuevo**, además de `id`, `name`, `singular` y `plural`:
+
+| Campo | Valor |
+| --- | --- |
+| `stage` | Una de las cinco etapas. |
+| `description` | Qué es el recurso y cómo lo usa el estudiante, en una o dos oraciones. |
+| `lengthHint` | Opcional: `{minWords, maxWords}`. |
+| `modalities` | Las modalidades que lo incluyen. |
+| `format` | `text`. |
+| `structure` | `none`. |
+| `active` | `true` para ofrecerlo en el formulario. |
+
+<a id="extensión-lengthhint"></a>**Extensión (`lengthHint`).**
+- **Forma.** Un objeto opcional `{minWords, maxWords}`, con enteros: `minWords` ≥ 20, `maxWords` ≤ 600 y `minWords` ≤ `maxWords`. Cursos valida estas reglas al guardar la entrada; si Generación recibe una entrada que no las cumple, la trata como si no tuviera `lengthHint`.
+- **Uso.** Es una guía para la redacción: el prompt pide «entre X y Y palabras». Nunca es una regla de rechazo: un recurso más corto o más largo no se rechaza ni se regenera por su extensión.
+- **Sin `lengthHint`.** Vale la extensión por defecto del prompt genérico, la misma de `explicacion`: de 3 a 5 párrafos, sin un rango de palabras.
 
 **Tipos nuevos de texto.**
 - Se redactan con un prompt genérico: la `description` de la entrada, el ítem del plan, y el contenido con citas como en `explicacion`.
@@ -170,14 +195,16 @@ Mientras REV-P3 no esté, la medición provisional usa la similitud léxica de `
 
 **Decisión.** Cursos guarda la tipología (los tipos de recurso) usada en cada sesión del curso. Generación usa dos operaciones del puerto `SessionTypologyPort`:
 
-- `previous_typologies(teacher_id, unit_id, limit=3)`: devuelve las últimas tipologías del curso de la unidad, con su fecha.
+- `previous_typologies(teacher_id, unit_id, limit=3)`: devuelve las últimas 3 tipologías del mismo curso de la unidad (de cualquiera de sus unidades), de la más reciente a la más antigua. Cada una trae `sessionLabel`, `usedAt` y `resourceTypes`.
 - `record_typology(teacher_id, unit_id, plan_id, resource_types, used_at)`: se llama cuando el plan pasa a `used`.
 
+**Qué es una sesión.** Se cuenta una sesión cada vez que un plan pasa a `used`, es decir, cuando inicia un pedido de generación. Un plan en borrador o aprobado que no se usa no cuenta. `usedAt` es el instante en que el plan pasó a `used`, y `resourceTypes` son los tipos de sus ítems.
+
 **Uso en el plan.**
-- **Aviso.** Si los tipos pedidos son los mismos que los de la sesión anterior, el plan trae `warnings: ["SAME_TYPOLOGY_AS_LAST_SESSION"]` y la interfaz sugiere variar.
+- **Aviso.** Si los tipos pedidos son los mismos que los de la sesión más reciente del curso (la primera de `previousTypologies`), sin importar el orden ni las cantidades, el plan trae `warnings: ["SAME_TYPOLOGY_AS_LAST_SESSION"]` y la interfaz sugiere variar.
 - **Variación.** Con Gemini, las tipologías anteriores van al prompt para variar los propósitos y los enfoques. El planificador no cambia los tipos que eligió el docente.
 
-**Pendiente con CUR-P3.** Qué es una «sesión» del curso: una fecha de clase, una unidad, o cada plan usado. Hasta acordarlo, cada plan usado cuenta como una sesión.
+**Acordado con CUR-P3 (Silvana).** La sesión es cada plan usado, como se describe arriba. Una fecha de clase o una unidad como sesión quedan descartadas: Generación no conoce el calendario del curso, y una unidad puede tener varias clases.
 
 ## R10. Referentes (MAT-P2)
 

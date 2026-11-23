@@ -24,7 +24,7 @@ El pedido de generación de GEN-01 parte del plan aprobado (`{planId, planVersio
 Acuerdos con otros módulos (no bloquean el diseño, sí algunas tareas):
 
 1. **MAT-P2 (Sergio):** `ReferentsPort` y, con MAT-01, `EvidenceProviderPort.existing_fragment_ids` para la evidencia vigente.
-2. **CUR-P3 (Silvana):** `SessionTypologyPort`, y qué es una «sesión» del curso ([research R9](research.md#r9-contexto-de-sesión-cur-p3)).
+2. **CUR-P3 (Silvana):** `SessionTypologyPort`, con la sesión contada cuando un plan pasa a `used` ([research R9](research.md#r9-contexto-de-sesión-cur-p3)).
 3. **CUR-P2 (Silvana):** `ResourceCatalogPort` con los campos de [research R6](research.md#r6-catálogo-configurable-cur-p2).
 4. **REV-P3 (Juan):** el indicador de duplicación por embeddings y su umbral τ para medir P4.
 

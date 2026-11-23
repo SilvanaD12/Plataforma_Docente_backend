@@ -12,8 +12,8 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 | Ficha | Responsable | Qué entrega | Mientras no esté |
 | --- | --- | --- | --- |
 | MAT-P2 | Sergio | `ReferentsPort.referents_for(teacher_id, unit_id, topic)` → `[{name, description, fragmentIds}]` | Adaptador que devuelve `[]`. |
-| CUR-P3 | Silvana | `SessionTypologyPort.previous_typologies(...)` y `record_typology(...)`. Hay que acordar qué es una «sesión». | Adaptador vacío: `previous_typologies` devuelve `[]` y `record_typology` no hace nada. |
-| CUR-P2 | Silvana | Catálogo configurable con los campos de [research R6](research.md#r6-catálogo-configurable-cur-p2), por `ResourceCatalogPort`. | Adaptador sobre `domain/generation/resource_catalog.py`. |
+| CUR-P3 | Silvana | `SessionTypologyPort.previous_typologies(...)` (las últimas 3 del curso, la más reciente primero) y `record_typology(...)`. Una sesión es un plan que pasa a `used`. | Adaptador vacío: `previous_typologies` devuelve `[]` y `record_typology` no hace nada. |
+| CUR-P2 | Silvana | Catálogo configurable con los campos de [research R6](research.md#r6-catálogo-configurable-cur-p2), por `ResourceCatalogPort`. Por cada tipo nuevo: `stage`, `description`, `lengthHint` opcional, `modalities`, `format: text`, `structure: none` y `active`. | Adaptador sobre `domain/generation/resource_catalog.py`. |
 | REV-P3 | Juan | Indicador de duplicación por similitud de embeddings, con su umbral τ. | Similitud léxica de `most_similar` para la medición provisional. |
 | QA-16 | Sergio | `POST /generation-plans` en las rutas costosas con límite por IP. | — |
 
