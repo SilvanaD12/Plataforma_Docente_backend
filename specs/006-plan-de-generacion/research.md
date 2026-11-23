@@ -102,19 +102,28 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 - **Lo que recibe el prompt de cada recurso:**
   - su bloque de conceptos (`covers` del bloque), que debe desarrollar completo;
   - el propósito del ítem;
-  - los conceptos de los demás ítems (`doesNotCover`), que no debe desarrollar: puede nombrarlos, pero no explicarlos (en los recursos de un solo párrafo, no debe nombrarlos; ver la comprobación de cobertura);
+  - los conceptos de los demás recursos del plan, que no debe desarrollar: los `doesNotCover` del ítem y los bloques de los otros recursos del mismo ítem. Puede nombrarlos, pero no explicarlos (en los recursos de un solo párrafo, no debe nombrarlos; ver la comprobación de cobertura);
   - el resumen de lo ya cubierto: por cada recurso entregado antes en el pedido, su título, sus conceptos y un resumen de hasta 300 caracteres (`secuenciaPrevia`, como hoy);
   - la evidencia, con los fragmentos del ítem primero.
 - **Sin acortar.** Se mantienen las reglas de formato y extensión de cada tipo; se quita la instrucción «si los fragmentos no alcanzan, devuelve menos recursos» para los ítems del plan, porque el plan ya decidió cuántos.
 - **Comprobación de cobertura**, léxica y sin IA, con la normalización de QA-05:
   - el recurso debe mencionar al menos uno de sus conceptos;
   - no debe desarrollar un concepto ajeno: un concepto ajeno que aparece en más de un párrafo cuenta como desarrollado.
-  - **Recursos de un solo párrafo** (`pregunta_detonante`, `item_opcion_multiple`, `audio_detonante` y los demás tipos cortos, también los tipos nuevos de CUR-P2 cuyo contenido salga en un párrafo): la regla anterior nunca se cumple, porque no hay un segundo párrafo. Para ellos rige una regla más estricta: un concepto ajeno que aparece como término completo (todas sus palabras seguidas, con la normalización de QA-05) en el enunciado, la situación, la pregunta o una opción cuenta como desarrollado. La retroalimentación de las opciones no se cuenta. Su prompt dice que no nombre los conceptos ajenos, en vez de «puede nombrarlos». La regla se decide por el contenido entregado (sin línea en blanco que separe párrafos), no por una lista fija de tipos.
-  - **Falsos rechazos.** Las pruebas de T013 con el corpus de T067 deciden si la regla estricta rechaza recursos correctos. Si rechaza más del 5 % de los recursos cortos marcados como correctos, se afloja (por ejemplo, contar solo el enunciado y no las opciones) y el cambio se registra aquí.
+  - **Recursos de un solo párrafo** (`pregunta_detonante`, `item_opcion_multiple`, `audio_detonante` y los demás tipos cortos, también los tipos nuevos de CUR-P2 cuyo contenido salga en un párrafo): la regla anterior nunca se cumple, porque no hay un segundo párrafo. Para ellos rige una regla más estricta: un concepto ajeno que aparece como término completo (todas sus palabras seguidas, con la normalización de QA-05) en el enunciado, la situación, la pregunta o una opción cuenta como desarrollado. La retroalimentación de las opciones no se cuenta. Su prompt dice que no nombre los conceptos ajenos, en vez de «puede nombrarlos». La regla se decide por el contenido entregado, no por una lista fija de tipos.
+  - **Qué es un párrafo** (al implementar GEN-P2). Los párrafos del contenido se separan con una línea en blanco; si no hay ninguna, cada línea es un párrafo, como en la verificación del glosario (HU-049): así un glosario, que trae una entrada por línea, no cae en la regla estricta. Cada texto de la estructura (pasos, pares, afirmaciones…) y cada opción cuentan como un párrafo más. Un recurso es «de un solo párrafo» si su contenido tiene un solo párrafo y no tiene estructura.
+  - **El prompt de los tipos breves.** Dice «no los nombres» para `pregunta_detonante`, `item_opcion_multiple` y `audio_detonante`, y para un tipo del catálogo cuyo `lengthHint` no pasa de 120 palabras.
+  - **Falsos rechazos.** Las pruebas de T013 con el corpus de T067 deciden si la regla estricta rechaza recursos correctos. Si rechaza más del 5 % de los recursos cortos marcados como correctos, se afloja (por ejemplo, contar solo el enunciado y no las opciones) y el cambio se registra aquí. Primera medición (GEN-P2): 0 de 10 correctos rechazados y 0 de 6 incorrectos aceptados, en `tests/fixtures/plan_coverage_short_resources.json`; Sergio debe revisar las marcas con el corpus.
   - Si falla, se pide de nuevo una vez con la indicación del problema. Si sigue fallando, se rechaza con `kind: plan` (nuevo tipo de rechazo en el contrato) y su motivo, y el respaldo por reglas lo intenta como hoy.
+  - **Conceptos de una sola palabra.** El planificador por reglas (GEN-P1, R4) puede elegir palabras sueltas y comunes del material («conexión», «decide», «camino»). Con ellas la regla de «más de un párrafo» rechaza más, porque esas palabras aparecen en muchas oraciones. Lo mide P4 (R7); si molesta, el arreglo está en los conceptos candidatos de R4, no en esta comprobación.
 - **Verificación de anclaje (HU-016, HU-049, REV-01):** sin cambios. Cada recurso se verifica contra la evidencia del plan.
 - **Control de repetición:** el filtro léxico actual (`SIMILARITY_THRESHOLD` = 0,6 en `domain/generation/sequence.py`) se mantiene como red de seguridad. Con el plan, su reintento agrega los conceptos que el recurso no debe repetir.
-- **Generador por reglas:** redacta cada recurso con las oraciones de los fragmentos que contienen sus conceptos, así respeta el plan sin IA.
+- **Generador por reglas:** redacta cada recurso con las oraciones de los fragmentos que contienen sus conceptos, así respeta el plan sin IA. Al implementar GEN-P2:
+  - deja fuera las oraciones que desarrollan conceptos de otros recursos y no repite un concepto ajeno en dos oraciones;
+  - prefiere las oraciones que no usaron los recursos anteriores (`secuenciaPrevia`), así dos bloques del mismo ítem no quedan iguales y el filtro de repetición no los rechaza;
+  - si no hay oraciones nuevas de sus conceptos, reutiliza las ya usadas antes que dejar el recurso vacío.
+
+- **Lo que guarda cada recurso:** `params.planId`, `params.planItemPosition` y `params.planBlock` (el bloque, desde 0). La regeneración desde Revisión los usa para rehacer ese bloque (R2).
+- **Sesión (CUR-P3):** cuando el plan pasa a usado, se llama a `record_typology` con los tipos del plan. Si Cursos falla, el pedido sigue: la tipología es contexto para el plan siguiente, no una condición para generar.
 
 **Alternativas descartadas.**
 - **Redactar todos los recursos en una sola llamada:** es justo lo que hoy produce repetición y recursos más cortos.
@@ -135,6 +144,7 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 | `description` | Una o dos oraciones de qué es el recurso y cómo lo usa el estudiante. Es la instrucción del prompt genérico. |
 | `structure` | `none` para los tipos nuevos; los tipos actuales conservan la suya (pasos, pares, afirmaciones…). |
 | `lengthHint` | Opcional. Extensión esperada del recurso en palabras, `{minWords, maxWords}` ([reglas](#extensión-lengthhint)). |
+| `verification` | `strict` o `framed` en los tipos de texto nuevos ([verificación](#verificación-strict-y-framed)). |
 | `modalities` | Las modalidades que lo incluyen (HU-024). |
 | `hasOptions` | Solo `item_opcion_multiple`. |
 | `active` | Si se ofrece en el formulario. |
@@ -146,6 +156,7 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 | `stage` | Una de las cinco etapas. |
 | `description` | Qué es el recurso y cómo lo usa el estudiante, en una o dos oraciones. |
 | `lengthHint` | Opcional: `{minWords, maxWords}`. |
+| `verification` | `strict` o `framed`. |
 | `modalities` | Las modalidades que lo incluyen. |
 | `format` | `text`. |
 | `structure` | `none`. |
@@ -156,10 +167,20 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 - **Uso.** Es una guía para la redacción: el prompt pide «entre X y Y palabras». Nunca es una regla de rechazo: un recurso más corto o más largo no se rechaza ni se regenera por su extensión.
 - **Sin `lengthHint`.** Vale la extensión por defecto del prompt genérico, la misma de `explicacion`: de 3 a 5 párrafos, sin un rango de palabras.
 
+<a id="verificación-strict-y-framed"></a>**Verificación (`strict` y `framed`).** Acordado con CUR-P2 (PR #70 de Silvana: 15 tipos `strict` y 13 `framed` en el borrador del catálogo). En los dos modos se verifican las citas (HU-016), como en todos los tipos.
+- **`strict`:** cada párrafo se contrasta con el material, como en `explicacion` (HU-049): los párrafos sin respaldo se quitan y, si queda menos de la mitad, el recurso se rechaza (`kind: grounding`).
+- **`framed`:** las oraciones de ambientación (la escena, los personajes, el formato de noticia o de diálogo) y las preguntas al estudiante no necesitan cita. Cada oración sobre un concepto del recurso (las que nombran alguno de sus conceptos del plan) sí: si una no se apoya en el material, el recurso se rechaza. También se rechaza si tiene menos de 2 afirmaciones sobre sus conceptos con respaldo. El rechazo es `kind: grounding`, con un motivo claro («solo 1 afirmación sobre los conceptos se apoya en el material; este tipo necesita al menos 2»).
+- **Evidencia que necesita un tipo `strict`.** Antes de redactar, si la evidencia del ítem no tiene lo que el tipo necesita, el recurso no se redacta (ni con la IA ni con reglas) y se rechaza (`kind: grounding`) con el motivo:
+  - `frase_celebre_comentada` necesita una cita textual en un fragmento del ítem (entre comillas, de 4 palabras o más): «El material no tiene una cita textual para este tema.»;
+  - los demás tipos `strict` necesitan que algún fragmento del ítem trate al menos uno de sus conceptos.
+
+  La exigencia de cada tipo está en el código de Generación (`EVIDENCE_REQUIREMENTS`); si Cursos agrega tipos con otras exigencias, conviene que el catálogo las declare en un campo propio.
+
 **Tipos nuevos de texto.**
-- Se redactan con un prompt genérico: la `description` de la entrada, el ítem del plan, y el contenido con citas como en `explicacion`.
-- Se verifican como `explicacion`: las citas (HU-016) y los párrafos (HU-049).
-- El generador por reglas tiene un redactor genérico, de párrafos citados con las oraciones de los conceptos del ítem.
+- Se redactan con un prompt genérico: la `description` de la entrada, su `lengthHint` (o la extensión por defecto), el ítem del plan y el contenido con citas como en `explicacion`.
+- Se verifican según su `verification` (arriba).
+- El generador por reglas tiene un redactor genérico con las oraciones de los conceptos del ítem: en `strict`, párrafos citados; en `framed`, una oración de ambientación, las oraciones citadas y una pregunta. La frase célebre empieza por la oración con la cita textual.
+- **Mientras CUR-P2 no los cablee**, los 28 tipos nuevos siguen inactivos: el adaptador provisional del catálogo no los ofrece. Las pruebas usan entradas falsas de los dos modos.
 - Revisión y la exportación los tratan como texto. Su etiqueta sale del catálogo, sin caer en «Pregunta de opción múltiple», como pide T059.
 
 **Alternativa descartada.** Escribir un redactor por cada tipo nuevo: no escala a 50 a 75 tipos, y los tipos de texto solo cambian la intención.
@@ -174,7 +195,7 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 **Procedimiento.**
 - **Corpus:** `corpus_t067` (unidad de redes de C-01 a C-05).
 - **Pedido:** una secuencia de 8 tipos de texto × 2 recursos, la misma de `measure_generation_load.py`. Se repite 3 veces con cada generador (reglas y Gemini).
-- **Línea base:** sin plan, con el código de `main` antes de GEN-P1.
+- **Línea base:** sin plan, en el mismo servidor y la misma base, con `GENERATION_IMPLICIT_PLAN=false` (interruptor solo de medición: redacta el cuerpo anterior como antes de GEN-P1; [plan](plan.md#medición-de-p4)).
 - **Con plan:** aprobado sin cambios.
 
 Se registran en `docs/evidence/GEN-P4/` la tasa, la similitud máxima media, los recursos entregados por pedido y la `faithfulness` media (con `run_ragas.py`).

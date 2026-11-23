@@ -1,6 +1,9 @@
 """
 Adaptador HTTP del pedido de generación en segundo plano (GEN-01): inicio con clave de idempotencia, consulta del
 estado por paso y listado de los pedidos de una unidad. Contrato: specs/002-generacion-multiple/contracts.
+
+GEN-P2 (specs/006-plan-de-generacion/contracts): el inicio acepta `{planId, planVersion}` de un plan aprobado, y el
+cuerpo anterior mientras GENERATION_REQUIRE_PLAN=false. El pedido informa su plan y cada paso su ítem.
 """
 
 from __future__ import annotations
@@ -22,11 +25,14 @@ from platform5e.application.use_cases.generation.interpret_generation_request im
 )
 from platform5e.application.use_cases.generation.start_generation_request import (
     StartGenerationCommand,
+    StartPlannedGenerationCommand,
 )
 from platform5e.application.use_cases.generation.start_generation_request import (
     StartGenerationRequest as StartGenerationUseCase,
 )
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
+from platform5e.domain.generation.generation_plan import PlanInvalid
+from platform5e.domain.generation.planned_request import PlanEvidenceStale
 from platform5e.domain.generation.generation_request import (
     IDEMPOTENCY_KEY_PATTERN,
     GenerationMode,
@@ -44,6 +50,7 @@ from platform5e.infrastructure.http.schemas.generation_requests import (
     GenerationRequestSummary,
     InterpretGenerationRequest,
     StartGenerationRequest,
+    StartPlannedGenerationRequest,
 )
 from platform5e.infrastructure.http.schemas.generations import GeneratorInfo
 
@@ -67,13 +74,27 @@ ERROR_STATUS: dict[str, int] = {
     GenerationErrorCode.REGENERATION_PARAMETERS_MISSING: 422,
     GenerationErrorCode.REGENERATION_TARGET_INVALID: 422,
     GenerationErrorCode.REGENERATION_ATTEMPTS_EXHAUSTED: 409,
+    # GEN-P2: pedido desde el plan (specs/006-plan-de-generacion/contracts).
+    GenerationErrorCode.PLAN_NOT_FOUND: 404,
+    GenerationErrorCode.PLAN_VERSION_CONFLICT: 409,
+    GenerationErrorCode.PLAN_ALREADY_USED: 409,
+    GenerationErrorCode.PLAN_EVIDENCE_STALE: 409,
+    GenerationErrorCode.PLAN_NOT_APPROVED: 422,
+    GenerationErrorCode.PLAN_REQUIRED: 422,
+    GenerationErrorCode.PLAN_INVALID: 422,
+    GenerationErrorCode.INSUFFICIENT_EVIDENCE: 422,
 }
 
 
 def generation_error_response(error: GenerationError) -> JSONResponse:
     """Traduce un error del pedido de generación al JSON común, con el estado del contrato."""
     status_code = ERROR_STATUS.get(error.code, 400)
-    response = error_json(status_code, str(error.code), error.message)
+    details = None
+    if isinstance(error, PlanEvidenceStale):
+        details = error.details  # un `StaleDocument` por documento
+    elif isinstance(error, PlanInvalid):
+        details = [problem.to_payload() for problem in error.problems]  # el plan implícito no se pudo aprobar
+    response = error_json(status_code, str(error.code), error.message, details)
     if status_code == 429:
         response.headers["Retry-After"] = str(RETRY_AFTER_SECONDS)
     return response
@@ -116,6 +137,7 @@ def _step_payload(step: DomainStep, view: GenerationRequestView | None) -> dict[
         "error": _problem(step.error),
         "startedAt": step.started_at,
         "finishedAt": step.finished_at,
+        "planItemPosition": step.plan_item_position,
     }
 
 
@@ -132,6 +154,8 @@ def status_payload(request: GenerationRequest, view: GenerationRequestView | Non
         "regeneration": request.regeneration.to_payload() if request.regeneration else None,
         "failure": _problem(request.failure),
         "startedAt": request.started_at,
+        "planId": request.plan.plan_id if request.plan else None,
+        "planVersion": request.plan.plan_version if request.plan else None,
         "steps": [_step_payload(step, view) for step in request.steps],
     }
 
@@ -220,7 +244,7 @@ def create_generation_requests_router(
         responses=start_responses,
     )
     def start_generation_request(
-        body: StartGenerationRequest,
+        body: StartPlannedGenerationRequest | StartGenerationRequest,
         # Opcional en el esquema para responder 400 IDEMPOTENCY_KEY_REQUIRED (no 422) si falta; el patrón da 422.
         idempotency_key: str | None = Header(
             default=None,
@@ -235,6 +259,16 @@ def create_generation_requests_router(
         and runs it in the background (202 with `Location`). Poll `GET /generation-requests/{requestId}` for the
         status of each step.
 
+        GEN-P2: the body is `{planId, planVersion}` of an approved plan. The mode, unit, types, quantities and
+        evidence come from the plan, which becomes `used` together with the request: one step per plan item, each
+        resource drafted from its block of concepts. A draft plan answers 422 PLAN_NOT_APPROVED; another version
+        409 PLAN_VERSION_CONFLICT; a used plan 409 PLAN_ALREADY_USED. If a fragment cited by the plan no longer
+        exists in the unit (a document was deleted or reprocessed), the answer is 409 PLAN_EVIDENCE_STALE with one
+        `StaleDocument` per document in `details`, and nothing changes. While `GENERATION_REQUIRE_PLAN=false` the
+        previous body below is still accepted: the server builds an implicit approved plan (422 PLAN_INVALID with
+        the problems in `details` if it cannot be approved, 422 INSUFFICIENT_EVIDENCE if the material does not cover
+        the topic); with `true` it answers 422 PLAN_REQUIRED.
+
         The client sends a stable `Idempotency-Key`, unique per teacher. Repeating the same key with the same body
         (mode, unit and parameters) returns the existing request (200) without applying the other rules again;
         using it with a different body returns 409 IDEMPOTENCY_KEY_REUSED. Without processed material the request
@@ -248,15 +282,19 @@ def create_generation_requests_router(
         ```
 
         Replace unidad-1 with a unit containing processed material. Expected 202; repeat with the same key to get 200."""
-        command = StartGenerationCommand(
-            teacher_id=teacher_id,
-            unit_id=body.unit_id,
-            mode=GenerationMode(body.mode),
-            idempotency_key=idempotency_key,
-            parameters=body.to_parameters(),
-        )
         try:
-            result = start_generation.execute(command)
+            if isinstance(body, StartPlannedGenerationRequest):
+                result = start_generation.execute_planned(
+                    StartPlannedGenerationCommand(teacher_id, body.plan_id, body.plan_version, idempotency_key)
+                )
+            else:
+                result = start_generation.execute(StartGenerationCommand(
+                    teacher_id=teacher_id,
+                    unit_id=body.unit_id,
+                    mode=GenerationMode(body.mode),
+                    idempotency_key=idempotency_key,
+                    parameters=body.to_parameters(),
+                ))
         except GenerationError as error:
             return generation_error_response(error)
         payload = _validated(status_payload(result.request))

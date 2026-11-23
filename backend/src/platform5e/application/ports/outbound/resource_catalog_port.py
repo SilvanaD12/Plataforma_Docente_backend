@@ -10,6 +10,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from platform5e.domain.generation.text_types import LengthHint
+
 
 @dataclass(frozen=True)
 class CatalogEntry:
@@ -22,6 +24,10 @@ class CatalogEntry:
     description: str
     modalities: tuple[str, ...] = ()
     active: bool = True
+    # CUR-P2 (research R6): extensión esperada, guía del prompt y nunca regla de rechazo; None si no trae una válida.
+    length_hint: LengthHint | None = None
+    # CUR-P2: `strict` o `framed` en los tipos de texto nuevos; None en los tipos con redactor propio.
+    verification: str | None = None
 
 
 class ResourceCatalogPort(Protocol):

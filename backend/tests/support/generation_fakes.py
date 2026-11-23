@@ -73,15 +73,27 @@ class FakeEvidence:
         material: bool = True,
         error: Exception | None = None,
         retrieval_mode: str | None = None,
+        existing: set[str] | None = None,
     ) -> None:
         self.fragments = fragments
         self.material = material
         self.error = error
         self.retrieval_mode = retrieval_mode
         self.queries: list[EvidenceQuery] = []
+        # GEN-P2: los fragmentos que siguen existiendo en la unidad; por defecto, todos los que entrega.
+        self.existing = existing
+        self.existence_checks: list[tuple[str, ...]] = []
 
     def has_processed_material(self, teacher_id: str, unit_id: str) -> bool:
         return self.material
+
+    def existing_fragment_ids(self, teacher_id: str, unit_id: str, fragment_ids) -> set[str]:
+        asked = tuple(fragment_ids)
+        self.existence_checks.append(asked)
+        if not self.material:
+            return set()
+        alive = self.existing if self.existing is not None else {f.chunk_id for f in self.fragments}
+        return {fragment_id for fragment_id in asked if fragment_id in alive}
 
     def retrieve(self, query: EvidenceQuery) -> EvidenceRetrieval:
         self.queries.append(query)
@@ -90,9 +102,6 @@ class FakeEvidence:
         if not self.material:
             raise NoProcessedMaterial()
         return EvidenceRetrieval(fragments=self.fragments, retrieval_mode=self.retrieval_mode)
-
-    def existing_fragment_ids(self, teacher_id: str, unit_id: str, fragment_ids) -> set[str]:
-        return set(fragment_ids) & {fragment.chunk_id for fragment in self.fragments} if self.material else set()
 
 
 class FakeReviewRepository:

@@ -1,6 +1,12 @@
 """
 Redacción de recursos pedagógicos con evidencia: prepara el contexto,
 construye los prompts para el LLM y valida formalmente el esquema devuelto.
+
+GEN-P2 (specs/006-plan-de-generacion, research R5 y R6): con un plan, el prompt trae el bloque de conceptos del
+recurso, su propósito y los conceptos que no debe desarrollar (`context["plan"]`), y ya no pide «devolver menos
+recursos». Los tipos de texto del catálogo de Cursos (`solicitud.catalogo`) se redactan con su descripción y su
+extensión (`lengthHint`, solo como guía) y se verifican según su modo: `strict` párrafo por párrafo, como la
+explicación, y `framed` con `verify_framed`.
 """
 
 from __future__ import annotations
@@ -19,7 +25,13 @@ from platform5e.domain.generation.grounding import (
     link_prediction_sources,
     link_step_sources,
     verify_citations,
+    verify_framed,
     verify_statements,
+)
+from platform5e.domain.generation.text_types import (
+    VERIFICATION_FRAMED,
+    VERIFICATION_STRICT,
+    length_hint_from,
 )
 from platform5e.domain.generation.resource_formats import (
     AUDIO,
@@ -241,6 +253,50 @@ MAX_OPTION_CHARS: int = 600
 MIN_RELIABLE_DISTRACTORS: int = 2
 
 
+# Extensión de un tipo de texto nuevo del catálogo sin `lengthHint`: la misma de la explicación (research R6).
+DEFAULT_TEXT_LENGTH: str = "Extensión: de 3 a 5 párrafos separados por una línea en blanco."
+
+
+def type_text(request: dict[str, Any]) -> tuple[str, str]:
+    """Nombre y descripción del tipo pedido: los del redactor propio o, para un tipo nuevo del catálogo de Cursos
+    (CUR-P2), los de su entrada."""
+    if request["tipo"] in RESOURCE_TYPES:
+        return RESOURCE_TYPES[request["tipo"]]
+    catalog = request.get("catalogo") or {}
+    return catalog.get("nombre") or request["tipo"], catalog.get("descripcion") or ""
+
+
+def _length_line(request: dict[str, Any]) -> str | None:
+    """La extensión del catálogo como guía del prompt; un tipo nuevo sin `lengthHint` usa la de la explicación."""
+    catalog = request.get("catalogo") or {}
+    hint = length_hint_from(catalog.get("extension"))
+    if hint is not None:
+        return hint.instruction()
+    if request["tipo"] not in RESOURCE_TYPES and catalog:
+        return DEFAULT_TEXT_LENGTH
+    return None
+
+
+def _quoted(concepts: list[str]) -> str:
+    return ", ".join(f"«{concept}»" for concept in concepts)
+
+
+def _plan_lines(plan: dict[str, Any]) -> list[str]:
+    """El plan del recurso en el prompt (research R5)."""
+    lines = ["", "PLAN DE ESTE RECURSO (lo aprobó el docente):", f"Propósito: {plan['proposito']}"]
+    if plan["conceptos"]:
+        lines.append(f"Desarrolla completos estos conceptos: {_quoted(plan['conceptos'])}.")
+    if plan["noDesarrollar"]:
+        others = _quoted(plan["noDesarrollar"])
+        if plan.get("parrafoUnico"):
+            lines.append(f"No desarrolles estos conceptos, que son de otros recursos de la clase: {others}; como este "
+                         "recurso es breve, no los nombres.")
+        else:
+            lines.append(f"No desarrolles estos conceptos, que son de otros recursos de la clase: {others}; puedes "
+                         "nombrarlos, pero no explicarlos.")
+    return lines
+
+
 def format_fragment_tag(index: int) -> str:
     """Retorna la etiqueta canónica de citación (F1, F2...)."""
     return f"F{index + 1}"
@@ -328,7 +384,10 @@ def build_prompt_instructions(context: dict[str, Any]) -> tuple[str, str]:
     """Genera las instrucciones estructuradas del sistema y del usuario para el LLM."""
     req = context["solicitud"]
     stage_name, purpose = PHASES_5E[req["etapa"]]
-    type_name, format_desc = RESOURCE_TYPES[req["tipo"]]
+    type_name, format_desc = type_text(req)
+    plan = context.get("plan")
+    # Con un plan, el plan ya decidió cuántos recursos hacen falta: no se pide devolver menos (research R5).
+    fewer = "" if plan else "Si los fragmentos no alcanzan, devuelve menos recursos. "
 
     system_prompt = (
         f"Eres un asistente pedagógico que redacta recursos para la etapa «{stage_name}» del modelo 5E ({purpose}). "
@@ -336,7 +395,7 @@ def build_prompt_instructions(context: dict[str, Any]) -> tuple[str, str]:
         "No menciones el modelo 5E ni el nombre de la etapa en los títulos ni en el contenido. "
         "Usa SOLO la información de los FRAGMENTOS del material: no agregues datos ajenos. "
         "Cada afirmación importante debe citar las etiquetas de los fragmentos que la respaldan (F1, F2…). "
-        "Si los fragmentos no alcanzan, devuelve menos recursos. "
+        f"{fewer}"
         f"{TYPE_FORMAT_RULES.get(req['tipo']) or FORMAT_RULES[resource_format(req['tipo'])]} "
         "Responde únicamente con JSON válido, sin delimitadores adicionales."
     )
@@ -352,6 +411,9 @@ def build_prompt_instructions(context: dict[str, Any]) -> tuple[str, str]:
         f"PEDIDO: {req['cantidad']} recurso(s) de tipo «{type_name}». {format_desc}",
         f"Dificultad: {DIFFICULTY_LABELS.get(req['dificultad'], req['dificultad'])}.",
     ]
+    length = _length_line(req)
+    if length:
+        lines.append(length)
     modality = next(iter(req.get("modalidades") or []), None)
     if modality in MODALITY_INTENTS:
         lines.append(f"Modalidad de la clase: {modality}. {MODALITY_INTENTS[modality]}")
@@ -367,6 +429,8 @@ def build_prompt_instructions(context: dict[str, Any]) -> tuple[str, str]:
         lines.append(f"Competencia a desarrollar: {req['competencia']}.")
     if req["indicaciones"]:
         lines.append(f"Indicaciones del docente: {req['indicaciones']}")
+    if plan:
+        lines += _plan_lines(plan)
 
     lines += [
         "",
@@ -390,7 +454,12 @@ def build_prompt_instructions(context: dict[str, Any]) -> tuple[str, str]:
             "RECURSOS QUE OTROS AGENTES YA REDACTARON PARA ESTA CLASE (no repitas sus preguntas, ejemplos ni "
             "explicaciones; tu recurso debe complementarlos desde su propia etapa):",
         ]
-        lines += [f"- {previous['titulo']}: {previous['resumen']}" for previous in previous_resources]
+        lines += [
+            f"- {previous['titulo']}"
+            + (f" (conceptos: {_quoted(previous['conceptos'])})" if previous.get("conceptos") else "")
+            + f": {previous['resumen']}"
+            for previous in previous_resources
+        ]
     lines += [
         "",
         "FRAGMENTOS DEL MATERIAL:",
@@ -622,7 +691,9 @@ def normalize_generated_resources(
     fragments_by_id = {f["id"]: f.get("texto", "") for f in context["fragmentos"]}
     req = context["solicitud"]
     threshold = float(req.get("umbralEvidencia", DEFAULT_THRESHOLD))
-    type_name = RESOURCE_TYPES[req["tipo"]][0]
+    type_name = type_text(req)[0]
+    verification_mode = (req.get("catalogo") or {}).get("verificacion")
+    plan_concepts = list((context.get("plan") or {}).get("conceptos") or [])
     items_list = raw_payload.get("recursos") if isinstance(raw_payload, dict) else raw_payload
     if not isinstance(items_list, list):
         _reject_structure(rejections, type_name, "La respuesta del modelo no trae la lista «recursos».")
@@ -652,7 +723,7 @@ def normalize_generated_resources(
 
         title = (
             _clean_inline_text(raw_item.get("titulo"), MAX_TITLE_CHARS)
-            or f"{RESOURCE_TYPES[req['tipo']][0]} {len(verified_resources) + 1}"
+            or f"{type_name} {len(verified_resources) + 1}"
         )
         if not body:
             _reject_structure(rejections, title, f"«{title}»: llegó sin contenido.")
@@ -675,7 +746,23 @@ def normalize_generated_resources(
         ]
         verification = grounding.summary()
 
-        statements = verify_statements(body, req["tipo"], fragments_by_id, threshold)
+        if verification_mode == VERIFICATION_FRAMED:
+            # CUR-P2: la ambientación no necesita cita; cada afirmación sobre un concepto sí, y hacen falta 2.
+            framed = verify_framed(body, plan_concepts, fragments_by_id, threshold)
+            verification.update(framed.summary())
+            if not framed.accepted:
+                if rejections is not None:
+                    rejections.append(
+                        {
+                            "title": title,
+                            "reason": framed.rejection_reason(title),
+                            "grounding": verification,
+                            "kind": "grounding",
+                        }
+                    )
+                continue
+        strict_mode = "paragraph" if verification_mode == VERIFICATION_STRICT else None
+        statements = verify_statements(body, req["tipo"], fragments_by_id, threshold, mode=strict_mode)
         if statements is not None:
             verification.update(statements.summary())
             if not statements.accepted:

@@ -168,7 +168,12 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/StartPlannedGenerationRequest' }
       responses:
-        '202': { description: 'Accepted. Same response body as GEN-01 (`GenerationRequestStatus`), with `planId` and `planVersion`.' }
+        '202':
+          description: |
+            Accepted. Same response body as GEN-01 (`GenerationRequestStatus`), plus `planId` and `planVersion` (the
+            plan used, also for the implicit plan of the previous body) and, in each step, `planItemPosition` (the plan
+            item it drafts). Each delivered resource stores `planId`, `planItemPosition` and `planBlock` (its block of
+            concepts, from 0) in `params`; a regeneration request reports `regeneration.planBlock`.
         '200': { description: The same key and body were already used; the existing request is returned. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/PlanNotFound' }

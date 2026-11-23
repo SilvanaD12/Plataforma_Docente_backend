@@ -21,7 +21,8 @@ RequestMode = Literal["individual", "sequence"]
 StoredMode = Literal["individual", "sequence", "regeneration"]
 RequestStatus = Literal["queued", "running", "succeeded", "partially_succeeded", "failed", "interrupted"]
 StepStatus = Literal["pending", "running", "succeeded", "rejected", "failed", "interrupted"]
-RejectionKind = Literal["grounding", "repetition", "structure", "distractor"]
+# GEN-P2: `plan` es un recurso que no desarrolló sus conceptos del plan o desarrolló los de otro recurso.
+RejectionKind = Literal["grounding", "repetition", "structure", "distractor", "plan"]
 VerificationStatus = Literal["current", "insufficient", "pending"]
 Modality = Literal["Textual", "Gamificado", "Multimedia", "Kinestésico"]
 
@@ -78,6 +79,13 @@ class StartGenerationRequest(ApiRequest):
             competency=self.competency,
             modality=self.modalities[0] if self.modalities else None,
         )
+
+class StartPlannedGenerationRequest(ApiRequest):
+    """GEN-P2: cuerpo de POST /generation-requests con un plan aprobado (specs/006-plan-de-generacion)."""
+
+    plan_id: str = Field(min_length=1, description="An approved plan of the teacher.", examples=["gen-plan-1"])
+    plan_version: int = Field(ge=1, description="The plan version the teacher approved; another version answers 409.")
+
 
 class InterpretGenerationRequest(ApiRequest):
     """Cuerpo de POST /generation-requests/interpret."""
@@ -226,11 +234,18 @@ class GenerationStep(ApiResponse):
     error: Problem | None = None
     started_at: str | None = None
     finished_at: str | None = None
+    plan_item_position: int | None = Field(
+        default=None, ge=1, description="GEN-P2: the plan item this step drafts. `null` in requests without a plan."
+    )
 
 
 class RegenerationTargetView(ApiResponse):
     resource_id: str
     resource_version: int
+    plan_block: int | None = Field(
+        default=None, ge=0,
+        description="GEN-P2: the block of concepts of the plan item drafted again. Absent for resources without a plan.",
+    )
 
 
 class GenerationRequestStatus(GenerationRequestSummary):
@@ -246,7 +261,15 @@ class GenerationRequestStatus(GenerationRequestSummary):
     )
     failure: Problem | None = None
     started_at: str | None = None
-    steps: list[GenerationStep] = Field(description="One step per resource type, in 5E order.")
+    plan_id: str | None = Field(
+        default=None,
+        description="GEN-P2: the approved plan the request started from (an implicit one for the previous body). "
+        "`null` in requests created before generation plans.",
+    )
+    plan_version: int | None = Field(default=None, ge=1, description="GEN-P2: the plan version that was used.")
+    steps: list[GenerationStep] = Field(
+        description="One step per resource type, in 5E order. With a plan, one step per plan item, in plan order."
+    )
 
 
 class RetrievedFragment(ApiResponse):

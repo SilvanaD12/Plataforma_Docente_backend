@@ -1,0 +1,427 @@
+{
+  "description": "GEN-P2 (T013): recursos cortos armados con los temas del corpus de T067 (modelo OSI, TCP, UDP e IP) y marcados a mano: «correct» si solo desarrollan sus conceptos del plan, «incorrect» si desarrollan un concepto de otro recurso. Los marcó Yan; Sergio debe revisarlos con el corpus.",
+  "cases": [
+    {
+      "id": "udp-trigger-1",
+      "type": "pregunta_detonante",
+      "label": "correct",
+      "own": [
+        "protocolo UDP",
+        "datagrama"
+      ],
+      "foreign": [
+        "saludo de tres vías",
+        "control de flujo",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "Una videollamada sigue aunque se pierdan algunos datagramas. ¿Por qué crees que el protocolo UDP no espera a reenviarlos?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "udp-trigger-2",
+      "type": "pregunta_detonante",
+      "label": "correct",
+      "own": [
+        "protocolo UDP",
+        "datagrama"
+      ],
+      "foreign": [
+        "saludo de tres vías",
+        "control de flujo",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "El servicio DNS responde con un solo datagrama. ¿Qué ganaría y qué perdería si tuviera que establecer una conexión antes de cada consulta?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "udp-audio-1",
+      "type": "audio_detonante",
+      "label": "correct",
+      "own": [
+        "protocolo UDP",
+        "datagrama"
+      ],
+      "foreign": [
+        "saludo de tres vías",
+        "control de flujo",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "Imagina que transmites audio en vivo por la red del colegio. El protocolo UDP envía cada datagrama sin confirmar su llegada. ¿Qué notarías si algunos se pierden?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "osi-trigger-1",
+      "type": "pregunta_detonante",
+      "label": "correct",
+      "own": [
+        "modelo OSI",
+        "capa de transporte"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "control de flujo",
+        "enrutamiento",
+        "suma de verificación"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "Cuando envías un mensaje, ¿cuántas capas del modelo OSI crees que atraviesa antes de salir de tu computadora?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "osi-trigger-2",
+      "type": "pregunta_detonante",
+      "label": "correct",
+      "own": [
+        "modelo OSI",
+        "capa de transporte"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "control de flujo",
+        "enrutamiento",
+        "suma de verificación"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "¿Qué haría la capa de transporte si la aplicación le entrega más datos de los que puede enviar de una vez? Piensa en un protocolo cualquiera.",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "tcp-trigger-1",
+      "type": "pregunta_detonante",
+      "label": "correct",
+      "own": [
+        "saludo de tres vías",
+        "control de flujo"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "datagrama",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "Antes de descargar una página, tu computadora y el servidor intercambian tres mensajes. ¿Para qué crees que sirve ese saludo de tres vías?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "tcp-trigger-2",
+      "type": "pregunta_detonante",
+      "label": "correct",
+      "own": [
+        "saludo de tres vías",
+        "control de flujo"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "datagrama",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "Si un servidor envía datos más rápido de lo que tu equipo puede procesarlos, ¿cómo ayudaría el control de flujo a evitar que se pierdan?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "udp-item-1",
+      "type": "item_opcion_multiple",
+      "label": "correct",
+      "own": [
+        "protocolo UDP",
+        "datagrama"
+      ],
+      "foreign": [
+        "saludo de tres vías",
+        "control de flujo",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "¿Qué garantiza el protocolo UDP sobre la entrega de cada datagrama?",
+        "alternativas": [
+          {
+            "texto": "Ninguna garantía de entrega ni de orden",
+            "retroalimentacion": "Correcto: UDP no retiene estados de los mensajes enviados."
+          },
+          {
+            "texto": "La entrega confiable con confirmaciones",
+            "retroalimentacion": "Eso lo hace TCP después del saludo de tres vías."
+          },
+          {
+            "texto": "El reenvío de los datos perdidos",
+            "retroalimentacion": "UDP no hace retransmisiones."
+          },
+          {
+            "texto": "El orden de llegada de los mensajes",
+            "retroalimentacion": "UDP no ordena los mensajes."
+          }
+        ]
+      }
+    },
+    {
+      "id": "osi-item-1",
+      "type": "item_opcion_multiple",
+      "label": "correct",
+      "own": [
+        "modelo OSI",
+        "capa de transporte"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "control de flujo",
+        "enrutamiento",
+        "suma de verificación"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "¿Entre qué capas del modelo OSI se ubica la capa de transporte?",
+        "alternativas": [
+          {
+            "texto": "Entre la capa de red y la capa de aplicación",
+            "retroalimentacion": "Correcto según el material."
+          },
+          {
+            "texto": "Entre la capa física y la de enlace",
+            "retroalimentacion": "Esas capas están debajo de la red."
+          },
+          {
+            "texto": "Por encima de la capa de aplicación",
+            "retroalimentacion": "No hay capas sobre la aplicación."
+          },
+          {
+            "texto": "En la misma capa que la de red",
+            "retroalimentacion": "Es una capa distinta; el protocolo UDP, por ejemplo, va por encima de la red."
+          }
+        ]
+      }
+    },
+    {
+      "id": "tcp-item-1",
+      "type": "item_opcion_multiple",
+      "label": "correct",
+      "own": [
+        "saludo de tres vías",
+        "control de flujo"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "datagrama",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "¿Qué ocurre durante el saludo de tres vías?",
+        "alternativas": [
+          {
+            "texto": "Los dos extremos acuerdan iniciar la conexión",
+            "retroalimentacion": "Correcto."
+          },
+          {
+            "texto": "El emisor reduce su velocidad de envío",
+            "retroalimentacion": "Eso describe el control de flujo, no el saludo."
+          },
+          {
+            "texto": "El receptor descarta los paquetes repetidos",
+            "retroalimentacion": "No forma parte del saludo."
+          },
+          {
+            "texto": "Se elige la ruta de cada paquete",
+            "retroalimentacion": "Eso lo decide la red, no el transporte."
+          }
+        ]
+      }
+    },
+    {
+      "id": "udp-trigger-bad",
+      "type": "pregunta_detonante",
+      "label": "incorrect",
+      "own": [
+        "protocolo UDP",
+        "datagrama"
+      ],
+      "foreign": [
+        "saludo de tres vías",
+        "control de flujo",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "El protocolo UDP no hace el saludo de tres vías. ¿Qué ventaja tiene eso para enviar cada datagrama?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "osi-trigger-bad",
+      "type": "pregunta_detonante",
+      "label": "incorrect",
+      "own": [
+        "modelo OSI",
+        "capa de transporte"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "control de flujo",
+        "enrutamiento",
+        "suma de verificación"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "¿En qué capa del modelo OSI trabaja el protocolo UDP y por qué no está en la capa de red?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "tcp-audio-bad",
+      "type": "audio_detonante",
+      "label": "incorrect",
+      "own": [
+        "saludo de tres vías",
+        "control de flujo"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "datagrama",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "Escucha: el control de flujo evita saturar al receptor, pero la dirección IP decide a dónde va cada paquete. ¿Cuál importa más?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "udp-item-bad",
+      "type": "item_opcion_multiple",
+      "label": "incorrect",
+      "own": [
+        "protocolo UDP",
+        "datagrama"
+      ],
+      "foreign": [
+        "saludo de tres vías",
+        "control de flujo",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "¿Qué campo del datagrama del protocolo UDP es opcional?",
+        "alternativas": [
+          {
+            "texto": "El puerto de origen",
+            "retroalimentacion": "Correcto."
+          },
+          {
+            "texto": "La dirección IP de destino",
+            "retroalimentacion": "La dirección va en la cabecera de red."
+          },
+          {
+            "texto": "La longitud",
+            "retroalimentacion": "La longitud es obligatoria."
+          },
+          {
+            "texto": "El puerto de destino",
+            "retroalimentacion": "Es obligatorio."
+          }
+        ]
+      }
+    },
+    {
+      "id": "osi-item-bad",
+      "type": "item_opcion_multiple",
+      "label": "incorrect",
+      "own": [
+        "modelo OSI",
+        "capa de transporte"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "control de flujo",
+        "enrutamiento",
+        "suma de verificación"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "¿Qué capa del modelo OSI se ocupa del enrutamiento de los paquetes?",
+        "alternativas": [
+          {
+            "texto": "La capa de red",
+            "retroalimentacion": "Correcto."
+          },
+          {
+            "texto": "La capa de transporte",
+            "retroalimentacion": "El transporte no elige rutas."
+          },
+          {
+            "texto": "La capa de aplicación",
+            "retroalimentacion": "No elige rutas."
+          },
+          {
+            "texto": "La capa física",
+            "retroalimentacion": "No elige rutas."
+          }
+        ]
+      }
+    },
+    {
+      "id": "tcp-item-bad",
+      "type": "item_opcion_multiple",
+      "label": "incorrect",
+      "own": [
+        "saludo de tres vías",
+        "control de flujo"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "datagrama",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "¿Qué protocolo usa el saludo de tres vías?",
+        "alternativas": [
+          {
+            "texto": "TCP",
+            "retroalimentacion": "Correcto."
+          },
+          {
+            "texto": "El protocolo UDP",
+            "retroalimentacion": "UDP no establece conexión."
+          },
+          {
+            "texto": "ICMP",
+            "retroalimentacion": "No establece conexión."
+          },
+          {
+            "texto": "ARP",
+            "retroalimentacion": "No establece conexión."
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -6,6 +6,10 @@ Valida la clave y la unidad; si la clave ya tiene un plan, lo devuelve (o inform
 reglas, como GEN-01. Si no, valida los tipos pedidos, recupera la evidencia una sola vez y la congela, comprueba que
 trate el tema de las indicaciones (QA-05), pide los referentes y las tipologías anteriores, arma el plan con la IA o
 con reglas y lo guarda en borrador, aunque tenga problemas. Solo depende de puertos y del dominio.
+
+GEN-P2 (research R2): `create_implicit` arma con las mismas reglas el plan de un pedido con el cuerpo anterior, sin
+intervención del docente: `origin: implicit`, guardado ya aprobado. Si el plan tiene problemas no se aprueba y el
+pedido se rechaza con PLAN_INVALID y cada problema.
 """
 
 from __future__ import annotations
@@ -46,6 +50,7 @@ from platform5e.domain.generation.generation_plan import (
     PlanEvidence,
     PlanFragment,
     PlanInputs,
+    PlanInvalid,
     PlanStatus,
     Referent,
     SessionContext,
@@ -56,6 +61,7 @@ from platform5e.domain.generation.topic_coverage import DEFAULT_COVERAGE_THRESHO
 logger = logging.getLogger(__name__)
 
 ORIGIN_TEACHER: str = "teacher"
+ORIGIN_IMPLICIT: str = "implicit"
 SAME_TYPOLOGY_WARNING: str = "SAME_TYPOLOGY_AS_LAST_SESSION"
 MAX_PREVIOUS_TYPOLOGIES: int = 3
 UNIT_NOT_FOUND_MESSAGE: str = "La unidad no existe o no pertenece a tus cursos."
@@ -133,6 +139,18 @@ class CreateGenerationPlan:
         self._topic_coverage_threshold = topic_coverage_threshold
 
     def execute(self, command: CreatePlanCommand) -> CreatePlanResult:
+        return self._create(command, ORIGIN_TEACHER)
+
+    def create_implicit(self, command: CreatePlanCommand) -> GenerationPlan:
+        """GEN-P2: el plan implícito de un pedido sin plan, ya aprobado. La misma clave devuelve el plan existente."""
+        result = self._create(command, ORIGIN_IMPLICIT)
+        if not result.created:
+            return result.view.plan
+        if result.view.problems:
+            raise PlanInvalid(result.view.problems)
+        return result.view.plan
+
+    def _create(self, command: CreatePlanCommand, origin: str) -> CreatePlanResult:
         # 1. Clave del plan.
         key = validate_idempotency_key(command.idempotency_key)
 
@@ -198,13 +216,16 @@ class CreateGenerationPlan:
         warnings = (SAME_TYPOLOGY_WARNING,) if previous and set(previous[0].resource_types) == requested else ()
 
         # 10. Se guarda en borrador, aunque tenga problemas. Si otro envío con la misma clave ganó, se aplica la regla 3.
+        #     El plan implícito (GEN-P2) se guarda aprobado si no tiene problemas.
         now = self._clock()
         plan = GenerationPlan(
             id=self._new_id(), teacher_id=command.teacher_id, unit_id=command.unit_id, idempotency_key=key,
-            payload_hash=content_hash, version=1, status=PlanStatus.DRAFT, origin=ORIGIN_TEACHER, inputs=inputs,
+            payload_hash=content_hash, version=1, status=PlanStatus.DRAFT, origin=origin, inputs=inputs,
             evidence=evidence, referents=referents, session_context=session_context, items=items, warnings=warnings,
             generator=generator, used_by_request_id=None, created_at=now, updated_at=now,
         )
+        if origin == ORIGIN_IMPLICIT and not plan_view(plan, self._catalog).problems:
+            plan = replace(plan, status=PlanStatus.APPROVED, approved_at=now)
         try:
             created = self._repository.create(plan)
         except PlanKeyTaken as taken:

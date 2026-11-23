@@ -30,7 +30,8 @@ otros documentos de corridas anteriores, se avisa, porque la recuperación tambi
 
 Un caso con "expect": "no_evidence" pregunta algo que el material de su unidad no responde. No da muestra para Ragas:
 el resultado va a evaluation/results/expectations.jsonl (--expectations). Cumple (pass) si el pedido no entrega
-recursos: el paso se rechaza por falta de evidencia o de anclaje. No cumple (fail) si entrega algún recurso; se guardan
+recursos: el paso se rechaza por falta de evidencia o de anclaje, o (GEN-P2) el servidor rechaza el pedido al
+iniciarlo con INSUFFICIENT_EVIDENCE, porque el plan implícito comprueba el tema antes de crearlo. No cumple (fail) si entrega algún recurso; se guardan
 su título y su texto. Si el pedido no llega a un resultado por un error técnico (tiempo agotado, rechazo del servidor,
 falla del generador, pedido interrumpido), queda como error: no prueba nada sobre la evidencia.
 
@@ -551,6 +552,10 @@ def check_no_evidence(case: dict, status: dict | None, failure: dict | None, sto
               'reference': case.get('reference'), 'seconds': elapsed}
     if status is None:
         failure = failure or {'code': 'TIMEOUT', 'message': 'el pedido no terminó'}
+        if failure.get('status') and failure.get('code') in EVIDENCE_CODES:
+            # GEN-P2: el servidor rechazó el pedido al iniciarlo porque el material no trata el tema (el plan
+            # implícito hace la comprobación de QA-05 antes de crear el pedido): no entregó recursos.
+            return {**record, 'outcome': 'pass', 'reason': failure.get('message') or '', 'problems': [failure]}
         return {**record, 'reason': f"{failure.get('code')}: {failure.get('message')}", 'problems': [failure]}
     problems = step_problems(status)
     record['problems'] = problems

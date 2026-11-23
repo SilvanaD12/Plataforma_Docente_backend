@@ -68,7 +68,7 @@ class GenerationPlanORM(Base):
     used_at = Column(String, nullable=True)
 
 
-def _values(plan: GenerationPlan) -> dict:
+def plan_update_values(plan: GenerationPlan) -> dict:
     """Las columnas que cambian al editar, aprobar o usar el plan."""
     return {
         "version": plan.version,
@@ -97,7 +97,7 @@ def _to_orm(plan: GenerationPlan) -> GenerationPlanORM:
         referents=[referent.to_payload() for referent in plan.referents],
         session_context=plan.session_context.to_payload(),
         created_at=utc_text(plan.created_at),
-        **_values(plan),
+        **plan_update_values(plan),
     )
 
 
@@ -190,7 +190,7 @@ class SQLAlchemyGenerationPlanRepository(GenerationPlanRepositoryPort):
                     GenerationPlanORM.version == expected_version,
                     GenerationPlanORM.status != PlanStatus.USED.value,
                 )
-                .values(**_values(plan))
+                .values(**plan_update_values(plan))
             )
             session.commit()
             return result.rowcount == 1

@@ -72,6 +72,7 @@ La entrada del catálogo que Generación lee por `ResourceCatalogPort` ([researc
 | `stage` | `engage` … `evaluate` | Etapa del tipo. |
 | `description` | `str` | Qué es el recurso y cómo se usa. Es la instrucción del prompt genérico. |
 | `lengthHint` | `{minWords: int, maxWords: int}` \| `null` | Opcional. `minWords` ≥ 20, `maxWords` ≤ 600 y `minWords` ≤ `maxWords`. Guía del prompt («entre X y Y palabras»), nunca regla de rechazo. Sin él, la extensión por defecto: de 3 a 5 párrafos. |
+| `verification` | `strict` \| `framed` \| `null` | En los tipos de texto nuevos ([research R6](research.md#verificación-strict-y-framed)). `strict`: cada párrafo se contrasta con el material, como en `explicacion`. `framed`: la ambientación no necesita cita, cada oración sobre un concepto sí, y hacen falta al menos 2 con respaldo. `null` en los tipos con redactor propio. |
 | `modalities` | `list[str]` | Modalidades que lo incluyen (HU-024). |
 | `format` | `text` \| `visual` \| `image` \| `audio` \| `interactive` | Los tipos nuevos de CUR-P2 son `text`. |
 | `structure` | `str` | `none` en los tipos nuevos. |
@@ -144,7 +145,8 @@ El plan congela su evidencia, pero el docente puede borrar o volver a procesar u
 | `GenerationRequest` | Columnas `plan_id` y `plan_version`. La evidencia del pedido es la del plan. |
 | `GenerationStep` | Columna `plan_item_position`. Un paso por ítem. |
 | `steps[].rejections[].kind` | Nuevo valor `plan`: el recurso no desarrolló sus conceptos o desarrolló los de otro ítem. |
-| `params` del recurso | `planId` y `planItemPosition`, para regenerar desde su ítem sin escribir el plan. |
+| `params` del recurso | `planId`, `planItemPosition` y `planBlock` (el bloque de conceptos, desde 0), para regenerar ese bloque desde su ítem sin escribir el plan. |
+| `regeneration` del pedido | `planBlock`, el bloque que se redacta otra vez, en una regeneración desde el plan. |
 | `EvidenceProviderPort` | Método nuevo `existing_fragment_ids(teacher_id, unit_id, fragment_ids) -> set[str]`, de MAT-01, para la [evidencia vigente](#evidencia-vigente). |
 | Errores | `PLAN_EVIDENCE_STALE` (409) en `POST /generation-requests` y en la regeneración. |
 

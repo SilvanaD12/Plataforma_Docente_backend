@@ -10,6 +10,12 @@ Si el curso se borra mientras se genera, el pedido desaparece: antes de guardar 
 que el pedido sigue existiendo y que la unidad sigue siendo del docente, y si confirmar el paso falla porque el pedido
 ya no existe, se quitan de Revisión los recursos recién guardados. El ejecutor se detiene sin guardar nada más.
 Solo depende de puertos, de los servicios de redacción de Generación y del dominio de Generación.
+
+GEN-P2 (specs/006-plan-de-generacion, research R5): un pedido con plan no vuelve a buscar en el material. Usa la
+evidencia congelada del plan y no repite la comprobación del tema (QA-05), que ya se hizo al crear el plan. Cada paso
+es un ítem, y cada recurso del ítem se redacta por separado con su bloque de conceptos (`planned_drafting`). Un tipo
+`strict` del catálogo cuya evidencia no tiene lo que necesita no se redacta: se rechaza con su motivo. Cada recurso
+guarda en `params` el plan, el ítem y el bloque (`planId`, `planItemPosition`, `planBlock`), para regenerarlo.
 """
 
 from __future__ import annotations
@@ -28,17 +34,30 @@ from platform5e.application.ports.outbound.evidence_provider_port import (
     EvidenceFragment,
     EvidenceProviderPort,
     EvidenceQuery,
+    EvidenceRetrieval,
 )
+from platform5e.application.ports.outbound.generation_plan_repository_port import GenerationPlanRepositoryPort
 from platform5e.application.ports.outbound.generation_request_repository_port import (
     GenerationRequestRepositoryPort,
 )
 from platform5e.application.ports.outbound.language_model_port import ResourceGeneratorPort
 from platform5e.application.ports.outbound.media_port import MediaGeneratorPort, MediaRepositoryPort
+from platform5e.application.ports.outbound.resource_catalog_port import CatalogEntry, ResourceCatalogPort
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.application.ports.outbound.resource_verification_port import ResourceVerificationPort
 from platform5e.application.ports.outbound.unit_membership_port import UnitContext, UnitMembershipPort
+from platform5e.application.services.generation.planned_drafting import (
+    ResourceBlock,
+    catalog_context,
+    draft_planned_resource,
+    item_blocks,
+    ordered_fragments,
+    plan_context,
+    plan_summary,
+)
 from platform5e.application.services.generation.prompt_drafting import build_step_context
 from platform5e.application.services.generation.step_drafting import (
+    StepDraft,
     build_grounding_report,
     build_resource_dict,
     draft_step,
@@ -56,6 +75,8 @@ from platform5e.domain.generation.topic_coverage import (
 from platform5e.domain.generation.distractor_reliability import reliability_report
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
 from platform5e.domain.generation.evidence import build_snapshot
+from platform5e.domain.generation.generation_plan import GenerationPlan
+from platform5e.domain.generation.text_types import evidence_gap
 from platform5e.domain.generation.generation_request import (
     GenerationRequest,
     GenerationStep,
@@ -89,6 +110,8 @@ VERIFICATION_FAILED_MESSAGE: str = (
     "La comprobación del respaldo no pudo completarse al generar el recurso. Reintenta la comprobación en la revisión."
 )
 VERIFICATION_INSUFFICIENT_MESSAGE: str = "El material no respalda lo suficiente el contenido del recurso."
+PLAN_MISSING_MESSAGE: str = "El plan de este pedido ya no existe."
+PLAN_ITEM_MISSING_MESSAGE: str = "El ítem del plan de este paso ya no existe."
 def off_topic_message(coverage: TopicCoverage) -> str:
     """QA-05: motivo, en palabras del docente, de un pedido cuya evidencia no trata el tema pedido."""
     return (
@@ -168,6 +191,8 @@ class RunGenerationRequest:
         clock: Callable[[], str] = _utc_now,
         monotonic: Callable[[], float] = time.monotonic,
         topic_coverage_threshold: float = DEFAULT_COVERAGE_THRESHOLD,
+        plans: GenerationPlanRepositoryPort | None = None,
+        catalog: ResourceCatalogPort | None = None,
     ) -> None:
         self._repository = repository
         self._membership = membership
@@ -184,6 +209,8 @@ class RunGenerationRequest:
         self._clock = clock
         self._monotonic = monotonic
         self._topic_coverage_threshold = topic_coverage_threshold
+        self._plans = plans
+        self._catalog = catalog
 
     def execute(self, request_id: str) -> None:
         request = self._repository.get_for_runner(request_id)
@@ -210,6 +237,25 @@ class RunGenerationRequest:
             return RequestStatus.FAILED, Problem(GenerationErrorCode.UNIT_NOT_FOUND, UNIT_NOT_FOUND_MESSAGE)
 
         parameters = request.parameters
+        plan: GenerationPlan | None = None
+        if request.plan is not None and self._plans is not None:
+            # GEN-P2: la evidencia es la del plan, sin una búsqueda nueva; el tema ya se comprobó al crear el plan.
+            plan = self._plans.get(request.teacher_id, request.plan.plan_id)
+            if plan is None:
+                return RequestStatus.FAILED, Problem(GenerationErrorCode.PLAN_NOT_FOUND, PLAN_MISSING_MESSAGE)
+            retrieval = EvidenceRetrieval(
+                fragments=tuple(
+                    EvidenceFragment(f.id, f.document_id, f.document_name, f.location, f.text, f.relevance,
+                                     f.source_url, f.license)
+                    for f in plan.evidence.fragments
+                ),
+                retrieval_mode=plan.evidence.retrieval_mode,
+            )
+            retrieved_at = plan.evidence.retrieved_at
+            if not self._repository.save_evidence(request.id, retrieval, retrieved_at):
+                return None
+            return self._run_steps(request, unit, retrieval, retrieved_at, deadline, plan)
+
         outcome_texts = [o.text for o in unit.outcomes if not parameters.outcome_id or o.id == parameters.outcome_id]
         query = EvidenceQuery(
             teacher_id=request.teacher_id,
@@ -235,7 +281,19 @@ class RunGenerationRequest:
                 request.id, coverage.coverage, ", ".join(coverage.missing_topic()),
             )
             return RequestStatus.FAILED, Problem(GenerationErrorCode.INSUFFICIENT_EVIDENCE, off_topic_message(coverage))
+        return self._run_steps(request, unit, retrieval, retrieved_at, deadline, None)
 
+    def _run_steps(
+        self,
+        request: GenerationRequest,
+        unit: UnitContext,
+        retrieval: EvidenceRetrieval,
+        retrieved_at: str,
+        deadline: float,
+        plan: GenerationPlan | None,
+    ) -> tuple[RequestStatus, Problem | None] | None:
+        """Ejecuta los pasos en orden; los de un plan, desde su ítem."""
+        parameters = request.parameters
         outcome_id = parameters.outcome_id or (unit.outcomes[0].id if unit.outcomes else "")
         accepted: list[dict[str, Any]] = []  # recursos aceptados (formato del generador), con su etapa
         steps = list(request.steps)
@@ -250,9 +308,15 @@ class RunGenerationRequest:
                 return None
             saved_media: list[str] = []  # multimedia que guardó este paso, para quitarla si el pedido desaparece
             try:
-                finished = self._run_step(
-                    request, running, unit, retrieval.fragments, retrieved_at, outcome_id, accepted, saved_media
-                )
+                if plan is not None and step.plan_item_position is not None:
+                    finished = self._run_planned_step(
+                        request, running, unit, plan, retrieval.fragments, retrieved_at, outcome_id, accepted,
+                        saved_media,
+                    )
+                else:
+                    finished = self._run_step(
+                        request, running, unit, retrieval.fragments, retrieved_at, outcome_id, accepted, saved_media
+                    )
             except _RequestGone:
                 return None
             except _UnitGone:
@@ -351,13 +415,7 @@ class RunGenerationRequest:
         """Redacta, verifica y entrega los recursos de un paso. Orden de escritura (research R3): genera la multimedia
         sin guardarla, comprueba que el pedido y la unidad siguen, guarda la multimedia (anota sus ids en
         `saved_media`) y después los recursos. La confirmación del paso la escribe `_run`, al final."""
-        step_request = {
-            **request.parameters.to_payload(),
-            "id": request.id,
-            "createdAt": request.created_at,
-            "stage": step.stage,
-            "resourceType": step.resource_type,
-        }
+        step_request = self._step_request(request, step)
         context = build_step_context(unit, step_request, fragments)
         context["secuenciaPrevia"] = previous_sequence(accepted)
 
@@ -373,7 +431,122 @@ class RunGenerationRequest:
                 error=Problem(GenerationErrorCode.GENERATION_FAILED, NO_GENERATOR_MESSAGE),
                 finished_at=self._clock(),
             )
+        return self._deliver(
+            request, step, step_request, [(draft, {}) for draft in drafted.kept], drafted.repeated,
+            grounding_rejections, generator, drafted.warning, self._is_fallback(generator), fragments, retrieved_at,
+            outcome_id, accepted, saved_media,
+        )
 
+    @staticmethod
+    def _step_request(request: GenerationRequest, step: GenerationStep) -> dict[str, Any]:
+        return {
+            **request.parameters.to_payload(),
+            "id": request.id,
+            "createdAt": request.created_at,
+            "stage": step.stage,
+            "resourceType": step.resource_type,
+        }
+
+    def _catalog_entry(self, resource_type: str) -> CatalogEntry | None:
+        if self._catalog is None:
+            return None
+        return next((entry for entry in self._catalog.entries() if entry.id == resource_type), None)
+
+    def _run_planned_step(
+        self,
+        request: GenerationRequest,
+        step: GenerationStep,
+        unit: UnitContext,
+        plan: GenerationPlan,
+        fragments: Sequence[EvidenceFragment],
+        retrieved_at: str,
+        outcome_id: str,
+        accepted: list[dict[str, Any]],
+        saved_media: list[str],
+    ) -> GenerationStep:
+        """GEN-P2: los recursos del ítem, uno por bloque de conceptos, cada uno redactado por separado. En una
+        regeneración, solo el bloque del recurso que se rehace, con el resumen de los demás recursos del plan."""
+        item = next((i for i in plan.items if i.position == step.plan_item_position), None)
+        if item is None:
+            return replace(step, status=StepStatus.FAILED, finished_at=self._clock(),
+                           error=Problem(GenerationErrorCode.GENERATION_FAILED, PLAN_ITEM_MISSING_MESSAGE))
+        entry = self._catalog_entry(item.resource_type)
+        blocks: list[ResourceBlock] = item_blocks(plan, item)
+        regenerated_block = request.regeneration.plan_block if request.regeneration is not None else None
+        if regenerated_block is not None:
+            blocks = [block for block in blocks if block.index == regenerated_block]
+        step_request = {**self._step_request(request, step), "quantity": 1}
+        ordered = ordered_fragments(fragments, item)
+        item_texts = [f.text for f in ordered if f.chunk_id in item.fragment_ids]
+
+        rejections: list[dict[str, Any]] = []
+        repeated: list[dict[str, Any]] = []
+        drafts: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        generator = None
+        warning: str | None = None
+        fallback = False
+        for block in blocks:
+            gap = evidence_gap(item.resource_type, entry.verification if entry else None, block.concepts, item_texts)
+            if gap is not None:
+                # Un tipo `strict` cuya evidencia no tiene lo que necesita no se redacta (CUR-P2).
+                rejections.append({"title": entry.name if entry else item.resource_type, "reason": gap,
+                                   "kind": "grounding"})
+                continue
+            context = build_step_context(unit, step_request, ordered)
+            catalog = catalog_context(entry)
+            if catalog is not None:
+                context["solicitud"]["catalogo"] = catalog
+            context["plan"] = plan_context(block, entry)
+            previous = accepted + [{**draft, "etapa": step.stage} for draft, _ in drafts]
+            context["secuenciaPrevia"] = (
+                plan_summary(plan, block) if regenerated_block is not None else previous_sequence(previous)
+            )
+            drafted: StepDraft = draft_planned_resource(
+                context, previous, self._primary_generator, self._fallback_generator, rejections
+            )
+            repeated += drafted.repeated
+            if drafted.generator is not None:
+                # Si algún recurso del ítem lo redactó el respaldo, el paso lo informa con su motivo.
+                if self._is_fallback(drafted.generator):
+                    generator, fallback, warning = drafted.generator, True, drafted.warning
+                elif not fallback:
+                    generator, warning = drafted.generator, warning or drafted.warning
+            for draft in drafted.kept:
+                drafts.append((
+                    {**draft, "conceptos": list(block.concepts)},
+                    {"planId": plan.id, "planItemPosition": item.position, "planBlock": block.index},
+                ))
+
+        if generator is None:
+            if rejections:  # nada que redactar: la evidencia no alcanzaba para el tipo
+                return replace(step, status=StepStatus.REJECTED, rejections=tuple(rejections), resource_ids=(),
+                               finished_at=self._clock())
+            return replace(step, status=StepStatus.FAILED, finished_at=self._clock(),
+                           error=Problem(GenerationErrorCode.GENERATION_FAILED, NO_GENERATOR_MESSAGE))
+        return self._deliver(
+            request, step, step_request, drafts, repeated, rejections, generator, warning, fallback, fragments,
+            retrieved_at, outcome_id, accepted, saved_media,
+        )
+
+    def _deliver(
+        self,
+        request: GenerationRequest,
+        step: GenerationStep,
+        step_request: dict[str, Any],
+        drafts: list[tuple[dict[str, Any], dict[str, Any]]],
+        repeated: list[dict[str, Any]],
+        grounding_rejections: list[dict[str, Any]],
+        generator: ResourceGeneratorPort,
+        warning: str | None,
+        fallback: bool,
+        fragments: Sequence[EvidenceFragment],
+        retrieved_at: str,
+        outcome_id: str,
+        accepted: list[dict[str, Any]],
+        saved_media: list[str],
+    ) -> GenerationStep:
+        """Verifica y entrega los recursos redactados de un paso (`drafts`: cada borrador con los `params` que agrega,
+        como el ítem del plan) y arma el paso terminado."""
         # Antes de generar multimedia: el curso pudo borrarse mientras se redactaba.
         self._ensure_still_owned(request)
         timestamp = self._clock()
@@ -384,7 +557,7 @@ class RunGenerationRequest:
         resources: list[dict[str, Any]] = []
         pending_media: list[PendingMedia] = []
         delivered_drafts: list[dict[str, Any]] = []
-        for drafted_resource in drafted.kept:
+        for drafted_resource, extra_parameters in drafts:
             resource = {
                 **build_resource_dict(
                     drafted_resource, step_request, request.unit_id, outcome_id, generator.description, timestamp
@@ -394,7 +567,7 @@ class RunGenerationRequest:
             # Copia histórica de exactamente los fragmentos que Revisión exigirá al verificar (research R6).
             snapshot = build_snapshot(self._verification.referenced_fragment_ids(resource), evidence, retrieved_at)
             resource["evidence"] = [item.to_dict() for item in snapshot.items]
-            resource["params"] = frozen_parameters
+            resource["params"] = {**frozen_parameters, **extra_parameters}
             resource["generatorKind"] = "ia" if uses_ai else "respaldo"
             resource["version"] = INITIAL_RESOURCE_VERSION
             if request.regeneration is not None:
@@ -425,7 +598,7 @@ class RunGenerationRequest:
 
         rejections = [
             {"title": item["title"], "reason": item["reason"], "kind": item.get("kind", "grounding")}
-            for item in [*drafted.repeated, *grounding_rejections]
+            for item in [*repeated, *grounding_rejections]
         ]
         if not resources and not rejections:
             rejections.append({"title": step.resource_type, "reason": NO_RESOURCES_MESSAGE, "kind": "structure"})
@@ -438,9 +611,9 @@ class RunGenerationRequest:
             generator={
                 "description": generator.description,
                 "usesAi": uses_ai,
-                "fallback": self._is_fallback(generator),
+                "fallback": fallback,
                 # Por qué redactó el respaldo (el mismo aviso del registro); null si no hubo respaldo.
-                "fallbackReason": drafted.warning if self._is_fallback(generator) else None,
+                "fallbackReason": warning if fallback else None,
             },
             grounding=build_grounding_report(resources, grounding_rejections),
             distractor_reliability=reliability_report(resources),

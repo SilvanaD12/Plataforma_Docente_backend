@@ -10,6 +10,10 @@ la clave siguiente (`-r2`, `-r3`…). Los recursos nuevos llevan `regeneratedFro
 Generación no descarta ni modifica el recurso anterior: eso lo decide Revisión cuando el pedido termina (research R9).
 Lo llamará el adaptador de regeneración de Revisión (T029). Solo depende de otros casos de uso de Generación y del
 dominio.
+
+GEN-P2 (T014): si el recurso nació de un plan (`params.planId`, `params.planItemPosition` y `params.planBlock`), el
+pedido lee ese ítem del plan sin escribirlo y redacta otra vez ese bloque de conceptos con la evidencia del plan; si
+un fragmento del ítem ya no existe, se rechaza con PLAN_EVIDENCE_STALE. Un recurso sin plan se regenera como antes.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ from typing import Any
 
 from platform5e.application.ports.outbound.resource_repository_port import ResourceReviewRepositoryPort
 from platform5e.application.use_cases.generation.start_generation_request import (
+    PlannedRegeneration,
     StartGenerationCommand,
     StartGenerationRequest,
     StartGenerationResult,
@@ -102,6 +107,16 @@ def parameters_from_saved(params: Mapping[str, Any] | None) -> GenerationParamet
     )
 
 
+def planned_regeneration_from_saved(params: Mapping[str, Any] | None) -> tuple[PlannedRegeneration | None, int | None]:
+    """GEN-P2: el ítem y el bloque del plan guardados en el recurso, o (None, None) si no nació de un plan."""
+    if not isinstance(params, Mapping):
+        return None, None
+    plan_id, position, block = params.get("planId"), params.get("planItemPosition"), params.get("planBlock")
+    if not isinstance(plan_id, str) or not plan_id or _integer(position, 0) < 1:
+        return None, None
+    return PlannedRegeneration(plan_id, position), max(_integer(block, 0), 0)
+
+
 @dataclass(frozen=True)
 class StartRegenerationCommand:
     """Recurso que se regenera, la versión que Revisión registró al pedirlo y sus `params` guardados."""
@@ -135,7 +150,8 @@ class StartRegeneration:
         ):
             raise GenerationError(GenerationErrorCode.REGENERATION_TARGET_INVALID, INVALID_TARGET_MESSAGE)
         parameters = parameters_from_saved(command.params)
-        target = RegenerationTarget(resource_id=command.resource_id, resource_version=version)
+        from_plan, block = planned_regeneration_from_saved(command.params)
+        target = RegenerationTarget(resource_id=command.resource_id, resource_version=version, plan_block=block)
 
         # Cada clave devuelve su pedido si ya existe (en curso, terminado bien o fallido). Si el último intento falló o
         # se interrumpió, se pasa a la clave siguiente; si sigue en curso o terminó bien, se devuelve ese mismo.
@@ -148,6 +164,7 @@ class StartRegeneration:
                     idempotency_key=regeneration_key(command.resource_id, version, attempt),
                     parameters=parameters,
                     regeneration=target,
+                    planned_regeneration=from_plan,
                 )
             )
             if result.created:

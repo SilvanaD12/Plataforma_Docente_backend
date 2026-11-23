@@ -392,7 +392,10 @@ components:
             properties:
               title: { type: string }
               reason: { type: string, description: In Spanish, shown to the teacher. }
-              kind: { type: string, enum: [grounding, repetition, structure, distractor] }
+              kind:
+                type: string
+                enum: [grounding, repetition, structure, distractor, plan]
+                description: '`plan` (GEN-P2, specs/006-plan-de-generacion): the resource did not develop its concepts of the plan or developed those of another resource.'
         generator: { oneOf: [{ $ref: '#/components/schemas/StepGenerator' }, { type: 'null' }] }
         grounding: { oneOf: [{ $ref: '#/components/schemas/GroundingReport' }, { type: 'null' }] }
         distractorReliability: { oneOf: [{ $ref: '#/components/schemas/DistractorReliability' }, { type: 'null' }] }

@@ -5,10 +5,12 @@ Puerto de persistencia del pedido de generación en segundo plano (GEN-01) y de 
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 
 from platform5e.application.ports.outbound.evidence_provider_port import EvidenceRetrieval
+from platform5e.domain.generation.generation_plan import GenerationPlan
 from platform5e.domain.generation.generation_request import (
     GenerationRequest,
     GenerationStep,
@@ -41,6 +43,22 @@ class UnitNoLongerOwned(DomainError):
         super().__init__("La unidad ya no pertenece al docente.")
 
 
+@dataclass(frozen=True)
+class PlanClaim:
+    """GEN-P2: el plan aprobado que pasa a usado junto con el alta del pedido. `plan` ya es la versión usada (con
+    `usedByRequestId`); el repositorio la guarda solo si el plan sigue aprobado y en `expected_version`."""
+
+    plan: GenerationPlan
+    expected_version: int
+
+
+class PlanClaimLost(DomainError):
+    """El plan dejó de estar aprobado en esa versión entre la lectura y el alta (otro pedido lo usó o se editó)."""
+
+    def __init__(self) -> None:
+        super().__init__("El plan cambió antes de registrar el pedido.")
+
+
 class GenerationRequestRepositoryPort(Protocol):
     """Operaciones de persistencia del pedido. Las consultas del docente siempre filtran por `teacher_id`."""
 
@@ -56,6 +74,7 @@ class GenerationRequestRepositoryPort(Protocol):
         request: GenerationRequest,
         max_active: int,
         unit_still_owned: Callable[[], bool] | None = None,
+        plan_claim: PlanClaim | None = None,
     ) -> GenerationRequest:
         """Como `create`, pero comprueba el cupo y registra el pedido de forma atómica para el docente: dos envíos
         simultáneos no pueden superar `max_active` pedidos activos (research R4).
@@ -66,6 +85,8 @@ class GenerationRequestRepositoryPort(Protocol):
         2. Si `unit_still_owned()` devuelve False (el curso se borró después de validar la unidad), lanza
            UnitNoLongerOwned sin insertar nada.
         3. Si el docente ya tiene `max_active` pedidos activos, lanza ActiveRequestLimitReached.
+        4. GEN-P2: con `plan_claim`, el plan pasa a usado en la misma transacción que el alta; si ya no está aprobado
+           en `expected_version`, lanza PlanClaimLost y no se guarda nada.
         """
         ...
 
