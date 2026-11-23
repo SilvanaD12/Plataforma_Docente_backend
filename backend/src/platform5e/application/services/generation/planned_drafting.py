@@ -100,6 +100,7 @@ def plan_context(block: ResourceBlock, entry: CatalogEntry | None) -> dict[str, 
         "conceptos": list(block.concepts),
         "noDesarrollar": list(block.foreign),
         "parrafoUnico": is_short(block.item.resource_type, entry),
+        "conAlternativas": block.item.resource_type == "item_opcion_multiple",
     }
 
 

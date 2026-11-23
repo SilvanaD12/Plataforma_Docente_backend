@@ -70,7 +70,9 @@ def test_the_shared_schema_is_the_one_before_this_change():
     assert fingerprint(GEMINI_RESPONSE_SCHEMA) == SHARED_SCHEMA_SHA256
 
 
-@pytest.mark.parametrize("resource_type", sorted(t for t in RESOURCE_CATALOG if t != KINESTHETIC))
+# El ítem de opción múltiple también tiene su propio esquema (T027 (a), tests/unit/test_mcq_generation.py).
+@pytest.mark.parametrize("resource_type", sorted(t for t in RESOURCE_CATALOG
+                                                 if t not in (KINESTHETIC, "item_opcion_multiple")))
 def test_every_other_type_sends_exactly_the_shared_schema(resource_type):
     fake = FakeGemini(answer({"recursos": []}))
     fake.model().generate(type_context(resource_type))

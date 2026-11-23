@@ -1,0 +1,1872 @@
+{
+  "measure": "P4 · duplicación entre recursos de una misma generación",
+  "mode": "plan",
+  "api": "http://127.0.0.1:8000",
+  "corpus": "evaluation/corpus_t067",
+  "resourceTypes": [
+    "pregunta_detonante",
+    "explicacion",
+    "item_opcion_multiple"
+  ],
+  "quantity": 2,
+  "threshold": 0.885,
+  "sentenceThreshold": 0.865,
+  "similarity": "embeddings (coseno), gemini-embedding-001",
+  "server": "GENERATION_IMPLICIT_PLAN=true (plan aprobado sin cambios)",
+  "createdAt": "2026-11-23T13:11:51.356238+00:00",
+  "summary": {
+    "runs": 2,
+    "finishedRuns": 2,
+    "duplicateRate": 0.2,
+    "meanDuplicateRatePerRun": 0.2,
+    "meanMaxSimilarity": 0.9127,
+    "sentenceNearDuplicateRate": 0.3433,
+    "meanSentenceRatePerRun": 0.3374,
+    "meanReexplainedConcepts": 0.0,
+    "meanReexplainedEvidenceConcepts": 0.0,
+    "crossTypeDuplicateRate": 0.0,
+    "crossTypeSentenceRate": 0.1045,
+    "variantsDuplicateRate": 1.0,
+    "variantsSentenceRate": 0.2687,
+    "resourcesPerRequest": 6.0,
+    "steps": 6,
+    "aiSteps": 6,
+    "fallbackSteps": 0,
+    "rulesSteps": 0,
+    "stepsWithoutGenerator": 0,
+    "planWarnings": 0,
+    "undeliveredResources": 0,
+    "planGenerators": {
+      "ai": 2,
+      "rules": 0
+    },
+    "aiOnly": {
+      "duplicateRate": 0.2,
+      "meanDuplicateRatePerRun": 0.2,
+      "meanMaxSimilarity": 0.9127,
+      "sentenceNearDuplicateRate": 0.3433,
+      "meanSentenceRatePerRun": 0.3374,
+      "meanReexplainedConcepts": 0.0,
+      "meanReexplainedEvidenceConcepts": 0.0,
+      "crossTypeDuplicateRate": 0.0,
+      "crossTypeSentenceRate": 0.1045,
+      "variantsDuplicateRate": 1.0,
+      "variantsSentenceRate": 0.2687,
+      "resources": 12
+    }
+  },
+  "runs": [
+    {
+      "key": "p4-plan-20261123T130554-1",
+      "planId": "gen-plan-beff3781-0b4c-4839-8168-29f20639f347",
+      "planItems": 3,
+      "requestId": "gen-req-9cbb9967-5123-4640-9d54-d0810d678dc2",
+      "requestPlanId": "gen-plan-beff3781-0b4c-4839-8168-29f20639f347",
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": 1,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "fallbackReason": null,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": 2,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "fallbackReason": null,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": 3,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "fallbackReason": null,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 3,
+        "fallbackSteps": 0,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "fallbacks": [],
+      "expectedResources": 6,
+      "undelivered": [],
+      "planWarnings": [],
+      "rejectionKinds": {},
+      "planGenerator": {
+        "usesAi": true,
+        "fallback": false,
+        "attempts": 1,
+        "source": "ai"
+      },
+      "planConcepts": [
+        "transmisión sin conexión",
+        "control de flujo",
+        "saludo de tres vías",
+        "ventana de congestión",
+        "suma de verificación",
+        "entrega best-effort"
+      ],
+      "evidenceConcepts": [
+        "control de flujo",
+        "protocolos de transporte",
+        "transporte tcp",
+        "udp conexión",
+        "capa de red",
+        "capa de transporte",
+        "control protocol",
+        "control de transmisión",
+        "datagram protocol",
+        "modelo osi",
+        "protocolo de control",
+        "protocolos tcp",
+        "tcp protocolo",
+        "tcp transmission",
+        "transmisión de audio",
+        "transmission control",
+        "transporte del modelo",
+        "transporte fiable",
+        "estado de conexión",
+        "comunicación confiable"
+      ],
+      "resources": [
+        {
+          "id": "rec-api-57ccf8f5-2c79-4b02-9408-3b73b1662cb8",
+          "title": "Transmisión sin conexión y rapidez en la red",
+          "type": "pregunta_detonante",
+          "planItemPosition": 1,
+          "drafter": "ai",
+          "text": "Transmisión sin conexión y rapidez en la red\nEn servicios como la transmisión de audio y video en tiempo real, el protocolo UDP implementa la transmisión sin conexión [F1, F2]. Esto significa que no se realiza ninguna sincronización ni establecimiento previo de enlace entre origen y destino, pues cada datagrama incluye en su cabecera la información del destinatario y se despacha sin introducir retardos iniciales ni guardar estado alguno [F1, F2, F3]. No obstante, al no existir confirmación de entrega ni ordenamiento, los paquetes pueden llegar en distinto orden o extraviarse en el trayecto sin retransmisión [F1, F6, F8]. A partir de este escenario, ¿en qué casos resulta una ventaja operativa comunicarse de manera inmediata sin sincronización previa y cuándo la falta de verificación de llegada vuelve inviable esta estrategia?",
+          "sentenceText": "En servicios como la transmisión de audio y video en tiempo real, el protocolo UDP implementa la transmisión sin conexión [F1, F2]. Esto significa que no se realiza ninguna sincronización ni establecimiento previo de enlace entre origen y destino, pues cada datagrama incluye en su cabecera la información del destinatario y se despacha sin introducir retardos iniciales ni guardar estado alguno [F1, F2, F3]. No obstante, al no existir confirmación de entrega ni ordenamiento, los paquetes pueden llegar en distinto orden o extraviarse en el trayecto sin retransmisión [F1, F6, F8]. A partir de este escenario, ¿en qué casos resulta una ventaja operativa comunicarse de manera inmediata sin sincronización previa y cuándo la falta de verificación de llegada vuelve inviable esta estrategia?"
+        },
+        {
+          "id": "rec-api-35f65577-6d4e-42b2-97f9-0bea934066d8",
+          "title": "El dilema del control de flujo frente a la velocidad de transporte",
+          "type": "pregunta_detonante",
+          "planItemPosition": 1,
+          "drafter": "ai",
+          "text": "El dilema del control de flujo frente a la velocidad de transporte\nAl diseñar arquitecturas de red, los protocolos de la capa de transporte abordan la transferencia de datos con estrategias opuestas. Por un lado, TCP establece una comunicación previa mediante el saludo de tres vías e incorpora mecanismos como el control de flujo para regular la transferencia, garantizando confiabilidad y orden en la entrega a costa de mayor sobrecarga y latencia [F5, F6]. Por otro lado, el protocolo UDP prescinde del establecimiento previo de un canal y descarta el control de flujo y la ordenación, emitiendo directamente datagramas con una cabecera simple de tan solo 8 bytes, lo que reduce el consumo de procesamiento y retardo pero implica que los paquetes puedan adelantarse entre sí o perderse sin confirmación [F1, F2, F6].\n\nFrente a este escenario, planteamos la siguiente interrogante:\nSi una aplicación envía un volumen masivo y continuo de datagramas a un equipo receptor con recursos de memoria limitados, ¿qué impacto directo tiene la ausencia de control de flujo en la recepción frente al modelo empleado por TCP, y qué factores justifican elegir un protocolo sin dicha regulación?",
+          "sentenceText": "Al diseñar arquitecturas de red, los protocolos de la capa de transporte abordan la transferencia de datos con estrategias opuestas. Por un lado, TCP establece una comunicación previa mediante el saludo de tres vías e incorpora mecanismos como el control de flujo para regular la transferencia, garantizando confiabilidad y orden en la entrega a costa de mayor sobrecarga y latencia [F5, F6]. Por otro lado, el protocolo UDP prescinde del establecimiento previo de un canal y descarta el control de flujo y la ordenación, emitiendo directamente datagramas con una cabecera simple de tan solo 8 bytes, lo que reduce el consumo de procesamiento y retardo pero implica que los paquetes puedan adelantarse entre sí o perderse sin confirmación [F1, F2, F6].\n\nFrente a este escenario, planteamos la siguiente interrogante:\nSi una aplicación envía un volumen masivo y continuo de datagramas a un equipo receptor con recursos de memoria limitados, ¿qué impacto directo tiene la ausencia de control de flujo en la recepción frente al modelo empleado por TCP, y qué factores justifican elegir un protocolo sin dicha regulación?"
+        },
+        {
+          "id": "rec-api-fd33241c-7aae-417f-ba8d-9101ecbd3d4b",
+          "title": "Mecanismos de conexión y respuesta ante eventos de red en TCP",
+          "type": "explicacion",
+          "planItemPosition": 2,
+          "drafter": "ai",
+          "text": "Mecanismos de conexión y respuesta ante eventos de red en TCP\nEn el nivel de transporte, el protocolo TCP opera como un servicio orientado a conexión y fiable encargado de comunicar procesos a través de sockets, los cuales combinan una dirección IP y un número de puerto [F1]. A diferencia de los modelos basados en transmisión sin conexión y entrega best-effort, TCP asegura la transferencia íntegra de un flujo de información gestionando de forma autónoma el orden de entrega garantizado, las retransmisiones y el descarte de paquetes duplicados o perdidos [F5, F7].\n\nPara formalizar el canal ordenado antes de realizar cualquier transferencia de datos, TCP implementa el procedimiento denominado saludo de tres vías (three-way handshake) [F1]. En la fase inicial de esta sincronización, el cliente transmite un segmento con el indicador SYN activado y establece un número de secuencia inicial aleatorio [F1]. Este intercambio se estructura a partir del formato de cabecera de TCP, cuyo tamaño oscila entre 20 y 60 bytes e incluye campos para números de secuencia, acuses e indicadores como SYN y ACK [F7].\n\nDe forma complementaria al soporte de control de flujo, TCP incorpora algoritmos de control de congestión orientados a proteger la infraestructura de la red [F2, F7]. Si se produce un evento de timeout o se reciben tres acuses de recibo (ACK) duplicados, el protocolo interpreta que la red se encuentra congestionada y reduce su ritmo de transmisión, regulando el envío mediante etapas como el arranque lento o la evitación de congestión, complementadas por variantes como CUBIC y BBR [F2].",
+          "sentenceText": "En el nivel de transporte, el protocolo TCP opera como un servicio orientado a conexión y fiable encargado de comunicar procesos a través de sockets, los cuales combinan una dirección IP y un número de puerto [F1]. A diferencia de los modelos basados en transmisión sin conexión y entrega best-effort, TCP asegura la transferencia íntegra de un flujo de información gestionando de forma autónoma el orden de entrega garantizado, las retransmisiones y el descarte de paquetes duplicados o perdidos [F5, F7].\n\nPara formalizar el canal ordenado antes de realizar cualquier transferencia de datos, TCP implementa el procedimiento denominado saludo de tres vías (three-way handshake) [F1]. En la fase inicial de esta sincronización, el cliente transmite un segmento con el indicador SYN activado y establece un número de secuencia inicial aleatorio [F1]. Este intercambio se estructura a partir del formato de cabecera de TCP, cuyo tamaño oscila entre 20 y 60 bytes e incluye campos para números de secuencia, acuses e indicadores como SYN y ACK [F7].\n\nDe forma complementaria al soporte de control de flujo, TCP incorpora algoritmos de control de congestión orientados a proteger la infraestructura de la red [F2, F7]. Si se produce un evento de timeout o se reciben tres acuses de recibo (ACK) duplicados, el protocolo interpreta que la red se encuentra congestionada y reduce su ritmo de transmisión, regulando el envío mediante etapas como el arranque lento o la evitación de congestión, complementadas por variantes como CUBIC y BBR [F2]."
+        },
+        {
+          "id": "rec-api-ed69fb7a-bff5-4761-89f2-8bc4ce330e61",
+          "title": "Dinámica y regulación de la ventana de congestión en TCP",
+          "type": "explicacion",
+          "planItemPosition": 2,
+          "drafter": "ai",
+          "text": "Dinámica y regulación de la ventana de congestión en TCP\nEn la capa de transporte, el protocolo TCP incorpora procedimientos de control de congestión diseñados específicamente para proteger a la red. Con este propósito, el emisor mantiene y administra una ventana de congestión (cwnd), la cual determina el límite de transmisión de datos permitiendo enviar, como máximo, el menor valor resultante entre cwnd y la ventana rwnd.\n\nLa evolución de la ventana de congestión atraviesa fases diferenciadas de crecimiento para adaptarse a la red. Al iniciar la transmisión, entra en funcionamiento el algoritmo de arranque lento (slow start), el cual parte de un valor reducido y duplica cwnd en cada tiempo de ida y vuelta (RTT) hasta llegar al umbral ssthresh; alcanzado dicho punto, TCP pasa al estado de evitación de congestión, donde la ventana cwnd incrementa de forma lineal a razón aproximada de un segmento por cada RTT.\n\nAnte eventos de pérdida de información, TCP interpreta que la red está congestionada y procede a reducir su ritmo de transferencia. Si la pérdida se detecta mediante un timeout, cwnd regresa a un valor mínimo y el umbral ssthresh desciende a la mitad; por el contrario, si se constatan tres acuses de recibo (ACK) duplicados, cwnd se disminuye a la mitad, dinámica que es optimizada en variantes contemporáneas como CUBIC y BBR.",
+          "sentenceText": "En la capa de transporte, el protocolo TCP incorpora procedimientos de control de congestión diseñados específicamente para proteger a la red. Con este propósito, el emisor mantiene y administra una ventana de congestión (cwnd), la cual determina el límite de transmisión de datos permitiendo enviar, como máximo, el menor valor resultante entre cwnd y la ventana rwnd.\n\nLa evolución de la ventana de congestión atraviesa fases diferenciadas de crecimiento para adaptarse a la red. Al iniciar la transmisión, entra en funcionamiento el algoritmo de arranque lento (slow start), el cual parte de un valor reducido y duplica cwnd en cada tiempo de ida y vuelta (RTT) hasta llegar al umbral ssthresh; alcanzado dicho punto, TCP pasa al estado de evitación de congestión, donde la ventana cwnd incrementa de forma lineal a razón aproximada de un segmento por cada RTT.\n\nAnte eventos de pérdida de información, TCP interpreta que la red está congestionada y procede a reducir su ritmo de transferencia. Si la pérdida se detecta mediante un timeout, cwnd regresa a un valor mínimo y el umbral ssthresh desciende a la mitad; por el contrario, si se constatan tres acuses de recibo (ACK) duplicados, cwnd se disminuye a la mitad, dinámica que es optimizada en variantes contemporáneas como CUBIC y BBR."
+        },
+        {
+          "id": "rec-api-ddf57f41-1b54-4d7e-b248-be6a988fae94",
+          "title": "Evaluación sobre la suma de verificación en UDP",
+          "type": "item_opcion_multiple",
+          "planItemPosition": 3,
+          "drafter": "ai",
+          "text": "Evaluación sobre la suma de verificación en UDP\n¿Cuál es la función del campo de suma de verificación en la cabecera de UDP y cómo procede este protocolo ante la detección de un error?\nPermite detectar la corrupción del datagrama, ante lo cual el paquete dañado simplemente se descarta sin enviar aviso al emisor.\nPermite validar la integridad de los datos recibidos y asegurar que los datagramas se ordenen de manera secuencial.\nPermite comprobar la integridad del datagrama y, si presenta anomalías, emitir una solicitud para que el emisor efectúe la retransmisión.\nPermite identificar y corregir de manera automática los bits alterados en el datagrama para entregarlo sin pérdidas a la aplicación.",
+          "sentenceText": "¿Cuál es la función del campo de suma de verificación en la cabecera de UDP y cómo procede este protocolo ante la detección de un error?\nPermite detectar la corrupción del datagrama, ante lo cual el paquete dañado simplemente se descarta sin enviar aviso al emisor.\nPermite validar la integridad de los datos recibidos y asegurar que los datagramas se ordenen de manera secuencial.\nPermite comprobar la integridad del datagrama y, si presenta anomalías, emitir una solicitud para que el emisor efectúe la retransmisión.\nPermite identificar y corregir de manera automática los bits alterados en el datagrama para entregarlo sin pérdidas a la aplicación."
+        },
+        {
+          "id": "rec-api-5eb103a9-5035-4dee-839e-67bdc61b4a88",
+          "title": "Evaluación del modelo de entrega best-effort en UDP",
+          "type": "item_opcion_multiple",
+          "planItemPosition": 3,
+          "drafter": "ai",
+          "text": "Evaluación del modelo de entrega best-effort en UDP\n¿En qué consiste el principio de entrega best-effort que rige el envío de datagramas en el protocolo UDP?\nEn garantizar la recepción secuencial de todos los paquetes mediante números de secuencia y acuses de recibo obligatorios.\nEn enviar una notificación de alerta al emisor cada vez que un paquete resulta dañado para coordinar su reposición.\nEn despachar cada datagrama de forma independiente sin brindar garantías de llegada, acuses de recibo, retransmisión ni ordenamiento.\nEn ejecutar la retransmisión automática desde el protocolo cada vez que se detecta un datagrama perdido o duplicado.",
+          "sentenceText": "¿En qué consiste el principio de entrega best-effort que rige el envío de datagramas en el protocolo UDP?\nEn garantizar la recepción secuencial de todos los paquetes mediante números de secuencia y acuses de recibo obligatorios.\nEn enviar una notificación de alerta al emisor cada vez que un paquete resulta dañado para coordinar su reposición.\nEn despachar cada datagrama de forma independiente sin brindar garantías de llegada, acuses de recibo, retransmisión ni ordenamiento.\nEn ejecutar la retransmisión automática desde el protocolo cada vez que se detecta un datagrama perdido o duplicado."
+        }
+      ],
+      "metrics": {
+        "resources": 6,
+        "pairs": 15,
+        "duplicatePairs": 3,
+        "duplicateRate": 0.2,
+        "meanMaxSimilarity": 0.9073,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.9243,
+            "titles": [
+              "Transmisión sin conexión y rapidez en la red",
+              "El dilema del control de flujo frente a la velocidad de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.898,
+            "titles": [
+              "Mecanismos de conexión y respuesta ante eventos de red en TCP",
+              "Dinámica y regulación de la ventana de congestión en TCP"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.8996,
+            "titles": [
+              "Evaluación sobre la suma de verificación en UDP",
+              "Evaluación del modelo de entrega best-effort en UDP"
+            ]
+          }
+        ],
+        "crossType": {
+          "pairs": 12,
+          "duplicatePairs": 0,
+          "duplicateRate": 0.0,
+          "examples": []
+        },
+        "variants": {
+          "pairs": 3,
+          "duplicatePairs": 3,
+          "duplicateRate": 1.0,
+          "examples": [
+            {
+              "titles": [
+                "Transmisión sin conexión y rapidez en la red",
+                "El dilema del control de flujo frente a la velocidad de transporte"
+              ],
+              "types": [
+                "pregunta_detonante",
+                "pregunta_detonante"
+              ],
+              "similarity": 0.9243
+            },
+            {
+              "titles": [
+                "Mecanismos de conexión y respuesta ante eventos de red en TCP",
+                "Dinámica y regulación de la ventana de congestión en TCP"
+              ],
+              "types": [
+                "explicacion",
+                "explicacion"
+              ],
+              "similarity": 0.898
+            },
+            {
+              "titles": [
+                "Evaluación sobre la suma de verificación en UDP",
+                "Evaluación del modelo de entrega best-effort en UDP"
+              ],
+              "types": [
+                "item_opcion_multiple",
+                "item_opcion_multiple"
+              ],
+              "similarity": 0.8996
+            }
+          ]
+        }
+      },
+      "sentences": {
+        "sentences": 31,
+        "threshold": 0.865,
+        "all": {
+          "nearDuplicateSentences": 8,
+          "rate": 0.2581,
+          "examples": [
+            {
+              "first": "Por un lado, TCP establece una comunicación previa mediante el saludo de tres vías e incorpora mecanismos como el control de flujo para regular la transferencia, garantizando confiabilidad y orden en la entrega a costa de mayor sobrecarga y latencia [F5, F6].",
+              "second": "Para formalizar el canal ordenado antes de realizar cualquier transferencia de datos, TCP implementa el procedimiento denominado saludo de tres vías (three-way handshake) [F1].",
+              "similarity": 0.8716,
+              "types": [
+                "pregunta_detonante",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "De forma complementaria al soporte de control de flujo, TCP incorpora algoritmos de control de congestión orientados a proteger la infraestructura de la red [F2, F7].",
+              "second": "En la capa de transporte, el protocolo TCP incorpora procedimientos de control de congestión diseñados específicamente para proteger a la red.",
+              "similarity": 0.8716,
+              "types": [
+                "explicacion",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "Permite validar la integridad de los datos recibidos y asegurar que los datagramas se ordenen de manera secuencial.",
+              "second": "En garantizar la recepción secuencial de todos los paquetes mediante números de secuencia y acuses de recibo obligatorios.",
+              "similarity": 0.8863,
+              "types": [
+                "item_opcion_multiple",
+                "item_opcion_multiple"
+              ]
+            },
+            {
+              "first": "Permite comprobar la integridad del datagrama y, si presenta anomalías, emitir una solicitud para que el emisor efectúe la retransmisión.",
+              "second": "En ejecutar la retransmisión automática desde el protocolo cada vez que se detecta un datagrama perdido o duplicado.",
+              "similarity": 0.8728,
+              "types": [
+                "item_opcion_multiple",
+                "item_opcion_multiple"
+              ]
+            }
+          ]
+        },
+        "crossType": {
+          "nearDuplicateSentences": 2,
+          "rate": 0.0645,
+          "examples": [
+            {
+              "first": "Por un lado, TCP establece una comunicación previa mediante el saludo de tres vías e incorpora mecanismos como el control de flujo para regular la transferencia, garantizando confiabilidad y orden en la entrega a costa de mayor sobrecarga y latencia [F5, F6].",
+              "second": "Para formalizar el canal ordenado antes de realizar cualquier transferencia de datos, TCP implementa el procedimiento denominado saludo de tres vías (three-way handshake) [F1].",
+              "similarity": 0.8716,
+              "types": [
+                "pregunta_detonante",
+                "explicacion"
+              ]
+            }
+          ]
+        },
+        "variants": {
+          "nearDuplicateSentences": 6,
+          "rate": 0.1935,
+          "examples": [
+            {
+              "first": "De forma complementaria al soporte de control de flujo, TCP incorpora algoritmos de control de congestión orientados a proteger la infraestructura de la red [F2, F7].",
+              "second": "En la capa de transporte, el protocolo TCP incorpora procedimientos de control de congestión diseñados específicamente para proteger a la red.",
+              "similarity": 0.8716,
+              "types": [
+                "explicacion",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "Permite validar la integridad de los datos recibidos y asegurar que los datagramas se ordenen de manera secuencial.",
+              "second": "En garantizar la recepción secuencial de todos los paquetes mediante números de secuencia y acuses de recibo obligatorios.",
+              "similarity": 0.8863,
+              "types": [
+                "item_opcion_multiple",
+                "item_opcion_multiple"
+              ]
+            },
+            {
+              "first": "Permite comprobar la integridad del datagrama y, si presenta anomalías, emitir una solicitud para que el emisor efectúe la retransmisión.",
+              "second": "En ejecutar la retransmisión automática desde el protocolo cada vez que se detecta un datagrama perdido o duplicado.",
+              "similarity": 0.8728,
+              "types": [
+                "item_opcion_multiple",
+                "item_opcion_multiple"
+              ]
+            }
+          ]
+        }
+      },
+      "conceptReexplanation": {
+        "source": "plan",
+        "concepts": 6,
+        "reexplained": 0,
+        "rate": 0.0,
+        "items": [],
+        "table": [
+          {
+            "concept": "transmisión sin conexión",
+            "mentioned": 2,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "control de flujo",
+            "mentioned": 2,
+            "developed": 1,
+            "defined": 0
+          },
+          {
+            "concept": "saludo de tres vías",
+            "mentioned": 2,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "ventana de congestión",
+            "mentioned": 1,
+            "developed": 1,
+            "defined": 0
+          },
+          {
+            "concept": "suma de verificación",
+            "mentioned": 1,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "entrega best-effort",
+            "mentioned": 2,
+            "developed": 0,
+            "defined": 0
+          }
+        ]
+      },
+      "conceptReexplanationEvidence": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 0,
+        "rate": 0.0,
+        "items": [],
+        "table": [
+          {
+            "concept": "control de flujo",
+            "mentioned": 2,
+            "developed": 1,
+            "defined": 0
+          },
+          {
+            "concept": "protocolos de transporte",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transporte tcp",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "udp conexión",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "capa de red",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "capa de transporte",
+            "mentioned": 2,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "control protocol",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "control de transmisión",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "datagram protocol",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "modelo osi",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "protocolo de control",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "protocolos tcp",
+            "mentioned": 2,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "tcp protocolo",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "tcp transmission",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transmisión de audio",
+            "mentioned": 1,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transmission control",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transporte del modelo",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transporte fiable",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "estado de conexión",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "comunicación confiable",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          }
+        ]
+      },
+      "aiOnly": {
+        "resources": 6,
+        "metrics": {
+          "resources": 6,
+          "pairs": 15,
+          "duplicatePairs": 3,
+          "duplicateRate": 0.2,
+          "meanMaxSimilarity": 0.9073,
+          "duplicates": [
+            {
+              "first": 0,
+              "second": 1,
+              "similarity": 0.9243,
+              "titles": [
+                "Transmisión sin conexión y rapidez en la red",
+                "El dilema del control de flujo frente a la velocidad de transporte"
+              ]
+            },
+            {
+              "first": 2,
+              "second": 3,
+              "similarity": 0.898,
+              "titles": [
+                "Mecanismos de conexión y respuesta ante eventos de red en TCP",
+                "Dinámica y regulación de la ventana de congestión en TCP"
+              ]
+            },
+            {
+              "first": 4,
+              "second": 5,
+              "similarity": 0.8996,
+              "titles": [
+                "Evaluación sobre la suma de verificación en UDP",
+                "Evaluación del modelo de entrega best-effort en UDP"
+              ]
+            }
+          ],
+          "crossType": {
+            "pairs": 12,
+            "duplicatePairs": 0,
+            "duplicateRate": 0.0,
+            "examples": []
+          },
+          "variants": {
+            "pairs": 3,
+            "duplicatePairs": 3,
+            "duplicateRate": 1.0,
+            "examples": [
+              {
+                "titles": [
+                  "Transmisión sin conexión y rapidez en la red",
+                  "El dilema del control de flujo frente a la velocidad de transporte"
+                ],
+                "types": [
+                  "pregunta_detonante",
+                  "pregunta_detonante"
+                ],
+                "similarity": 0.9243
+              },
+              {
+                "titles": [
+                  "Mecanismos de conexión y respuesta ante eventos de red en TCP",
+                  "Dinámica y regulación de la ventana de congestión en TCP"
+                ],
+                "types": [
+                  "explicacion",
+                  "explicacion"
+                ],
+                "similarity": 0.898
+              },
+              {
+                "titles": [
+                  "Evaluación sobre la suma de verificación en UDP",
+                  "Evaluación del modelo de entrega best-effort en UDP"
+                ],
+                "types": [
+                  "item_opcion_multiple",
+                  "item_opcion_multiple"
+                ],
+                "similarity": 0.8996
+              }
+            ]
+          }
+        },
+        "sentences": {
+          "sentences": 31,
+          "threshold": 0.865,
+          "all": {
+            "nearDuplicateSentences": 8,
+            "rate": 0.2581,
+            "examples": [
+              {
+                "first": "Por un lado, TCP establece una comunicación previa mediante el saludo de tres vías e incorpora mecanismos como el control de flujo para regular la transferencia, garantizando confiabilidad y orden en la entrega a costa de mayor sobrecarga y latencia [F5, F6].",
+                "second": "Para formalizar el canal ordenado antes de realizar cualquier transferencia de datos, TCP implementa el procedimiento denominado saludo de tres vías (three-way handshake) [F1].",
+                "similarity": 0.8716,
+                "types": [
+                  "pregunta_detonante",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "De forma complementaria al soporte de control de flujo, TCP incorpora algoritmos de control de congestión orientados a proteger la infraestructura de la red [F2, F7].",
+                "second": "En la capa de transporte, el protocolo TCP incorpora procedimientos de control de congestión diseñados específicamente para proteger a la red.",
+                "similarity": 0.8716,
+                "types": [
+                  "explicacion",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "Permite validar la integridad de los datos recibidos y asegurar que los datagramas se ordenen de manera secuencial.",
+                "second": "En garantizar la recepción secuencial de todos los paquetes mediante números de secuencia y acuses de recibo obligatorios.",
+                "similarity": 0.8863,
+                "types": [
+                  "item_opcion_multiple",
+                  "item_opcion_multiple"
+                ]
+              },
+              {
+                "first": "Permite comprobar la integridad del datagrama y, si presenta anomalías, emitir una solicitud para que el emisor efectúe la retransmisión.",
+                "second": "En ejecutar la retransmisión automática desde el protocolo cada vez que se detecta un datagrama perdido o duplicado.",
+                "similarity": 0.8728,
+                "types": [
+                  "item_opcion_multiple",
+                  "item_opcion_multiple"
+                ]
+              }
+            ]
+          },
+          "crossType": {
+            "nearDuplicateSentences": 2,
+            "rate": 0.0645,
+            "examples": [
+              {
+                "first": "Por un lado, TCP establece una comunicación previa mediante el saludo de tres vías e incorpora mecanismos como el control de flujo para regular la transferencia, garantizando confiabilidad y orden en la entrega a costa de mayor sobrecarga y latencia [F5, F6].",
+                "second": "Para formalizar el canal ordenado antes de realizar cualquier transferencia de datos, TCP implementa el procedimiento denominado saludo de tres vías (three-way handshake) [F1].",
+                "similarity": 0.8716,
+                "types": [
+                  "pregunta_detonante",
+                  "explicacion"
+                ]
+              }
+            ]
+          },
+          "variants": {
+            "nearDuplicateSentences": 6,
+            "rate": 0.1935,
+            "examples": [
+              {
+                "first": "De forma complementaria al soporte de control de flujo, TCP incorpora algoritmos de control de congestión orientados a proteger la infraestructura de la red [F2, F7].",
+                "second": "En la capa de transporte, el protocolo TCP incorpora procedimientos de control de congestión diseñados específicamente para proteger a la red.",
+                "similarity": 0.8716,
+                "types": [
+                  "explicacion",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "Permite validar la integridad de los datos recibidos y asegurar que los datagramas se ordenen de manera secuencial.",
+                "second": "En garantizar la recepción secuencial de todos los paquetes mediante números de secuencia y acuses de recibo obligatorios.",
+                "similarity": 0.8863,
+                "types": [
+                  "item_opcion_multiple",
+                  "item_opcion_multiple"
+                ]
+              },
+              {
+                "first": "Permite comprobar la integridad del datagrama y, si presenta anomalías, emitir una solicitud para que el emisor efectúe la retransmisión.",
+                "second": "En ejecutar la retransmisión automática desde el protocolo cada vez que se detecta un datagrama perdido o duplicado.",
+                "similarity": 0.8728,
+                "types": [
+                  "item_opcion_multiple",
+                  "item_opcion_multiple"
+                ]
+              }
+            ]
+          }
+        },
+        "conceptReexplanation": {
+          "source": "plan",
+          "concepts": 6,
+          "reexplained": 0,
+          "rate": 0.0,
+          "items": [],
+          "table": [
+            {
+              "concept": "transmisión sin conexión",
+              "mentioned": 2,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "control de flujo",
+              "mentioned": 2,
+              "developed": 1,
+              "defined": 0
+            },
+            {
+              "concept": "saludo de tres vías",
+              "mentioned": 2,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "ventana de congestión",
+              "mentioned": 1,
+              "developed": 1,
+              "defined": 0
+            },
+            {
+              "concept": "suma de verificación",
+              "mentioned": 1,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "entrega best-effort",
+              "mentioned": 2,
+              "developed": 0,
+              "defined": 0
+            }
+          ]
+        },
+        "conceptReexplanationEvidence": {
+          "source": "evidence",
+          "concepts": 20,
+          "reexplained": 0,
+          "rate": 0.0,
+          "items": [],
+          "table": [
+            {
+              "concept": "control de flujo",
+              "mentioned": 2,
+              "developed": 1,
+              "defined": 0
+            },
+            {
+              "concept": "protocolos de transporte",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transporte tcp",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "udp conexión",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "capa de red",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "capa de transporte",
+              "mentioned": 2,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "control protocol",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "control de transmisión",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "datagram protocol",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "modelo osi",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "protocolo de control",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "protocolos tcp",
+              "mentioned": 2,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "tcp protocolo",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "tcp transmission",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transmisión de audio",
+              "mentioned": 1,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transmission control",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transporte del modelo",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transporte fiable",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "estado de conexión",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "comunicación confiable",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "key": "p4-plan-20261123T130554-2",
+      "planId": "gen-plan-2d920a34-f502-4ecc-816d-5ac975698566",
+      "planItems": 3,
+      "requestId": "gen-req-73b909ad-8807-49f7-a42d-88670e2e0cf5",
+      "requestPlanId": "gen-plan-2d920a34-f502-4ecc-816d-5ac975698566",
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": 1,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "fallbackReason": null,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": 2,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "fallbackReason": null,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": 3,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "fallbackReason": null,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 3,
+        "fallbackSteps": 0,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "fallbacks": [],
+      "expectedResources": 6,
+      "undelivered": [],
+      "planWarnings": [],
+      "rejectionKinds": {},
+      "planGenerator": {
+        "usesAi": true,
+        "fallback": false,
+        "attempts": 1,
+        "source": "ai"
+      },
+      "planConcepts": [
+        "transmisión de audio",
+        "requisitos de retardo",
+        "saludo de tres vías",
+        "ventana de congestión",
+        "entrega best-effort",
+        "suma de verificación"
+      ],
+      "evidenceConcepts": [
+        "control de flujo",
+        "protocolos de transporte",
+        "transporte tcp",
+        "udp conexión",
+        "capa de red",
+        "capa de transporte",
+        "control protocol",
+        "control de transmisión",
+        "datagram protocol",
+        "modelo osi",
+        "protocolo de control",
+        "protocolos tcp",
+        "tcp protocolo",
+        "tcp transmission",
+        "transmisión de audio",
+        "transmission control",
+        "transporte del modelo",
+        "transporte fiable",
+        "estado de conexión",
+        "comunicación confiable"
+      ],
+      "resources": [
+        {
+          "id": "rec-api-ae692f9b-d63e-4a05-af4b-1d5b284ff07a",
+          "title": "El dilema de la transmisión de voz en la red",
+          "type": "pregunta_detonante",
+          "planItemPosition": 1,
+          "drafter": "ai",
+          "text": "El dilema de la transmisión de voz en la red\nDurante una llamada mediante una red de comunicación, las muestras en la transmisión de audio se envían utilizando paquetes pequeños y numerosos. Para este tipo de tráfico, TCP ofrece una comunicación fiable orientada a conexión, que gestiona el orden de entrega, los acuses de recibo, las retransmisiones ante pérdidas y el control de flujo; sin embargo, esto añade una cabecera más grande y requiere sincronización previa. Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse. Frente a esta situación: si la pérdida de información degrada la fidelidad de los datos transmitidos, ¿por qué se prefiere un protocolo que no garantiza la entrega ni efectúa retransmisiones para la transmisión de audio en tiempo real frente a un protocolo con entrega garantizada y control de flujo?",
+          "sentenceText": "Durante una llamada mediante una red de comunicación, las muestras en la transmisión de audio se envían utilizando paquetes pequeños y numerosos. Para este tipo de tráfico, TCP ofrece una comunicación fiable orientada a conexión, que gestiona el orden de entrega, los acuses de recibo, las retransmisiones ante pérdidas y el control de flujo; sin embargo, esto añade una cabecera más grande y requiere sincronización previa. Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse. Frente a esta situación: si la pérdida de información degrada la fidelidad de los datos transmitidos, ¿por qué se prefiere un protocolo que no garantiza la entrega ni efectúa retransmisiones para la transmisión de audio en tiempo real frente a un protocolo con entrega garantizada y control de flujo?"
+        },
+        {
+          "id": "rec-api-eeedb24a-bc0f-4256-abd9-f1da0decfe24",
+          "title": "El reto de la inmediatez frente a la fiabilidad en la red",
+          "type": "pregunta_detonante",
+          "planItemPosition": 1,
+          "drafter": "ai",
+          "text": "El reto de la inmediatez frente a la fiabilidad en la red\nEn aplicaciones como la transmisión de vídeo en tiempo real, la comunicación opera bajo estrictos requisitos de retardo, donde la información debe llegar dentro de un margen temporal riguroso para ser útil [F1]. En estos escenarios, el protocolo TCP garantiza una entrega fiable y ordenada mediante el establecimiento previo de una conexión y la retransmisión de paquetes extraviados, aunque esta gestión introduce retardos y añade información adicional a cada envío [F1, F3, F4]. Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].\n\nAnte esta disyuntiva técnica: si una red experimenta pérdidas intermitentes de paquetes, ¿por qué para un servicio con estrictos requisitos de retardo resulta preferible prescindir de la fiabilidad y asumir la pérdida definitiva de datagramas antes que utilizar un transporte que retransmita cada dato perdido? ¿Qué consecuencias percibiría el usuario final si se forzara la recuperación ordenada de cada paquete?",
+          "sentenceText": "En aplicaciones como la transmisión de vídeo en tiempo real, la comunicación opera bajo estrictos requisitos de retardo, donde la información debe llegar dentro de un margen temporal riguroso para ser útil [F1]. En estos escenarios, el protocolo TCP garantiza una entrega fiable y ordenada mediante el establecimiento previo de una conexión y la retransmisión de paquetes extraviados, aunque esta gestión introduce retardos y añade información adicional a cada envío [F1, F3, F4]. Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].\n\nAnte esta disyuntiva técnica: si una red experimenta pérdidas intermitentes de paquetes, ¿por qué para un servicio con estrictos requisitos de retardo resulta preferible prescindir de la fiabilidad y asumir la pérdida definitiva de datagramas antes que utilizar un transporte que retransmita cada dato perdido? ¿Qué consecuencias percibiría el usuario final si se forzara la recuperación ordenada de cada paquete?"
+        },
+        {
+          "id": "rec-api-3cf9426d-005a-47a0-8fc8-a69f4fd1013a",
+          "title": "Mecanismos de inicialización de sesiones y transporte en TCP y UDP",
+          "type": "explicacion",
+          "planItemPosition": 2,
+          "drafter": "ai",
+          "text": "Mecanismos de inicialización de sesiones y transporte en TCP y UDP\nLa capa de transporte proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos, resolviendo la limitación de la capa de red que únicamente entrega paquetes entre hosts sin distinguir a qué aplicación pertenecen. Para lograr esta identificación unívoca en cada extremo de la comunicación, se emplea el socket, definido como la combinación de una dirección IP y un número de puerto. Dentro de esta capa, la selección fundamental se realiza entre TCP, concebido como un protocolo fiable y orientado a conexión, y UDP, caracterizado por ser un protocolo sin conexión y ligero.\n\nPara iniciar la transferencia de datos de forma confiable, TCP exige el establecimiento previo de una conexión mediante el procedimiento conocido como saludo de tres vías o three-way handshake. En la primera fase de este intercambio, la estación cliente envía hacia el destino un segmento con el indicador SYN activado junto con un número de secuencia inicial generado de manera aleatoria. Esta sincronización contrasta con UDP, el cual prescinde de cualquier saludo inicial y no mantiene ningún estado de conexión en los extremos, ahorrando la sobrecarga de indicadores como SYN o ACK presentes en la cabecera TCP.\n\nEn cuanto a la tasa de transferencia y la gestión de datos, TCP incorpora mecanismos de flujo y control de congestión, donde el emisor transmite como máximo el menor valor entre su ventana de congestión y rwnd, garantizando el orden de llegada y la recuperación mediante acuses de recibo y retransmisiones. Por el contrario, el protocolo UDP opera sin confirmaciones ni control de flujo, transmitiendo directamente bloques o datagramas enteros en lugar de bytes continuos bajo un esquema de entrega best-effort, manteniendo una estructura simple con una cabecera de únicamente 8 bytes.",
+          "sentenceText": "La capa de transporte proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos, resolviendo la limitación de la capa de red que únicamente entrega paquetes entre hosts sin distinguir a qué aplicación pertenecen. Para lograr esta identificación unívoca en cada extremo de la comunicación, se emplea el socket, definido como la combinación de una dirección IP y un número de puerto. Dentro de esta capa, la selección fundamental se realiza entre TCP, concebido como un protocolo fiable y orientado a conexión, y UDP, caracterizado por ser un protocolo sin conexión y ligero.\n\nPara iniciar la transferencia de datos de forma confiable, TCP exige el establecimiento previo de una conexión mediante el procedimiento conocido como saludo de tres vías o three-way handshake. En la primera fase de este intercambio, la estación cliente envía hacia el destino un segmento con el indicador SYN activado junto con un número de secuencia inicial generado de manera aleatoria. Esta sincronización contrasta con UDP, el cual prescinde de cualquier saludo inicial y no mantiene ningún estado de conexión en los extremos, ahorrando la sobrecarga de indicadores como SYN o ACK presentes en la cabecera TCP.\n\nEn cuanto a la tasa de transferencia y la gestión de datos, TCP incorpora mecanismos de flujo y control de congestión, donde el emisor transmite como máximo el menor valor entre su ventana de congestión y rwnd, garantizando el orden de llegada y la recuperación mediante acuses de recibo y retransmisiones. Por el contrario, el protocolo UDP opera sin confirmaciones ni control de flujo, transmitiendo directamente bloques o datagramas enteros en lugar de bytes continuos bajo un esquema de entrega best-effort, manteniendo una estructura simple con una cabecera de únicamente 8 bytes."
+        },
+        {
+          "id": "rec-api-0e692277-04b6-4515-891b-a223ee57fa0b",
+          "title": "Mecanismos de regulación y ventana de congestión en el transporte de datos",
+          "type": "explicacion",
+          "planItemPosition": 2,
+          "drafter": "ai",
+          "text": "Mecanismos de regulación y ventana de congestión en el transporte de datos\nLa capa de transporte proporciona comunicación lógica entre procesos en diferentes equipos mediante el uso de puertos lógicos que, combinados con las direcciones IP, forman sockets [F1, F9]. En este nivel, TCP opera de forma fiable y orientada a conexión manipulando unidades denominadas segmentos, estableciendo la sesión mediante el saludo de tres vías antes de transferir datos [F1, F9]. En contraposición, UDP gestiona datagramas enteros sin conexión ni sincronización previa entre el origen y el destino, prescindiendo de mecanismos de confirmación de recepción y de control de flujo [F3, F4, F9].\n\nCon el propósito de proteger a la red y regular la tasa de transferencia, TCP implementa el control de congestión mediante la ventana de congestión (cwnd) que mantiene el emisor [F2]. La cantidad máxima de información transmitida se define como el menor valor entre la ventana de congestión y la ventana anunciada por el receptor (rwnd) [F2]. En la fase inicial denominada arranque lento (slow start), la ventana de congestión parte de una cifra pequeña y se duplica en cada RTT hasta alcanzar el umbral ssthresh; alcanzado este límite, el protocolo entra en evitación de congestión, etapa en la cual la ventana de congestión incrementa de forma lineal a razón aproximada de un segmento por RTT [F2].\n\nSi se experimenta una pérdida, TCP asume que la red se encuentra saturada y reduce su ritmo ajustando la ventana de congestión según el síntoma detectado [F2]. Tras ocurrir un timeout, la ventana de congestión desciende a su valor mínimo y el umbral ssthresh se reduce a la mitad; en cambio, si se reciben tres ACK duplicados, la ventana de congestión disminuye a la mitad, dinámica refinada por variantes como CUBIC o BBR [F2]. Este comportamiento regulatorio contrasta con UDP, el cual provee un esquema de entrega best-effort que carece en su totalidad de control de congestión [F2, F7].",
+          "sentenceText": "La capa de transporte proporciona comunicación lógica entre procesos en diferentes equipos mediante el uso de puertos lógicos que, combinados con las direcciones IP, forman sockets [F1, F9]. En este nivel, TCP opera de forma fiable y orientada a conexión manipulando unidades denominadas segmentos, estableciendo la sesión mediante el saludo de tres vías antes de transferir datos [F1, F9]. En contraposición, UDP gestiona datagramas enteros sin conexión ni sincronización previa entre el origen y el destino, prescindiendo de mecanismos de confirmación de recepción y de control de flujo [F3, F4, F9].\n\nCon el propósito de proteger a la red y regular la tasa de transferencia, TCP implementa el control de congestión mediante la ventana de congestión (cwnd) que mantiene el emisor [F2]. La cantidad máxima de información transmitida se define como el menor valor entre la ventana de congestión y la ventana anunciada por el receptor (rwnd) [F2]. En la fase inicial denominada arranque lento (slow start), la ventana de congestión parte de una cifra pequeña y se duplica en cada RTT hasta alcanzar el umbral ssthresh; alcanzado este límite, el protocolo entra en evitación de congestión, etapa en la cual la ventana de congestión incrementa de forma lineal a razón aproximada de un segmento por RTT [F2].\n\nSi se experimenta una pérdida, TCP asume que la red se encuentra saturada y reduce su ritmo ajustando la ventana de congestión según el síntoma detectado [F2]. Tras ocurrir un timeout, la ventana de congestión desciende a su valor mínimo y el umbral ssthresh se reduce a la mitad; en cambio, si se reciben tres ACK duplicados, la ventana de congestión disminuye a la mitad, dinámica refinada por variantes como CUBIC o BBR [F2]. Este comportamiento regulatorio contrasta con UDP, el cual provee un esquema de entrega best-effort que carece en su totalidad de control de congestión [F2, F7]."
+        },
+        {
+          "id": "rec-api-1b2c117b-dbaf-4c18-bfa5-6158d5617054",
+          "title": "Evaluación del modelo de transporte en datagramas",
+          "type": "item_opcion_multiple",
+          "planItemPosition": 3,
+          "drafter": "ai",
+          "text": "Evaluación del modelo de transporte en datagramas\nEn relación con la estructura de cabecera y las características del principio de entrega best-effort en la capa de transporte, identifique la afirmación correcta sobre UDP:\nExige un intercambio de sincronización inicial entre origen y destino para garantizar que los datagramas se entreguen en orden correlativo.\nMantiene un registro del estado de la conexión en los extremos para aplicar control de flujo y evitar que los paquetes se adelanten o se descarten.\nEmplea una cabecera de 8 bytes y envía cada datagrama de forma independiente sin acuses de recibo ni retransmisión, por lo que pueden perderse, duplicarse o llegar desordenados.\nUtiliza una cabecera variable de 20 a 60 bytes que incorpora mecanismos de acuse de recibo para supervisar la llegada de los datagramas al destino.",
+          "sentenceText": "En relación con la estructura de cabecera y las características del principio de entrega best-effort en la capa de transporte, identifique la afirmación correcta sobre UDP:\nExige un intercambio de sincronización inicial entre origen y destino para garantizar que los datagramas se entreguen en orden correlativo.\nMantiene un registro del estado de la conexión en los extremos para aplicar control de flujo y evitar que los paquetes se adelanten o se descarten.\nEmplea una cabecera de 8 bytes y envía cada datagrama de forma independiente sin acuses de recibo ni retransmisión, por lo que pueden perderse, duplicarse o llegar desordenados.\nUtiliza una cabecera variable de 20 a 60 bytes que incorpora mecanismos de acuse de recibo para supervisar la llegada de los datagramas al destino."
+        },
+        {
+          "id": "rec-api-96dd1a52-4aae-4cbf-9143-3e454e453b50",
+          "title": "Función de la suma de verificación en UDP",
+          "type": "item_opcion_multiple",
+          "planItemPosition": 3,
+          "drafter": "ai",
+          "text": "Función de la suma de verificación en UDP\nEn la capa de transporte, la cabecera del protocolo UDP incluye un campo de 16 bits denominado suma de verificación (checksum). A partir de las propiedades de este protocolo, ¿cuál es la función de dicho campo y qué acción se lleva a cabo al identificar una alteración en el datagrama recibido?\nPermite registrar números de secuencia para organizar y reordenar los datagramas que presentaron fallas.\nPermite corregir de manera autónoma los bits alterados para asegurar una recepción sin pérdidas en el destino.\nPermite detectar la corrupción y solicitar inmediatamente la retransmisión del datagrama dañado al equipo emisor.\nPermite detectar la corrupción en el datagrama, procediendo a descartarlo sin emitir ningún aviso al emisor.",
+          "sentenceText": "En la capa de transporte, la cabecera del protocolo UDP incluye un campo de 16 bits denominado suma de verificación (checksum). A partir de las propiedades de este protocolo, ¿cuál es la función de dicho campo y qué acción se lleva a cabo al identificar una alteración en el datagrama recibido?\nPermite registrar números de secuencia para organizar y reordenar los datagramas que presentaron fallas.\nPermite corregir de manera autónoma los bits alterados para asegurar una recepción sin pérdidas en el destino.\nPermite detectar la corrupción y solicitar inmediatamente la retransmisión del datagrama dañado al equipo emisor.\nPermite detectar la corrupción en el datagrama, procediendo a descartarlo sin emitir ningún aviso al emisor."
+        }
+      ],
+      "metrics": {
+        "resources": 6,
+        "pairs": 15,
+        "duplicatePairs": 3,
+        "duplicateRate": 0.2,
+        "meanMaxSimilarity": 0.9182,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.9236,
+            "titles": [
+              "El dilema de la transmisión de voz en la red",
+              "El reto de la inmediatez frente a la fiabilidad en la red"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9307,
+            "titles": [
+              "Mecanismos de inicialización de sesiones y transporte en TCP y UDP",
+              "Mecanismos de regulación y ventana de congestión en el transporte de datos"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9002,
+            "titles": [
+              "Evaluación del modelo de transporte en datagramas",
+              "Función de la suma de verificación en UDP"
+            ]
+          }
+        ],
+        "crossType": {
+          "pairs": 12,
+          "duplicatePairs": 0,
+          "duplicateRate": 0.0,
+          "examples": []
+        },
+        "variants": {
+          "pairs": 3,
+          "duplicatePairs": 3,
+          "duplicateRate": 1.0,
+          "examples": [
+            {
+              "titles": [
+                "El dilema de la transmisión de voz en la red",
+                "El reto de la inmediatez frente a la fiabilidad en la red"
+              ],
+              "types": [
+                "pregunta_detonante",
+                "pregunta_detonante"
+              ],
+              "similarity": 0.9236
+            },
+            {
+              "titles": [
+                "Mecanismos de inicialización de sesiones y transporte en TCP y UDP",
+                "Mecanismos de regulación y ventana de congestión en el transporte de datos"
+              ],
+              "types": [
+                "explicacion",
+                "explicacion"
+              ],
+              "similarity": 0.9307
+            },
+            {
+              "titles": [
+                "Evaluación del modelo de transporte en datagramas",
+                "Función de la suma de verificación en UDP"
+              ],
+              "types": [
+                "item_opcion_multiple",
+                "item_opcion_multiple"
+              ],
+              "similarity": 0.9002
+            }
+          ]
+        }
+      },
+      "sentences": {
+        "sentences": 36,
+        "threshold": 0.865,
+        "all": {
+          "nearDuplicateSentences": 15,
+          "rate": 0.4167,
+          "examples": [
+            {
+              "first": "Para este tipo de tráfico, TCP ofrece una comunicación fiable orientada a conexión, que gestiona el orden de entrega, los acuses de recibo, las retransmisiones ante pérdidas y el control de flujo; sin embargo, esto añade una cabecera más grande y requiere sincronización previa.",
+              "second": "En estos escenarios, el protocolo TCP garantiza una entrega fiable y ordenada mediante el establecimiento previo de una conexión y la retransmisión de paquetes extraviados, aunque esta gestión introduce retardos y añade información adicional a cada envío [F1, F3, F4].",
+              "similarity": 0.8937,
+              "types": [
+                "pregunta_detonante",
+                "pregunta_detonante"
+              ]
+            },
+            {
+              "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+              "second": "Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].",
+              "similarity": 0.9064,
+              "types": [
+                "pregunta_detonante",
+                "pregunta_detonante"
+              ]
+            },
+            {
+              "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+              "second": "Por el contrario, el protocolo UDP opera sin confirmaciones ni control de flujo, transmitiendo directamente bloques o datagramas enteros en lugar de bytes continuos bajo un esquema de entrega best-effort, manteniendo una estructura simple con una cabecera de únicamente 8 bytes.",
+              "similarity": 0.9396,
+              "types": [
+                "pregunta_detonante",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+              "second": "En contraposición, UDP gestiona datagramas enteros sin conexión ni sincronización previa entre el origen y el destino, prescindiendo de mecanismos de confirmación de recepción y de control de flujo [F3, F4, F9].",
+              "similarity": 0.8808,
+              "types": [
+                "pregunta_detonante",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+              "second": "Emplea una cabecera de 8 bytes y envía cada datagrama de forma independiente sin acuses de recibo ni retransmisión, por lo que pueden perderse, duplicarse o llegar desordenados.",
+              "similarity": 0.9058,
+              "types": [
+                "pregunta_detonante",
+                "item_opcion_multiple"
+              ]
+            }
+          ]
+        },
+        "crossType": {
+          "nearDuplicateSentences": 5,
+          "rate": 0.1389,
+          "examples": [
+            {
+              "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+              "second": "Por el contrario, el protocolo UDP opera sin confirmaciones ni control de flujo, transmitiendo directamente bloques o datagramas enteros en lugar de bytes continuos bajo un esquema de entrega best-effort, manteniendo una estructura simple con una cabecera de únicamente 8 bytes.",
+              "similarity": 0.9396,
+              "types": [
+                "pregunta_detonante",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+              "second": "En contraposición, UDP gestiona datagramas enteros sin conexión ni sincronización previa entre el origen y el destino, prescindiendo de mecanismos de confirmación de recepción y de control de flujo [F3, F4, F9].",
+              "similarity": 0.8808,
+              "types": [
+                "pregunta_detonante",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+              "second": "Emplea una cabecera de 8 bytes y envía cada datagrama de forma independiente sin acuses de recibo ni retransmisión, por lo que pueden perderse, duplicarse o llegar desordenados.",
+              "similarity": 0.9058,
+              "types": [
+                "pregunta_detonante",
+                "item_opcion_multiple"
+              ]
+            },
+            {
+              "first": "Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].",
+              "second": "Por el contrario, el protocolo UDP opera sin confirmaciones ni control de flujo, transmitiendo directamente bloques o datagramas enteros en lugar de bytes continuos bajo un esquema de entrega best-effort, manteniendo una estructura simple con una cabecera de únicamente 8 bytes.",
+              "similarity": 0.8847,
+              "types": [
+                "pregunta_detonante",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].",
+              "second": "En contraposición, UDP gestiona datagramas enteros sin conexión ni sincronización previa entre el origen y el destino, prescindiendo de mecanismos de confirmación de recepción y de control de flujo [F3, F4, F9].",
+              "similarity": 0.9122,
+              "types": [
+                "pregunta_detonante",
+                "explicacion"
+              ]
+            }
+          ]
+        },
+        "variants": {
+          "nearDuplicateSentences": 12,
+          "rate": 0.3333,
+          "examples": [
+            {
+              "first": "Para este tipo de tráfico, TCP ofrece una comunicación fiable orientada a conexión, que gestiona el orden de entrega, los acuses de recibo, las retransmisiones ante pérdidas y el control de flujo; sin embargo, esto añade una cabecera más grande y requiere sincronización previa.",
+              "second": "En estos escenarios, el protocolo TCP garantiza una entrega fiable y ordenada mediante el establecimiento previo de una conexión y la retransmisión de paquetes extraviados, aunque esta gestión introduce retardos y añade información adicional a cada envío [F1, F3, F4].",
+              "similarity": 0.8937,
+              "types": [
+                "pregunta_detonante",
+                "pregunta_detonante"
+              ]
+            },
+            {
+              "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+              "second": "Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].",
+              "similarity": 0.9064,
+              "types": [
+                "pregunta_detonante",
+                "pregunta_detonante"
+              ]
+            },
+            {
+              "first": "Frente a esta situación: si la pérdida de información degrada la fidelidad de los datos transmitidos, ¿por qué se prefiere un protocolo que no garantiza la entrega ni efectúa retransmisiones para la transmisión de audio en tiempo real frente a un protocolo con entrega garantizada y control de flujo?",
+              "second": "Ante esta disyuntiva técnica: si una red experimenta pérdidas intermitentes de paquetes, ¿por qué para un servicio con estrictos requisitos de retardo resulta preferible prescindir de la fiabilidad y asumir la pérdida definitiva de datagramas antes que utilizar un transporte que retransmita cada dato perdido?",
+              "similarity": 0.8797,
+              "types": [
+                "pregunta_detonante",
+                "pregunta_detonante"
+              ]
+            },
+            {
+              "first": "La capa de transporte proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos, resolviendo la limitación de la capa de red que únicamente entrega paquetes entre hosts sin distinguir a qué aplicación pertenecen.",
+              "second": "La capa de transporte proporciona comunicación lógica entre procesos en diferentes equipos mediante el uso de puertos lógicos que, combinados con las direcciones IP, forman sockets [F1, F9].",
+              "similarity": 0.8957,
+              "types": [
+                "explicacion",
+                "explicacion"
+              ]
+            },
+            {
+              "first": "Para iniciar la transferencia de datos de forma confiable, TCP exige el establecimiento previo de una conexión mediante el procedimiento conocido como saludo de tres vías o three-way handshake.",
+              "second": "En este nivel, TCP opera de forma fiable y orientada a conexión manipulando unidades denominadas segmentos, estableciendo la sesión mediante el saludo de tres vías antes de transferir datos [F1, F9].",
+              "similarity": 0.8673,
+              "types": [
+                "explicacion",
+                "explicacion"
+              ]
+            }
+          ]
+        }
+      },
+      "conceptReexplanation": {
+        "source": "plan",
+        "concepts": 6,
+        "reexplained": 0,
+        "rate": 0.0,
+        "items": [],
+        "table": [
+          {
+            "concept": "transmisión de audio",
+            "mentioned": 1,
+            "developed": 1,
+            "defined": 0
+          },
+          {
+            "concept": "requisitos de retardo",
+            "mentioned": 1,
+            "developed": 1,
+            "defined": 0
+          },
+          {
+            "concept": "saludo de tres vías",
+            "mentioned": 2,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "ventana de congestión",
+            "mentioned": 2,
+            "developed": 1,
+            "defined": 0
+          },
+          {
+            "concept": "entrega best-effort",
+            "mentioned": 3,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "suma de verificación",
+            "mentioned": 1,
+            "developed": 0,
+            "defined": 0
+          }
+        ]
+      },
+      "conceptReexplanationEvidence": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 0,
+        "rate": 0.0,
+        "items": [],
+        "table": [
+          {
+            "concept": "control de flujo",
+            "mentioned": 5,
+            "developed": 1,
+            "defined": 0
+          },
+          {
+            "concept": "protocolos de transporte",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transporte tcp",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "udp conexión",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "capa de red",
+            "mentioned": 1,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "capa de transporte",
+            "mentioned": 4,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "control protocol",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "control de transmisión",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "datagram protocol",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "modelo osi",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "protocolo de control",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "protocolos tcp",
+            "mentioned": 1,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "tcp protocolo",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "tcp transmission",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transmisión de audio",
+            "mentioned": 1,
+            "developed": 1,
+            "defined": 0
+          },
+          {
+            "concept": "transmission control",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transporte del modelo",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "transporte fiable",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "estado de conexión",
+            "mentioned": 2,
+            "developed": 0,
+            "defined": 0
+          },
+          {
+            "concept": "comunicación confiable",
+            "mentioned": 0,
+            "developed": 0,
+            "defined": 0
+          }
+        ]
+      },
+      "aiOnly": {
+        "resources": 6,
+        "metrics": {
+          "resources": 6,
+          "pairs": 15,
+          "duplicatePairs": 3,
+          "duplicateRate": 0.2,
+          "meanMaxSimilarity": 0.9182,
+          "duplicates": [
+            {
+              "first": 0,
+              "second": 1,
+              "similarity": 0.9236,
+              "titles": [
+                "El dilema de la transmisión de voz en la red",
+                "El reto de la inmediatez frente a la fiabilidad en la red"
+              ]
+            },
+            {
+              "first": 2,
+              "second": 3,
+              "similarity": 0.9307,
+              "titles": [
+                "Mecanismos de inicialización de sesiones y transporte en TCP y UDP",
+                "Mecanismos de regulación y ventana de congestión en el transporte de datos"
+              ]
+            },
+            {
+              "first": 4,
+              "second": 5,
+              "similarity": 0.9002,
+              "titles": [
+                "Evaluación del modelo de transporte en datagramas",
+                "Función de la suma de verificación en UDP"
+              ]
+            }
+          ],
+          "crossType": {
+            "pairs": 12,
+            "duplicatePairs": 0,
+            "duplicateRate": 0.0,
+            "examples": []
+          },
+          "variants": {
+            "pairs": 3,
+            "duplicatePairs": 3,
+            "duplicateRate": 1.0,
+            "examples": [
+              {
+                "titles": [
+                  "El dilema de la transmisión de voz en la red",
+                  "El reto de la inmediatez frente a la fiabilidad en la red"
+                ],
+                "types": [
+                  "pregunta_detonante",
+                  "pregunta_detonante"
+                ],
+                "similarity": 0.9236
+              },
+              {
+                "titles": [
+                  "Mecanismos de inicialización de sesiones y transporte en TCP y UDP",
+                  "Mecanismos de regulación y ventana de congestión en el transporte de datos"
+                ],
+                "types": [
+                  "explicacion",
+                  "explicacion"
+                ],
+                "similarity": 0.9307
+              },
+              {
+                "titles": [
+                  "Evaluación del modelo de transporte en datagramas",
+                  "Función de la suma de verificación en UDP"
+                ],
+                "types": [
+                  "item_opcion_multiple",
+                  "item_opcion_multiple"
+                ],
+                "similarity": 0.9002
+              }
+            ]
+          }
+        },
+        "sentences": {
+          "sentences": 36,
+          "threshold": 0.865,
+          "all": {
+            "nearDuplicateSentences": 15,
+            "rate": 0.4167,
+            "examples": [
+              {
+                "first": "Para este tipo de tráfico, TCP ofrece una comunicación fiable orientada a conexión, que gestiona el orden de entrega, los acuses de recibo, las retransmisiones ante pérdidas y el control de flujo; sin embargo, esto añade una cabecera más grande y requiere sincronización previa.",
+                "second": "En estos escenarios, el protocolo TCP garantiza una entrega fiable y ordenada mediante el establecimiento previo de una conexión y la retransmisión de paquetes extraviados, aunque esta gestión introduce retardos y añade información adicional a cada envío [F1, F3, F4].",
+                "similarity": 0.8937,
+                "types": [
+                  "pregunta_detonante",
+                  "pregunta_detonante"
+                ]
+              },
+              {
+                "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+                "second": "Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].",
+                "similarity": 0.9064,
+                "types": [
+                  "pregunta_detonante",
+                  "pregunta_detonante"
+                ]
+              },
+              {
+                "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+                "second": "Por el contrario, el protocolo UDP opera sin confirmaciones ni control de flujo, transmitiendo directamente bloques o datagramas enteros en lugar de bytes continuos bajo un esquema de entrega best-effort, manteniendo una estructura simple con una cabecera de únicamente 8 bytes.",
+                "similarity": 0.9396,
+                "types": [
+                  "pregunta_detonante",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+                "second": "En contraposición, UDP gestiona datagramas enteros sin conexión ni sincronización previa entre el origen y el destino, prescindiendo de mecanismos de confirmación de recepción y de control de flujo [F3, F4, F9].",
+                "similarity": 0.8808,
+                "types": [
+                  "pregunta_detonante",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+                "second": "Emplea una cabecera de 8 bytes y envía cada datagrama de forma independiente sin acuses de recibo ni retransmisión, por lo que pueden perderse, duplicarse o llegar desordenados.",
+                "similarity": 0.9058,
+                "types": [
+                  "pregunta_detonante",
+                  "item_opcion_multiple"
+                ]
+              }
+            ]
+          },
+          "crossType": {
+            "nearDuplicateSentences": 5,
+            "rate": 0.1389,
+            "examples": [
+              {
+                "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+                "second": "Por el contrario, el protocolo UDP opera sin confirmaciones ni control de flujo, transmitiendo directamente bloques o datagramas enteros en lugar de bytes continuos bajo un esquema de entrega best-effort, manteniendo una estructura simple con una cabecera de únicamente 8 bytes.",
+                "similarity": 0.9396,
+                "types": [
+                  "pregunta_detonante",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+                "second": "En contraposición, UDP gestiona datagramas enteros sin conexión ni sincronización previa entre el origen y el destino, prescindiendo de mecanismos de confirmación de recepción y de control de flujo [F3, F4, F9].",
+                "similarity": 0.8808,
+                "types": [
+                  "pregunta_detonante",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+                "second": "Emplea una cabecera de 8 bytes y envía cada datagrama de forma independiente sin acuses de recibo ni retransmisión, por lo que pueden perderse, duplicarse o llegar desordenados.",
+                "similarity": 0.9058,
+                "types": [
+                  "pregunta_detonante",
+                  "item_opcion_multiple"
+                ]
+              },
+              {
+                "first": "Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].",
+                "second": "Por el contrario, el protocolo UDP opera sin confirmaciones ni control de flujo, transmitiendo directamente bloques o datagramas enteros en lugar de bytes continuos bajo un esquema de entrega best-effort, manteniendo una estructura simple con una cabecera de únicamente 8 bytes.",
+                "similarity": 0.8847,
+                "types": [
+                  "pregunta_detonante",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].",
+                "second": "En contraposición, UDP gestiona datagramas enteros sin conexión ni sincronización previa entre el origen y el destino, prescindiendo de mecanismos de confirmación de recepción y de control de flujo [F3, F4, F9].",
+                "similarity": 0.9122,
+                "types": [
+                  "pregunta_detonante",
+                  "explicacion"
+                ]
+              }
+            ]
+          },
+          "variants": {
+            "nearDuplicateSentences": 12,
+            "rate": 0.3333,
+            "examples": [
+              {
+                "first": "Para este tipo de tráfico, TCP ofrece una comunicación fiable orientada a conexión, que gestiona el orden de entrega, los acuses de recibo, las retransmisiones ante pérdidas y el control de flujo; sin embargo, esto añade una cabecera más grande y requiere sincronización previa.",
+                "second": "En estos escenarios, el protocolo TCP garantiza una entrega fiable y ordenada mediante el establecimiento previo de una conexión y la retransmisión de paquetes extraviados, aunque esta gestión introduce retardos y añade información adicional a cada envío [F1, F3, F4].",
+                "similarity": 0.8937,
+                "types": [
+                  "pregunta_detonante",
+                  "pregunta_detonante"
+                ]
+              },
+              {
+                "first": "Por otro lado, UDP opera sin conexión mediante datagramas simples con una cabecera de 8 bytes, prescindiendo del control de flujo y de las confirmaciones de entrega, lo que implica que algunos paquetes pueden adelantarse o perderse definitivamente sin retransmitirse.",
+                "second": "Por su parte, el protocolo UDP transmite datagramas directos sin conexión previa, sin confirmación de recepción y sin control de flujo, descartando las retransmisiones para priorizar la rapidez [F1, F2].",
+                "similarity": 0.9064,
+                "types": [
+                  "pregunta_detonante",
+                  "pregunta_detonante"
+                ]
+              },
+              {
+                "first": "Frente a esta situación: si la pérdida de información degrada la fidelidad de los datos transmitidos, ¿por qué se prefiere un protocolo que no garantiza la entrega ni efectúa retransmisiones para la transmisión de audio en tiempo real frente a un protocolo con entrega garantizada y control de flujo?",
+                "second": "Ante esta disyuntiva técnica: si una red experimenta pérdidas intermitentes de paquetes, ¿por qué para un servicio con estrictos requisitos de retardo resulta preferible prescindir de la fiabilidad y asumir la pérdida definitiva de datagramas antes que utilizar un transporte que retransmita cada dato perdido?",
+                "similarity": 0.8797,
+                "types": [
+                  "pregunta_detonante",
+                  "pregunta_detonante"
+                ]
+              },
+              {
+                "first": "La capa de transporte proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos, resolviendo la limitación de la capa de red que únicamente entrega paquetes entre hosts sin distinguir a qué aplicación pertenecen.",
+                "second": "La capa de transporte proporciona comunicación lógica entre procesos en diferentes equipos mediante el uso de puertos lógicos que, combinados con las direcciones IP, forman sockets [F1, F9].",
+                "similarity": 0.8957,
+                "types": [
+                  "explicacion",
+                  "explicacion"
+                ]
+              },
+              {
+                "first": "Para iniciar la transferencia de datos de forma confiable, TCP exige el establecimiento previo de una conexión mediante el procedimiento conocido como saludo de tres vías o three-way handshake.",
+                "second": "En este nivel, TCP opera de forma fiable y orientada a conexión manipulando unidades denominadas segmentos, estableciendo la sesión mediante el saludo de tres vías antes de transferir datos [F1, F9].",
+                "similarity": 0.8673,
+                "types": [
+                  "explicacion",
+                  "explicacion"
+                ]
+              }
+            ]
+          }
+        },
+        "conceptReexplanation": {
+          "source": "plan",
+          "concepts": 6,
+          "reexplained": 0,
+          "rate": 0.0,
+          "items": [],
+          "table": [
+            {
+              "concept": "transmisión de audio",
+              "mentioned": 1,
+              "developed": 1,
+              "defined": 0
+            },
+            {
+              "concept": "requisitos de retardo",
+              "mentioned": 1,
+              "developed": 1,
+              "defined": 0
+            },
+            {
+              "concept": "saludo de tres vías",
+              "mentioned": 2,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "ventana de congestión",
+              "mentioned": 2,
+              "developed": 1,
+              "defined": 0
+            },
+            {
+              "concept": "entrega best-effort",
+              "mentioned": 3,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "suma de verificación",
+              "mentioned": 1,
+              "developed": 0,
+              "defined": 0
+            }
+          ]
+        },
+        "conceptReexplanationEvidence": {
+          "source": "evidence",
+          "concepts": 20,
+          "reexplained": 0,
+          "rate": 0.0,
+          "items": [],
+          "table": [
+            {
+              "concept": "control de flujo",
+              "mentioned": 5,
+              "developed": 1,
+              "defined": 0
+            },
+            {
+              "concept": "protocolos de transporte",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transporte tcp",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "udp conexión",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "capa de red",
+              "mentioned": 1,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "capa de transporte",
+              "mentioned": 4,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "control protocol",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "control de transmisión",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "datagram protocol",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "modelo osi",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "protocolo de control",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "protocolos tcp",
+              "mentioned": 1,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "tcp protocolo",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "tcp transmission",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transmisión de audio",
+              "mentioned": 1,
+              "developed": 1,
+              "defined": 0
+            },
+            {
+              "concept": "transmission control",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transporte del modelo",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "transporte fiable",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "estado de conexión",
+              "mentioned": 2,
+              "developed": 0,
+              "defined": 0
+            },
+            {
+              "concept": "comunicación confiable",
+              "mentioned": 0,
+              "developed": 0,
+              "defined": 0
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

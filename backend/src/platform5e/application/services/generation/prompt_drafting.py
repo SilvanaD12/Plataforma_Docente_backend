@@ -294,6 +294,10 @@ def _plan_lines(plan: dict[str, Any]) -> list[str]:
         else:
             lines.append(f"No desarrolles estos conceptos, que son de otros recursos de la clase: {others}; puedes "
                          "nombrarlos, pero no explicarlos.")
+    if plan.get("parrafoUnico") and plan.get("conAlternativas"):
+        # T027 (a): «breve» no debe recortar las alternativas, que tienen campos obligatorios.
+        lines.append("La brevedad es del enunciado: cada alternativa lleva igual su retroalimentacion y, en los "
+                     "distractores, su error_conceptual.")
     return lines
 
 

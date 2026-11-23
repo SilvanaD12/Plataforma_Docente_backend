@@ -431,7 +431,7 @@ def test_each_prompt_has_its_block_purpose_foreign_concepts_and_what_was_covered
     trigger, first, second = model.contexts
     assert trigger["plan"] == {
         "proposito": "Despertar la curiosidad por UDP", "conceptos": ["protocolo UDP"],
-        "noDesarrollar": ["control de flujo", "retransmisión"], "parrafoUnico": True}
+        "noDesarrollar": ["control de flujo", "retransmisión"], "parrafoUnico": True, "conAlternativas": False}
     assert first["plan"]["conceptos"] == ["control de flujo"]
     assert first["plan"]["noDesarrollar"] == ["protocolo UDP", "retransmisión"]
     assert second["plan"]["conceptos"] == ["retransmisión"]

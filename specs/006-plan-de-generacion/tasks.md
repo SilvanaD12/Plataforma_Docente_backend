@@ -114,7 +114,18 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - **Pendiente:** los 28 tipos nuevos siguen inactivos hasta que CUR-P2 cablee el catálogo. Mientras tanto, la etiqueta en Revisión y el esquema HTTP de `resourceType` (lista cerrada) no los aceptan todavía.
 
 - [ ] T027 [BE] [GEN-P2] **Depende de T026.** Problemas que encontró la v4 de P4 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
-  - **(a) Opción múltiple:** `item_opcion_multiple` (ítem 8 del plan) fue al respaldo por reglas en las 5 corridas con plan, sobre todo por «sin citas válidas».
+  - [x] **(a) Opción múltiple:** `item_opcion_multiple` (ítem 8 del plan) fue al respaldo por reglas en las 5 corridas con plan, sobre todo por «sin citas válidas».
+    - **Causa:** no era del plan. En `backend/p4.db` también fue al respaldo en las corridas sin plan (4 de 5 por estructura, 1 sin conexión), con el mismo rechazo «structure»: «hace falta 1 correcta y 3 distractores, cada uno con su retroalimentación y su error conceptual».
+      - El esquema de respuesta compartido (`GEMINI_RESPONSE_SCHEMA` en `infrastructure/llm/gemini_language_model.py`) declaraba en cada alternativa solo `texto`, `correcta`, `retroalimentacion` y `fragmentos`, aunque el prompt pide `error_conceptual` (`MISCONCEPTION_INSTRUCTION` y el formato de `build_prompt_instructions`).
+      - Con el esquema impuesto, Gemini devuelve solo los campos declarados. `_validate_alternatives` (`prompt_drafting.py`) descarta los distractores sin error conceptual, así que no quedaba ninguno.
+      - El límite de salida no influía (no se fija `maxOutputTokens`).
+      - Lo único propio del plan era «como este recurso es breve, no los nombres», que podía acortar las alternativas.
+    - **Arreglo:**
+      - El ítem tiene su propio esquema, como la actividad kinestésica (T073): cada alternativa exige `texto`, `correcta`, `retroalimentacion`, `error_conceptual` y `fragmentos`, con tantas alternativas como `optionCount` y `recursos` limitado a la cantidad. El esquema compartido no cambia.
+      - Con plan, el prompt aclara que la brevedad es del enunciado.
+    - **Motivo del respaldo:** decía «no devolvió recursos con citas válidas» aunque todos los rechazos fueran de estructura. Ahora dice el rechazo que más pesó en la llamada (`fallback_warning` en `step_drafting.py`), con textos fijos sin el texto del proveedor: estructura, citas, distractores, plan o repetición. En un empate, gana en ese orden.
+    - **Títulos dañados** («Evaluaci3n», «transmisi3n», «m3nima»): vienen del modelo. Los fragmentos guardados están bien, y nuestro código no cambia los caracteres: se lee el JSON tal cual y solo se normalizan los espacios. Aparecen 14 veces en los 234 recursos de `p4.db`; no se corrigen.
+    - Pruebas en `tests/unit/test_mcq_generation.py`, con `tests/fixtures/gemini_mcq_without_misconception.json` (el patrón de las respuestas rechazadas). Hecho en el PR del backend (enlace pendiente). **Pendiente:** confirmarlo en la próxima medición con Gemini.
   - **(b) Plan de Gemini:** falló la validación dos veces (con su reintento) en 4 de 5 corridas de la v4: `NOT_ENOUGH_CONCEPTS` ×3 y `CONCEPT_OWNED_TWICE` ×1.
   - **(c) Fidelidad:** la `faithfulness` de los recursos redactados desde el plan no se midió todavía (meta ≥ 0,90, con `run_ragas.py`).
   - **(d) Tiempos:** los demás respaldos fueron por el límite de 60 s de Gemini.

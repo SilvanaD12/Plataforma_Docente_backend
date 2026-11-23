@@ -281,8 +281,8 @@ def test_the_fallback_reason_and_the_structure_rejections_are_returned(per_step_
     [step] = finished["steps"]
     assert finished["status"] == "succeeded" and step["resourceIds"]
     assert step["generator"]["fallback"] is True and step["generator"]["usesAi"] is False
-    assert step["generator"]["fallbackReason"] == (
-        "Gemini · gemini-3.5-flash-lite no devolvió recursos con citas válidas del material. "
+    assert step["generator"]["fallbackReason"] == (  # T027 (a): el motivo es el rechazo que pesó más
+        "Gemini · gemini-3.5-flash-lite devolvió recursos sin la estructura que pide el tipo. "
         "Se usó el generador por reglas."
     )
     structure = [r for r in step["rejections"] if r["kind"] == "structure"]
