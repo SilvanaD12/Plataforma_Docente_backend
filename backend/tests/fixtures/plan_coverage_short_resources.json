@@ -1,5 +1,5 @@
 {
-  "description": "GEN-P2 (T013): recursos cortos armados con los temas del corpus de T067 (modelo OSI, TCP, UDP e IP) y marcados a mano: «correct» si solo desarrollan sus conceptos del plan, «incorrect» si desarrollan un concepto de otro recurso. Los marcó Yan; Sergio debe revisarlos con el corpus.",
+  "description": "GEN-P2 (T013): recursos cortos armados con los temas del corpus de T067 (modelo OSI, TCP, UDP e IP) y marcados a mano: «correct» si solo desarrollan sus conceptos del plan (nombrar una vez un concepto ajeno está permitido desde la corrección tras P4), «incorrect» si desarrollan uno ajeno: en dos oraciones o con una definición. Los marcó Yan; Sergio debe revisarlos con el corpus.",
   "cases": [
     {
       "id": "udp-trigger-1",
@@ -253,9 +253,9 @@
       }
     },
     {
-      "id": "udp-trigger-bad",
+      "id": "udp-trigger-single-mention",
       "type": "pregunta_detonante",
-      "label": "incorrect",
+      "label": "correct",
       "own": [
         "protocolo UDP",
         "datagrama"
@@ -273,9 +273,9 @@
       }
     },
     {
-      "id": "osi-trigger-bad",
+      "id": "osi-trigger-single-mention",
       "type": "pregunta_detonante",
-      "label": "incorrect",
+      "label": "correct",
       "own": [
         "modelo OSI",
         "capa de transporte"
@@ -293,9 +293,9 @@
       }
     },
     {
-      "id": "tcp-audio-bad",
+      "id": "tcp-audio-single-mention",
       "type": "audio_detonante",
-      "label": "incorrect",
+      "label": "correct",
       "own": [
         "saludo de tres vías",
         "control de flujo"
@@ -313,9 +313,9 @@
       }
     },
     {
-      "id": "udp-item-bad",
+      "id": "udp-item-single-mention",
       "type": "item_opcion_multiple",
-      "label": "incorrect",
+      "label": "correct",
       "own": [
         "protocolo UDP",
         "datagrama"
@@ -350,9 +350,9 @@
       }
     },
     {
-      "id": "osi-item-bad",
+      "id": "osi-item-single-mention",
       "type": "item_opcion_multiple",
-      "label": "incorrect",
+      "label": "correct",
       "own": [
         "modelo OSI",
         "capa de transporte"
@@ -387,9 +387,9 @@
       }
     },
     {
-      "id": "tcp-item-bad",
+      "id": "tcp-item-single-mention",
       "type": "item_opcion_multiple",
-      "label": "incorrect",
+      "label": "correct",
       "own": [
         "saludo de tres vías",
         "control de flujo"
@@ -415,6 +415,177 @@
           {
             "texto": "ICMP",
             "retroalimentacion": "No establece conexión."
+          },
+          {
+            "texto": "ARP",
+            "retroalimentacion": "No establece conexión."
+          }
+        ]
+      }
+    },
+    {
+      "id": "udp-trigger-develops",
+      "type": "pregunta_detonante",
+      "label": "incorrect",
+      "own": [
+        "protocolo UDP",
+        "datagrama"
+      ],
+      "foreign": [
+        "saludo de tres vías",
+        "control de flujo",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "El protocolo UDP envía cada datagrama sin pedir permiso. El saludo de tres vías es el intercambio de SYN, SYN-ACK y ACK que abre una conexión TCP. ¿Qué gana UDP al saltarse ese saludo?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "osi-trigger-develops",
+      "type": "pregunta_detonante",
+      "label": "incorrect",
+      "own": [
+        "modelo OSI",
+        "capa de transporte"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "control de flujo",
+        "enrutamiento",
+        "suma de verificación"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "En el modelo OSI, la capa de transporte entrega los datos a cada aplicación. El protocolo UDP lo hace sin conexión. El protocolo UDP tampoco confirma la entrega. ¿Por qué crees que sigue siendo útil?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "tcp-audio-develops",
+      "type": "audio_detonante",
+      "label": "incorrect",
+      "own": [
+        "saludo de tres vías",
+        "control de flujo"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "datagrama",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Pregunta",
+        "contenido": "Escucha: el control de flujo evita saturar al receptor. Un datagrama, en cambio, es la unidad de datos de UDP y viaja sin control. ¿Qué pasaría con un datagrama si el receptor está lleno?",
+        "alternativas": []
+      }
+    },
+    {
+      "id": "udp-item-develops",
+      "type": "item_opcion_multiple",
+      "label": "incorrect",
+      "own": [
+        "protocolo UDP",
+        "datagrama"
+      ],
+      "foreign": [
+        "saludo de tres vías",
+        "control de flujo",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "El control de flujo es el mecanismo de TCP que ajusta el envío a la ventana del receptor. ¿Qué hace el protocolo UDP con cada datagrama?",
+        "alternativas": [
+          {
+            "texto": "Lo envía sin control de flujo",
+            "retroalimentacion": "Correcto."
+          },
+          {
+            "texto": "Lo retiene hasta que el receptor confirma",
+            "retroalimentacion": "Eso no lo hace UDP."
+          },
+          {
+            "texto": "Lo reordena al llegar",
+            "retroalimentacion": "UDP no ordena."
+          },
+          {
+            "texto": "Lo cifra siempre",
+            "retroalimentacion": "UDP no cifra."
+          }
+        ]
+      }
+    },
+    {
+      "id": "osi-item-develops",
+      "type": "item_opcion_multiple",
+      "label": "incorrect",
+      "own": [
+        "modelo OSI",
+        "capa de transporte"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "control de flujo",
+        "enrutamiento",
+        "suma de verificación"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "¿Qué capa del modelo OSI se ocupa del enrutamiento? Pista: el enrutamiento elige el camino de cada paquete.",
+        "alternativas": [
+          {
+            "texto": "La capa de red",
+            "retroalimentacion": "Correcto: el enrutamiento es de la capa de red."
+          },
+          {
+            "texto": "La capa de transporte",
+            "retroalimentacion": "No elige rutas."
+          },
+          {
+            "texto": "La capa de aplicación",
+            "retroalimentacion": "No elige rutas."
+          },
+          {
+            "texto": "La capa física",
+            "retroalimentacion": "No elige rutas."
+          }
+        ]
+      }
+    },
+    {
+      "id": "tcp-item-develops",
+      "type": "item_opcion_multiple",
+      "label": "incorrect",
+      "own": [
+        "saludo de tres vías",
+        "control de flujo"
+      ],
+      "foreign": [
+        "protocolo UDP",
+        "datagrama",
+        "modelo OSI",
+        "dirección IP"
+      ],
+      "resource": {
+        "titulo": "Ítem",
+        "contenido": "¿Qué protocolo usa el saludo de tres vías?",
+        "alternativas": [
+          {
+            "texto": "TCP",
+            "retroalimentacion": "Correcto."
+          },
+          {
+            "texto": "El protocolo UDP, que envía sin conexión",
+            "retroalimentacion": "El protocolo UDP no establece conexión."
+          },
+          {
+            "texto": "El protocolo UDP con confirmación",
+            "retroalimentacion": "El protocolo UDP no confirma."
           },
           {
             "texto": "ARP",

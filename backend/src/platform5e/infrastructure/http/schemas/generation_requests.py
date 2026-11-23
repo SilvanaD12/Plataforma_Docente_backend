@@ -200,6 +200,14 @@ class StepResource(ApiResponse):
     )
 
 
+class StepPlanWarning(ApiResponse):
+    """GEN-P2: un recurso de la IA entregado con aviso de solapamiento con su plan (research R5)."""
+
+    title: str
+    reason: str = Field(description="In Spanish, shown to the teacher.")
+    resource_id: str
+
+
 class StepRejection(ApiResponse):
     title: str
     reason: str = Field(description="In Spanish, shown to the teacher.")
@@ -236,6 +244,11 @@ class GenerationStep(ApiResponse):
     finished_at: str | None = None
     plan_item_position: int | None = Field(
         default=None, ge=1, description="GEN-P2: the plan item this step drafts. `null` in requests without a plan."
+    )
+    plan_warnings: list[StepPlanWarning] = Field(
+        default=[],
+        description="GEN-P2: AI resources of this step delivered although they did not fully follow the plan (another "
+        "item's concept developed, or none of their own). The rule-based path rejects them with `kind: plan` instead.",
     )
 
 

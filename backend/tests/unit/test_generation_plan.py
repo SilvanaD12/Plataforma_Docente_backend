@@ -65,8 +65,8 @@ def codes(problems) -> list[str]:
     return [p.code for p in problems]
 
 
-VALID = plan(item(1, "pregunta_detonante", ["Por qué UDP es más rápido"]),
-             item(2, "explicacion", ["Control de flujo en TCP", "Retransmisión"], ["f1", "f2"]))
+VALID = plan(item(1, "pregunta_detonante", ["velocidad de UDP"]),
+             item(2, "explicacion", ["Control de flujo en TCP", "retransmisión de segmentos"], ["f1", "f2"]))
 
 
 # Validación (T002)
@@ -162,7 +162,7 @@ def test_approving_needs_the_current_version_and_a_valid_plan():
         approve_plan(VALID, 2, [], LATER)
     assert conflict.value.code == GenerationErrorCode.PLAN_VERSION_CONFLICT
 
-    broken = plan(item(1, "explicacion", ["A"], []))
+    broken = plan(item(1, "explicacion", ["control de flujo"], []))
     with pytest.raises(PlanInvalid) as invalid:
         approve_plan(broken, 1, validate_plan(broken, KNOWN), LATER)
     assert invalid.value.code == GenerationErrorCode.PLAN_INVALID

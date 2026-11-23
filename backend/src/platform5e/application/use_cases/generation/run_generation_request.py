@@ -557,6 +557,7 @@ class RunGenerationRequest:
         resources: list[dict[str, Any]] = []
         pending_media: list[PendingMedia] = []
         delivered_drafts: list[dict[str, Any]] = []
+        plan_warnings: list[dict[str, Any]] = []
         for drafted_resource, extra_parameters in drafts:
             resource = {
                 **build_resource_dict(
@@ -568,6 +569,9 @@ class RunGenerationRequest:
             snapshot = build_snapshot(self._verification.referenced_fragment_ids(resource), evidence, retrieved_at)
             resource["evidence"] = [item.to_dict() for item in snapshot.items]
             resource["params"] = {**frozen_parameters, **extra_parameters}
+            if drafted_resource.get("avisoPlan"):
+                # GEN-P2 (tras P4): el recurso de la IA se entrega con el aviso de solapamiento, visible en Revisión.
+                resource["planWarning"] = drafted_resource["avisoPlan"]
             resource["generatorKind"] = "ia" if uses_ai else "respaldo"
             resource["version"] = INITIAL_RESOURCE_VERSION
             if request.regeneration is not None:
@@ -594,6 +598,9 @@ class RunGenerationRequest:
                 pending_media.append(pending)
             resources.append(resource)
             delivered_drafts.append(drafted_resource)
+            if resource.get("planWarning"):
+                plan_warnings.append({"title": resource["title"], "reason": resource["planWarning"]["reason"],
+                                      "resourceId": resource["id"]})
         accepted.extend({**draft, "etapa": step.stage} for draft in delivered_drafts)
 
         rejections = [
@@ -616,6 +623,7 @@ class RunGenerationRequest:
                 "fallbackReason": warning if fallback else None,
             },
             grounding=build_grounding_report(resources, grounding_rejections),
+            plan_warnings=tuple(plan_warnings),
             distractor_reliability=reliability_report(resources),
             finished_at=self._clock(),
         )

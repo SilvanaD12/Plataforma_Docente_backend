@@ -143,6 +143,18 @@ class RegeneratedFrom(ApiResponse):
     version: int = Field(description="Version of the previous resource when the regeneration was requested.")
 
 
+class PlanWarning(ApiResponse):
+    """GEN-P2 (specs/006-plan-de-generacion, research R5): aviso de solapamiento con el plan."""
+
+    kind: Literal["overlap", "missing_concepts"] = Field(
+        description="`overlap`: it develops a concept of another resource of the plan. `missing_concepts`: it develops "
+        "none of its own."
+    )
+    reason: str = Field(description="In Spanish, shown to the teacher.")
+    developed_concepts: list[str] = Field(default=[], description="Concepts of other resources it develops.")
+    missing_own_concepts: list[str] = Field(default=[], description="Its own concepts, when it develops none.")
+
+
 class ResourceResponse(ApiResponse):
     id: str
     unit_id: str
@@ -179,6 +191,11 @@ class ResourceResponse(ApiResponse):
     )
     regenerated_from: RegeneratedFrom | None = Field(
         default=None, description="For a regenerated resource: the resource and version it replaces (REV-C12)."
+    )
+    plan_warning: PlanWarning | None = Field(
+        default=None,
+        description="GEN-P2: an AI resource delivered although it did not fully follow its plan item (it develops "
+        "another item's concept or none of its own). Shown in Review; it does not block approval.",
     )
     review_reset: bool | None = Field(
         default=None,

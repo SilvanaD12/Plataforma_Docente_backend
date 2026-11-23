@@ -125,8 +125,10 @@ Con PostgreSQL en Docker, los mismos comandos de la pila local de [QA-17](../005
 
 [Research R7](research.md#r7-medición-de-la-duplicación-p4) y [quickstart V10](quickstart.md#v10--duplicación-p4). El script `evaluation/measure_duplication.py` (T019):
 - prepara la unidad con `corpus_t067`;
-- pide 3 veces la secuencia de 8 tipos de texto × 2 recursos (con `--mode plan`, creando y aprobando el plan sin cambios);
-- calcula la tasa de pares duplicados con el indicador de REV-P3 (o la similitud léxica, marcada como provisional);
+- pide 5 veces (`--runs`, 5 por defecto) la secuencia de 8 tipos de texto × 2 recursos (con `--mode plan`, creando y aprobando el plan sin cambios);
+- calcula la evidencia principal de «no repetición»: las oraciones casi repetidas y los conceptos explicados en más de un recurso ([research R7](research.md#r7-medición-de-la-duplicación-p4));
+- calcula la tasa de pares duplicados con el indicador de REV-P3 (o la similitud léxica, marcada como provisional), con la meta de P4;
+- informa por corrida los pasos de la IA y del respaldo, los avisos del plan y si el plan salió de Gemini o de reglas;
 - escribe los resultados en `docs/evidence/GEN-P4/`.
 
 **Interruptor de medición `GENERATION_IMPLICIT_PLAN`.** Solo sirve para medir P4. Con `true` (por defecto) el cuerpo anterior crea un plan implícito, como pide [research R2](research.md#r2-el-plan-es-obligatorio-compatibilidad-del-pedido-sin-plan). Con `false`, el cuerpo anterior se redacta como antes de GEN-P1: sin plan implícito, sin comprobación del plan y con los prompts de entonces.
@@ -153,10 +155,10 @@ GENERATION_IMPLICIT_PLAN=true .venv/bin/python -m uvicorn platform5e.main:create
 # Otra terminal, mientras corre cada backend
 export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
 # Con el backend 1 (línea base)
-.venv/bin/python evaluation/measure_duplication.py --mode baseline --corpus evaluation/corpus_t067 --runs 3 \
+.venv/bin/python evaluation/measure_duplication.py --mode baseline --corpus evaluation/corpus_t067 --runs 5 \
   --quantity 2 --out ../docs/evidence/GEN-P4/gemini-baseline.json
 # Con el backend 2 (plan), con la comparación con la meta
-.venv/bin/python evaluation/measure_duplication.py --mode plan --corpus evaluation/corpus_t067 --runs 3 \
+.venv/bin/python evaluation/measure_duplication.py --mode plan --corpus evaluation/corpus_t067 --runs 5 \
   --quantity 2 --out ../docs/evidence/GEN-P4/gemini-plan.json --compare ../docs/evidence/GEN-P4/gemini-baseline.json
 ```
 
@@ -165,7 +167,22 @@ export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
 - **Con reglas:** lo mismo con `LLM_PROVIDER=rules` y sin clave, y `--out …/rules-*.json`.
 - **`faithfulness`:** con `run_ragas.py` sobre las muestras de cada modo.
 
-Meta: duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90.
+**Calibrar los umbrales** con los informes guardados (traen los textos de los recursos; los informes anteriores, sin textos, se leen de la API con el mismo backend y la misma base):
+
+```bash
+.venv/bin/python evaluation/measure_duplication.py --calibrate \
+  --from ../docs/evidence/GEN-P4/gemini-plan.json ../docs/evidence/GEN-P4/gemini-baseline.json \
+  --out ../docs/evidence/GEN-P4/calibration.json
+```
+
+Después se vuelve a correr la medición con `--threshold` y `--sentence-threshold` sugeridos, si cambian.
+
+**Cómo leer los informes** ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
+1. **¿Los dos modos los redactó la IA?** `aiSteps` y `fallbackSteps`, y `planGenerators` (planes de Gemini o de reglas).
+2. **La evidencia de «no repetición»:** `sentenceNearDuplicateRate` y `meanReexplainedEvidenceConcepts`, y sus bajas en `comparison`.
+3. **La tasa de pares:** con su umbral calibrado.
+
+Meta (la de P4 se conserva para la tasa de pares): duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90. La evidencia principal de que no se repite contenido son las oraciones casi repetidas y los conceptos explicados otra vez, que deben bajar con plan.
 
 ## Seguimiento de complejidad
 

@@ -1,0 +1,173 @@
+{
+  "description": "GEN-P2, corrección tras P4: los casos de rechazo «plan» de backend/p4.db, rearmados con oraciones del corpus de T067. «expected» es si el recurso respeta el plan con las reglas nuevas: el concepto propio cuenta con el 60 % de sus palabras en un párrafo, el ajeno solo si se desarrolla (dos oraciones o una definición) y no cuentan los conceptos de fondo (en los fragmentos de la mitad o más de los ítems).",
+  "fragments": {
+    "osi": "El modelo OSI está conformado por 7 capas o niveles de abstracción: Capa física, capa de enlace de datos, capa de red, capa de transporte, capa de sesión, capa de presentación y capa de aplicación.",
+    "udp": "El protocolo de datagramas de usuario (en inglés: User Datagram Protocol o UDP) es un protocolo del nivel de transporte basado en la transmisión sin conexión de datagramas y representa una alternativa al protocolo TCP (Transmission Control Protocol). Tampoco tiene confirmación ni control de flujo, por lo que los paquetes pueden adelantarse unos a otros.",
+    "garantias": "UDP no otorga garantías para la entrega de sus mensajes y el origen UDP no retiene estados de los mensajes UDP que han sido enviados a la red. UDP solo añade multiplexado de aplicación y suma de verificación de la cabecera y la carga útil.",
+    "puertos": "La cabecera UDP consta de 4 campos de los cuales 2 son opcionales. Los campos de los puertos origen y destino son campos de 16 bits que identifican el proceso de emisión y recepción.",
+    "saludo": "Parte C. Saludo de tres vías en TCP. Localice tres paquetes consecutivos con puerto 80 cuyo campo Info muestre [SYN], [SYN, ACK] y [ACK]. En el panel de detalles expanda Transmission Control Protocol y anote Source Port, Destination Port, Sequence Number y Flags.",
+    "transporte": "La capa de transporte se encarga de la comunicación lógica entre procesos de distintos equipos; sus dos protocolos principales son TCP y UDP.",
+    "audio": "Su uso principal es para protocolos como DHCP, BOOTP y DNS, así como para la transmisión de audio y vídeo en tiempo real, donde no es posible realizar retransmisiones por los estrictos requisitos de retardo."
+  },
+  "items": [
+    {
+      "position": 1,
+      "resourceType": "sondeo_diagnostico",
+      "covers": [
+        "confirmación de entrega"
+      ],
+      "fragmentIds": [
+        "udp",
+        "garantias"
+      ]
+    },
+    {
+      "position": 2,
+      "resourceType": "guia_exploracion",
+      "covers": [
+        "puertos de origen y destino"
+      ],
+      "fragmentIds": [
+        "puertos",
+        "transporte"
+      ]
+    },
+    {
+      "position": 3,
+      "resourceType": "caso_indagacion",
+      "covers": [
+        "requisitos de retardo"
+      ],
+      "fragmentIds": [
+        "audio",
+        "transporte"
+      ]
+    },
+    {
+      "position": 4,
+      "resourceType": "explicacion",
+      "covers": [
+        "saludo de tres vías"
+      ],
+      "fragmentIds": [
+        "saludo",
+        "osi"
+      ]
+    },
+    {
+      "position": 5,
+      "resourceType": "glosario",
+      "covers": [
+        "capa de transporte"
+      ],
+      "fragmentIds": [
+        "transporte",
+        "osi"
+      ]
+    },
+    {
+      "position": 6,
+      "resourceType": "item_opcion_multiple",
+      "covers": [
+        "Transmission Control Protocol"
+      ],
+      "fragmentIds": [
+        "saludo",
+        "udp"
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "sondeo-paraphrase",
+      "item": 1,
+      "kind": "paraphrase",
+      "expected": true,
+      "p4_rejection": "no desarrolla ninguno de sus conceptos del plan («no hay confirmacion de entrega o recepcion»)",
+      "resource": {
+        "titulo": "Sondeo: ¿qué garantiza UDP?",
+        "contenido": "Marca verdadero o falso antes de leer el material.\nUDP confirma al emisor la entrega de cada mensaje.\nUDP guarda el estado de los mensajes enviados.\nUn datagrama UDP puede llegar antes que otro enviado primero.\nUDP añade una suma de verificación a la cabecera.",
+        "alternativas": [],
+        "estructura": null
+      }
+    },
+    {
+      "id": "guia-paraphrase",
+      "item": 2,
+      "kind": "paraphrase",
+      "expected": true,
+      "p4_rejection": "no desarrolla ninguno de sus conceptos del plan («puerto de origen, puerto de destino, longitud y suma de verificación»)",
+      "resource": {
+        "titulo": "Guía: la cabecera UDP",
+        "contenido": "Explora la cabecera de un datagrama UDP en una captura.",
+        "alternativas": [],
+        "estructura": {
+          "guidedSteps": [
+            {
+              "title": "Paso 1",
+              "instruction": "Abre una consulta DNS y anota el puerto de origen y el de destino.",
+              "question": "¿Qué puerto usa DNS?"
+            },
+            {
+              "title": "Paso 2",
+              "instruction": "Compara los campos de la cabecera con la tabla del material.",
+              "question": "¿Cuáles son opcionales?"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "explicacion-paraphrase",
+      "item": 4,
+      "kind": "paraphrase",
+      "expected": true,
+      "p4_rejection": "no desarrolla ninguno de sus conceptos del plan («saludo de tres vias»)",
+      "resource": {
+        "titulo": "Cómo abre TCP una conexión",
+        "contenido": "TCP abre cada conexión con un saludo de tres pasos: el cliente envía SYN, el servidor responde SYN-ACK y el cliente cierra con ACK.\n\nEn una captura, esos tres paquetes aparecen seguidos con el mismo puerto 80.",
+        "alternativas": [],
+        "estructura": null
+      }
+    },
+    {
+      "id": "caso-backbone",
+      "item": 3,
+      "kind": "backbone",
+      "expected": true,
+      "p4_rejection": "desarrolla «capa de transporte», que el plan asigna a otro recurso",
+      "resource": {
+        "titulo": "Fiabilidad frente a latencia",
+        "contenido": "Una radio en línea transmite audio en vivo a cientos de oyentes.\n\nLa capa de transporte ofrece dos opciones: TCP, que reenvía lo perdido, y UDP, que no espera.\n\nPor los requisitos de retardo, la capa de transporte de la radio usa UDP aunque se pierdan algunos paquetes.",
+        "alternativas": [],
+        "estructura": null
+      }
+    },
+    {
+      "id": "explicacion-single-mention",
+      "item": 4,
+      "kind": "single_mention",
+      "expected": true,
+      "p4_rejection": "desarrolla «Transmission Control Protocol», que el plan asigna a otro recurso",
+      "resource": {
+        "titulo": "El saludo de tres vías",
+        "contenido": "El saludo de tres vías abre cada conexión: SYN, SYN-ACK y ACK.\n\nEn Wireshark se ve al expandir Transmission Control Protocol en el panel de detalles.",
+        "alternativas": [],
+        "estructura": null
+      }
+    },
+    {
+      "id": "sondeo-develops-foreign",
+      "item": 1,
+      "kind": "developed",
+      "expected": false,
+      "p4_rejection": null,
+      "resource": {
+        "titulo": "Sondeo: confirmación en UDP",
+        "contenido": "UDP no confirma la entrega de sus mensajes.\nEl saludo de tres vías es el intercambio de SYN, SYN-ACK y ACK con que TCP abre una conexión.\nPor eso el saludo de tres vías no existe en UDP.",
+        "alternativas": [],
+        "estructura": null
+      }
+    }
+  ]
+}

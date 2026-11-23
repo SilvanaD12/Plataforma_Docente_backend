@@ -462,42 +462,73 @@ def develops_udp(context: dict[str, Any]) -> dict[str, Any] | None:
     }]}
 
 
-def test_a_resource_that_develops_another_items_concept_is_retried_once_then_rejected_as_plan(requests, plans):
+def test_an_ai_resource_that_only_fails_the_plan_check_is_delivered_with_a_plan_warning(requests, plans):
+    """Política tras P4 (research R5): si después del reintento solo falla la comprobación del plan (el anclaje y la
+    estructura pasaron), el recurso de la IA se entrega con un aviso de solapamiento y no se reemplaza con reglas."""
     model = Capturing(develops_udp)
     explanation = replace(EXPLANATION, quantity=1, covers=("control de flujo",))
-    done, resources, _ = run_plan(requests, plans, model, TRIGGER, explanation)
+    done, resources, _ = run_plan(requests, plans, model, TRIGGER, explanation, fallback=RuleBasedGenerator())
     step = done.steps[1]
-    assert step.status == StepStatus.REJECTED and step.resource_ids == ()
-    assert step.rejections == ({
-        "title": "TCP frente a UDP", "kind": "plan",
-        "reason": "«TCP frente a UDP»: desarrolla «protocolo UDP», que el plan asigna a otro recurso."},)
+    reason = "«TCP frente a UDP»: desarrolla «protocolo UDP», que el plan asigna a otro recurso."
+    assert step.status == StepStatus.SUCCEEDED and len(step.resource_ids) == 1 and step.rejections == ()
+    assert step.generator["usesAi"] is True and step.generator["fallback"] is False
+    [resource] = [r for r in resources if r["id"] == step.resource_ids[0]]
+    assert resource["title"] == "TCP frente a UDP" and resource["generatorKind"] == "ia"
+    assert resource["planWarning"] == {"kind": "overlap", "reason": reason, "developedConcepts": ["protocolo UDP"],
+                                       "missingOwnConcepts": []}
+    assert step.plan_warnings == ({"title": "TCP frente a UDP", "reason": reason, "resourceId": resource["id"]},)
     calls = [c for c in model.contexts if c["solicitud"]["tipo"] == "explicacion"]
-    assert len(calls) == 2
+    assert len(calls) == 2  # el primer intento y un reintento con la indicación del problema
     assert "no respetó el plan" in calls[1]["solicitud"]["indicaciones"]
     assert "Desarrolla solo estos conceptos: «control de flujo»." in calls[1]["solicitud"]["indicaciones"]
 
 
-def test_after_a_plan_rejection_the_rule_based_fallback_drafts_the_resource(requests, plans):
-    explanation = replace(EXPLANATION, quantity=1, covers=("control de flujo",))
-    done, _, _ = run_plan(requests, plans, Capturing(develops_udp), TRIGGER, explanation,
-                          fallback=RuleBasedGenerator())
-    step = done.steps[1]
-    assert step.status == StepStatus.SUCCEEDED and len(step.resource_ids) == 1
-    assert [r["kind"] for r in step.rejections] == ["plan"]
-    assert step.generator["fallback"] is True and "plan" in step.generator["fallbackReason"]
-
-
-def test_a_resource_without_its_own_concepts_is_also_a_plan_rejection(requests, plans):
+def test_an_ai_resource_without_its_own_concepts_is_delivered_with_a_warning_too(requests, plans):
     def off_topic(context):
         text = TEXTS["f5"]
         return {"recursos": [{"titulo": "El saludo", "contenido": text, "alternativas": [],
                               "citas": [{"afirmacion": text, "fragmentos": [tag(context, "f5")]}]}]}
 
-    done, _, _ = run_plan(requests, plans, Capturing(off_topic), replace(EXPLANATION, quantity=1,
-                                                                          covers=("control de flujo",)))
+    done, resources, _ = run_plan(requests, plans, Capturing(off_topic), replace(EXPLANATION, quantity=1,
+                                                                                    covers=("control de flujo",)))
     [step] = done.steps
-    assert [r["kind"] for r in step.rejections] == ["plan"]
-    assert "no desarrolla ninguno de sus conceptos del plan («control de flujo»)" in step.rejections[0]["reason"]
+    [resource] = resources
+    assert step.rejections == () and resource["planWarning"]["missingOwnConcepts"] == ["control de flujo"]
+    assert "no desarrolla ninguno de sus conceptos del plan («control de flujo»)" in step.plan_warnings[0]["reason"]
+
+
+class RulesThatIgnoreThePlan:
+    """Un generador sin IA cuyo recurso desarrolla un concepto de otro ítem (el camino por reglas)."""
+
+    description, uses_ai = "Generador por reglas (sin IA)", False
+
+    def generate(self, context):
+        return develops_udp(context) or RuleBasedGenerator().generate(context)
+
+
+def test_on_the_rule_based_path_a_plan_failure_is_still_a_plan_rejection(requests, plans):
+    explanation = replace(EXPLANATION, quantity=1, covers=("control de flujo",))
+    done, resources, _ = run_plan(requests, plans, RulesThatIgnoreThePlan(), TRIGGER, explanation)
+    step = done.steps[1]
+    assert step.status == StepStatus.REJECTED and step.resource_ids == () and step.plan_warnings == ()
+    assert step.rejections == ({
+        "title": "TCP frente a UDP", "kind": "plan",
+        "reason": "«TCP frente a UDP»: desarrolla «protocolo UDP», que el plan asigna a otro recurso."},)
+    assert all("planWarning" not in r for r in resources)
+
+
+def test_an_ai_resource_that_fails_grounding_still_goes_to_the_rule_based_fallback(requests, plans):
+    def invented(context):
+        text = "Los satélites geoestacionarios regulan el control de flujo desde la órbita sobre el ecuador."
+        return {"recursos": [{"titulo": "Inventado", "contenido": text, "alternativas": [],
+                              "citas": [{"afirmacion": text, "fragmentos": [tag(context, "f1")]}]}]}
+
+    explanation = replace(EXPLANATION, quantity=1, covers=("control de flujo",))
+    done, resources, _ = run_plan(requests, plans, Capturing(invented), explanation, fallback=RuleBasedGenerator())
+    [step] = done.steps
+    assert step.status == StepStatus.SUCCEEDED and step.generator["fallback"] is True
+    assert [r["kind"] for r in step.rejections] == ["grounding"] and step.plan_warnings == ()
+    assert all("planWarning" not in r for r in resources)
 
 
 def test_a_resource_that_follows_the_plan_passes_without_a_retry(requests, plans):

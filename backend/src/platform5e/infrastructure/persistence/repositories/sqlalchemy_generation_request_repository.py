@@ -131,12 +131,14 @@ class GenerationStepORM(Base):
     finished_at = Column(String, nullable=True)
     # GEN-P2: el ítem del plan que redacta el paso; NULL en los pedidos sin plan.
     plan_item_position = Column(Integer, nullable=True)
+    # GEN-P2 (tras P4): avisos de solapamiento de los recursos de la IA entregados; NULL o [] si no hay.
+    plan_warnings = Column(JSON, nullable=True)
 
 
 # Columnas de GEN-P2 que una base SQLite anterior no tiene (PostgreSQL usa la migración).
 PLAN_COLUMNS: dict[str, tuple[tuple[str, str], ...]] = {
     "gen_generation_requests": (("plan_id", "VARCHAR NULL"), ("plan_version", "INTEGER NULL")),
-    "gen_generation_steps": (("plan_item_position", "INTEGER NULL"),),
+    "gen_generation_steps": (("plan_item_position", "INTEGER NULL"), ("plan_warnings", "JSON NULL")),
 }
 
 
@@ -229,6 +231,7 @@ def _step_values(step: GenerationStep) -> dict[str, Any]:
         "started_at": utc_text(step.started_at) if step.started_at else None,
         "finished_at": utc_text(step.finished_at) if step.finished_at else None,
         "plan_item_position": step.plan_item_position,
+        "plan_warnings": list(step.plan_warnings),
     }
 
 
@@ -253,6 +256,7 @@ def _step_from_orm(row: GenerationStepORM) -> GenerationStep:
         started_at=row.started_at,
         finished_at=row.finished_at,
         plan_item_position=row.plan_item_position,
+        plan_warnings=tuple(row.plan_warnings or ()),
     )
 
 

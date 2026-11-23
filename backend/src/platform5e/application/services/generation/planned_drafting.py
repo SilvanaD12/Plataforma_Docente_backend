@@ -10,9 +10,12 @@ Cada recurso de un ítem se redacta por separado, con:
 - la evidencia congelada del plan, con los fragmentos del ítem primero.
 
 Después de la verificación de anclaje de siempre, una comprobación léxica y sin IA (`plan_coverage`) mira que el
-recurso desarrolle sus conceptos y no los ajenos. Si falla, se pide otra vez con la indicación del problema; si vuelve
-a fallar, se rechaza con `kind: plan` y el generador por reglas lo intenta como respaldo. El filtro de repetición de
-GEN-01 sigue activo como red de seguridad.
+recurso desarrolle sus conceptos y no los ajenos. Si falla, se pide otra vez con la indicación del problema. Política
+tras la medición de P4 (research R5): si vuelve a fallar solo esa comprobación (el anclaje y la estructura pasaron), el
+recurso de la IA se entrega con un aviso de solapamiento (`avisoPlan`, que llega al recurso como `planWarning` y al
+paso como `planWarnings`) en lugar de reemplazarlo con reglas; el rechazo `kind: plan` queda solo para el camino por
+reglas. Los conceptos de fondo de la unidad (en los fragmentos de la mitad o más de los ítems) no cuentan como ajenos.
+El filtro de repetición de GEN-01 sigue activo como red de seguridad.
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ from platform5e.application.services.generation.step_drafting import (
     filter_repeated,
 )
 from platform5e.domain.generation.generation_plan import GenerationPlan, PlanItem
-from platform5e.domain.generation.plan_coverage import check_plan_coverage
+from platform5e.domain.generation.plan_coverage import PlanCoverage, backbone_concepts, check_plan_coverage
 from platform5e.domain.generation.plan_validation import does_not_cover, split_covers
 from platform5e.domain.generation.topic_coverage import concept_key
 
@@ -68,7 +71,9 @@ def item_blocks(plan: GenerationPlan, item: PlanItem) -> list[ResourceBlock]:
     """Los recursos del ítem, uno por bloque. Lo ajeno a cada uno: los `covers` de los demás ítems y los de los otros
     bloques del mismo ítem, que son de otros recursos."""
     blocks = split_covers(item.covers, item.quantity)
-    others = does_not_cover(plan.items, item.position)
+    texts = {fragment.id: fragment.text for fragment in plan.evidence.fragments}
+    backbone = backbone_concepts(plan.items, texts)  # contexto compartido de la unidad, no de un solo recurso
+    others = [concept for concept in does_not_cover(plan.items, item.position) if concept_key(concept) not in backbone]
     return [
         ResourceBlock(
             item=item,
@@ -141,6 +146,16 @@ def _with_instruction(context: dict[str, Any], instruction: str) -> dict[str, An
                                                                                          instruction]))}}
 
 
+def plan_warning(check: PlanCoverage) -> dict[str, Any]:
+    """El aviso de solapamiento que acompaña a un recurso de la IA que no respetó del todo su plan."""
+    return {
+        "kind": "missing_concepts" if check.missing_own else "overlap",
+        "reason": check.problem,
+        "developedConcepts": list(check.developed),
+        "missingOwnConcepts": list(check.own) if check.missing_own else [],
+    }
+
+
 def _follow_plan(
     context: dict[str, Any],
     primary: ResourceGeneratorPort | None,
@@ -148,7 +163,8 @@ def _follow_plan(
     rejections: list[dict[str, Any]],
 ) -> StepDraft:
     """Redacta el recurso y comprueba el plan; un recurso que no lo respeta se pide otra vez con la indicación del
-    problema, y si vuelve a fallar se rechaza con `kind: plan` y lo intenta el generador por reglas."""
+    problema. Si vuelve a fallar solo el plan, el recurso de la IA se entrega con su aviso (`avisoPlan`); el de reglas
+    se rechaza con `kind: plan` (research R5)."""
     own, foreign = context["plan"]["conceptos"], context["plan"]["noDesarrollar"]
     drafted, generator, warning = draft_resources(context, primary, fallback, rejections)
     if not drafted:
@@ -160,10 +176,14 @@ def _follow_plan(
     retried, retry_generator, retry_warning = draft_resources(
         _with_instruction(context, check.instruction), generator, None, rejections
     )
+    best = drafted[0]
     if retried:
-        check = check_plan_coverage(retried[0], own, foreign)
+        best, check = retried[0], check_plan_coverage(retried[0], own, foreign)
         if check.accepted:
             return StepDraft(kept=retried[:1], generator=retry_generator or generator, warning=warning)
+    if generator is not None and getattr(generator, "uses_ai", False):
+        # Pasó el anclaje y la estructura: se entrega con el aviso, sin reemplazarlo por un recurso de reglas.
+        return StepDraft(kept=[{**best, "avisoPlan": plan_warning(check)}], generator=generator, warning=warning)
     rejections.append({"title": check.title, "reason": check.problem, "kind": "plan"})
 
     if fallback is None or generator is fallback or generator is None:

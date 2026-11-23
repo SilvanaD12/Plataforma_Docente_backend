@@ -22,7 +22,7 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 - [x] T001 [BE] [GEN-P1] `domain/generation/generation_plan.py`: `GenerationPlan`, `PlanInputs`, `PlanItem`, `PlanEvidence`, `Referent`, `PlanStatus` y las transiciones de [data-model](data-model.md#transiciones-de-estado).
   - Pruebas en `tests/unit/test_generation_plan.py`, una por cada transición permitida (`draft→approved→used`, y `approved` que vuelve a `draft` al editar). Cada transición no permitida falla con su código (`PLAN_ALREADY_USED`, `PLAN_VERSION_CONFLICT`).
   - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_generation_plan.py`.
-- [x] T002 [BE] [GEN-P1] **Depende de T001.** Validación (`validate_plan`) con los 10 códigos de [data-model](data-model.md#reglas-de-validación) y cálculo de `doesNotCover`.
+- [x] T002 [BE] [GEN-P1] **Depende de T001.** Validación (`validate_plan`) con los códigos de [data-model](data-model.md#reglas-de-validación) y cálculo de `doesNotCover`.
   - Normalización de conceptos con la de QA-05 (`topic_coverage.normalize`).
   - Pruebas en `tests/unit/test_generation_plan_validation.py`, una por código; además: un concepto con otra forma («Control de flujo» frente a «control  de flújo») cuenta como el mismo, y `doesNotCover` cambia al editar los `covers` de otro ítem.
   - Hecho en el PR del backend (enlace pendiente). La validación está en `domain/generation/plan_validation.py`; la normalización es `topic_coverage.concept_key` (la de QA-05 sin palabras vacías). Las pruebas quedaron en `tests/unit/test_generation_plan.py`, junto con las de T001.
@@ -113,6 +113,17 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - Hecho en el PR del backend (enlace pendiente). `CatalogEntry` suma `length_hint` y `verification` (`strict` o `framed`, [research R6](research.md#verificación-strict-y-framed)); `domain/generation/text_types.py`, `grounding.verify_framed` y el redactor genérico `_catalog_text`. El `lengthHint` llega al prompt también para los tipos actuales que lo tengan. Pruebas en `tests/unit/test_text_type_verification.py` y `tests/unit/test_planned_generation.py`, con entradas falsas de los dos modos.
   - **Pendiente:** los 28 tipos nuevos siguen inactivos hasta que CUR-P2 cablee el catálogo. Mientras tanto, la etiqueta en Revisión y el esquema HTTP de `resourceType` (lista cerrada) no los aceptan todavía.
 
+- [x] T025 [BE] [GEN-P2] **Depende de T024.** Segunda corrida de P4: la baja de la tasa de pares fue −1,4 % con la IA en los dos modos.
+  - **Planificador con Gemini:** un plan no válido se pide una vez más con sus problemas, y `generator.attempts` lo registra ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)).
+  - **Medición:** oraciones casi repetidas y conceptos explicados otra vez como evidencia principal, `--calibrate` para los umbrales, 5 corridas por defecto, y el origen del plan por corrida ([research R7](research.md#r7-medición-de-la-duplicación-p4)).
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_plan_drafting.py`, `test_measure_duplication.py`, `test_plan_coverage.py` y `test_plan_concepts.py`. **Pendiente:** calibrar con los informes de la v2 y repetir la medición con 5 corridas.
+- [x] T024 [BE] [GEN-P2] **Depende de T013.** Corrección tras la medición de P4 con Gemini. En la medición, 14 de 24 pasos con plan fueron al respaldo por reglas, por rechazos `plan` de dos clases: paráfrasis de conceptos largos y simples menciones de términos de fondo.
+  - **Conceptos cortos** ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)): frases de 2 a 4 palabras del material o siglas, en los dos planificadores y en la validación (`CONCEPT_NOT_SHORT`).
+  - **Comprobación** ([research R5](research.md#r5-generación-desde-el-plan-gen-p2)): el concepto propio cuenta con el 60 % de sus palabras en un párrafo; el ajeno, solo si se desarrolla (dos oraciones o una definición); los conceptos de fondo no son ajenos.
+  - **Política:** el recurso de la IA que solo falla el plan se entrega con `planWarning`, y el rechazo `plan` queda para el camino por reglas.
+  - **Medición:** `measure_duplication.py` cuenta los pasos de la IA, los del respaldo y los avisos de cada corrida.
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_plan_concepts.py`, `test_plan_coverage.py`, `test_plan_coverage_p4.py` (con `tests/fixtures/plan_coverage_p4_cases.json`, del corpus de T067), `test_plan_coverage_corpus.py`, `test_planned_generation.py` y `test_measure_duplication.py`. **Pendiente:** repetir la medición de P4 con Gemini.
+
 ## 6. Frontend (GEN-P3)
 
 - [ ] T016 [FE] [GEN-P3] **Depende de T010.** `src/features/generation`: «Planificar» crea el plan desde el formulario actual (y desde el borrador del chat de HU-038).
@@ -132,7 +143,7 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 ## 7. Medición y cierre
 
 - [ ] T019 [E2E] [GEN-P2] **Depende de T012, T013 y REV-P3.** Script `backend/evaluation/measure_duplication.py` (`--mode baseline|plan`, `--runs`, `--quantity`, `--out`; comandos en [plan](plan.md#medición-de-p4)) y medición de P4 ([research R7](research.md#r7-medición-de-la-duplicación-p4)), V10 de [quickstart](quickstart.md). Pruebas del script con backend falso: la tasa de duplicación con pares conocidos y que no escribe tokens ni contraseñas.
-  - Línea base sin plan frente a plan aprobado, con reglas y con Gemini, 3 corridas cada uno, en el mismo servidor y la misma base: `--mode plan` con `GENERATION_IMPLICIT_PLAN=true` y `--mode baseline` con `false` (interruptor solo de medición, nunca en Render).
+  - Línea base sin plan frente a plan aprobado, con reglas y con Gemini, 5 corridas cada uno, en el mismo servidor y la misma base: `--mode plan` con `GENERATION_IMPLICIT_PLAN=true` y `--mode baseline` con `false` (interruptor solo de medición, nunca en Render).
   - Resultados en `docs/evidence/GEN-P4/`.
   - Meta: duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90.
   - El script ya está (PR del backend, enlace pendiente): `backend/evaluation/measure_duplication.py`, con pruebas en `tests/unit/test_measure_duplication.py` (backend y embeddings falsos). `--similarity auto` usa embeddings si hay modelo y si no la similitud léxica, registrada como provisional; `--compare` agrega la comparación con la meta. **Pendiente:** correr la medición (Yan, con el backend local) y REV-P3.

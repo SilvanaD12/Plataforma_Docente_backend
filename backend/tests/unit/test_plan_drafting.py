@@ -133,12 +133,50 @@ def gemini(provider: Recorder, deadline: float = 60.0) -> GeminiLanguageModel:
 
 
 REQUESTED = inputs(("pregunta_detonante", 1), ("explicacion", 1))
+REPEATED_CONCEPT = None  # se define después de VALID_AI_PLAN
 VALID_AI_PLAN = {"items": [
     {"resourceType": "explicacion", "quantity": 1, "purpose": "Explicar las capas del modelo OSI.",
      "covers": ["capas del modelo OSI", "funciones de cada capa"], "fragmentos": ["F1", "F2"]},
     {"resourceType": "pregunta_detonante", "quantity": 1, "purpose": "Abrir la clase con una pregunta.",
      "covers": ["para qué sirve un modelo de referencia"], "fragmentos": ["F1"]},
 ]}
+
+
+REPEATED_CONCEPT = gemini_answer({"items": [
+    {**VALID_AI_PLAN["items"][0], "covers": ["capas del modelo OSI"]},
+    {**VALID_AI_PLAN["items"][1], "covers": ["Capas del modelo  OSI"]},
+]})
+
+
+def test_an_invalid_ai_plan_is_retried_once_with_its_problems_and_the_second_plan_is_used():
+    """P4, segunda corrida: en 2 de 3 planes Gemini devolvió un plan no válido (CONCEPT_OWNED_TWICE,
+    NOT_ENOUGH_CONCEPTS). Se le devuelven los problemas (código, ítem y tipo) y se le pide una vez más."""
+    provider = Recorder(REPEATED_CONCEPT, gemini_answer(VALID_AI_PLAN))
+    items, generator = GenerationPlanner(gemini(provider), CATALOG).draft(REQUESTED, EVIDENCE)
+    assert generator == {"description": "Gemini · gemini-3.5-flash-lite", "usesAi": True, "fallback": False,
+                         "fallbackReason": None, "attempts": 2}
+    assert [i.resource_type for i in items] == ["pregunta_detonante", "explicacion"]
+    first, second = (body["contents"][-1]["parts"][0]["text"] for body in provider.bodies)
+    assert "TU PLAN ANTERIOR NO ERA VÁLIDO" not in first
+    assert "TU PLAN ANTERIOR NO ERA VÁLIDO" in second
+    assert "CONCEPT_OWNED_TWICE en el ítem 2 (explicacion)" in second
+    assert "«capas del modelo OSI» ya le corresponde al recurso 1." in second
+
+
+def test_a_missing_type_is_also_sent_back_on_the_retry():
+    provider = Recorder(gemini_answer({"items": VALID_AI_PLAN["items"][:1]}), gemini_answer(VALID_AI_PLAN))
+    _, generator = GenerationPlanner(gemini(provider), CATALOG).draft(REQUESTED, EVIDENCE)
+    assert generator["usesAi"] is True and generator["attempts"] == 2
+    assert ("Falta un ítem para cada uno de estos tipos pedidos: pregunta_detonante."
+            in provider.bodies[1]["contents"][-1]["parts"][0]["text"])
+
+
+def test_a_valid_first_plan_needs_one_attempt_and_a_provider_error_is_not_retried():
+    _, valid = GenerationPlanner(gemini(Recorder(gemini_answer(VALID_AI_PLAN))), CATALOG).draft(REQUESTED, EVIDENCE)
+    assert valid["attempts"] == 1
+    failing = Recorder({"error": {"code": 500, "message": "interno"}})
+    _, generator = GenerationPlanner(gemini(failing), CATALOG).draft(REQUESTED, EVIDENCE)
+    assert generator["fallback"] is True and generator["attempts"] == 1 and failing.calls == 1
 
 
 def test_the_plan_schema_requires_items_with_covers_and_fragments():
@@ -155,7 +193,7 @@ def test_a_valid_ai_plan_is_used_with_its_tags_resolved_and_the_stage_order():
     provider = Recorder(gemini_answer(VALID_AI_PLAN))
     items, generator = GenerationPlanner(gemini(provider), CATALOG).draft(REQUESTED, EVIDENCE)
     assert generator == {"description": "Gemini · gemini-3.5-flash-lite", "usesAi": True, "fallback": False,
-                         "fallbackReason": None}
+                         "fallbackReason": None, "attempts": 1}
     assert [i.resource_type for i in items] == ["pregunta_detonante", "explicacion"]
     assert items[1].fragment_ids == (EVIDENCE.fragments[0].id, EVIDENCE.fragments[1].id)
     [body] = provider.bodies
@@ -167,14 +205,13 @@ def test_a_valid_ai_plan_is_used_with_its_tags_resolved_and_the_stage_order():
 @pytest.mark.parametrize(
     ("answers", "reason"),
     [
-        # Un concepto en dos ítems: plan inválido.
-        ((gemini_answer({"items": [
-            {**VALID_AI_PLAN["items"][0], "covers": ["capas del modelo OSI"]},
-            {**VALID_AI_PLAN["items"][1], "covers": ["Capas del modelo  OSI"]},
-        ]}),), "Gemini · gemini-3.5-flash-lite devolvió un plan no válido (CONCEPT_OWNED_TWICE). Se armó el plan con reglas."),
-        # Falta un tipo pedido.
-        ((gemini_answer({"items": VALID_AI_PLAN["items"][:1]}),),
-         "Gemini · gemini-3.5-flash-lite devolvió un plan no válido (faltan tipos pedidos). Se armó el plan con reglas."),
+        # Un concepto en dos ítems, también en el reintento: plan inválido.
+        ((REPEATED_CONCEPT, REPEATED_CONCEPT),
+         "Gemini · gemini-3.5-flash-lite devolvió un plan no válido (CONCEPT_OWNED_TWICE). Se armó el plan con reglas."),
+        # Falta un tipo pedido, también en el reintento.
+        ((gemini_answer({"items": VALID_AI_PLAN["items"][:1]}),) * 2,
+         "Gemini · gemini-3.5-flash-lite devolvió un plan no válido (faltan tipos pedidos: pregunta_detonante). "
+         "Se armó el plan con reglas."),
         # No es JSON, dos veces.
         (({"candidates": [{"content": {"parts": [{"text": "no es json"}]}}]},
           {"candidates": [{"content": {"parts": [{"text": "tampoco"}]}}]}),
@@ -184,9 +221,12 @@ def test_a_valid_ai_plan_is_used_with_its_tags_resolved_and_the_stage_order():
     ids=["concepto-repetido", "falta-un-tipo", "json-invalido"],
 )
 def test_an_invalid_ai_plan_falls_back_to_the_rules_with_its_reason(answers, reason):
-    items, generator = GenerationPlanner(gemini(Recorder(*answers)), CATALOG).draft(REQUESTED, EVIDENCE)
+    provider = Recorder(*answers)
+    items, generator = GenerationPlanner(gemini(provider), CATALOG).draft(REQUESTED, EVIDENCE)
+    # Un plan no válido se pide otra vez una vez; un JSON inválido no (el adaptador ya reintenta el JSON).
+    attempts = 1 if "JSON" in reason else 2
     assert generator == {"description": RULES_PLANNER_DESCRIPTION, "usesAi": False, "fallback": True,
-                         "fallbackReason": reason}
+                         "fallbackReason": reason, "attempts": attempts}
     assert items == RuleBasedPlanner(CATALOG).draft(REQUESTED, EVIDENCE)
 
 
@@ -206,7 +246,7 @@ def test_a_timeout_falls_back_within_the_deadline():
 def test_without_ai_the_rules_plan_has_no_fallback():
     items, generator = GenerationPlanner(None, CATALOG).draft(REQUESTED, EVIDENCE)
     assert generator == {"description": RULES_PLANNER_DESCRIPTION, "usesAi": False, "fallback": False,
-                         "fallbackReason": None}
+                         "fallbackReason": None, "attempts": 0}
     assert len(items) == 2
 
 

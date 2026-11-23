@@ -7,6 +7,14 @@ GEN-P1 (T006, T007): cómo se arma el plan (specs/006-plan-de-generacion/researc
 - Con Gemini, una sola llamada (`PlanDrafterPort.draft_plan`) con esquema de respuesta propio y el tiempo límite de
   QA-06. Si la llamada falla, vence o el plan no es válido, `GenerationPlanner` lo arma con reglas y guarda el motivo
   público en `fallbackReason`.
+
+Corrección tras P4 (research R4): los conceptos son frases nominales cortas, de 2 a 4 palabras útiles tomadas del
+material, o siglas. El planificador por reglas ya no propone palabras sueltas comunes; a la IA se le pide en el prompt
+y en el esquema, y los conceptos largos que devuelva se descartan (si el ítem se queda corto, el plan va a reglas).
+
+Segunda corrida de P4 (research R4): si el plan de la IA no es válido (problemas de validación o tipos que faltan), se le
+pide una vez más con los problemas (código, ítem y tipo); si vuelve a fallar, se arma con reglas. Un error del
+proveedor, un tiempo vencido o un JSON inválido no se reintentan aquí. `generator.attempts` cuenta las llamadas a la IA.
 """
 
 from __future__ import annotations
@@ -28,11 +36,12 @@ from platform5e.domain.generation.generation_plan import (
     PlanEvidence,
     PlanInputs,
     PlanItem,
+    PlanProblem,
     Referent,
     SessionContext,
     order_items,
 )
-from platform5e.domain.generation.plan_validation import validate_items
+from platform5e.domain.generation.plan_validation import short_concept_problem, validate_items
 from platform5e.domain.generation.topic_coverage import (
     assess_topic_coverage,
     concept_key,
@@ -51,6 +60,14 @@ MAX_ITEM_FRAGMENTS: int = 12
 AUTO_QUANTITY_MAX: int = 3
 _TOKEN = re.compile(r"[a-z0-9ñ]+")
 MIN_KEY_TERM_CHARS: int = 6
+# Siglas del material que cuentan como concepto («UDP», «TCP», «IPv4»): al menos dos apariciones.
+_ACRONYM_IN_TEXT = re.compile(r"(?<![\w-])([A-Z]{2,6}(?:v\d)?)(?![\w-])")
+MIN_ACRONYM_COUNT: int = 2
+SHORT_CONCEPT_INSTRUCTION: str = (
+    "Cada concepto es una frase nominal corta de 2 a 4 palabras tomadas tal cual de los fragmentos (por ejemplo "
+    "«control de flujo» o «saludo de tres vías»), o una sigla del material: nunca una oración, una lista, una pregunta "
+    "ni una palabra suelta común."
+)
 # Palabras frecuentes en cualquier texto que no nombran un concepto del tema.
 _GENERIC_WORDS = frozenset(
     """
@@ -164,11 +181,12 @@ class RuleBasedPlanner:
         by_frequency = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
         material_phrases = [text for text, count in by_frequency if count > 1]
         rare_phrases = [text for text, count in by_frequency if count == 1]  # último recurso, con poco material
-        key_terms = [
-            term.lower() for term in extract_key_terms(texts, count=MAX_CANDIDATES)
-            if len(normalize(term)) >= MIN_KEY_TERM_CHARS and normalize(term) not in _GENERIC_WORDS
-            and topic_terms(term)
-        ]
+        # Las palabras sueltas solo cuentan si son siglas del material («UDP»); una palabra común no es un concepto.
+        acronym_counts: dict[str, int] = {}
+        for text in texts:
+            for acronym in _ACRONYM_IN_TEXT.findall(text):
+                acronym_counts[acronym] = acronym_counts.get(acronym, 0) + 1
+        key_terms = [acronym for acronym, count in acronym_counts.items() if count >= MIN_ACRONYM_COUNT]
 
         chosen: list[str] = []
         seen_keys: set[str] = set()
@@ -176,6 +194,8 @@ class RuleBasedPlanner:
         for group in (topic, material_phrases, key_terms, rare_phrases):
             ranked = []
             for concept in group:
+                if short_concept_problem(concept) is not None:
+                    continue
                 index = first_index(concept)
                 if index is not None:
                     key = concept_key(concept)
@@ -212,15 +232,28 @@ class RuleBasedPlanner:
         return f"{name}: desarrolla {shown}{more}."[:MAX_PURPOSE_CHARS]
 
 
+def candidate_concepts(instructions: str, texts: Sequence[str], limit: int = MAX_CANDIDATES) -> list[str]:
+    """Los conceptos candidatos del planificador por reglas para unos textos: frases cortas del tema y del material, y
+    siglas. La medición de P4 los usa para comparar los dos modos con los mismos conceptos."""
+    token_sets = [_tokens(text) for text in texts]
+    return RuleBasedPlanner._candidates(instructions, list(texts), token_sets)[:limit]
+
+
 # Con Gemini (T007)
 
 
-class InvalidPlanResponse(ValueError):
-    """La IA respondió, pero su plan no sirve. `public_reason` es el motivo genérico."""
+MAX_PLAN_ATTEMPTS: int = 2
+RETRY_HEADER: str = "TU PLAN ANTERIOR NO ERA VÁLIDO. Corrige estos problemas y devuelve el plan completo otra vez:"
 
-    def __init__(self, detail: str) -> None:
+
+class InvalidPlanResponse(ValueError):
+    """La IA respondió, pero su plan no sirve. `public_reason` es el motivo genérico; `feedback`, lo que se le devuelve
+    a la IA en el reintento (por cada problema: código, ítem y tipo)."""
+
+    def __init__(self, detail: str, feedback: str | None = None) -> None:
         super().__init__(detail)
         self.public_reason = detail
+        self.feedback = feedback or detail
 
 
 def plan_response_schema(inputs: PlanInputs) -> dict[str, Any]:
@@ -241,7 +274,12 @@ def plan_response_schema(inputs: PlanInputs) -> dict[str, Any]:
                         "resourceType": {"type": "STRING", "enum": types},
                         "quantity": {"type": "INTEGER"},
                         "purpose": string,
-                        "covers": {"type": "ARRAY", "items": string, "minItems": "1"},
+                        "covers": {
+                            "type": "ARRAY",
+                            "items": {"type": "STRING", "description": "Frase nominal de 2 a 4 palabras tomadas del "
+                                      "material, o una sigla; nunca una oración ni una lista."},
+                            "minItems": "1",
+                        },
                         "fragmentos": {"type": "ARRAY", "items": string, "minItems": "1"},
                     },
                     "required": ["resourceType", "quantity", "purpose", "covers", "fragmentos"],
@@ -259,6 +297,7 @@ def build_plan_prompt(
     referents: Sequence[Referent] = (),
     session_context: SessionContext = SessionContext(),
     unit_title: str = "",
+    retry_feedback: str | None = None,
 ) -> PlanPrompt:
     system = (
         "Eres un asistente pedagógico que planifica los recursos de una clase universitaria antes de redactarlos. "
@@ -292,7 +331,8 @@ def build_plan_prompt(
         "",
         "FORMATO DE RESPUESTA (JSON):",
         '{"items": [{"resourceType": "...", "quantity": 1, "purpose": "para qué sirve en la clase",',
-        ' "covers": ["concepto o pregunta corta que este recurso desarrolla"], "fragmentos": ["F1"]}]}',
+        ' "covers": ["frase corta del material que este recurso desarrolla"], "fragmentos": ["F1"]}]}',
+        SHORT_CONCEPT_INSTRUCTION,
         "Ningún concepto puede aparecer en dos ítems. Cada ítem tiene al menos tantos conceptos como su cantidad y "
         "cita en «fragmentos» las etiquetas de los fragmentos donde están sus conceptos.",
         "",
@@ -301,6 +341,8 @@ def build_plan_prompt(
     for number, fragment in enumerate(evidence.fragments, 1):
         origin = ", ".join(x for x in (fragment.document_name, fragment.location) if x)
         lines += [f"[F{number}] ({origin})", fragment.text, ""]
+    if retry_feedback:
+        lines += ["", RETRY_HEADER, retry_feedback]
     return PlanPrompt(system=system, user="\n".join(lines).strip(), schema=plan_response_schema(inputs))
 
 
@@ -341,6 +383,8 @@ def items_from_model(
         keys: set[str] = set()
         for concept in data.get("covers") or []:
             text = " ".join(str(concept).split())[:MAX_CONCEPT_CHARS]
+            if short_concept_problem(text) is not None:
+                continue  # una oración o una lista no es un concepto; si el ítem se queda corto, el plan va a reglas
             if text and concept_key(text) not in keys:
                 keys.add(concept_key(text))
                 covers.append(text)
@@ -355,7 +399,9 @@ def items_from_model(
             fragment_ids=tuple(_resolve_tags(data.get("fragmentos") or [], tag_mapping)[:MAX_ITEM_FRAGMENTS]),
         )
     if set(items) != set(requested):
-        raise InvalidPlanResponse("faltan tipos pedidos")
+        missing = ", ".join(t for t in requested if t not in items)
+        raise InvalidPlanResponse(f"faltan tipos pedidos: {missing}",
+                                  f"- Falta un ítem para cada uno de estos tipos pedidos: {missing}.")
     return order_items(items.values())
 
 
@@ -376,26 +422,47 @@ class GenerationPlanner:
         unit_title: str = "",
     ) -> tuple[tuple[PlanItem, ...], dict[str, Any]]:
         if self._drafter is None:
-            return self._rules.draft(inputs, evidence), self._generator(None)
+            return self._rules.draft(inputs, evidence), self._generator(None, 0)
         description = self._drafter.description
-        try:
-            prompt = build_plan_prompt(inputs, evidence, self._catalog, referents, session_context, unit_title)
-            items = items_from_model(self._drafter.draft_plan(prompt), inputs, evidence, self._catalog)
-            known = {entry_id: entry.stage for entry_id, entry in self._catalog.items()}
-            problems = validate_items(items, evidence.fragment_ids, inputs.modality, known)
-            if problems:
-                raise InvalidPlanResponse(", ".join(sorted({problem.code for problem in problems})))
-        except InvalidPlanResponse as invalid:
-            logger.warning("%s devolvió un plan no válido: %s", description, invalid)
-            reason = f"{description} devolvió un plan no válido ({invalid.public_reason})."
-        except Exception as error:  # el plan se arma igual, con reglas
-            logger.warning("%s no armó el plan: %s", description, redact_secrets(str(error))[:500])
-            reason = f"{description} no respondió ({public_reason(error)})."
-        else:
-            return items, {"description": description, "usesAi": True, "fallback": False, "fallbackReason": None}
-        return self._rules.draft(inputs, evidence), self._generator(f"{reason} Se armó el plan con reglas.")
+        known = {entry_id: entry.stage for entry_id, entry in self._catalog.items()}
+        feedback: str | None = None
+        attempts = 0
+        reason = ""
+        while attempts < MAX_PLAN_ATTEMPTS:
+            attempts += 1
+            try:
+                prompt = build_plan_prompt(inputs, evidence, self._catalog, referents, session_context, unit_title,
+                                           retry_feedback=feedback)
+                items = items_from_model(self._drafter.draft_plan(prompt), inputs, evidence, self._catalog)
+                problems = validate_items(items, evidence.fragment_ids, inputs.modality, known)
+                if problems:
+                    raise InvalidPlanResponse(", ".join(sorted({problem.code for problem in problems})),
+                                              problems_feedback(problems, items))
+            except InvalidPlanResponse as invalid:
+                logger.warning("%s devolvió un plan no válido (intento %s): %s", description, attempts, invalid)
+                reason = f"{description} devolvió un plan no válido ({invalid.public_reason})."
+                feedback = invalid.feedback  # se le devuelve en el reintento
+            except Exception as error:  # error del proveedor, tiempo vencido o JSON inválido: sin reintento aquí
+                logger.warning("%s no armó el plan: %s", description, redact_secrets(str(error))[:500])
+                reason = f"{description} no respondió ({public_reason(error)})."
+                break
+            else:
+                return items, {"description": description, "usesAi": True, "fallback": False, "fallbackReason": None,
+                               "attempts": attempts}
+        return self._rules.draft(inputs, evidence), self._generator(f"{reason} Se armó el plan con reglas.", attempts)
 
     @staticmethod
-    def _generator(fallback_reason: str | None) -> dict[str, Any]:
+    def _generator(fallback_reason: str | None, attempts: int) -> dict[str, Any]:
         return {"description": RULES_PLANNER_DESCRIPTION, "usesAi": False, "fallback": fallback_reason is not None,
-                "fallbackReason": fallback_reason}
+                "fallbackReason": fallback_reason, "attempts": attempts}
+
+
+def problems_feedback(problems: Sequence[PlanProblem], items: Sequence[PlanItem]) -> str:
+    """Los problemas del plan para el reintento de la IA: código, ítem (posición y tipo) y mensaje."""
+    types = {item.position: item.resource_type for item in items}
+    lines = []
+    for problem in problems:
+        where = (f" en el ítem {problem.item_position} ({types.get(problem.item_position, '?')})"
+                 if problem.item_position is not None else " en el plan")
+        lines.append(f"- {problem.code}{where}: {problem.message}")
+    return "\n".join(lines)

@@ -59,6 +59,7 @@ def test_an_approved_plan_generates_one_resource_per_block_and_becomes_used(serv
     assert stored_plan["status"] == "used" and stored_plan["usedByRequestId"] == request["id"]
 
     assert final["status"] == "succeeded", final
+    assert all(step["planWarnings"] == [] for step in final["steps"])  # con reglas no hay avisos: se rechaza
     quantities = {item["position"]: item["quantity"] for item in plan["items"]}
     for step in final["steps"]:
         assert len(step["resourceIds"]) == quantities[step["planItemPosition"]], step

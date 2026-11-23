@@ -138,6 +138,7 @@ def _step_payload(step: DomainStep, view: GenerationRequestView | None) -> dict[
         "startedAt": step.started_at,
         "finishedAt": step.finished_at,
         "planItemPosition": step.plan_item_position,
+        "planWarnings": list(step.plan_warnings),
     }
 
 

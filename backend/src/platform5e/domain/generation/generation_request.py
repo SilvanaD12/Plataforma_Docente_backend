@@ -159,6 +159,8 @@ class GenerationStep:
     finished_at: str | None = None
     # GEN-P2: el ítem del plan que redacta este paso (su `position` en el plan); None en los pedidos sin plan.
     plan_item_position: int | None = None
+    # GEN-P2 (tras P4): recursos de la IA entregados aunque no respetaron del todo su plan ({title, reason, resourceId}).
+    plan_warnings: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def from_plan(cls, planned: PlannedStep) -> GenerationStep:

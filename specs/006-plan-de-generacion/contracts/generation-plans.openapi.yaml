@@ -173,7 +173,11 @@ paths:
             Accepted. Same response body as GEN-01 (`GenerationRequestStatus`), plus `planId` and `planVersion` (the
             plan used, also for the implicit plan of the previous body) and, in each step, `planItemPosition` (the plan
             item it drafts). Each delivered resource stores `planId`, `planItemPosition` and `planBlock` (its block of
-            concepts, from 0) in `params`; a regeneration request reports `regeneration.planBlock`.
+            concepts, from 0) in `params`; a regeneration request reports `regeneration.planBlock`. An AI resource that
+            passed grounding and structure but, after one retry, still develops another item's concept (or none of its
+            own) is delivered with `planWarning` (`kind` `overlap` or `missing_concepts`, `reason`, `developedConcepts`,
+            `missingOwnConcepts`), and its step lists it in `planWarnings` (`title`, `reason`, `resourceId`). The
+            rule-based path rejects it with `kind: plan` instead (research R5).
         '200': { description: The same key and body were already used; the existing request is returned. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/PlanNotFound' }
@@ -283,7 +287,13 @@ components:
         resourceType: { $ref: '#/components/schemas/ResourceTypeId' }
         quantity: { type: integer, minimum: 1, maximum: 5 }
         purpose: { type: string }
-        covers: { type: array, items: { type: string }, description: Concepts or questions this item develops. Split in `quantity` consecutive blocks, one per resource. }
+        covers:
+          type: array
+          items: { type: string }
+          description: |
+            Concepts this item develops: short noun phrases of 2 to 4 content words taken from the material, or acronyms
+            (never sentences, lists or single common words; otherwise `CONCEPT_NOT_SHORT`). Split in `quantity`
+            consecutive blocks, one per resource.
         doesNotCover: { type: array, items: { type: string }, description: Read-only. The `covers` of the other items, in order. }
         fragmentIds: { type: array, items: { type: string }, description: Ids of `evidence.fragments` that support the item. }
 
@@ -355,7 +365,7 @@ components:
           type: string
           enum: [PLAN_EMPTY, ITEM_WITHOUT_EVIDENCE, FRAGMENT_NOT_IN_EVIDENCE, CONCEPT_OWNED_TWICE, NOT_ENOUGH_CONCEPTS,
                  TYPE_NOT_IN_CATALOG, RESOURCE_TYPE_NOT_IN_MODALITY, QUANTITY_OUT_OF_RANGE, TOO_MANY_TYPES,
-                 PURPOSE_REQUIRED]
+                 PURPOSE_REQUIRED, CONCEPT_NOT_SHORT]
         message: { type: string, description: In Spanish, shown next to the item. }
         itemPosition: { type: [integer, 'null'] }
 
@@ -367,6 +377,13 @@ components:
         usesAi: { type: boolean }
         fallback: { type: boolean, description: True when the rule-based planner drafted the plan after the AI failed. }
         fallbackReason: { type: [string, 'null'], description: Generic public reason (provider_errors.py); null without fallback. }
+        attempts:
+          type: integer
+          minimum: 0
+          maximum: 2
+          description: |
+            AI calls made to draft the plan: 0 without AI, 1, or 2 when the first plan failed validation and the AI was
+            asked again with its problems (codes and items). After a second invalid plan the rule-based planner drafts it.
 
     GenerationPlan:
       type: object
