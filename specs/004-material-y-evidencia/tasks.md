@@ -1,4 +1,8 @@
-# Tareas de Implementación: Material y Evidencia (MAT-01)
+# Tareas de Implementación: Material y Evidencia
+
+---
+
+# PARTE I — Entrega Base (MAT-01) [COMPLETADA]
 
 ## Fase 1: Dominio y Puertos
 
@@ -34,18 +38,44 @@
 
 ## Fase 6 - EN-013: Generación de Embeddings y Búsqueda Híbrida (Validación en Demo)
 
-- [X] T018 [BE] Validar el procesamiento de materiales nuevos con la API key de Gemini activa (`gemini-embedding-001`), verificando en la respuesta del backend `embeddedFragmentCount > 0` y `embeddingError: null` (`backend/tests/unit/test_chunk_embedding_service.py` y captura en comentario del PR)
-- [X] T019 [BE][E2E] Comprobar el funcionamiento del motor de búsqueda híbrida (`HÍBRIDO (RRF)`) en el entorno desplegado mediante `GET /api/v1/documents/search` sobre fragmentos vectorizados nuevos (captura de respuesta `200 OK` en comentario del PR)
-- [X] T020 [BE] Decisión técnica tomada para el mantenimiento de registros históricos: ejecutar `embed_chunks.py` como script único de backfill en producción para vectorizar materiales previos (pendiente de ejecución operativa en despliegue; los materiales nuevos ya se indexan automáticamente al cargarse)
+- [X] T018 [BE] Validar el procesamiento de materiales nuevos con la API key de Gemini activa (`gemini-embedding-001`), verificando en la respuesta del backend `embeddedFragmentCount > 0` y `embeddingError: null`
+- [X] T019 [BE][E2E] Comprobar el funcionamiento del motor de búsqueda híbrida (`HÍBRIDO (RRF)`) en el entorno desplegado mediante `GET /api/v1/documents/search` sobre fragmentos vectorizados nuevos
+- [X] T020 [BE] Decisión técnica tomada para el mantenimiento de registros históricos: ejecutar `embed_chunks.py` como script único de backfill en producción
 
 ## Fase 7 - HU-011: Búsqueda Híbrida con Aislamiento por Unidad y Docente
 
-- [X] T021 [BE] Corregir la validación de tipos de documentos permitidos en `ALLOWED_DOCUMENT_TYPES` dentro de `account_service.py` para soportar guías de laboratorio y otros materiales didácticos ([PR #34](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/34))
-- [X] T022 [BE][E2E] Validar pertinencia de búsqueda híbrida en la Unidad 1 (`Protocolos de Transporte y Direccionamiento IP`), comprobando recuperación con `100.0%` de relevancia (`backend/tests/unit/test_material_retrieval.py` y captura en comentario del PR)
-- [X] T023 [BE][E2E] Verificar aislamiento entre unidades del mismo docente creando la Unidad 2 (`Seguridad y Aplicaciones de Red`) y confirmando `0` resultados al consultar términos pertenecientes a la Unidad 1 (captura en comentario del PR)
-- [X] T024 [BE][E2E] Verificar aislamiento estricto entre cuentas docentes distintas (`docente A` vs `docente B`), confirmando `0` filtraciones de cursos ni fragmentos indexados (captura en comentario del PR)
+- [X] T021 [BE] Corregir la validación de tipos de documentos permitidos en `ALLOWED_DOCUMENT_TYPES` dentro de `account_service.py` ([PR #34](https://github.com/SilvanaD12/Plataforma_Docente_backend/pull/34))
+- [X] T022 [BE][E2E] Validar pertinencia de búsqueda híbrida en la Unidad 1 comprobando recuperación con `100.0%` de relevancia
+- [X] T023 [BE][E2E] Verificar aislamiento entre unidades del mismo docente confirmando `0` resultados cruzados
+- [X] T024 [BE][E2E] Verificar aislamiento estricto entre cuentas docentes distintas confirmando `0` filtraciones
 
 ## Fase 8 - HU-055: Importación de Material de Fuente Abierta (Wikipedia)
 
-- [X] T025 [BE][FE] Validar en demo el flujo completo de búsqueda e importación de artículos de fuente abierta desde Wikipedia (`Modelo OSI` y `Protocolo de datagramas de usuario`) vía `POST /api/v1/documents/from-topic` (captura de interfaz en comentario del PR)
-- [X] T026 [BE] Inspeccionar el payload de respuesta de `from-topic` confirmando la persistencia de metadatos de procedencia en el objeto `origin` (`url` exacta de Wikipedia y licencia `CC BY-SA 4.0`) junto con su registro como `Artículo de fuente abierta` (captura de DevTools en comentario del PR)
+- [X] T025 [BE][FE] Validar en demo el flujo completo de búsqueda e importación desde Wikipedia vía `POST /api/v1/documents/from-topic`
+- [X] T026 [BE] Inspeccionar el payload de respuesta de `from-topic` confirmando persistencia de metadatos `origin`
+
+---
+
+# PARTE II — Nueva Entrega / Iteración P2 (MAT-P1, MAT-P2, MAT-P3) [COMPLETADA]
+
+## Fase 9 - MAT-P1 (Pedido P6): Ingesta de Material desde URL
+
+- [X] T027 [MAT-P1] Definir puerto `WebContentFetcherPort` y adaptador `WebPageExtractor` con validación de URL (`http`/`https`), protección anti-SSRF (bloqueo de hosts locales/privados), timeout y limpieza de HTML a texto plano
+- [X] T028 [MAT-P1] Implementar `create_from_url` en `MaterialService` reutilizando validación de unidad (`404` seguro), persistencia de `origin` (`url`, `title`, `source="Web"`) y flujo de fragmentación/embeddings (`ChunkEmbeddingService`)
+- [X] T029 [MAT-P1] Exponer endpoint `POST /api/v1/documents/from-url` con esquemas Pydantic de entrada/salida (`UrlIngestRequest`, `DocumentResponse`) y manejo de errores controlados (URL inválida, inaccesible o sin contenido extraíble)
+- [X] T030 [MAT-P1] Escribir pruebas unitarias y de contrato OpenAPI para ingesta desde URL en `backend/tests/unit/test_url_ingestion.py` (éxito, SSRF/URL inválida, unidad ajena `404` e indexación vectorial)
+
+## Fase 10 - MAT-P2 (Pedido P7): Extracción y Entrega de Referentes al Plan (`GEN-P1`)
+
+- [X] T031 [MAT-P2] Utilizar entidad/VO `Referent` y definir puertos `ReferentRepositoryPort` y `ReferentExtractorPort`
+- [X] T032 [MAT-P2] Implementar `GeminiReferentExtractor` y `ReferentService` usando salida estructurada para identificar autores/referentes principales del tema y vincular `fragment_ids` de respaldo
+- [X] T033 [MAT-P2] Implementar persistencia de referentes en PostgreSQL (`SQLAlchemyReferentRepository` + migración `0007_referents.py` de tabla `referente` aislada por `teacher_id` y `unit_id`) y disparar extracción durante la ingesta/procesamiento de evidencia
+- [X] T034 [MAT-P2] Implementar `ReferentService` como adaptador real de `ReferentsPort` para `generation_planning` (`GEN-P1`) reemplazando el stub y conectándolo en `main.py`
+- [X] T035 [MAT-P2] Escribir pruebas unitarias en `backend/tests/unit/test_referents_extraction.py` verificando extracción de referentes, caso sin autores (`[]`), aislamiento por unidad/docente y filtrado de fragmentos inválidos
+
+## Fase 11 - MAT-P3 (Pedido P8): Reintento y Aviso al Docente ante Fallo de IA en RAG
+
+- [X] T036 [MAT-P3] Confirmar alcance del pedido P8 respecto al flujo RAG y su manejo de fallos transitorios/persistentes
+- [X] T037 [MAT-P3] Implementar política de reintento acotado (`_run_with_ai_retry`) ante fallos transitorios del proveedor de IA en `RunGenerationRequest`
+- [X] T038 [MAT-P3] Propagar aviso estructurado al docente (`AI_RETRY_FAILED_MESSAGE` y sanitización `_strip_internal_methodology`) cuando persiste el fallo de IA tras el reintento (sin degradar en silencio y sin mencionar "5E" en mensajes de usuario)
+- [X] T039 [MAT-P3] Escribir pruebas unitarias en `backend/tests/unit/test_rag_ai_retry_warning.py` simulando fallo transitorio (recuperado en reintento) y fallo persistente (aviso explícito al docente sin filtrar secretos ni mencionar "5E")

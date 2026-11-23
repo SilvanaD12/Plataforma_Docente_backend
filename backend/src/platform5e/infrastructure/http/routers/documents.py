@@ -21,6 +21,7 @@ from platform5e.infrastructure.http.schemas.documents import (
     DocumentContextInput,
     DocumentResponse,
     TopicSearchRequest,
+    UrlIngestRequest,
 )
 
 from pydantic import BaseModel, Field
@@ -237,5 +238,33 @@ def create_documents_router(account_service: AccountService, material_service: M
 
         Expected 200. See the response schema below for the returned fields."""
         return material_service.get_document_chunks(teacher_id, document_id)
+
+    @router.post(
+        "/from-url",
+        status_code=status.HTTP_201_CREATED,
+        response_model=DocumentResponse,
+        summary="Add material from a public web URL",
+        responses=error_responses(400, 401, 404, 422, 503),
+    )
+    def create_document_from_url(
+        body: UrlIngestRequest,
+        teacher_id: str = Depends(current_teacher),
+    ) -> dict[str, Any]:
+        """Downloads a public web page, extracts its clean text and indexes it into the unit.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Replace unidad-1 with the ID of a unit you own.
+
+        ```bash
+        curl --fail-with-body -i -X POST "$BASE_URL/api/v1/documents/from-url" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" --data '{"unitId":"unidad-1","url":"https://es.wikipedia.org/wiki/Modelo_OSI"}'
+        ```
+
+        Expected 201 with the processed document metadata."""
+        return material_service.create_from_url(
+            teacher_id=teacher_id,
+            unit_id=body.unit_id,
+            url=body.url,
+            outcome_ids=body.outcome_ids,
+        )
 
     return router

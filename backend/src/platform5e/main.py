@@ -22,6 +22,7 @@ from platform5e.application.services.accounts.account_service import AccountServ
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
+from platform5e.application.services.materials.referent_service import ReferentService
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.application.services.generation.plan_drafting import GenerationPlanner
 from platform5e.application.use_cases.generation.approve_generation_plan import ApproveGenerationPlan
@@ -121,6 +122,11 @@ from platform5e.infrastructure.settings import (
     topic_coverage_threshold,
 )
 from platform5e.infrastructure.sources.wikipedia_source import WikipediaSource
+from platform5e.infrastructure.sources.web_page_extractor import WebPageExtractor
+from platform5e.infrastructure.llm.gemini_referent_extractor import GeminiReferentExtractor
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_referent_repository import (
+    SQLAlchemyReferentRepository,
+)
 
 API_DESCRIPTION = """
 Backend of **Platform 5E**: teachers upload the material of a unit, generate 5E learning resources that cite it
@@ -212,6 +218,7 @@ def create_application() -> FastAPI:
     chunk_repository = SQLAlchemyChunkRepository()
     resource_repository = SQLAlchemyResourceRepository()
     open_source = WikipediaSource() if read_flag("TOPIC_SEARCH_ENABLED", True) else None
+    web_fetcher = WebPageExtractor() if read_flag("URL_INGEST_ENABLED", True) else None
     primary_generator, fallback_generator = create_generators()
     media_repository = SQLAlchemyMediaRepository()
     media_generator = create_media_generator()
@@ -266,6 +273,21 @@ def create_application() -> FastAPI:
 
     interpret_generation = InterpretGenerationRequest(unit_membership, list_owned_units)
 
+    referent_repository = SQLAlchemyReferentRepository()
+    referent_extractor = (
+        GeminiReferentExtractor(
+            api_key=llm_api_key,
+            model=gemini_model,
+            base_url=gemini_base_url,
+        )
+        if gemini_configured and llm_api_key
+        else None
+    )
+    referent_service = ReferentService(
+        repository=referent_repository,
+        extractor=referent_extractor,
+    )
+
     material_service = MaterialService(
         teacher_repository=account_repository,
         chunk_repository=chunk_repository,
@@ -274,6 +296,8 @@ def create_application() -> FastAPI:
         embedding_service=embedding_service,
         unit_membership_port=unit_membership,
         evidence_retriever=evidence_retriever,
+        web_fetcher_port=web_fetcher,
+        referent_service=referent_service
     )
 
     # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
@@ -307,7 +331,7 @@ def create_application() -> FastAPI:
     create_plan = CreateGenerationPlan(
         unit_membership,
         evidence_provider,
-        NoReferentsAdapter(),
+        referent_service,
         NoSessionTypologyAdapter(),
         resource_catalog,
         GenerationPlanner(plan_drafter, {entry.id: entry for entry in resource_catalog.entries()}),
