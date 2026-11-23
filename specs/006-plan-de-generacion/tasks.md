@@ -113,6 +113,14 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - Hecho en el PR del backend (enlace pendiente). `CatalogEntry` suma `length_hint` y `verification` (`strict` o `framed`, [research R6](research.md#verificación-strict-y-framed)); `domain/generation/text_types.py`, `grounding.verify_framed` y el redactor genérico `_catalog_text`. El `lengthHint` llega al prompt también para los tipos actuales que lo tengan. Pruebas en `tests/unit/test_text_type_verification.py` y `tests/unit/test_planned_generation.py`, con entradas falsas de los dos modos.
   - **Pendiente:** los 28 tipos nuevos siguen inactivos hasta que CUR-P2 cablee el catálogo. Mientras tanto, la etiqueta en Revisión y el esquema HTTP de `resourceType` (lista cerrada) no los aceptan todavía.
 
+- [x] T026 [BE] [GEN-P2] **Depende de T025.** Correcciones de la medición tras la v3 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
+  - las oraciones sin títulos ni encabezados, y las tres cifras (todos, `crossType` como principal y `variants`), también en la tasa de pares;
+  - la tabla por concepto (mencionado, desarrollado, definido);
+  - `--recompute` para recalcular un informe sin generar, con `--compare`, y las métricas solo con los recursos de la IA (`aiOnly`);
+  - por corrida, los pasos del respaldo con su motivo y los recursos no entregados con sus rechazos;
+  - en la calibración, un error claro si la API no devuelve el pedido, y embeddings por lotes con avance;
+  - en la documentación, la cuenta debe ser la misma que creó los informes.
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_measure_duplication.py` y `tests/unit/test_plan_coverage.py`. **Pendiente:** recalcular la v3 con embeddings y la misma cuenta (`--recompute`) y repetir la medición (v4).
 - [x] T025 [BE] [GEN-P2] **Depende de T024.** Segunda corrida de P4: la baja de la tasa de pares fue −1,4 % con la IA en los dos modos.
   - **Planificador con Gemini:** un plan no válido se pide una vez más con sus problemas, y `generator.attempts` lo registra ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)).
   - **Medición:** oraciones casi repetidas y conceptos explicados otra vez como evidencia principal, `--calibrate` para los umbrales, 5 corridas por defecto, y el origen del plan por corrida ([research R7](research.md#r7-medición-de-la-duplicación-p4)).

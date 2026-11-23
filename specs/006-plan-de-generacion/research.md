@@ -205,14 +205,30 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 - **Planes de reglas:** en 2 de 3 corridas con plan, el plan de Gemini no fue válido y se usó el de reglas (de ahí el reintento de R4).
 - **La métrica de pares mide el tema:** la similitud máxima media fue de 0,91 en los dos modos. Con τ = 0,85, la métrica de pares capta sobre todo «el mismo tema», no «contenido repetido».
 - **Pocas corridas:** con 3 corridas por modo, la tasa varió entre 0,20 y 0,41 de una corrida a otra.
+- **v3** (5 corridas por modo, τ = 0,885 y umbral de oraciones 0,865 de `calibration-v2.json`):
+  - pares: 10,1 % → 6,5 % (−36 %); oraciones casi repetidas: 52,4 % → 40,5 % (−23 %); conceptos explicados otra vez: 1,2 → 1,2;
+  - con plan hubo más respaldo (8 de 40 pasos, frente a 5 de 40) y menos recursos por pedido (15,0 frente a 15,8);
+  - **qué falló en la medición:** las oraciones incluían títulos; no separaban la repetición entre recursos distintos de la de las dos variantes de un tipo; y la métrica de conceptos no discriminaba (solo «capa de transporte», en los dos modos). Las métricas se corrigieron (abajo) y la v3 se puede recalcular sin generar (`--recompute`).
 
 **Métricas.** Por cada generación (`evaluation/measure_duplication.py`):
 - **Oraciones casi repetidas (evidencia principal).** La parte de las oraciones de 8 palabras o más (normalizadas) que tienen una casi igual en otro recurso de la misma generación: coseno de embeddings de oración ≥ un umbral calibrado (0,92 hasta calibrarlo), o Jaccard ≥ 0,6 si no hay embeddings. Es lo más parecido a la queja del profesor: el mismo contenido redactado otra vez.
+  - **Sin títulos:** el título del recurso y los encabezados de su estructura (títulos de pasos, titulares, conceptos centrales) no son oraciones. En los informes v3 y anteriores, que guardan el texto con el título en la primera línea, esa línea se quita al recalcular.
+  - **Tres cifras:** todos los pares (`all`); los de recursos de tipos distintos (`crossType`, **la principal**, porque la queja es la repetición entre recursos distintos); y los de recursos del mismo tipo (`variants`, las dos variantes de un tipo), aparte. Cada grupo trae sus ejemplos.
 - **Conceptos explicados otra vez (evidencia principal).** Los conceptos que se definen o se desarrollan en más de un recurso, con la regla de la comprobación del plan (dos oraciones, o una definición: `plan_coverage.develops_concept`).
   - `conceptReexplanationEvidence` usa en los dos modos los mismos conceptos: los candidatos de la evidencia del pedido, con la extracción del planificador por reglas. Los dos modos piden 12 fragmentos. Es la que se compara.
   - `conceptReexplanation` usa los conceptos del plan si lo hay; sirve para ver el plan por dentro.
-- **Tasa de pares duplicados (secundaria).** Pares de recursos con similitud de embeddings ≥ τ ÷ total de pares. Se conserva la meta de P4 sobre ella. La similitud máxima media se sigue informando.
+  - **Tabla por concepto (`table`):** en cuántos recursos se menciona (el término completo en una oración), se desarrolla (la regla de arriba) y se define (una oración que lo define). En la v3 la métrica no discriminó; la tabla muestra si la regla de «desarrollado» es demasiado estricta antes de cambiarla. La regla no cambia todavía.
+- **Tasa de pares duplicados (secundaria).** Pares de recursos con similitud de embeddings ≥ τ ÷ total de pares, con la misma división: todos, `crossType` y `variants`. Se conserva la meta de P4 sobre la de todos. La similitud máxima media se sigue informando.
+- **Solo los recursos de la IA (`aiOnly`).** Las mismas métricas sin los recursos del respaldo por reglas, en cada corrida y en el resumen, para que la comparación no la sesgue el respaldo (que en la v3 fue mayor con plan).
 - **Contexto de cada corrida.** Pasos redactados por la IA, por el respaldo y por reglas; avisos de solapamiento del plan (R5); y si el plan salió de Gemini (en 1 o 2 intentos) o del planificador por reglas. Una baja que viene de recursos del respaldo o de planes de reglas no cuenta como evidencia de la IA con plan.
+  - **`fallbacks`:** qué pasos redactó el respaldo y por qué (`steps[].generator.fallbackReason`).
+  - **`undelivered`:** qué recursos planeados no se entregaron (en la v3, 14 o 15 de 16 con plan), con los rechazos o el error de su paso.
+
+**Recalcular sin generar.** `measure_duplication.py --recompute --from <informe> --out <nuevo>` recalcula todas las métricas con los textos guardados en el informe (solo embeddings) y conserva los datos de cada corrida.
+- **Quién redactó cada recurso:** en los informes v3, sale del paso de su ítem (con plan) o de su tipo.
+- **Conceptos:** si el informe no los guarda (v3 y anteriores), se leen de la API con la misma cuenta. Sin cuenta, quedan vacíos.
+- **Comparar:** acepta `--compare`. Para comparar, se recalculan los dos informes con los mismos umbrales.
+- **Desde ahora:** los informes guardan, por recurso, el texto completo, el texto sin títulos y quién lo redactó, y los conceptos de la evidencia y del plan, así el recálculo no necesita la API.
 
 **Cómo se eligen τ y el umbral de oraciones.** Con `measure_duplication.py --calibrate --from <informes>`:
 - **Pares sin repetición:** recursos de tipos distintos en ítems distintos del plan, y de otro corpus si se pasa un informe de otro corpus.
@@ -232,9 +248,10 @@ Se registran en `docs/evidence/GEN-P4/` los dos informes, la calibración y la `
 **Cómo leer el resultado.**
 1. **Primero, ¿los dos modos los redactó la IA?** Mira `aiSteps` frente a `fallbackSteps` y `planGenerators`. Si el plan salió de reglas en varias corridas, la comparación no mide el plan de Gemini.
 2. **Luego, la evidencia de «no repetición»:**
-   - `sentenceNearDuplicateRate`: oraciones casi repetidas;
-   - `meanReexplainedEvidenceConcepts`: conceptos explicados en más de un recurso, con los mismos conceptos en los dos modos;
-   - `sentenceReduction` y `reexplainedConceptsReduction` (con `--compare`), la baja frente a la línea base.
+   - `crossTypeSentenceRate` (la principal): oraciones casi repetidas entre recursos de tipos distintos. `sentenceNearDuplicateRate` (todas) y `variantsSentenceRate` (variantes de un tipo) van aparte;
+   - `meanReexplainedEvidenceConcepts`: conceptos explicados en más de un recurso, con los mismos conceptos en los dos modos, y la tabla por concepto;
+   - `crossTypeSentenceReduction` y `reexplainedConceptsReduction` (con `--compare`), la baja frente a la línea base;
+   - lo mismo en `aiOnly`, sin los recursos del respaldo: si la baja no se sostiene ahí, viene del respaldo.
 3. **Al final, la tasa de pares,** con su umbral calibrado y sabiendo que mezcla tema y repetición.
 
 **Meta.**

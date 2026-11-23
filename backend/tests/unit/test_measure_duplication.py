@@ -78,16 +78,15 @@ def test_the_summary_and_the_comparison_with_the_p4_target(measure):
                          "duplicatePairs": 0}},
             {"failure": {"stage": "wait", "code": "TIMEOUT"}}]
     summary = measure.summarize(runs)
-    assert summary == {"runs": 3, "finishedRuns": 2, "duplicateRate": round(12 / 211, 4),
-                       "meanDuplicateRatePerRun": 0.05, "meanMaxSimilarity": 0.4, "resourcesPerRequest": 15.0,
-                       "steps": 0, "aiSteps": 0, "fallbackSteps": 0, "rulesSteps": 0, "stepsWithoutGenerator": 0,
-                       "planWarnings": 0, "sentenceNearDuplicateRate": None, "meanSentenceRatePerRun": None,
-                       "meanReexplainedConcepts": None, "meanReexplainedEvidenceConcepts": None,
-                       "planGenerators": {"ai": 0, "rules": 0}}
+    assert (summary["runs"], summary["finishedRuns"], summary["duplicateRate"]) == (3, 2, round(12 / 211, 4))
+    assert (summary["meanDuplicateRatePerRun"], summary["meanMaxSimilarity"], summary["resourcesPerRequest"]) == (
+        0.05, 0.4, 15.0)
+    assert summary["steps"] == 0 and summary["planGenerators"] == {"ai": 0, "rules": 0} and summary["aiOnly"] is None
+    assert summary["sentenceNearDuplicateRate"] is None and summary["crossTypeSentenceRate"] is None
     baseline = {"duplicateRate": 0.2, "resourcesPerRequest": 15.0}
-    assert measure.compare(baseline, {"duplicateRate": 0.04, "resourcesPerRequest": 15.0}) == {
-        "reduction": 0.8, "meetsTarget": True, "resourcesKept": True, "sentenceReduction": None,
-        "reexplainedConceptsReduction": None}
+    result = measure.compare(baseline, {"duplicateRate": 0.04, "resourcesPerRequest": 15.0})
+    assert (result["reduction"], result["meetsTarget"], result["resourcesKept"]) == (0.8, True, True)
+    assert result["crossTypeSentenceReduction"] is None and "aiOnly" not in result
     assert measure.compare(baseline, {"duplicateRate": 0.04, "resourcesPerRequest": 12.0})["meetsTarget"] is False
     assert measure.compare(baseline, {"duplicateRate": 0.12, "resourcesPerRequest": 15.0})["meetsTarget"] is False
 
@@ -180,9 +179,9 @@ def test_the_comparison_is_added_with_a_baseline_report(measure, tmp_path, monke
     report = measure.main(["--mode", "plan", "--runs", "1", "--similarity", "lexical", "--corpus",
                            str(tmp_path / "tcp.txt"), "--out", str(tmp_path / "plan.json"), "--poll", "0",
                            "--compare", str(baseline)])
-    assert report["comparison"] == {"reduction": round(1 - round(1 / 3, 4) / 0.5, 4), "meetsTarget": False,
-                                    "resourcesKept": True, "sentenceReduction": None,
-                                    "reexplainedConceptsReduction": None}
+    comparison = report["comparison"]
+    assert comparison["reduction"] == round(1 - round(1 / 3, 4) / 0.5, 4)
+    assert (comparison["meetsTarget"], comparison["resourcesKept"]) == (False, True)
 
 
 def test_invalid_arguments_and_missing_credentials_stop_before_any_call(measure, tmp_path, monkeypatch):
@@ -284,15 +283,41 @@ def test_resource_sentences_keep_sentences_of_eight_words_or_more(measure):
     assert measure.resource_sentences(text) == [SENTENCES[0], SENTENCES[1]]
 
 
-def test_the_near_duplicate_sentence_rate_counts_sentences_repeated_in_another_resource(measure):
+def test_the_near_duplicate_sentence_rate_splits_cross_type_pairs_and_variants(measure):
     by_resource = [[SENTENCES[0], SENTENCES[1]], [SENTENCES[0] + " ", SENTENCES[2]], [SENTENCES[2]]]
-    result = measure.near_duplicate_sentences(by_resource, measure.lexical_matrix, 0.6)
-    # La 1.ª oración está en los recursos 1 y 2; la 3.ª, en los recursos 2 y 3. La 2.ª es única.
-    assert (result["sentences"], result["nearDuplicateSentences"]) == (5, 4)
-    assert result["rate"] == 0.8 and len(result["examples"]) == 2
+    # Los recursos 1 y 2 son de tipos distintos; el 2 y el 3, dos variantes del mismo tipo.
+    result = measure.near_duplicate_sentences(by_resource, measure.lexical_matrix, 0.6,
+                                              ["explicacion", "glosario", "glosario"])
+    assert result["sentences"] == 5
+    # La 1.ª oración está en los recursos 1 y 2 (tipos distintos); la 3.ª, en los recursos 2 y 3 (variantes).
+    assert (result["all"]["nearDuplicateSentences"], result["all"]["rate"]) == (4, 0.8)
+    assert (result["crossType"]["nearDuplicateSentences"], result["crossType"]["rate"]) == (2, 0.4)
+    assert (result["variants"]["nearDuplicateSentences"], result["variants"]["rate"]) == (2, 0.4)
+    assert result["crossType"]["examples"][0]["types"] == ["explicacion", "glosario"]
+    assert result["variants"]["examples"][0]["types"] == ["glosario", "glosario"]
     same_resource = measure.near_duplicate_sentences([[SENTENCES[0], SENTENCES[0]]], measure.lexical_matrix, 0.6)
-    assert same_resource["nearDuplicateSentences"] == 0  # repetir dentro del mismo recurso no cuenta
-    assert measure.near_duplicate_sentences([], measure.lexical_matrix, 0.6)["rate"] is None
+    assert same_resource["all"]["nearDuplicateSentences"] == 0  # repetir dentro del mismo recurso no cuenta
+    assert measure.near_duplicate_sentences([], measure.lexical_matrix, 0.6)["all"]["rate"] is None
+
+
+def test_titles_and_headings_are_not_sentences(measure):
+    long_title = "Cómo el protocolo UDP envía cada datagrama sin establecer una conexión previa"
+    api_resource = {"title": long_title, "body": SENTENCES[1], "options": [],
+                    "structure": {"steps": [{"title": long_title, "text": SENTENCES[2]}]}}
+    assert measure.resource_sentences(measure.resource_body(api_resource)) == [SENTENCES[1], SENTENCES[2]]
+    stored_v3 = {"title": long_title, "text": f"{long_title}\n{SENTENCES[1]}"}
+    assert measure.resource_sentences(measure.resource_body(stored_v3)) == [SENTENCES[1]]
+
+
+def test_the_pair_rate_splits_cross_type_pairs_and_variants(measure):
+    matrix = [[1.0, 0.9, 0.95], [0.9, 1.0, 0.2], [0.95, 0.2, 1.0]]
+    result = measure.duplication(["a", "b", "c"], fixed(matrix), 0.85, ["explicacion", "explicacion", "glosario"],
+                                 ["A", "B", "C"])
+    assert result["duplicateRate"] == round(2 / 3, 4)
+    assert (result["variants"]["pairs"], result["variants"]["duplicatePairs"]) == (1, 1)  # A y B, mismo tipo
+    assert (result["crossType"]["pairs"], result["crossType"]["duplicateRate"]) == (2, 0.5)  # A-C sí, B-C no
+    assert result["crossType"]["examples"] == [{"titles": ["A", "C"], "types": ["explicacion", "glosario"],
+                                                "similarity": 0.95}]
 
 
 def test_concept_reexplanation_counts_concepts_developed_in_more_than_one_resource(measure):
@@ -306,6 +331,12 @@ def test_concept_reexplanation_counts_concepts_developed_in_more_than_one_resour
     assert (result["concepts"], result["reexplained"]) == (3, 1)
     assert result["rate"] == round(1 / 3, 4)
     assert result["items"] == [{"concept": "protocolo UDP", "resources": 2, "titles": ["A", "B"]}]
+    # Por concepto: en cuántos recursos se menciona, se desarrolla y se define (para ver si la regla es estricta).
+    assert result["table"] == [
+        {"concept": "protocolo UDP", "mentioned": 2, "developed": 2, "defined": 1},
+        {"concept": "control de flujo", "mentioned": 2, "developed": 0, "defined": 0},
+        {"concept": "saludo de tres vías", "mentioned": 0, "developed": 0, "defined": 0},
+    ]
 
 
 class ContentBackend(FakeBackend):
@@ -346,7 +377,8 @@ def test_each_run_reports_the_content_metrics_and_the_plan_generator(measure, tm
     report = run_main(measure, tmp_path, monkeypatch, ContentBackend(), "--mode", "plan", "--runs", "2",
                       "--out", str(tmp_path / "plan.json"))
     run = report["runs"][0]
-    assert run["sentences"]["nearDuplicateSentences"] == 2 and run["sentences"]["threshold"] == 0.6
+    assert run["sentences"]["all"]["nearDuplicateSentences"] == 2 and run["sentences"]["threshold"] == 0.6
+    assert run["sentences"]["crossType"]["nearDuplicateSentences"] == 2  # explicacion y glosario: tipos distintos
     assert run["conceptReexplanation"]["source"] == "plan"
     assert run["conceptReexplanation"]["items"][0]["concept"] == "control de flujo"
     assert run["conceptReexplanationEvidence"]["source"] == "evidence"
@@ -354,7 +386,8 @@ def test_each_run_reports_the_content_metrics_and_the_plan_generator(measure, tm
     assert run["planGenerator"] == {"usesAi": True, "fallback": False, "attempts": 2, "source": "ai"}
     assert [r["id"] for r in run["resources"]] == ["r1", "r2", "r3"] and run["resources"][0]["text"]
     summary = report["summary"]
-    assert summary["sentenceNearDuplicateRate"] == run["sentences"]["rate"]
+    assert summary["sentenceNearDuplicateRate"] == run["sentences"]["all"]["rate"]
+    assert summary["crossTypeSentenceRate"] == run["sentences"]["crossType"]["rate"]
     assert summary["meanReexplainedConcepts"] == 1 and summary["meanReexplainedEvidenceConcepts"] >= 1
     assert summary["planGenerators"] == {"ai": 2, "rules": 0}
 
@@ -422,3 +455,146 @@ def test_calibration_reports_overlap_when_the_distributions_mix(measure):
     assert suggestion["overlap"] is True and suggestion["threshold"] == measure.percentile(unrelated, 95)
     clean = measure.suggest_threshold([0.2, 0.3, 0.4], [0.8, 0.9, 1.0])
     assert clean["overlap"] is False and 0.4 < clean["threshold"] < 0.8
+
+
+
+# --recompute, motivos del respaldo y recursos no entregados, calibración con la cuenta correcta
+
+
+def v3_report() -> dict:
+    """Un informe como los v3: textos con el título en la primera línea, pasos con `usesAi` y `fallback`, sin
+    conceptos guardados y sin quién redactó cada recurso."""
+    steps = [{"resourceType": "explicacion", "planItemPosition": 1, "delivered": 1, "usesAi": True, "fallback": False},
+             {"resourceType": "glosario", "planItemPosition": 2, "delivered": 1, "usesAi": False, "fallback": True},
+             {"resourceType": "item_opcion_multiple", "planItemPosition": 3, "delivered": 1, "usesAi": True,
+              "fallback": False}]
+    resources = [
+        {"id": "r1", "title": "Control de flujo", "type": "explicacion", "planItemPosition": 1,
+         "text": f"Control de flujo\n{SENTENCES[1]} {SENTENCES[0]}"},
+        {"id": "r2", "title": "Glosario", "type": "glosario", "planItemPosition": 2,
+         "text": f"Glosario\n{SENTENCES[1]}"},
+        {"id": "r3", "title": "Ítem", "type": "item_opcion_multiple", "planItemPosition": 3,
+         "text": f"Ítem\n{SENTENCES[0]}"},
+    ]
+    return {"measure": "P4", "mode": "plan", "corpus": "corpus_t067", "threshold": 0.885, "sentenceThreshold": 0.865,
+            "similarity": "embeddings (coseno), gemini-embedding-001",
+            "runs": [{"key": "p4-plan-1", "requestId": "gen-req-1", "planId": "gen-plan-1", "steps": steps,
+                      "generators": {"aiSteps": 2, "fallbackSteps": 1, "rulesSteps": 0, "stepsWithoutGenerator": 0},
+                      "planGenerator": {"usesAi": False, "fallback": True, "attempts": 2, "source": "rules"},
+                      "metrics": {"duplicateRate": 0.9}, "resources": resources}],
+            "summary": {"duplicateRate": 0.9}}
+
+
+def test_recompute_rebuilds_every_metric_from_the_stored_texts_and_keeps_the_run_data(measure, tmp_path,
+                                                                                       monkeypatch):
+    monkeypatch.delenv("EVAL_EMAIL", raising=False)  # sin cuenta: no lee conceptos de la API
+    source = tmp_path / "v3-gemini-plan.json"
+    source.write_text(json.dumps(v3_report(), ensure_ascii=False), encoding="utf-8")
+    out = tmp_path / "v3r-gemini-plan.json"
+    report = measure.main(["--recompute", "--from", str(source), "--similarity", "lexical",
+                           "--sentence-threshold", "0.6", "--out", str(out)])
+    assert json.loads(out.read_text(encoding="utf-8")) == report and report["recomputedFrom"] == source.name
+    run = report["runs"][0]
+    # Los datos de la corrida se conservan; las métricas se recalculan con los textos.
+    assert run["generators"]["fallbackSteps"] == 1 and run["planGenerator"]["source"] == "rules"
+    assert run["metrics"]["resources"] == 3 and run["metrics"]["duplicateRate"] != 0.9
+    assert [r["drafter"] for r in run["resources"]] == ["ai", "fallback", "ai"]
+    # Los títulos no son oraciones: r1 tiene 2 oraciones y r2 y r3, una cada uno.
+    assert run["sentences"]["sentences"] == 4 and run["sentences"]["crossType"]["nearDuplicateSentences"] == 4
+    # Solo con los recursos de la IA: sin el glosario del respaldo.
+    assert run["aiOnly"]["resources"] == 2 and run["aiOnly"]["sentences"]["crossType"]["nearDuplicateSentences"] == 2
+    assert run["conceptReexplanationEvidence"] is None  # el informe v3 no guarda los conceptos
+    assert report["summary"]["aiOnly"]["resources"] == 2 and report["threshold"] == 0.885
+    assert report["sentenceThreshold"] == 0.6 and "comparison" not in report
+
+
+def test_recompute_reads_missing_concepts_with_the_same_account_and_compares(measure, tmp_path, monkeypatch):
+    source = tmp_path / "v3-gemini-plan.json"
+    source.write_text(json.dumps(v3_report(), ensure_ascii=False), encoding="utf-8")
+    baseline = tmp_path / "v3r-gemini-baseline.json"
+    baseline.write_text(json.dumps({"summary": {"duplicateRate": 0.5, "crossTypeSentenceRate": 1.0,
+                                                "resourcesPerRequest": 3, "aiOnly": {"crossTypeSentenceRate": 1.0}}}),
+                        encoding="utf-8")
+    report = run_main(measure, tmp_path, monkeypatch, ContentBackend(), "--recompute", "--from", str(source),
+                      "--out", str(tmp_path / "out.json"), "--compare", str(baseline))
+    run = report["runs"][0]
+    assert run["planConcepts"] == ["control de flujo", "datagrama UDP"] and run["evidenceConcepts"]
+    assert run["conceptReexplanation"]["source"] == "plan" and run["conceptReexplanationEvidence"]["table"]
+    comparison = report["comparison"]
+    assert comparison["crossTypeSentenceReduction"] == round(1 - report["summary"]["crossTypeSentenceRate"], 4)
+    assert comparison["aiOnly"]["crossTypeSentenceReduction"] is not None
+
+
+class FallbackBackend(ContentBackend):
+    """Un pedido con un paso del respaldo (con su motivo) y un ítem del plan que entregó 1 de 2 recursos."""
+
+    def __call__(self, request):
+        path = request.url.path
+        if (request.method, path) == ("GET", "/api/v1/generation-requests/gen-req-1"):
+            return httpx.Response(200, json={"id": "gen-req-1", "status": "partially_succeeded", "unitId": "u1",
+                                             "planId": "gen-plan-1", "steps": [
+                {"resourceType": "explicacion", "planItemPosition": 1, "resourceIds": ["r1", "r2"], "rejections": [],
+                 "status": "succeeded", "generator": {"usesAi": True, "fallback": False}},
+                {"resourceType": "glosario", "planItemPosition": 2, "resourceIds": ["r3"], "status": "succeeded",
+                 "rejections": [{"kind": "grounding", "title": "Glosario 2", "reason": "«Glosario 2»: sin respaldo."}],
+                 "generator": {"usesAi": False, "fallback": True,
+                               "fallbackReason": "Gemini no respondió (tiempo agotado). Se usó el generador por reglas."}},
+            ]})
+        if (request.method, path) == ("GET", "/api/v1/generation-plans/gen-plan-1"):
+            return httpx.Response(200, json={"id": "gen-plan-1", "items": [
+                {"position": 1, "quantity": 2, "covers": ["control de flujo", "saludo de tres vías"]},
+                {"position": 2, "quantity": 2, "covers": ["datagrama UDP", "puerto de origen"]}],
+                "generator": {"usesAi": True, "fallback": False, "attempts": 1}})
+        return super().__call__(request)
+
+
+def test_each_run_reports_which_steps_fell_back_and_which_planned_resources_were_not_delivered(measure, tmp_path,
+                                                                                              monkeypatch):
+    report = run_main(measure, tmp_path, monkeypatch, FallbackBackend(), "--mode", "plan", "--runs", "1",
+                      "--out", str(tmp_path / "plan.json"))
+    run = report["runs"][0]
+    assert run["fallbacks"] == [{"resourceType": "glosario", "planItemPosition": 2,
+                                 "reason": "Gemini no respondió (tiempo agotado). Se usó el generador por reglas."}]
+    assert run["expectedResources"] == 4
+    assert run["undelivered"] == [{"resourceType": "glosario", "planItemPosition": 2, "expected": 2, "delivered": 1,
+                                   "missing": 1, "status": "succeeded", "error": None,
+                                   "rejections": [{"kind": "grounding", "title": "Glosario 2",
+                                                   "reason": "«Glosario 2»: sin respaldo."}]}]
+    assert [r["drafter"] for r in run["resources"]] == ["ai", "ai", "fallback"]
+    assert run["aiOnly"]["resources"] == 2 and report["summary"]["undeliveredResources"] == 1
+
+
+def test_calibration_stops_with_a_clear_error_when_the_account_cannot_read_the_request(measure, tmp_path, monkeypatch):
+    class OtherAccount(FakeBackend):
+        def __call__(self, request):
+            if request.url.path == "/api/v1/generation-requests/gen-req-1":
+                return httpx.Response(404, json={"error": {"code": "GENERATION_REQUEST_NOT_FOUND", "message": "No."}})
+            return super().__call__(request)
+
+    old = tmp_path / "v2-gemini-plan.json"
+    old.write_text(json.dumps({"runs": [{"requestId": "gen-req-1"}]}), encoding="utf-8")
+    with pytest.raises(SystemExit) as stopped:
+        run_main(measure, tmp_path, monkeypatch, OtherAccount(), "--calibrate", "--from", str(old),
+                 "--out", str(tmp_path / "c.json"))
+    assert "respondió 404" in str(stopped.value) and "misma cuenta" in str(stopped.value)
+    assert not (tmp_path / "c.json").exists()
+
+
+def test_embeddings_are_requested_in_batches_and_once_per_text(measure):
+    class Counting:
+        model = "embeddings-falsos"
+
+        def __init__(self):
+            self.batches = []
+
+        def embed_documents(self, texts):
+            self.batches.append(len(texts))
+            return [[float(len(text)), 1.0] for text in texts]
+
+    embedder = Counting()
+    similarity = measure.EmbeddingSimilarity(embedder, batch_size=3, show_progress=False)
+    texts = [f"texto {n}" for n in range(7)]
+    scores = measure.pair_scores(similarity, [(texts[0], texts[n]) for n in range(1, 7)] + [(texts[0], texts[1])])
+    assert len(scores) == 7 and embedder.batches == [3, 3, 1]  # 7 textos distintos en 3 llamadas
+    similarity(texts[:3])
+    assert embedder.batches == [3, 3, 1]  # ya estaban: ninguna llamada más

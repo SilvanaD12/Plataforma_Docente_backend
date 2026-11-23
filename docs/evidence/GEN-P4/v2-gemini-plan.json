@@ -1,0 +1,1308 @@
+{
+  "measure": "P4 · duplicación entre recursos de una misma generación",
+  "mode": "plan",
+  "api": "http://127.0.0.1:8000",
+  "corpus": "evaluation/corpus_t067",
+  "resourceTypes": [
+    "pregunta_detonante",
+    "sondeo_diagnostico",
+    "guia_exploracion",
+    "caso_indagacion",
+    "explicacion",
+    "glosario",
+    "ejercicio_aplicacion",
+    "item_opcion_multiple"
+  ],
+  "quantity": 2,
+  "threshold": 0.85,
+  "similarity": "embeddings (coseno), gemini-embedding-001",
+  "server": "GENERATION_IMPLICIT_PLAN=true (plan aprobado sin cambios)",
+  "createdAt": "2026-11-23T05:42:52.915407+00:00",
+  "summary": {
+    "runs": 3,
+    "finishedRuns": 3,
+    "duplicateRate": 0.2972,
+    "meanDuplicateRatePerRun": 0.2972,
+    "meanMaxSimilarity": 0.9144,
+    "resourcesPerRequest": 16.0,
+    "steps": 24,
+    "aiSteps": 20,
+    "fallbackSteps": 4,
+    "rulesSteps": 0,
+    "stepsWithoutGenerator": 0,
+    "planWarnings": 1
+  },
+  "runs": [
+    {
+      "key": "p4-plan-20261123T053806-1",
+      "planId": "gen-plan-dc01fa80-dbdc-4dfd-bb34-69b37f0e99cf",
+      "planGenerator": {
+        "description": "Gemini · gemini-3.5-flash-lite",
+        "usesAi": true,
+        "fallback": false,
+        "fallbackReason": null
+      },
+      "planItems": 8,
+      "requestId": "gen-req-033263ff-9a0f-4ed9-921c-e7fd45ae501f",
+      "requestPlanId": "gen-plan-dc01fa80-dbdc-4dfd-bb34-69b37f0e99cf",
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": 1,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": 2,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": 3,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": 4,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 1
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": 5,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": 6,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": 7,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": 8,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 6,
+        "fallbackSteps": 2,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "planWarnings": [
+        {
+          "title": "Escenario de transmisión multimedia y análisis de latencia",
+          "reason": "«Escenario de transmisión multimedia y análisis de latencia»: no desarrolla ninguno de sus conceptos del plan («control de congestión»).",
+          "resourceId": "rec-api-d25bad76-5182-490d-a738-80e41b99e039"
+        }
+      ],
+      "rejectionKinds": {
+        "structure": 2
+      },
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 24,
+        "duplicateRate": 0.2,
+        "meanMaxSimilarity": 0.9068,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 8,
+            "similarity": 0.8831,
+            "titles": [
+              "Diseño de protocolos en la capa de transporte",
+              "Fundamentos teóricos del direccionamiento y la segmentación en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.856,
+            "titles": [
+              "Diseño de protocolos en la capa de transporte",
+              "Direccionamiento y segmentación en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 12,
+            "similarity": 0.8673,
+            "titles": [
+              "Diseño de protocolos en la capa de transporte",
+              "Evaluacion de escenarios de red y seleccion de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9655,
+            "titles": [
+              "Sondeo diagnóstico sobre TCP y UDP",
+              "Sondeo diagnóstico sobre orientación a conexión y confiabilidad"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 14,
+            "similarity": 0.859,
+            "titles": [
+              "Sondeo diagnóstico sobre TCP y UDP",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 15,
+            "similarity": 0.8662,
+            "titles": [
+              "Sondeo diagnóstico sobre TCP y UDP",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 12,
+            "similarity": 0.8515,
+            "titles": [
+              "Sondeo diagnóstico sobre orientación a conexión y confiabilidad",
+              "Evaluacion de escenarios de red y seleccion de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 14,
+            "similarity": 0.8553,
+            "titles": [
+              "Sondeo diagnóstico sobre orientación a conexión y confiabilidad",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 15,
+            "similarity": 0.8531,
+            "titles": [
+              "Sondeo diagnóstico sobre orientación a conexión y confiabilidad",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.8566,
+            "titles": [
+              "Guía de exploración: suma de verificación",
+              "Gu&iacute;a de exploraci&oacute;n: An&aacute;lisis del puerto de origen en la cabecera"
+            ]
+          },
+          {
+            "first": 5,
+            "second": 13,
+            "similarity": 0.8633,
+            "titles": [
+              "Gu&iacute;a de exploraci&oacute;n: An&aacute;lisis del puerto de origen en la cabecera",
+              "Seleccion de servicios de red y analisis de puerto de destino"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.9059,
+            "titles": [
+              "Escenario de transmisión multimedia y análisis de latencia",
+              "Análisis del arranque lento en la transmisión de datos"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 12,
+            "similarity": 0.888,
+            "titles": [
+              "Escenario de transmisión multimedia y análisis de latencia",
+              "Evaluacion de escenarios de red y seleccion de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 13,
+            "similarity": 0.8508,
+            "titles": [
+              "Escenario de transmisión multimedia y análisis de latencia",
+              "Seleccion de servicios de red y analisis de puerto de destino"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 9,
+            "similarity": 0.941,
+            "titles": [
+              "Fundamentos teóricos del direccionamiento y la segmentación en la capa de transporte",
+              "Direccionamiento y segmentación en la capa de transporte"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.8646,
+            "titles": [
+              "Fundamentos teóricos del direccionamiento y la segmentación en la capa de transporte",
+              "Glosario de la unidad: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 11,
+            "similarity": 0.856,
+            "titles": [
+              "Fundamentos teóricos del direccionamiento y la segmentación en la capa de transporte",
+              "Glosario de la unidad: Transmission Control Protocol"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 10,
+            "similarity": 0.8515,
+            "titles": [
+              "Direccionamiento y segmentación en la capa de transporte",
+              "Glosario de la unidad: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 11,
+            "similarity": 0.8505,
+            "titles": [
+              "Direccionamiento y segmentación en la capa de transporte",
+              "Glosario de la unidad: Transmission Control Protocol"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 13,
+            "similarity": 0.8622,
+            "titles": [
+              "Direccionamiento y segmentación en la capa de transporte",
+              "Seleccion de servicios de red y analisis de puerto de destino"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.8739,
+            "titles": [
+              "Glosario de la unidad: Protocolos de transporte",
+              "Glosario de la unidad: Transmission Control Protocol"
+            ]
+          },
+          {
+            "first": 11,
+            "second": 15,
+            "similarity": 0.8802,
+            "titles": [
+              "Glosario de la unidad: Transmission Control Protocol",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.9057,
+            "titles": [
+              "Evaluacion de escenarios de red y seleccion de protocolos de transporte",
+              "Seleccion de servicios de red y analisis de puerto de destino"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9357,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "p4-plan-20261123T053806-2",
+      "planId": "gen-plan-5f24691a-0402-4468-bcc4-bb219306eef2",
+      "planGenerator": {
+        "description": "Planificador por reglas (sin IA)",
+        "usesAi": false,
+        "fallback": true,
+        "fallbackReason": "Gemini · gemini-3.5-flash-lite devolvió un plan no válido (CONCEPT_OWNED_TWICE, NOT_ENOUGH_CONCEPTS). Se armó el plan con reglas."
+      },
+      "planItems": 8,
+      "requestId": "gen-req-e1faf7c7-9c31-4885-be3a-461c69a0d76f",
+      "requestPlanId": "gen-plan-5f24691a-0402-4468-bcc4-bb219306eef2",
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": 1,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": 2,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": 3,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": 4,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": 5,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": 6,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": 7,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": 8,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 7,
+        "fallbackSteps": 1,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "planWarnings": [],
+      "rejectionKinds": {
+        "structure": 1
+      },
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 49,
+        "duplicateRate": 0.4083,
+        "meanMaxSimilarity": 0.9284,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.8896,
+            "titles": [
+              "Exploración de la capa de transporte y el control de flujo",
+              "Exploración de la cabecera y el funcionamiento en la transmisión de datos"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 4,
+            "similarity": 0.8625,
+            "titles": [
+              "Exploración de la capa de transporte y el control de flujo",
+              "Guía de exploración: Análisis de la capa de red y el protocolo de datagramas de usuario"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 6,
+            "similarity": 0.8598,
+            "titles": [
+              "Exploración de la capa de transporte y el control de flujo",
+              "Analisis de casos sobre establecimiento y servicios de transporte en redes"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 7,
+            "similarity": 0.8662,
+            "titles": [
+              "Exploración de la capa de transporte y el control de flujo",
+              "Establecimiento de conexion y transmision de datos en redes"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.8891,
+            "titles": [
+              "Exploración de la capa de transporte y el control de flujo",
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 11,
+            "similarity": 0.8503,
+            "titles": [
+              "Exploración de la capa de transporte y el control de flujo",
+              "Glosario de protocolos de transporte y control"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 12,
+            "similarity": 0.8748,
+            "titles": [
+              "Exploración de la capa de transporte y el control de flujo",
+              "Aplicacion practica de tcp protocolo y cuatro campos en redes"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 13,
+            "similarity": 0.8558,
+            "titles": [
+              "Exploración de la capa de transporte y el control de flujo",
+              "Aplicación práctica de tcp transmission y destino longitud"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 4,
+            "similarity": 0.8981,
+            "titles": [
+              "Exploración de la cabecera y el funcionamiento en la transmisión de datos",
+              "Guía de exploración: Análisis de la capa de red y el protocolo de datagramas de usuario"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 5,
+            "similarity": 0.8806,
+            "titles": [
+              "Exploración de la cabecera y el funcionamiento en la transmisión de datos",
+              "Guia de exploracion: Analisis de la capa de transporte y caracteristicas del protocolo UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 7,
+            "similarity": 0.8567,
+            "titles": [
+              "Exploración de la cabecera y el funcionamiento en la transmisión de datos",
+              "Establecimiento de conexion y transmision de datos en redes"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 8,
+            "similarity": 0.8803,
+            "titles": [
+              "Exploración de la cabecera y el funcionamiento en la transmisión de datos",
+              "Funcionamiento de los protocolos del nivel de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 9,
+            "similarity": 0.9079,
+            "titles": [
+              "Exploración de la cabecera y el funcionamiento en la transmisión de datos",
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 12,
+            "similarity": 0.8553,
+            "titles": [
+              "Exploración de la cabecera y el funcionamiento en la transmisión de datos",
+              "Aplicacion practica de tcp protocolo y cuatro campos en redes"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 13,
+            "similarity": 0.8562,
+            "titles": [
+              "Exploración de la cabecera y el funcionamiento en la transmisión de datos",
+              "Aplicación práctica de tcp transmission y destino longitud"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9597,
+            "titles": [
+              "Sondeo diagnóstico sobre protocolos de transporte",
+              "Sondeo diagnóstico: Funcionamiento y características de los protocolos de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.8764,
+            "titles": [
+              "Sondeo diagnóstico sobre protocolos de transporte",
+              "Guía de exploración: Análisis de la capa de red y el protocolo de datagramas de usuario"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 5,
+            "similarity": 0.8684,
+            "titles": [
+              "Sondeo diagnóstico sobre protocolos de transporte",
+              "Guia de exploracion: Analisis de la capa de transporte y caracteristicas del protocolo UDP"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 4,
+            "similarity": 0.8797,
+            "titles": [
+              "Sondeo diagnóstico: Funcionamiento y características de los protocolos de transporte",
+              "Guía de exploración: Análisis de la capa de red y el protocolo de datagramas de usuario"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 5,
+            "similarity": 0.8823,
+            "titles": [
+              "Sondeo diagnóstico: Funcionamiento y características de los protocolos de transporte",
+              "Guia de exploracion: Analisis de la capa de transporte y caracteristicas del protocolo UDP"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 6,
+            "similarity": 0.8575,
+            "titles": [
+              "Sondeo diagnóstico: Funcionamiento y características de los protocolos de transporte",
+              "Analisis de casos sobre establecimiento y servicios de transporte en redes"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 12,
+            "similarity": 0.8513,
+            "titles": [
+              "Sondeo diagnóstico: Funcionamiento y características de los protocolos de transporte",
+              "Aplicacion practica de tcp protocolo y cuatro campos en redes"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 15,
+            "similarity": 0.8594,
+            "titles": [
+              "Sondeo diagnóstico: Funcionamiento y características de los protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9529,
+            "titles": [
+              "Guía de exploración: Análisis de la capa de red y el protocolo de datagramas de usuario",
+              "Guia de exploracion: Analisis de la capa de transporte y caracteristicas del protocolo UDP"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 7,
+            "similarity": 0.8518,
+            "titles": [
+              "Guía de exploración: Análisis de la capa de red y el protocolo de datagramas de usuario",
+              "Establecimiento de conexion y transmision de datos en redes"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 8,
+            "similarity": 0.8582,
+            "titles": [
+              "Guía de exploración: Análisis de la capa de red y el protocolo de datagramas de usuario",
+              "Funcionamiento de los protocolos del nivel de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 9,
+            "similarity": 0.8686,
+            "titles": [
+              "Guía de exploración: Análisis de la capa de red y el protocolo de datagramas de usuario",
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte"
+            ]
+          },
+          {
+            "first": 5,
+            "second": 9,
+            "similarity": 0.8795,
+            "titles": [
+              "Guia de exploracion: Analisis de la capa de transporte y caracteristicas del protocolo UDP",
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.9219,
+            "titles": [
+              "Analisis de casos sobre establecimiento y servicios de transporte en redes",
+              "Establecimiento de conexion y transmision de datos en redes"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 12,
+            "similarity": 0.9064,
+            "titles": [
+              "Analisis de casos sobre establecimiento y servicios de transporte en redes",
+              "Aplicacion practica de tcp protocolo y cuatro campos en redes"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 13,
+            "similarity": 0.8622,
+            "titles": [
+              "Analisis de casos sobre establecimiento y servicios de transporte en redes",
+              "Aplicación práctica de tcp transmission y destino longitud"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 9,
+            "similarity": 0.8726,
+            "titles": [
+              "Establecimiento de conexion y transmision de datos en redes",
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 10,
+            "similarity": 0.8509,
+            "titles": [
+              "Establecimiento de conexion y transmision de datos en redes",
+              "Glosario de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 11,
+            "similarity": 0.8627,
+            "titles": [
+              "Establecimiento de conexion y transmision de datos en redes",
+              "Glosario de protocolos de transporte y control"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 12,
+            "similarity": 0.8942,
+            "titles": [
+              "Establecimiento de conexion y transmision de datos en redes",
+              "Aplicacion practica de tcp protocolo y cuatro campos en redes"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 13,
+            "similarity": 0.8556,
+            "titles": [
+              "Establecimiento de conexion y transmision de datos en redes",
+              "Aplicación práctica de tcp transmission y destino longitud"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 9,
+            "similarity": 0.8881,
+            "titles": [
+              "Funcionamiento de los protocolos del nivel de transporte",
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.8729,
+            "titles": [
+              "Funcionamiento de los protocolos del nivel de transporte",
+              "Glosario de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 11,
+            "similarity": 0.8559,
+            "titles": [
+              "Funcionamiento de los protocolos del nivel de transporte",
+              "Glosario de protocolos de transporte y control"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 15,
+            "similarity": 0.8519,
+            "titles": [
+              "Funcionamiento de los protocolos del nivel de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 10,
+            "similarity": 0.8965,
+            "titles": [
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte",
+              "Glosario de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 11,
+            "similarity": 0.8731,
+            "titles": [
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte",
+              "Glosario de protocolos de transporte y control"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 12,
+            "similarity": 0.8636,
+            "titles": [
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte",
+              "Aplicacion practica de tcp protocolo y cuatro campos en redes"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 13,
+            "similarity": 0.8606,
+            "titles": [
+              "Caracteristicas de la cabecera y el funcionamiento del protocolo de transporte",
+              "Aplicación práctica de tcp transmission y destino longitud"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.9707,
+            "titles": [
+              "Glosario de protocolos de transporte",
+              "Glosario de protocolos de transporte y control"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 15,
+            "similarity": 0.8742,
+            "titles": [
+              "Glosario de protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 11,
+            "second": 15,
+            "similarity": 0.8632,
+            "titles": [
+              "Glosario de protocolos de transporte y control",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.9226,
+            "titles": [
+              "Aplicacion practica de tcp protocolo y cuatro campos en redes",
+              "Aplicación práctica de tcp transmission y destino longitud"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9029,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "p4-plan-20261123T053806-3",
+      "planId": "gen-plan-7e12d6df-798f-41ac-94a7-a9110d1bea61",
+      "planGenerator": {
+        "description": "Planificador por reglas (sin IA)",
+        "usesAi": false,
+        "fallback": true,
+        "fallbackReason": "Gemini · gemini-3.5-flash-lite devolvió un plan no válido (NOT_ENOUGH_CONCEPTS). Se armó el plan con reglas."
+      },
+      "planItems": 8,
+      "requestId": "gen-req-f3f3fccf-f606-4a16-8d50-0020ad989464",
+      "requestPlanId": "gen-plan-7e12d6df-798f-41ac-94a7-a9110d1bea61",
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": 1,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": 2,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": 3,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": 4,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": 5,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": 6,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": 7,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": 8,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 7,
+        "fallbackSteps": 1,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "planWarnings": [],
+      "rejectionKinds": {
+        "structure": 2
+      },
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 34,
+        "duplicateRate": 0.2833,
+        "meanMaxSimilarity": 0.908,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.915,
+            "titles": [
+              "Funcionamiento de los mecanismos en la capa de transporte del modelo",
+              "La velocidad frente a la seguridad en la transmisión de datos"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 3,
+            "similarity": 0.8704,
+            "titles": [
+              "Funcionamiento de los mecanismos en la capa de transporte del modelo",
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 5,
+            "similarity": 0.8651,
+            "titles": [
+              "Funcionamiento de los mecanismos en la capa de transporte del modelo",
+              "Guia de exploracion de la capa de transporte y caracteristicas de UDP"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 8,
+            "similarity": 0.8908,
+            "titles": [
+              "Funcionamiento de los mecanismos en la capa de transporte del modelo",
+              "Caracteristicas fundamentales del protocolo de datagramas de usuario en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.877,
+            "titles": [
+              "Funcionamiento de los mecanismos en la capa de transporte del modelo",
+              "Estructura y principios funcionales en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 12,
+            "similarity": 0.8756,
+            "titles": [
+              "Funcionamiento de los mecanismos en la capa de transporte del modelo",
+              "Ejercicio de aplicación sobre tcp protocolo y cuatro campos"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 13,
+            "similarity": 0.871,
+            "titles": [
+              "Funcionamiento de los mecanismos en la capa de transporte del modelo",
+              "Ejercicio de aplicación: Análisis de cabecera y transmisión en redes"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 3,
+            "similarity": 0.8678,
+            "titles": [
+              "La velocidad frente a la seguridad en la transmisión de datos",
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 8,
+            "similarity": 0.8695,
+            "titles": [
+              "La velocidad frente a la seguridad en la transmisión de datos",
+              "Caracteristicas fundamentales del protocolo de datagramas de usuario en la capa de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 12,
+            "similarity": 0.8522,
+            "titles": [
+              "La velocidad frente a la seguridad en la transmisión de datos",
+              "Ejercicio de aplicación sobre tcp protocolo y cuatro campos"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 13,
+            "similarity": 0.8687,
+            "titles": [
+              "La velocidad frente a la seguridad en la transmisión de datos",
+              "Ejercicio de aplicación: Análisis de cabecera y transmisión en redes"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 15,
+            "similarity": 0.8533,
+            "titles": [
+              "La velocidad frente a la seguridad en la transmisión de datos",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.93,
+            "titles": [
+              "Sondeo de concepciones sobre TCP, UDP y la capa de transporte",
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.8623,
+            "titles": [
+              "Sondeo de concepciones sobre TCP, UDP y la capa de transporte",
+              "Guía de exploración: Análisis de la capa de red y el comportamiento de UDP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 5,
+            "similarity": 0.8906,
+            "titles": [
+              "Sondeo de concepciones sobre TCP, UDP y la capa de transporte",
+              "Guia de exploracion de la capa de transporte y caracteristicas de UDP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 12,
+            "similarity": 0.853,
+            "titles": [
+              "Sondeo de concepciones sobre TCP, UDP y la capa de transporte",
+              "Ejercicio de aplicación sobre tcp protocolo y cuatro campos"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 13,
+            "similarity": 0.8628,
+            "titles": [
+              "Sondeo de concepciones sobre TCP, UDP y la capa de transporte",
+              "Ejercicio de aplicación: Análisis de cabecera y transmisión en redes"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 15,
+            "similarity": 0.8637,
+            "titles": [
+              "Sondeo de concepciones sobre TCP, UDP y la capa de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 4,
+            "similarity": 0.8581,
+            "titles": [
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP",
+              "Guía de exploración: Análisis de la capa de red y el comportamiento de UDP"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 5,
+            "similarity": 0.8875,
+            "titles": [
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP",
+              "Guia de exploracion de la capa de transporte y caracteristicas de UDP"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 8,
+            "similarity": 0.8744,
+            "titles": [
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP",
+              "Caracteristicas fundamentales del protocolo de datagramas de usuario en la capa de transporte"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 12,
+            "similarity": 0.8521,
+            "titles": [
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP",
+              "Ejercicio de aplicación sobre tcp protocolo y cuatro campos"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 13,
+            "similarity": 0.8647,
+            "titles": [
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP",
+              "Ejercicio de aplicación: Análisis de cabecera y transmisión en redes"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 15,
+            "similarity": 0.8902,
+            "titles": [
+              "Sondeo diagnóstico: Protocolos de transporte y características de UDP",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9483,
+            "titles": [
+              "Guía de exploración: Análisis de la capa de red y el comportamiento de UDP",
+              "Guia de exploracion de la capa de transporte y caracteristicas de UDP"
+            ]
+          },
+          {
+            "first": 5,
+            "second": 8,
+            "similarity": 0.8626,
+            "titles": [
+              "Guia de exploracion de la capa de transporte y caracteristicas de UDP",
+              "Caracteristicas fundamentales del protocolo de datagramas de usuario en la capa de transporte"
+            ]
+          },
+          {
+            "first": 5,
+            "second": 13,
+            "similarity": 0.8606,
+            "titles": [
+              "Guia de exploracion de la capa de transporte y caracteristicas de UDP",
+              "Ejercicio de aplicación: Análisis de cabecera y transmisión en redes"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.918,
+            "titles": [
+              "Analisis de trafico y establecimiento de conexion en la red",
+              "Caso de estudio: Analizando el control de transmisión y el establecimiento de conexión en la red"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 12,
+            "similarity": 0.8598,
+            "titles": [
+              "Analisis de trafico y establecimiento de conexion en la red",
+              "Ejercicio de aplicación sobre tcp protocolo y cuatro campos"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 13,
+            "similarity": 0.8785,
+            "titles": [
+              "Analisis de trafico y establecimiento de conexion en la red",
+              "Ejercicio de aplicación: Análisis de cabecera y transmisión en redes"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 12,
+            "similarity": 0.8681,
+            "titles": [
+              "Caso de estudio: Analizando el control de transmisión y el establecimiento de conexión en la red",
+              "Ejercicio de aplicación sobre tcp protocolo y cuatro campos"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 13,
+            "similarity": 0.8814,
+            "titles": [
+              "Caso de estudio: Analizando el control de transmisión y el establecimiento de conexión en la red",
+              "Ejercicio de aplicación: Análisis de cabecera y transmisión en redes"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.9278,
+            "titles": [
+              "Ejercicio de aplicación sobre tcp protocolo y cuatro campos",
+              "Ejercicio de aplicación: Análisis de cabecera y transmisión en redes"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9076,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "comparison": {
+    "reduction": 0.0139,
+    "meetsTarget": false,
+    "resourcesKept": true
+  }
+}

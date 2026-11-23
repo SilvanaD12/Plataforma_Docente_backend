@@ -1,0 +1,1942 @@
+{
+  "measure": "P4 · duplicación entre recursos de una misma generación",
+  "mode": "baseline",
+  "api": "http://127.0.0.1:8000",
+  "corpus": "evaluation/corpus_t067",
+  "resourceTypes": [
+    "pregunta_detonante",
+    "sondeo_diagnostico",
+    "guia_exploracion",
+    "caso_indagacion",
+    "explicacion",
+    "glosario",
+    "ejercicio_aplicacion",
+    "item_opcion_multiple"
+  ],
+  "quantity": 2,
+  "threshold": 0.885,
+  "sentenceThreshold": 0.865,
+  "similarity": "embeddings (coseno), gemini-embedding-001",
+  "server": "GENERATION_IMPLICIT_PLAN=false (cuerpo anterior, redactado como antes de GEN-P1)",
+  "createdAt": "2026-11-23T10:09:21.386594+00:00",
+  "summary": {
+    "runs": 5,
+    "finishedRuns": 5,
+    "duplicateRate": 0.1009,
+    "meanDuplicateRatePerRun": 0.1007,
+    "meanMaxSimilarity": 0.9125,
+    "resourcesPerRequest": 15.8,
+    "steps": 40,
+    "aiSteps": 35,
+    "fallbackSteps": 5,
+    "rulesSteps": 0,
+    "stepsWithoutGenerator": 0,
+    "planWarnings": 0,
+    "sentenceNearDuplicateRate": 0.5237,
+    "meanSentenceRatePerRun": 0.525,
+    "meanReexplainedConcepts": 1.2,
+    "meanReexplainedEvidenceConcepts": 1.2,
+    "planGenerators": {
+      "ai": 0,
+      "rules": 0
+    }
+  },
+  "runs": [
+    {
+      "key": "p4-baseline-20261123T100334-1",
+      "requestId": "gen-req-031bb902-b8e6-48df-b1eb-768b3b8174dd",
+      "requestPlanId": null,
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 7,
+        "fallbackSteps": 1,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "planWarnings": [],
+      "rejectionKinds": {
+        "structure": 2
+      },
+      "planGenerator": null,
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 20,
+        "duplicateRate": 0.1667,
+        "meanMaxSimilarity": 0.9167,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.8976,
+            "titles": [
+              "Eleccion entre TCP y UDP para transmision de datos",
+              "Diferencias en la cabecera y entrega entre protocolos de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 6,
+            "similarity": 0.9019,
+            "titles": [
+              "Eleccion entre TCP y UDP para transmision de datos",
+              "Analisis de transmision multimedia en tiempo real"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 8,
+            "similarity": 0.9065,
+            "titles": [
+              "Eleccion entre TCP y UDP para transmision de datos",
+              "Conexion y fiabilidad en los protocolos de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.8948,
+            "titles": [
+              "Eleccion entre TCP y UDP para transmision de datos",
+              "Diferencias funcionales entre TCP y UDP en la red"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 12,
+            "similarity": 0.8891,
+            "titles": [
+              "Eleccion entre TCP y UDP para transmision de datos",
+              "Seleccion de protocolo de transporte para una aplicacion corporativa"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 4,
+            "similarity": 0.8886,
+            "titles": [
+              "Diferencias en la cabecera y entrega entre protocolos de transporte",
+              "Guía de exploración de cabeceras UDP y TCP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 7,
+            "similarity": 0.9082,
+            "titles": [
+              "Diferencias en la cabecera y entrega entre protocolos de transporte",
+              "Evaluacion de cabeceras y control de flujo en la capa de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 8,
+            "similarity": 0.8887,
+            "titles": [
+              "Diferencias en la cabecera y entrega entre protocolos de transporte",
+              "Conexion y fiabilidad en los protocolos de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 9,
+            "similarity": 0.8857,
+            "titles": [
+              "Diferencias en la cabecera y entrega entre protocolos de transporte",
+              "Diferencias funcionales entre TCP y UDP en la red"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.957,
+            "titles": [
+              "Sondeo inicial sobre conexiones y fiabilidad en la capa de transporte",
+              "Sondeo de ideas previas acerca del rendimiento y uso de los protocolos"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.8934,
+            "titles": [
+              "Sondeo inicial sobre conexiones y fiabilidad en la capa de transporte",
+              "Guía de exploración de cabeceras UDP y TCP"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9084,
+            "titles": [
+              "Guía de exploración de cabeceras UDP y TCP",
+              "Guía de exploración de entrega y control en la capa de transporte"
+            ]
+          },
+          {
+            "first": 5,
+            "second": 7,
+            "similarity": 0.8855,
+            "titles": [
+              "Guía de exploración de entrega y control en la capa de transporte",
+              "Evaluacion de cabeceras y control de flujo en la capa de transporte"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.8905,
+            "titles": [
+              "Analisis de transmision multimedia en tiempo real",
+              "Evaluacion de cabeceras y control de flujo en la capa de transporte"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 13,
+            "similarity": 0.8925,
+            "titles": [
+              "Analisis de transmision multimedia en tiempo real",
+              "Auditoria de trafico para servicios de red en tiempo real"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 12,
+            "similarity": 0.8947,
+            "titles": [
+              "Evaluacion de cabeceras y control de flujo en la capa de transporte",
+              "Seleccion de protocolo de transporte para una aplicacion corporativa"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 9,
+            "similarity": 0.9222,
+            "titles": [
+              "Conexion y fiabilidad en los protocolos de transporte",
+              "Diferencias funcionales entre TCP y UDP en la red"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.914,
+            "titles": [
+              "Conexion y fiabilidad en los protocolos de transporte",
+              "Glosario de protocolos de transporte: Fundamentos de TCP y UDP"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.8891,
+            "titles": [
+              "Glosario de protocolos de transporte: Fundamentos de TCP y UDP",
+              "Glosario avanzado de mecanismos y características en la capa de transporte"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9381,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          }
+        ]
+      },
+      "sentences": {
+        "sentences": 71,
+        "nearDuplicateSentences": 38,
+        "rate": 0.5352,
+        "threshold": 0.865,
+        "examples": [
+          {
+            "first": "Eleccion entre TCP y UDP para transmision de datos",
+            "second": "Diferencias en la cabecera y entrega entre protocolos de transporte",
+            "similarity": 0.8704
+          },
+          {
+            "first": "Eleccion entre TCP y UDP para transmision de datos",
+            "second": "Diferencias funcionales entre TCP y UDP en la red",
+            "similarity": 0.9171
+          },
+          {
+            "first": "Eleccion entre TCP y UDP para transmision de datos",
+            "second": "Glosario de protocolos de transporte: Fundamentos de TCP y UDP",
+            "similarity": 0.8755
+          },
+          {
+            "first": "Eleccion entre TCP y UDP para transmision de datos",
+            "second": "Seleccion de protocolo de transporte para una aplicacion corporativa",
+            "similarity": 0.8878
+          },
+          {
+            "first": "Eleccion entre TCP y UDP para transmision de datos",
+            "second": "El equipo tecnico debe decidir si implementa la comunicacion bajo el protocolo TCP o UDP considerando los requisitos de fiabilidad, control de flujo y la sobrecarga en la red.",
+            "similarity": 0.884
+          }
+        ]
+      },
+      "conceptReexplanation": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 1,
+        "rate": 0.05,
+        "items": [
+          {
+            "concept": "capa de transporte",
+            "resources": 2,
+            "titles": [
+              "Guía de exploración de entrega y control en la capa de transporte",
+              "Glosario de protocolos de transporte: Fundamentos de TCP y UDP"
+            ]
+          }
+        ]
+      },
+      "conceptReexplanationEvidence": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 1,
+        "rate": 0.05,
+        "items": [
+          {
+            "concept": "capa de transporte",
+            "resources": 2,
+            "titles": [
+              "Guía de exploración de entrega y control en la capa de transporte",
+              "Glosario de protocolos de transporte: Fundamentos de TCP y UDP"
+            ]
+          }
+        ]
+      },
+      "resources": [
+        {
+          "id": "rec-api-b8ac1978-cbac-403e-9b98-d2d0e6998179",
+          "title": "Eleccion entre TCP y UDP para transmision de datos",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Eleccion entre TCP y UDP para transmision de datos\nEn una aplicacion de streaming de audio y video en tiempo real, el equipo de ingenieria discute si debe utilizar el protocolo TCP o UDP. Se sabe que la transmision en tiempo real tiene estrictos requisitos de retardo y que UDP ofrece una entrega best-effort con una cabecera minima de 8 bytes, mientras que TCP aporta conexion, orden, fiabilidad y control de congestion a cambio de mayor latencia. ¿Por que motivo se prefiere UDP frente a TCP en escenarios de audio y video en tiempo real, a pesar de no garantizar la entrega de todos los paquetes?"
+        },
+        {
+          "id": "rec-api-6835f570-055a-4643-86ea-31733d2d79f7",
+          "title": "Diferencias en la cabecera y entrega entre protocolos de transporte",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Diferencias en la cabecera y entrega entre protocolos de transporte\nDurante el analisis de trazas de red en un laboratorio, se observa que ciertos paquetes de datos pequeños y numerosos, como las muestras de audio de una llamada, se ven afectados por el tamaño de la cabecera y el mantenimiento del estado de la conexion. La cabecera TCP ocupa como minimo 20 bytes e incluye numeros de secuencia y acuse, mientras que UDP cuenta con una cabecera de solo 4 campos y 8 bytes en total, sin mantener estado de conexion. ¿De que manera influye la ausencia de control de flujo y de establecimiento de conexion en UDP sobre el rendimiento al transmitir paquetes pequeños y numerosos?"
+        },
+        {
+          "id": "rec-api-101a7df7-3083-4a7b-a9ee-6d97694ad635",
+          "title": "Sondeo inicial sobre conexiones y fiabilidad en la capa de transporte",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Sondeo inicial sobre conexiones y fiabilidad en la capa de transporte\nIndica si las siguientes afirmaciones sobre los protocolos de transporte son verdaderas o falsas para explorar tus ideas previas sobre TCP y UDP."
+        },
+        {
+          "id": "rec-api-8bdaeae2-6de5-42fa-9a49-8dc7d22b17be",
+          "title": "Sondeo de ideas previas acerca del rendimiento y uso de los protocolos",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Sondeo de ideas previas acerca del rendimiento y uso de los protocolos\nAnaliza las siguientes premisas y determina si son verdaderas o falsas de acuerdo con el funcionamiento de los protocolos en la capa de transporte."
+        },
+        {
+          "id": "rec-api-84468c72-a9b2-4537-a635-62b8f7ea4ff4",
+          "title": "Guía de exploración de cabeceras UDP y TCP",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guía de exploración de cabeceras UDP y TCP\nEn esta actividad, examinarás cómo operan los protocolos de la capa de transporte mediante la observación de sus estructuras de cabecera y el tipo de entrega que realizan. A través de la indagación guiada, identificarás las diferencias físicas y funcionales entre un protocolo ligero sin conexión y uno orientado a la confiabilidad."
+        },
+        {
+          "id": "rec-api-29e4f342-be80-4e62-9d64-b57346e6232d",
+          "title": "Guía de exploración de entrega y control en la capa de transporte",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guía de exploración de entrega y control en la capa de transporte\nEsta guía práctica te invita a analizar el comportamiento de la capa de transporte frente al envío de datagramas y segmentos. Indagarás sobre la ausencia o presencia de mecanismos de confirmación de entrega, control de flujo y su impacto en la latencia."
+        },
+        {
+          "id": "rec-api-cbbaacb6-c92e-4cb5-b0b2-088b5017c183",
+          "title": "Analisis de transmision multimedia en tiempo real",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Analisis de transmision multimedia en tiempo real\nUn equipo de desarrollo implementa una plataforma de transmisiones de video en vivo y experimenta demoras perceptibles cuando los usuarios se conectan desde redes móviles con alta latencia. Al revisar el comportamiento de los paquetes, el equipo nota que la capa de transporte gestiona de manera diferente el reenvío de segmentos y datagramas. A partir de esta situación, analiza las siguientes preguntas reflexivas: 1. \u0019Por que la transmision en tiempo real se ve afectada negativamente cuando se utiliza un protocolo orientado a conexion y con control estricto de retransmisiones? 2. \u0019De que manera influye la ausencia de un saludo inicial y de acuses de recibo en la reduccion del retardo al emplear un protocolo sin conexion? 3. \u0019Que ocurre con los datagramas que presentan errores de integridad durante la transmision bajo el enfoque de mejor esfuerzo?"
+        },
+        {
+          "id": "rec-api-8ec28574-82fe-471e-84c0-3f7ecc88dbfa",
+          "title": "Evaluacion de cabeceras y control de flujo en la capa de transporte",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Evaluacion de cabeceras y control de flujo en la capa de transporte\nDurante una auditoria de rendimiento en una red corporativa, se detecta que una aplicacion basada en el envio masivo de paquetes pequenos experimenta una sobrecarga considerable debido al tamano de la informacion de control anadida en la capa 4. Al comparar el comportamiento operativo, se observa que algunos protocolos incorporan mecanismos complejos de control de flujo y congestion, mientras que otros operan de manera ligera. Reflexiona sobre las siguientes cuestiones: 1. \u0019Cual es la diferencia principal en la sobrecarga de la cabecera entre un protocolo que anade informacion de control extensa y uno minimalista de 8 bytes? 2. \u0019Como impacta el algoritmo de arranque lento y la ventana de congestion en la proteccion de la red frente a la saturacion? 3. \u0019Por que la eleccion entre un transporte orientado a conexion y uno sin conexion representa una decision de diseno entre fiabilidad y latencia?"
+        },
+        {
+          "id": "rec-api-64b8efd4-8274-48ca-ad7d-f7323282fd41",
+          "title": "Conexion y fiabilidad en los protocolos de transporte",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Conexion y fiabilidad en los protocolos de transporte\nLa capa de transporte proporciona comunicacion logica entre procesos de diferentes equipos utilizando los numeros de puerto combinados con las direcciones IP para identificar cada extremo [F5]. Dentro de esta capa destacan dos protocolos con enfoques diferentes para la transmision de datos [F5].\n\nEl protocolo TCP se caracteriza por estar orientado a conexion y ofrecer una comunicacion confiable [F5]. Para lograrlo, establece un intercambio previo mediante un saludo de tres vias e incorpora mecanismos de control de flujo, orden y retransmision, lo que genera una cabecera de mayor tamano y una latencia superior [F6, F11].\n\nPor el contrario, UDP funciona sin conexion y de manera ligera, ofreciendo una entrega best-effort que envia cada datagrama de forma independiente sin garantias de recepcion [F5, F6]. Su estructura emplea una cabecera minima de 8 bytes y no mantiene estado de conexion, lo que reduce la carga adicional en la red y resulta ideal para transmisiones en tiempo real donde priman los requisitos de retardo [F1, F2, F6]."
+        },
+        {
+          "id": "rec-api-88d54829-f80f-429b-8f37-8ceda8b548b7",
+          "title": "Diferencias funcionales entre TCP y UDP en la red",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Diferencias funcionales entre TCP y UDP en la red\nLos protocolos de la capa de transporte resuelven necesidades distintas en la arquitectura de redes, equilibrando los aspectos de latencia y fiabilidad [F5, F11]. Mientras TCP gestiona de manera automatica la recuperacion de paquetes perdidos y el orden de entrega, su complejidad anade informacion de control considerable en cada segmento [F3].\n\nPara proteger los recursos de la red frente a la saturacion, TCP implementa funciones adicionales como el control de congention mediante el algoritmo de arranque lento y una ventana de congention que regula el ritmo de envio del emisor [F9]. Esto contrasta con el diseno minimalista de UDP, el cual no incorpora control de flujo ni de congention [F6]."
+        },
+        {
+          "id": "rec-api-1b4b27ac-2f00-4e31-af15-a8e7567a1a7a",
+          "title": "Glosario de protocolos de transporte: Fundamentos de TCP y UDP",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario de protocolos de transporte: Fundamentos de TCP y UDP\nCapa de transporte: cuarta del modelo OSI, proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos [F5]. Protocolo de control de transmisión (TCP): protocolo que proporciona un transporte fiable de flujo de bits entre aplicaciones [F3]. Protocolo de datagramas de usuario (UDP): protocolo del nivel de transporte basado en la transmisión sin conexión de datagramas [F1]. Socket: combinación de dirección IP y puerto que identifica de forma única a cada extremo de una comunicación [F5]. Saludo de tres vías: mecanismo mediante el cual TCP establece una conexión antes de intercambiar datos [F5]. Entrega best-effort: modalidad de UDP donde se envía cada datagrama sin garantías, acuses de recibo, retransmisión, ordenamiento ni control de congestión [F6]. Control de congestión: mecanismo que protege a la red manteniendo una ventana de congestión y ajustando el ritmo de transmisión [F9]. Segmento o datagrama: unidad de información (PDU) de la capa 4, dependiendo de si corresponde a TCP o UDP [F8]."
+        },
+        {
+          "id": "rec-api-c408b0ac-18ef-420a-8f95-c01db857652a",
+          "title": "Glosario avanzado de mecanismos y características en la capa de transporte",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario avanzado de mecanismos y características en la capa de transporte\nChecksum: suma de verificación empleada en las cabeceras para detectar corrupción en los datos [F6, F9]. Ventana de congestión (cwnd): parámetro mantenido por el emisor en el control de congestión para limitar la cantidad de datos enviados a la red [F9]. Arranque lento (slow start): algoritmo inicial del control de congestión que parte de un valor pequeño y duplica cwnd en cada RTT [F9]. Evitación de congestión: fase posterior donde cwnd crece de forma lineal, aproximadamente un segmento por RTT [F9]. Timeout: evento tras el cual TCP interpreta congestión, haciendo que cwnd vuelva a un valor mínimo y ssthresh baje a la mitad [F9]. Transmisión sin conexión: modalidad en la cual se envían datagramas de forma rápida sin establecer previamente una conexión [F1]. Cabecera TCP: estructura que ocupa como mínimo 20 bytes y puede llegar a 60 con opciones [F6]. Cabecera UDP: estructura mínima que contiene solo cuatro campos de 16 bits para un total de 8 bytes [F6, F9]."
+        },
+        {
+          "id": "rec-api-969e4ed2-dde4-4fdf-8a60-c5fe386b532b",
+          "title": "Seleccion de protocolo de transporte para una aplicacion corporativa",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Seleccion de protocolo de transporte para una aplicacion corporativa\nUna empresa de software esta disenando una nueva plataforma de transferencia de archivos y registro de eventos masivos en una red corporativa. El equipo tecnico debe decidir si implementa la comunicacion bajo el protocolo TCP o UDP considerando los requisitos de fiabilidad, control de flujo y la sobrecarga en la red. Analice las caracteristicas de cada protocolo y resuelva la consigna propuesta."
+        },
+        {
+          "id": "rec-api-290f8e00-5d88-4379-bc7a-b79e5784b3ec",
+          "title": "Auditoria de trafico para servicios de red en tiempo real",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Auditoria de trafico para servicios de red en tiempo real\nDurante la revision de trafico en una red de ingenieria, se detecta que los sistemas implementan consultas DNS y transmision multimedia en tiempo real. Como especialista, debe evaluar por que se seleccionan estos protocolos ligeros frente a alternativas orientadas a conexion."
+        },
+        {
+          "id": "rec-api-2de152a4-b0f0-4ce4-945c-14bebb93d50e",
+          "title": "Concepto clave 1: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 1: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«La ________ es una decisión de diseño que equilibra fiabilidad y latencia.»\nelección entre ambos\nUDP\npregunta clave\nchecksum"
+        },
+        {
+          "id": "rec-api-2eb53455-0bb6-4b8f-9494-35d83eca1ead",
+          "title": "Concepto clave 2: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 2: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«El ________ permite detectar corrupción, pero el datagrama dañado simplemente se descarta, sin aviso al emisor.»\npregunta clave\nelección entre ambos\nUDP\nchecksum"
+        }
+      ]
+    },
+    {
+      "key": "p4-baseline-20261123T100334-2",
+      "requestId": "gen-req-d22238cc-7617-48db-985a-57d7621959f3",
+      "requestPlanId": null,
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 7,
+        "fallbackSteps": 1,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "planWarnings": [],
+      "rejectionKinds": {},
+      "planGenerator": null,
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 12,
+        "duplicateRate": 0.1,
+        "meanMaxSimilarity": 0.9161,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 8,
+            "similarity": 0.8958,
+            "titles": [
+              "Comparación de protocolos de transporte en una transmisión en tiempo real",
+              "Funcionamiento de los protocolos de transporte TCP y UDP"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.8979,
+            "titles": [
+              "Comparación de protocolos de transporte en una transmisión en tiempo real",
+              "Características operativas y criterios de elección entre TCP y UDP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9368,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de TCP y UDP",
+              "Sondeo diagnóstico: Características operativas de la capa de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.899,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de TCP y UDP",
+              "Guia de exploracion de protocolos de transporte: Conexion y fiabilidad en TCP y UDP"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9246,
+            "titles": [
+              "Guia de exploracion de protocolos de transporte: Conexion y fiabilidad en TCP y UDP",
+              "Guia de exploracion de trafico UDP y mecanismos best-effort"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.8915,
+            "titles": [
+              "Caso 1: Diagn3stico de una transmisi3n interactiva y selecci3n de protocolos",
+              "Caso 2: Evaluaci3n de tr3fico ligero frente a conexiones orientadas"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 12,
+            "similarity": 0.9024,
+            "titles": [
+              "Caso 1: Diagn3stico de una transmisi3n interactiva y selecci3n de protocolos",
+              "Evaluación de diseño de red para control de tráfico"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 9,
+            "similarity": 0.9186,
+            "titles": [
+              "Funcionamiento de los protocolos de transporte TCP y UDP",
+              "Características operativas y criterios de elección entre TCP y UDP"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.9276,
+            "titles": [
+              "Funcionamiento de los protocolos de transporte TCP y UDP",
+              "Glosario de protocolos de transporte y red"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.9042,
+            "titles": [
+              "Glosario de protocolos de transporte y red",
+              "Glosario de características operativas de TCP y UDP"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.9017,
+            "titles": [
+              "Evaluación de diseño de red para control de tráfico",
+              "Selección de protocolo para transferencia corporativa"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9435,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          }
+        ]
+      },
+      "sentences": {
+        "sentences": 68,
+        "nearDuplicateSentences": 34,
+        "rate": 0.5,
+        "threshold": 0.865,
+        "examples": [
+          {
+            "first": "Comparación de protocolos de transporte en una transmisión en tiempo real",
+            "second": "Guia de exploracion de protocolos de transporte: Conexion y fiabilidad en TCP y UDP",
+            "similarity": 0.8827
+          },
+          {
+            "first": "Comparación de protocolos de transporte en una transmisión en tiempo real",
+            "second": "Funcionamiento de los protocolos de transporte TCP y UDP",
+            "similarity": 0.9089
+          },
+          {
+            "first": "Comparación de protocolos de transporte en una transmisión en tiempo real",
+            "second": "Características operativas y criterios de elección entre TCP y UDP",
+            "similarity": 0.8909
+          },
+          {
+            "first": "Por otro lado, UDP transmite datagramas de forma rápida sin establecer conexión previa ni asegurar la entrega.",
+            "second": "Por el contrario, el protocolo UDP es un protocolo no fiable del nivel de transporte que opera sin establecer una conexión previa y transmite datagramas de forma independiente [F1, F3, F6].",
+            "similarity": 0.8881
+          },
+          {
+            "first": "Por otro lado, UDP transmite datagramas de forma rápida sin establecer conexión previa ni asegurar la entrega.",
+            "second": "Protocolo de datagramas de usuario (UDP): Protocolo del nivel de transporte basado en la transmisión sin conexión de datagramas y representa una alternativa al protocolo TCP [F1].",
+            "similarity": 0.8695
+          }
+        ]
+      },
+      "conceptReexplanation": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 1,
+        "rate": 0.05,
+        "items": [
+          {
+            "concept": "capa de transporte",
+            "resources": 2,
+            "titles": [
+              "Sondeo diagnóstico: Características operativas de la capa de transporte",
+              "Glosario de protocolos de transporte y red"
+            ]
+          }
+        ]
+      },
+      "conceptReexplanationEvidence": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 1,
+        "rate": 0.05,
+        "items": [
+          {
+            "concept": "capa de transporte",
+            "resources": 2,
+            "titles": [
+              "Sondeo diagnóstico: Características operativas de la capa de transporte",
+              "Glosario de protocolos de transporte y red"
+            ]
+          }
+        ]
+      },
+      "resources": [
+        {
+          "id": "rec-api-81441e9d-a398-4e18-8443-9bef604a10ee",
+          "title": "Comparación de protocolos de transporte en una transmisión en tiempo real",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Comparación de protocolos de transporte en una transmisión en tiempo real\nImagina que estás diseñando una aplicación de transmisión de audio y vídeo en tiempo real donde los requisitos de retardo son muy estrictos y no es posible realizar retransmisiones. Al analizar las opciones de la capa de transporte, sabes que TCP garantiza la fiabilidad y el orden mediante un saludo de tres vías y acuses de recibo, pero introduce mayor latencia. Por otro lado, UDP transmite datagramas de forma rápida sin establecer conexión previa ni asegurar la entrega. Considerando que la aplicación no tolera demoras excesivas, ¿por qué elegirías utilizar UDP a pesar de que algunos paquetes puedan perderse o llegar desordenados?"
+        },
+        {
+          "id": "rec-api-ed571fc7-da0d-487a-9e7a-2e49e055e8b4",
+          "title": "Análisis de la cabecera y el impacto en paquetes pequeños",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Análisis de la cabecera y el impacto en paquetes pequeños\nDurante el análisis del tráfico de red de una aplicación que envía muestras de audio muy pequeñas y numerosas, observas una gran diferencia en el tamaño de las cabeceras de la capa de transporte. La cabecera de TCP ocupa como mínimo 20 bytes e incluye números de secuencia, acuses e indicadores, mientras que la cabecera de UDP contiene solo cuatro campos de 16 bits que suman un total de 8 bytes y no mantiene estado de conexión. Si tu objetivo es minimizar la carga adicional en la red para este tipo de tráfico frecuente y ligero, ¿cómo influye la estructura de la cabecera de UDP frente a la complejidad de TCP en el rendimiento general?"
+        },
+        {
+          "id": "rec-api-97d81d5e-cc5d-4853-be5f-4667fe2a40c0",
+          "title": "Sondeo diagnóstico: Fundamentos de TCP y UDP",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Sondeo diagnóstico: Fundamentos de TCP y UDP\nEstimados docentes y estudiantes, este sondeo diagnóstico busca identificar las ideas previas sobre el funcionamiento, la conexión y la confiabilidad de los protocolos de transporte TCP y UDP en la capa 4 del modelo OSI."
+        },
+        {
+          "id": "rec-api-e1d4d3f1-afa4-4218-8db8-7b634cd95eb9",
+          "title": "Sondeo diagnóstico: Características operativas de la capa de transporte",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Sondeo diagnóstico: Características operativas de la capa de transporte\nEste cuestionario corto permite verificar los conocimientos iniciales acerca de las diferencias estructurales y de rendimiento entre los protocolos de la capa de transporte."
+        },
+        {
+          "id": "rec-api-4d542ddc-edcd-4edf-8148-c6c67c49b2f5",
+          "title": "Guia de exploracion de protocolos de transporte: Conexion y fiabilidad en TCP y UDP",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guia de exploracion de protocolos de transporte: Conexion y fiabilidad en TCP y UDP\nEn esta guia de exploracion, los estudiantes investigaran de forma practica el comportamiento de los protocolos TCP y UDP en la capa de transporte, examinando el establecimiento de conexion, la estructura de sus cabeceras y los mecanismos de entrega de datos en la red."
+        },
+        {
+          "id": "rec-api-27a91b40-14e5-4502-ab17-2cb9f6c9dc78",
+          "title": "Guia de exploracion de trafico UDP y mecanismos best-effort",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guia de exploracion de trafico UDP y mecanismos best-effort\nEsta actividad permite indagar en el funcionamiento de UDP mediante el analisis de trazas de consultas DNS, verificando el tamano de su cabecera y el modelo de entrega sin conexion."
+        },
+        {
+          "id": "rec-api-38382610-9b89-4794-b8c8-e5443007f1d9",
+          "title": "Caso 1: Diagn3stico de una transmisi3n interactiva y selecci3n de protocolos",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Caso 1: Diagn3stico de una transmisi3n interactiva y selecci3n de protocolos\nEn un escenario donde se eval3a el rendimiento de una red corporativa, un equipo de ingenier3a analiza los registros de tr3fico de dos aplicaciones distintas: una plataforma de transferencia masiva de archivos y un sistema de control en tiempo real. Se observa que la primera requiere un flujo de bits totalmente fiable y ordenado, mientras que la segunda prioriza la baja latencia y el intercambio r3pido de datagramas independientes. Los estudiantes deben examinar c3mo inciden el establecimiento de conexi3n, el control de flujo y la estructura de las cabeceras en el comportamiento de ambos servicios."
+        },
+        {
+          "id": "rec-api-8ae9a429-0da0-43a4-b9f0-3cffcd01bca1",
+          "title": "Caso 2: Evaluaci3n de tr3fico ligero frente a conexiones orientadas",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Caso 2: Evaluaci3n de tr3fico ligero frente a conexiones orientadas\nDurante la auditor3a de los servicios de red de una instituci3n, se detecta que las consultas al servidor DNS y las transmisiones de audio breves generan un volumen elevado de paquetes peque3os. Al inspeccionar el medio, se constata que algunos servicios operan mediante un protocolo que no mantiene estado de conexi3n ni realiza seguimiento de par3metros, mientras que otros implementan un saludo de tres v3as y mecanismos complejos de control de congesti3n como slow start. A partir de esta situaci3n, se plantean diversas interrogantes para indagar en las diferencias operativas y el impacto en la capacidad de soporte de clientes activos."
+        },
+        {
+          "id": "rec-api-747bdefe-0428-4c5d-a628-5c7615dcf961",
+          "title": "Funcionamiento de los protocolos de transporte TCP y UDP",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Funcionamiento de los protocolos de transporte TCP y UDP\nLa capa de transporte del modelo OSI proporciona comunicación lógica entre procesos en distintos equipos, utilizando números de puerto combinados con direcciones IP para formar sockets que identifican de forma única cada extremo de la comunicación [F5]. Los dos protocolos principales en esta capa son TCP, que está orientado a conexión y es fiable, y UDP, que opera sin conexión y de forma ligera [F5]. La selección entre ambos protocolos representa una decisión de diseño fundamental que busca equilibrar las necesidades específicas de fiabilidad y latencia en la transmisión de datos [F5].\n\nEl protocolo TCP establece una comunicación confiable y orientada a conexión mediante un proceso inicial conocido como el saludo de tres vías, donde el cliente envía un segmento con el indicador SYN activado y un número de secuencia aleatorio [F4, F5]. Además de garantizar el orden de entrega y gestionar la fiabilidad mediante acuses de recibo y retransmisiones, TCP incorpora mecanismos de control de flujo y congestión para proteger la red, ajustando su ritmo mediante una ventana de congestión y algoritmos como el arranque lento [F6, F9, F11]. Toda esta compleja gestión de la fiabilidad requiere cabeceras que ocupan como mínimo 20 bytes y pueden llegar hasta los 60 bytes con opciones, lo que genera un mayor costo en eficiencia y latencia [F3, F6, F11].\n\nPor el contrario, el protocolo UDP es un protocolo no fiable del nivel de transporte que opera sin establecer una conexión previa y transmite datagramas de forma independiente [F1, F3, F6]. Su estructura es deliberadamente minimalista, ya que su cabecera contiene solo cuatro campos de 16 bits que suman un total de 8 bytes, provocando una carga adicional muy baja en la red [F2, F6, F9]. UDP ofrece una entrega denominada best-effort, lo que significa que envía cada datagrama sin garantías de acuses de recibo, retransmisión, control de congestión u ordenamiento, trasladando a la propia aplicación las decisiones relativas a la fiabilidad si estas fuesen necesarias [F6, F11]."
+        },
+        {
+          "id": "rec-api-72a1815a-0cb0-49fe-98de-46a2fd03af35",
+          "title": "Características operativas y criterios de elección entre TCP y UDP",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Características operativas y criterios de elección entre TCP y UDP\nLa elección entre los protocolos de transporte TCP y UDP depende estrictamente de los requerimientos de la aplicación y de la naturaleza de la información que se desea transmitir a través de la red [F5, F11]. Mientras que TCP está optimizado para enviar grandes cantidades de información de forma fiable, liberando al programador de la gestión de pérdidas, duplicados y retransmisiones, UDP prioriza la velocidad y la baja latencia [F3, F6, F11]. Los servicios web, la transferencia de archivos y el correo electrónico se apoyan fundamentalmente en TCP debido a su alto nivel de control y verificación [F6, F11].\n\nPor otra parte, UDP destaca en escenarios donde los requisitos de retardo son muy estrictos y no es viable realizar retransmisiones, como ocurre en la transmisión de audio y vídeo en tiempo real [F1]. Al no introducir retardos para establecer conexiones ni mantener estados de conexión, UDP permite que un servidor dedicado soporte una mayor cantidad de clientes activos en comparación con TCP [F3]. Asimismo, aplicaciones con un alto volumen de paquetes pequeños y numerosas consultas breves, tales como el servicio de nombres de dominio DNS, se benefician del uso de UDP debido a la sencillez y ligereza de sus datagramas [F1, F3, F6, F11].\n\nEn conclusión, los protocolos TCP y UDP no compiten entre sí, sino que resuelven necesidades distintas en la arquitectura de redes [F11]. El diseño de un servicio debe evaluar cuidadosamente si resulta preferible recibir los datos de manera íntegra y ordenada aunque esto implique mayor latencia, o si es prioritario recibirlos a tiempo a pesar de que algunos paquetes puedan perderse en el camino [F11]."
+        },
+        {
+          "id": "rec-api-c9850fb2-f53c-475c-9881-592a2517b0c2",
+          "title": "Glosario de protocolos de transporte y red",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario de protocolos de transporte y red\nCapa de transporte: Cuarta del modelo OSI, proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos [F5]. Protocolo de Control de Transmisión (TCP): Protocolo que opera en la capa de transporte del modelo OSI y proporciona una comunicación confiable y orientada a conexión [F4]. Protocolo de datagramas de usuario (UDP): Protocolo del nivel de transporte basado en la transmisión sin conexión de datagramas y representa una alternativa al protocolo TCP [F1]. Socket: Combinación de dirección IP y puerto que identifica de forma única a cada extremo de una comunicación [F5]. Saludo de tres vías: Mecanismo mediante el cual TCP establece una conexión antes de intercambiar datos [F5]. Entrega best-effort: Modalidad en la que UDP ofrece enviar cada datagrama sin garantías, sin saludo inicial, acuses de recibo, retransmisión, ordenamiento ni control de congestión [F6]. Control de congestión: Mecanismo que protege a la red mediante el cual el emisor mantiene una ventana de congestión y ajusta su ritmo de envío [F9]. Suma de verificación (Checksum): Campo empleado para detectar corrupción en los datagramas o segmentos [F6]."
+        },
+        {
+          "id": "rec-api-6005c9cf-47dd-4d75-9b41-5d197f9cbd4c",
+          "title": "Glosario de características operativas de TCP y UDP",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario de características operativas de TCP y UDP\nCabecera TCP: Cabecera que ocupa como mínimo 20 bytes y puede llegar a 60 con opciones, incluyendo números de secuencia y acuse, indicadores y ventana [F6]. Cabecera UDP: Cabecera compuesta por cuatro campos de 16 bits que totalizan 8 bytes [F6]. Ventana de congestión (cwnd): Parámetro mantenido por el emisor en el control de congestión para limitar la cantidad de datos en tránsito [F9]. Arranque lento (Slow start): Algoritmo donde TCP parte de un valor pequeño y duplica cwnd en cada RTT hasta alcanzar un umbral [F9]. Evitación de congestión: Fase donde cwnd crece de forma lineal, aproximadamente un segmento por RTT tras superar el umbral [F9]. Datagrama: Bloque de datos transmitido mediante UDP de forma independiente y sin confirmación de entrega [F1], [F6]. Segmento: Unidad de información de la capa 4 cuando corresponde al protocolo TCP [F8]."
+        },
+        {
+          "id": "rec-api-9827e6da-6c15-40d3-b20a-6bfaafd909b0",
+          "title": "Evaluación de diseño de red para control de tráfico",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Evaluación de diseño de red para control de tráfico\nImagina que trabajas como ingeniero de redes en una institución y debes seleccionar el protocolo de transporte adecuado para dos escenarios diferentes. En el primer escenario, se implementa una aplicación corporativa interna que transfiere archivos de configuración masivos donde cada byte es crítico y no se permite ninguna pérdida de datos. En el segundo escenario, se despliega un sistema de control y telemetría de sensores remotos que emite datagramas breves de forma constante, donde la prioridad absoluta es evitar retardos y el consumo excesivo de memoria en el servidor, asumiendo que algunos paquetes podrían perderse sin afectar el diagnóstico general."
+        },
+        {
+          "id": "rec-api-bd8375e0-2cac-4372-ae07-db3b67787e4c",
+          "title": "Selección de protocolo para transferencia corporativa",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Selección de protocolo para transferencia corporativa\nSelecciona el protocolo de transporte más adecuado para una aplicación de transferencia masiva de archivos que exige fiabilidad absoluta y control de flujo estricto."
+        },
+        {
+          "id": "rec-api-2c7b0254-27d5-4f92-9096-5bd8f13c52a8",
+          "title": "Concepto clave 1: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 1: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«La ________ es una decisión de diseño que equilibra fiabilidad y latencia.»\nUDP\npregunta clave\nchecksum\nelección entre ambos"
+        },
+        {
+          "id": "rec-api-8e352165-8063-469f-8d45-19b46e89f284",
+          "title": "Concepto clave 2: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 2: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«El ________ permite detectar corrupción, pero el datagrama dañado simplemente se descarta, sin aviso al emisor.»\nUDP\npregunta clave\nelección entre ambos\nchecksum"
+        }
+      ]
+    },
+    {
+      "key": "p4-baseline-20261123T100334-3",
+      "requestId": "gen-req-69827953-b85a-43aa-8e16-2d2028be6f5f",
+      "requestPlanId": null,
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 7,
+        "fallbackSteps": 1,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "planWarnings": [],
+      "rejectionKinds": {
+        "structure": 2
+      },
+      "planGenerator": null,
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 6,
+        "duplicateRate": 0.05,
+        "meanMaxSimilarity": 0.8938,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 6,
+            "similarity": 0.9043,
+            "titles": [
+              "Eleccion entre TCP y UDP para transmision de video",
+              "Analisis de transmision de datos en tiempo real"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9119,
+            "titles": [
+              "Explorando concepciones sobre la capa de transporte",
+              "Sondeo inicial sobre características y fiabilidad en redes"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.9038,
+            "titles": [
+              "Explorando concepciones sobre la capa de transporte",
+              "Guia de exploracion: Analisis de la cabecera UDP frente a TCP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 5,
+            "similarity": 0.897,
+            "titles": [
+              "Explorando concepciones sobre la capa de transporte",
+              "Guia de exploracion: Comportamiento de entrega y fiabilidad en la capa de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9223,
+            "titles": [
+              "Guia de exploracion: Analisis de la cabecera UDP frente a TCP",
+              "Guia de exploracion: Comportamiento de entrega y fiabilidad en la capa de transporte"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9423,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          }
+        ]
+      },
+      "sentences": {
+        "sentences": 60,
+        "nearDuplicateSentences": 28,
+        "rate": 0.4667,
+        "threshold": 0.865,
+        "examples": [
+          {
+            "first": "Eleccion entre TCP y UDP para transmision de video",
+            "second": "¿Que diferencia operacional existe entre el manejo de flujo de TCP y la entrega sin conexion de UDP?",
+            "similarity": 0.8655
+          },
+          {
+            "first": "A partir de esto, ¿por que se prefiere utilizar un protocolo sin conexion como UDP en lugar de un protocolo orientado a conexion como TCP?",
+            "second": "¿Por que el protocolo UDP no realiza retransmisiones ni garantiza el orden de entrega de los datagramas?",
+            "similarity": 0.8651
+          },
+          {
+            "first": "A partir de esto, ¿por que se prefiere utilizar un protocolo sin conexion como UDP en lugar de un protocolo orientado a conexion como TCP?",
+            "second": "¿Que diferencia operacional existe entre el manejo de flujo de TCP y la entrega sin conexion de UDP?",
+            "similarity": 0.8888
+          },
+          {
+            "first": "A partir de esto, ¿por que se prefiere utilizar un protocolo sin conexion como UDP en lugar de un protocolo orientado a conexion como TCP?",
+            "second": "¿Por que las aplicaciones que transmiten paquetes pequenos y numerosos se benefician de utilizar UDP en lugar de TCP?",
+            "similarity": 0.8882
+          },
+          {
+            "first": "A partir de esto, ¿por que se prefiere utilizar un protocolo sin conexion como UDP en lugar de un protocolo orientado a conexion como TCP?",
+            "second": "Protocolo UDP: protocolo del nivel de transporte basado en la transmisión sin conexión de datagramas y representa una alternativa ligera a TCP [F1, F5].",
+            "similarity": 0.8653
+          }
+        ]
+      },
+      "conceptReexplanation": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 2,
+        "rate": 0.1,
+        "items": [
+          {
+            "concept": "control de flujo",
+            "resources": 2,
+            "titles": [
+              "Diagnostico de trafico de red y control de flujo",
+              "Glosario de la unidad sobre protocolos de transporte (Parte 2)"
+            ]
+          },
+          {
+            "concept": "capa de transporte",
+            "resources": 2,
+            "titles": [
+              "Explorando concepciones sobre la capa de transporte",
+              "Glosario de la unidad sobre protocolos de transporte (Parte 1)"
+            ]
+          }
+        ]
+      },
+      "conceptReexplanationEvidence": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 2,
+        "rate": 0.1,
+        "items": [
+          {
+            "concept": "control de flujo",
+            "resources": 2,
+            "titles": [
+              "Diagnostico de trafico de red y control de flujo",
+              "Glosario de la unidad sobre protocolos de transporte (Parte 2)"
+            ]
+          },
+          {
+            "concept": "capa de transporte",
+            "resources": 2,
+            "titles": [
+              "Explorando concepciones sobre la capa de transporte",
+              "Glosario de la unidad sobre protocolos de transporte (Parte 1)"
+            ]
+          }
+        ]
+      },
+      "resources": [
+        {
+          "id": "rec-api-f1979c76-4b17-4da6-954a-7abea183964e",
+          "title": "Eleccion entre TCP y UDP para transmision de video",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Eleccion entre TCP y UDP para transmision de video\nEn una aplicacion de transmision de audio y video en tiempo real, se observa que los requisitos de retardo son muy estrictos y no es posible realizar retransmisiones. A partir de esto, ¿por que se prefiere utilizar un protocolo sin conexion como UDP en lugar de un protocolo orientado a conexion como TCP?"
+        },
+        {
+          "id": "rec-api-bcc90dbd-1717-41f3-b942-0aa03686595a",
+          "title": "Diferencias en la cabecera entre protocolos de transporte",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Diferencias en la cabecera entre protocolos de transporte\nAl analizar el trafico de una red, se nota que los paquetes son muy pequenos y numerosos, como las muestras de audio de una llamada, y que la cabecera de transporte puede ocupar desde 8 bytes hasta mas de 60 bytes segun el protocolo. Considerando las caracteristicas de diseno de la capa de transporte, ¿como influye el tamano de la cabecera y la ausencia de control de conexion en la eficiencia para este tipo de trafico?"
+        },
+        {
+          "id": "rec-api-214d164f-2aca-4ebe-af35-03eeea89ee32",
+          "title": "Explorando concepciones sobre la capa de transporte",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Explorando concepciones sobre la capa de transporte\nEstimados docentes, este sondeo diagnóstico permite identificar las ideas previas de los estudiantes sobre el funcionamiento de los protocolos TCP y UDP en la capa de transporte antes de profundizar en sus diferencias técnicas."
+        },
+        {
+          "id": "rec-api-55cce213-e58b-467e-87d2-5f33be406f24",
+          "title": "Sondeo inicial sobre características y fiabilidad en redes",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Sondeo inicial sobre características y fiabilidad en redes\nEste segundo recurso diagnóstico ayuda a verificar concepciones comunes acerca del comportamiento de los paquetes y los mecanismos de control en la capa de transporte."
+        },
+        {
+          "id": "rec-api-411935aa-454a-4233-8754-009663dc477c",
+          "title": "Guia de exploracion: Analisis de la cabecera UDP frente a TCP",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guia de exploracion: Analisis de la cabecera UDP frente a TCP\nEsta guia permite a los estudiantes indagar en las diferencias estructurales y operativas entre los protocolos de transporte mediante la observacion de sus cabeceras y caracteristicas de transmision sin conexion."
+        },
+        {
+          "id": "rec-api-a3ab485e-ec5d-49a0-bcc2-2959a2f73457",
+          "title": "Guia de exploracion: Comportamiento de entrega y fiabilidad en la capa de transporte",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guia de exploracion: Comportamiento de entrega y fiabilidad en la capa de transporte\nActividad practica orientada a comprobar el funcionamiento de la entrega best-effort de UDP y la ausencia de control de flujo en contraste con los mecanismos de retransmision y control de congestion de TCP."
+        },
+        {
+          "id": "rec-api-a9033331-7f6b-4cf8-aa08-a5b809a355ff",
+          "title": "Analisis de transmision de datos en tiempo real",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Analisis de transmision de datos en tiempo real\nEn un escenario industrial, se disena una aplicacion para la transmision continua de audio y video en tiempo real. Durante las pruebas preliminares, el equipo de ingenieria nota que algunos paquetes llegan desordenados o se pierden en la red debido a la naturaleza best-effort del protocolo utilizado. A partir de esta situacion, reflexione y responda las siguientes preguntas: 1. ¿Por que el protocolo UDP no realiza retransmisiones ni garantiza el orden de entrega de los datagramas? 2. ¿Como influye la ausencia de un saludo de tres vias en la reduccion de la latencia para este tipo de aplicaciones? 3. Si el sistema de audio experimentara corrupcion en los datos de un datagrama, ¿que mecanismo interno permite detectarlo y cual es la accion automatica que toma el protocolo? 4. ¿De que manera la cabecera de 8 bytes de este protocolo minimiza la sobrecarga en comparacion con los protocolos orientados a conexion?"
+        },
+        {
+          "id": "rec-api-45f99cd7-c897-4838-a1da-43d58cfcebb2",
+          "title": "Diagnostico de trafico de red y control de flujo",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Diagnostico de trafico de red y control de flujo\nDurante el monitoreo del trafico de red en un servidor corporativo, se analiza el comportamiento de dos tipos de trafico diferentes: solicitudes web masivas y consultas DNS breves. Se observa que el trafico web experimenta un control de flujo y congestion mediante el uso de ventanas y acuses de recibo, mientras que las consultas breves priorizan la velocidad sin mantener estado de conexion. A partir de este contexto, analice y responda: 1. ¿Cual es la funcion principal del saludo de tres vias antes de iniciar la transmision de datos fiables en la capa de transporte? 2. ¿Que diferencia operacional existe entre el manejo de flujo de TCP y la entrega sin conexion de UDP? 3. ¿Por que las aplicaciones que transmiten paquetes pequenos y numerosos se benefician de utilizar UDP en lugar de TCP? 4. ¿Como protege el mecanismo de control de congestion de TCP a la red durante la transmision de grandes volumenes de informacion?"
+        },
+        {
+          "id": "rec-api-4b78a1ed-a49a-4a66-979b-d01ef3945959",
+          "title": "Funcionamiento y caracteristicas del protocolo TCP",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Funcionamiento y caracteristicas del protocolo TCP\nEl protocolo TCP (Transmission Control Protocol) opera en la capa de transporte del modelo OSI y proporciona una comunicacion confiable y orientada a conexion, permitiendo enviar grandes cantidades de informacion de forma fiable y liberando al programador de gestionar directamente las retransmisiones o la perdida de paquetes [F3, F4]. Antes de realizar el intercambio de datos, este protocolo establece una conexion mediante un proceso denominado saludo de tres vies, donde el primer paso consiste en que el cliente envia un segmento con el indicador SYN activado y un numero de secuencia inicial aleatorio [F5]. Asimismo, TCP incorpora mecanismos como el control de flujo y de congestion, utilizando una ventana de congestion para proteger a la red y reduciendo su ritmo operativo ante perdidas o retardos, lo que genera una mayor latencia y una cabecera mas compleja que puede ocupar de 20 a 60 bytes [F6, F9]."
+        },
+        {
+          "id": "rec-api-271d6b78-81e5-4129-a095-3483c569dd85",
+          "title": "Arquitectura y operacion del protocolo UDP",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Arquitectura y operacion del protocolo UDP\nEl Protocolo de Datagramas de Usuario (UDP) es un protocolo del nivel de transporte basado en la transmision sin conexion que representa una alternativa ligera a TCP, permitiendo el envio rapido de datagramas en redes IP sin establecer una conexion previa y sin requerir confirmaciones de recepcion [F1]. Cada datagrama enviado por UDP opera bajo una estrategia de entrega best-effort o mejor esfuerzo, lo que significa que no garantiza la fiabilidad, el orden de entrega, el control de flujo ni la retransmision, dejando tales validaciones a la aplicacion si estas fuesen requeridas [F6]. Debido a esto, su cabecera es sumamente simple y mide un total de 8 bytes, integrada unicamente por cuatro campos de 16 bits correspondientes al puerto de origen, puerto de destino, longitud y suma de verificacion [F6]."
+        },
+        {
+          "id": "rec-api-126c0457-0e71-4abb-a01e-e6526e978755",
+          "title": "Glosario de la unidad sobre protocolos de transporte (Parte 1)",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario de la unidad sobre protocolos de transporte (Parte 1)\nCapa de transporte: cuarta del modelo OSI, proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos [F5]. Protocolo TCP: proporciona un transporte fiable de flujo de bits entre aplicaciones, estando orientado a conexión [F3, F5]. Protocolo UDP: protocolo del nivel de transporte basado en la transmisión sin conexión de datagramas y representa una alternativa ligera a TCP [F1, F5]. Socket: combinación de dirección IP y puerto que identifica de forma única a cada extremo de una comunicación [F5]. Saludo de tres vías: mecanismo mediante el cual TCP establece una conexión antes de intercambiar datos [F5]. Entrega best-effort: método en el cual UDP envía cada datagrama sin garantías, sin acuses de recibo ni retransmisión [F6]."
+        },
+        {
+          "id": "rec-api-36810e70-cda9-4d5f-a83a-98ceff017e18",
+          "title": "Glosario de la unidad sobre protocolos de transporte (Parte 2)",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario de la unidad sobre protocolos de transporte (Parte 2)\nCabecera UDP: estructura de 8 bytes que contiene puerto de origen, puerto de destino, longitud y suma de verificación [F6, F9]. Control de congestión: mecanismo de TCP que protege a la red manteniendo una ventana de congestión y algoritmos como el arranque lento [F9]. Suma de verificación o checksum: campo empleado para detectar corrupción en los datagramas o segmentos [F6, F9]. Control de flujo: función gestionada por TCP para regular el intercambio de datos y evitar saturar al receptor [F3, F6]. Ventana de congestión: parámetro cwnd que utiliza el emisor en TCP para limitar la cantidad de datos enviados según el estado de la red [F9]. Datagrama: unidad de información o paquete transportado por protocolos como UDP en la red IP [F1, F6]."
+        },
+        {
+          "id": "rec-api-0b71cb8a-6bca-4372-a134-2ad972a5d09c",
+          "title": "Seleccion de protocolo para telemetria industrial",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Seleccion de protocolo para telemetria industrial\nEn una planta de manufactura avanzada se esta implementando un sistema de monitoreo remoto mediante sensores IoT que envian constantemente lecturas de temperatura y presion hacia un servidor central. Los paquetes de datos generados por los sensores son pequenos y muy frecuentes, transmitiendose cada pocos milisegundos. El sistema operativo del servidor debe procesar miles de conexiones simultaneas sin agotar los recursos de memoria y procesamiento. Ademas, el equipo de ingenieria debe decidir que protocolo de transporte utilizar considerando que la perdida esporadica de una lectura de temperatura no afecta criticamente el funcionamiento general de la planta, pero un retraso excesivo o el bloqueo por falta de confirmacion podria congelar la visualizacion en tiempo real de los operadores."
+        },
+        {
+          "id": "rec-api-5c05feca-e1de-49b3-8312-ee44ddf1100d",
+          "title": "Evaluacion de diseno para mensajeria instantanea y archivos",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Evaluacion de diseno para mensajeria instantanea y archivos\nUna empresa de software esta disenando una nueva plataforma colaborativa que incluye dos funcionalidades criticas: un modulo de transferencia de archivos pesados y un modulo de chat interno basado en transmision continua. Los ingenieros deben argumentar la eleccion tecnica de los protocolos de transporte para cada modulo evaluando los requerimientos de conexion, orden de entrega y fiabilidad."
+        },
+        {
+          "id": "rec-api-e8fc420c-2b89-4f36-ad7f-3f0af58928e7",
+          "title": "Concepto clave 1: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 1: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«La ________ es una decisión de diseño que equilibra fiabilidad y latencia.»\npregunta clave\nUDP\nchecksum\nelección entre ambos"
+        },
+        {
+          "id": "rec-api-27b6f627-95c3-4b3c-97d5-7ab781d6b19d",
+          "title": "Concepto clave 2: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 2: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«El ________ permite detectar corrupción, pero el datagrama dañado simplemente se descarta, sin aviso al emisor.»\npregunta clave\nUDP\nelección entre ambos\nchecksum"
+        }
+      ]
+    },
+    {
+      "key": "p4-baseline-20261123T100334-4",
+      "requestId": "gen-req-8a3593a0-afee-4348-b707-ce711abec132",
+      "requestPlanId": null,
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": null,
+          "delivered": 1,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 7,
+        "fallbackSteps": 1,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "planWarnings": [],
+      "rejectionKinds": {
+        "grounding": 1,
+        "structure": 2
+      },
+      "planGenerator": null,
+      "metrics": {
+        "resources": 15,
+        "pairs": 105,
+        "duplicatePairs": 10,
+        "duplicateRate": 0.0952,
+        "meanMaxSimilarity": 0.921,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 8,
+            "similarity": 0.8962,
+            "titles": [
+              "Dilema entre velocidad y fiabilidad en la transmisión",
+              "Diferencias estructurales y de rendimiento entre la fiabilidad de TCP y la ligereza de UDP"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 11,
+            "similarity": 0.8949,
+            "titles": [
+              "Dilema entre velocidad y fiabilidad en la transmisión",
+              "Evaluacion de escenarios de trafico para seleccion de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 6,
+            "similarity": 0.8927,
+            "titles": [
+              "El impacto de la cabecera en aplicaciones de paquetes pequeños",
+              "Caso 2: Evaluación de cabeceras y control en la capa de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 12,
+            "similarity": 0.9326,
+            "titles": [
+              "El impacto de la cabecera en aplicaciones de paquetes pequeños",
+              "Diagnostico de rendimiento de red ante la sobrecarga de paquetes pequenos"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9435,
+            "titles": [
+              "Sondeo de ideas previas sobre TCP y UDP",
+              "Exploración conceptual de la capa de transporte"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 8,
+            "similarity": 0.9359,
+            "titles": [
+              "Funcionamiento y caracteristicas de los protocolos de transporte TCP y UDP",
+              "Diferencias estructurales y de rendimiento entre la fiabilidad de TCP y la ligereza de UDP"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 9,
+            "similarity": 0.8928,
+            "titles": [
+              "Funcionamiento y caracteristicas de los protocolos de transporte TCP y UDP",
+              "Glosario de la unidad: Fundamentos de la Capa de Transporte"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 10,
+            "similarity": 0.8852,
+            "titles": [
+              "Funcionamiento y caracteristicas de los protocolos de transporte TCP y UDP",
+              "Glosario de la unidad: Arquitectura y Mecanismos de Transporte"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 10,
+            "similarity": 0.9292,
+            "titles": [
+              "Glosario de la unidad: Fundamentos de la Capa de Transporte",
+              "Glosario de la unidad: Arquitectura y Mecanismos de Transporte"
+            ]
+          },
+          {
+            "first": 13,
+            "second": 14,
+            "similarity": 0.942,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          }
+        ]
+      },
+      "sentences": {
+        "sentences": 62,
+        "nearDuplicateSentences": 32,
+        "rate": 0.5161,
+        "threshold": 0.865,
+        "examples": [
+          {
+            "first": "¿En qué escenarios de diseño priorizarías un protocolo ligero sin conexión como UDP frente a uno orientado a conexión como TCP, considerando las características de latencia y pérdida de paquetes?",
+            "second": "Diferencias estructurales y de rendimiento entre la fiabilidad de TCP y la ligereza de UDP",
+            "similarity": 0.8725
+          },
+          {
+            "first": "El impacto de la cabecera en aplicaciones de paquetes pequeños",
+            "second": "Diagnostico de rendimiento de red ante la sobrecarga de paquetes pequenos",
+            "similarity": 0.872
+          },
+          {
+            "first": "El impacto de la cabecera en aplicaciones de paquetes pequeños",
+            "second": "Evalúa el impacto de la cabecera en los paquetes pequeños y determina qué protocolo se adapta mejor a esta arquitectura para optimizar el consumo de recursos de procesamiento y memoria.",
+            "similarity": 0.9137
+          },
+          {
+            "first": "Sondeo de ideas previas sobre TCP y UDP",
+            "second": "Funcionamiento y caracteristicas de los protocolos de transporte TCP y UDP",
+            "similarity": 0.8861
+          },
+          {
+            "first": "Sondeo de ideas previas sobre TCP y UDP",
+            "second": "Diferencias estructurales y de rendimiento entre la fiabilidad de TCP y la ligereza de UDP",
+            "similarity": 0.8797
+          }
+        ]
+      },
+      "conceptReexplanation": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 1,
+        "rate": 0.05,
+        "items": [
+          {
+            "concept": "capa de transporte",
+            "resources": 2,
+            "titles": [
+              "Glosario de la unidad: Fundamentos de la Capa de Transporte",
+              "Glosario de la unidad: Arquitectura y Mecanismos de Transporte"
+            ]
+          }
+        ]
+      },
+      "conceptReexplanationEvidence": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 1,
+        "rate": 0.05,
+        "items": [
+          {
+            "concept": "capa de transporte",
+            "resources": 2,
+            "titles": [
+              "Glosario de la unidad: Fundamentos de la Capa de Transporte",
+              "Glosario de la unidad: Arquitectura y Mecanismos de Transporte"
+            ]
+          }
+        ]
+      },
+      "resources": [
+        {
+          "id": "rec-api-5f9e7c9c-36f6-4051-9699-b61624e564dd",
+          "title": "Dilema entre velocidad y fiabilidad en la transmisión",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Dilema entre velocidad y fiabilidad en la transmisión\nImagina que estás diseñando una aplicación de transmisión de video y llamadas en tiempo real donde los requisitos de retardo son sumamente estrictos y no es posible realizar retransmisiones. Al analizar las opciones de la capa de transporte, recuerdas que existen dos protocolos principales con filosofías opuestas: uno que garantiza la entrega ordenada y sin errores mediante un saludo de tres vías y control de flujo, y otro que envía datagramas de manera rápida y sin conexión bajo un esquema de mejor esfuerzo. ¿En qué escenarios de diseño priorizarías un protocolo ligero sin conexión como UDP frente a uno orientado a conexión como TCP, considerando las características de latencia y pérdida de paquetes?"
+        },
+        {
+          "id": "rec-api-6b973a88-5e8b-4381-9ed9-fd4f089dd6ce",
+          "title": "El impacto de la cabecera en aplicaciones de paquetes pequeños",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "El impacto de la cabecera en aplicaciones de paquetes pequeños\nDurante el análisis del tráfico de red en un laboratorio, observas que ciertas aplicaciones generan un flujo constante de paquetes muy pequeños y numerosos, como muestras de audio. Al revisar las especificaciones de los protocolos de la capa de transporte, notas que la cabecera de uno de ellos ocupa un tamaño mínimo de 20 bytes y puede llegar hasta los 60 bytes debido a campos de control y secuenciación, mientras que el otro utiliza una estructura mínima de tan solo 8 bytes con cuatro campos básicos de 16 bits. ¿De qué manera influye el tamaño de la cabecera y la ausencia de control de estado en el rendimiento de los sistemas cuando se manejan consultas breves o flujos masivos de datagramas pequeños?"
+        },
+        {
+          "id": "rec-api-6e71c552-cd41-40ef-8683-b9ac00475e3e",
+          "title": "Sondeo de ideas previas sobre TCP y UDP",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Sondeo de ideas previas sobre TCP y UDP\nResponde con verdadero o falso a las siguientes afirmaciones sobre los protocolos de la capa de transporte para identificar concepciones previas."
+        },
+        {
+          "id": "rec-api-db70d577-f69f-43f0-bc56-2bea1eefe81d",
+          "title": "Exploración conceptual de la capa de transporte",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Exploración conceptual de la capa de transporte\nIndica si las siguientes afirmaciones son verdaderas o falsas respecto al funcionamiento de los protocolos de transporte."
+        },
+        {
+          "id": "rec-api-7b0668be-1218-47ab-8413-2005f26acfef",
+          "title": "Guia de exploracion de la cabecera y campos de UDP",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guia de exploracion de la cabecera y campos de UDP\nEn esta actividad exploraras la estructura minima de los datagramas UDP y su comparacion practica con TCP analizando los campos de su cabecera."
+        },
+        {
+          "id": "rec-api-1c025214-2142-4cda-93c4-ab2509fc1948",
+          "title": "Guia de exploracion del establecimiento de conexion y control en TCP",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guia de exploracion del establecimiento de conexion y control en TCP\nEn esta actividad investigaras el funcionamiento interno de TCP mediante el saludo de tres vias y los mecanismos de control de flujo y congestion."
+        },
+        {
+          "id": "rec-api-6d02cb91-9d26-4a8d-bac8-514c40422bb0",
+          "title": "Caso 2: Evaluación de cabeceras y control en la capa de transporte",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Caso 2: Evaluación de cabeceras y control en la capa de transporte\nAl auditar los datagramas y segmentos que circulan por la interfaz de red, se detecta que ciertos flujos incorporan cabeceras de 8 bytes con un modelo de entrega de mejor esfuerzo, en tanto que otros flujos requieren un saludo de tres vías y un mantenimiento estricto del estado de conexión [F5, F6]. Examina el caso respondiendo las siguientes cuestiones reflexivas."
+        },
+        {
+          "id": "rec-api-83fbf931-0d98-4f5c-bf6c-5c5988d6509a",
+          "title": "Funcionamiento y caracteristicas de los protocolos de transporte TCP y UDP",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Funcionamiento y caracteristicas de los protocolos de transporte TCP y UDP\nLa capa de transporte proporciona comunicacion logica entre procesos que se ejecutan en equipos distintos utilizando numeros de puerto combinados con direcciones IP, lo que da lugar al concepto de socket para identificar cada extremo de la comunicacion [F5]. Dentro de esta capa destacan dos protocolos principales con enfoques diferenciados: TCP, que opera orientado a conexion y de manera fiable, y UDP, que funciona sin conexion y de forma ligera [F5].\n\nEl Protocolo de Control de Transmision (TCP) establece una conexion previa mediante el saludo de tres vias antes de intercambiar datos, garantizando la fiabilidad, el orden de entrega, el control de flujo y la congestion [F5, F6, F11]. No obstante, toda esta gestion de la fiabilidad implica el uso de cabeceras que ocupan entre 20 y 60 bytes, lo que genera una mayor latencia en comparacion con UDP [F6].\n\nPor otro lado, el Protocolo de Datagramas de Usuario (UDP) es un protocolo sin conexion que ofrece una entrega best-effort o de mejor esfuerzo, sin emplear acuses de recibo, retransmisiones ni control de flujo [F1, F6]. Su cabecera es sumamente simple y mide un total de 8 bytes, integrada por cuatro campos de 16 bits: puerto de origen, puerto de destino, longitud y suma de verificacion [F6, F9]."
+        },
+        {
+          "id": "rec-api-7189272e-a34e-4d47-ad13-4eeef13cdc88",
+          "title": "Diferencias estructurales y de rendimiento entre la fiabilidad de TCP y la ligereza de UDP",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Diferencias estructurales y de rendimiento entre la fiabilidad de TCP y la ligereza de UDP\nEl diseno de la capa de transporte obliga a elegir entre la garantia de entrega y la baja latencia segun las necesidades de la aplicacion [F5]. Mientras que TCP esta pensado para enviar grandes cantidades de informacion de forma fiable y libre de errores gestionando la retransmision y el orden de los paquetes, su complejidad reduce la eficiencia al anadir bastante informacion a cada segmento [F3, F8].\n\nEn contraste, UDP transmite datagramas enteros de forma rapida y sin mantener un estado de conexion, lo que disminuye la carga adicional en la red [F1, F2, F3]. Cada datagrama UDP es tratado de manera independiente bajo un esquema de mejor esfuerzo, donde la corrupcion de datos se detecta mediante una suma de verificacion y los paquetes danados se descartan sin aviso al emisor [F6].\n\nEstas diferencias determinan sus ambitos de aplicacion tipica; TCP soporta servicios web, transferencia de archivos y correo electronico, mientras que UDP resulta ideal para consultas breves de DNS y para la transmision de audio y video en tiempo real, donde los estrictos requisitos de retardo descartan la posibilidad de retransmisiones [F1, F6, F11]."
+        },
+        {
+          "id": "rec-api-ed842820-87ac-4183-a649-b45066ad771a",
+          "title": "Glosario de la unidad: Fundamentos de la Capa de Transporte",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario de la unidad: Fundamentos de la Capa de Transporte\nSocket: La combinación de dirección IP y puerto que identifica de forma única a cada extremo de una comunicación [F5, F8]. TCP: Protocolo de control de transmisión que opera en la capa de transporte del modelo OSI y proporciona una comunicación confiable y orientada a conexión [F4, F7]. UDP: Protocolo de datagramas de usuario del nivel de transporte basado en la transmisión sin conexión de datagramas [F1]. Saludo de tres vías: Mecanismo mediante el cual TCP establece una conexión antes de intercambiar datos [F5]. Entrega best-effort: Modelo de entrega de UDP donde se envían los datagramas sin garantías, sin acuses de recibo ni retransmisión [F6]. Control de congestión: Mecanismo que protege a la red mediante el cual el emisor mantiene una ventana de congestión y ajusta su ritmo ante pérdidas [F9]. Suma de verificación: Campo denominado checksum empleado para detectar corrupción en los datagramas o segmentos [F6, F9]. Ventana de congestión: Parámetro denominado cwnd que el emisor mantiene para regular el volumen máximo de datos enviados en función del estado de la red [F9]."
+        },
+        {
+          "id": "rec-api-a464cf74-38be-4829-9a1e-9f5ea5508bac",
+          "title": "Glosario de la unidad: Arquitectura y Mecanismos de Transporte",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario de la unidad: Arquitectura y Mecanismos de Transporte\nCapa de transporte: Cuarta capa del modelo OSI que proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos [F5]. IP: Protocolo de Internet no orientado a conexión que permite el envío de datos entre origen y destino mediante paquetes o datagramas [F4]. Segmento o datagrama: Unidad de información (PDU) de la capa 4, dependiendo de si corresponde a TCP o UDP [F8]. Arranque lento: Algoritmo de control de congestión donde el emisor parte de un valor pequeño y duplica cwnd en cada RTT [F9]. Cabecera UDP: Estructura mínima de 8 bytes que contiene cuatro campos de 16 bits [F6, F9]. Cabecera TCP: Estructura que ocupa como mínimo 20 bytes y puede llegar a 60 con opciones [F6]. Acuse de recibo: Mecanismo de control conocido como ACK empleado para confirmar la recepción de segmentos [F6]. Puertos lógicos: Elementos que utiliza la capa de transporte junto con la capa de red para dar forma a los sockets [F8]."
+        },
+        {
+          "id": "rec-api-f7769cc2-08db-44eb-a384-3fc0bb9808b5",
+          "title": "Evaluacion de escenarios de trafico para seleccion de protocolos de transporte",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Evaluacion de escenarios de trafico para seleccion de protocolos de transporte\nImagina que te encuentras liderando el diseño arquitectónico de dos sistemas de software distribuidos para una institución educativa. El primer sistema es una plataforma crítica de gestión académica donde los estudiantes registran sus matrículas y calificaciones definitivas; cualquier pérdida o alteración de datos en este flujo generaría graves inconsistencias administrativas. El segundo sistema consiste en un servicio de radiodifusión de conferencias magistrales en video y audio por streaming en vivo, donde los requisitos de retardo son estrictos y no es viable realizar retransmisiones de paquetes rezagados. A partir de los conceptos estudiados sobre la capa de transporte, analiza ambos escenarios y determina los protocolos adecuados aplicando los criterios de conexión, fiabilidad y latencia."
+        },
+        {
+          "id": "rec-api-fec09f83-6b98-4fed-8b9c-2d0f717211c1",
+          "title": "Diagnostico de rendimiento de red ante la sobrecarga de paquetes pequenos",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Diagnostico de rendimiento de red ante la sobrecarga de paquetes pequenos\nDurante una auditoría de rendimiento en la infraestructura de red de un campus universitario, se detecta un cuello de botella generado por un servicio masivo de telemetría que emite muestras de estado constantes mediante pequeños paquetes de datos numerosos. Al inspeccionar el tráfico con herramientas de análisis, observas que un grupo de pruebas implementa un protocolo que requiere un saludo inicial de tres vías y un tamaño mínimo de cabecera de 20 bytes, mientras que otro grupo experimental emplea una estructura de cabecera simplificada de solo cuatro campos de 16 bits sin control de flujo. Evalúa el impacto de la cabecera en los paquetes pequeños y determina qué protocolo se adapta mejor a esta arquitectura para optimizar el consumo de recursos de procesamiento y memoria."
+        },
+        {
+          "id": "rec-api-cdc6550c-541b-4c7e-ad55-aabc63712972",
+          "title": "Concepto clave 1: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 1: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«La ________ es una decisión de diseño que equilibra fiabilidad y latencia.»\npregunta clave\nelección entre ambos\nchecksum\nUDP"
+        },
+        {
+          "id": "rec-api-35c21bf3-68bf-43ec-bedf-d0c68aada95d",
+          "title": "Concepto clave 2: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 2: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«El ________ permite detectar corrupción, pero el datagrama dañado simplemente se descarta, sin aviso al emisor.»\nchecksum\nelección entre ambos\nUDP\npregunta clave"
+        }
+      ]
+    },
+    {
+      "key": "p4-baseline-20261123T100334-5",
+      "requestId": "gen-req-27561707-b675-4ddd-bc85-b863f3b65f13",
+      "requestPlanId": null,
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false,
+          "planWarnings": 0
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true,
+          "planWarnings": 0
+        }
+      ],
+      "generators": {
+        "aiSteps": 7,
+        "fallbackSteps": 1,
+        "rulesSteps": 0,
+        "stepsWithoutGenerator": 0
+      },
+      "planWarnings": [],
+      "rejectionKinds": {
+        "structure": 2
+      },
+      "planGenerator": null,
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 11,
+        "duplicateRate": 0.0917,
+        "meanMaxSimilarity": 0.9151,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 6,
+            "similarity": 0.9054,
+            "titles": [
+              "Diferencias en la transmision de datos en la capa de transporte",
+              "Caso de estudio: Transmisión de voz en tiempo real y selección de protocolo"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 8,
+            "similarity": 0.888,
+            "titles": [
+              "Diferencias en la transmision de datos en la capa de transporte",
+              "Mecanismos de conexion y fiabilidad en los protocolos de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 9,
+            "similarity": 0.8901,
+            "titles": [
+              "Analisis de cabeceras y control de flujo",
+              "Arquitectura y caracteristicas estructurales de las cabeceras de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9175,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de los protocolos TCP y UDP",
+              "Exploración inicial sobre características operativas de la capa de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.887,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de los protocolos TCP y UDP",
+              "Guía de exploración de cabeceras y transmisión en la capa de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 5,
+            "similarity": 0.8865,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de los protocolos TCP y UDP",
+              "Guía de indagación comparativa sobre TCP y UDP en el transporte de datos"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9471,
+            "titles": [
+              "Guía de exploración de cabeceras y transmisión en la capa de transporte",
+              "Guía de indagación comparativa sobre TCP y UDP en el transporte de datos"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.9259,
+            "titles": [
+              "Mecanismos de conexion y fiabilidad en los protocolos de transporte",
+              "Glosario de la unidad: Fundamentos y protocolos de transporte"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.9137,
+            "titles": [
+              "Glosario de la unidad: Fundamentos y protocolos de transporte",
+              "Glosario complementario de protocolos y mecanismos de red"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.9061,
+            "titles": [
+              "Evaluación de protocolos de transporte en escenarios de red",
+              "Selección de protocolo para servicios corporativos"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9449,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          }
+        ]
+      },
+      "sentences": {
+        "sentences": 56,
+        "nearDuplicateSentences": 34,
+        "rate": 0.6071,
+        "threshold": 0.865,
+        "examples": [
+          {
+            "first": "Diferencias en la transmision de datos en la capa de transporte",
+            "second": "Guía de indagación comparativa sobre TCP y UDP en el transporte de datos",
+            "similarity": 0.8833
+          },
+          {
+            "first": "Diferencias en la transmision de datos en la capa de transporte",
+            "second": "Mecanismos de conexion y fiabilidad en los protocolos de transporte",
+            "similarity": 0.8705
+          },
+          {
+            "first": "Sondeo diagnóstico: Fundamentos de los protocolos TCP y UDP",
+            "second": "Guía de indagación comparativa sobre TCP y UDP en el transporte de datos",
+            "similarity": 0.903
+          },
+          {
+            "first": "Sondeo diagnóstico: Fundamentos de los protocolos TCP y UDP",
+            "second": "Evaluación de protocolos de transporte en escenarios de red",
+            "similarity": 0.8717
+          },
+          {
+            "first": "Sondeo diagnóstico: Fundamentos de los protocolos TCP y UDP",
+            "second": "A partir de los fundamentos de los protocolos de transporte, resuelva el cuestionamiento propuesto.",
+            "similarity": 0.867
+          }
+        ]
+      },
+      "conceptReexplanation": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 1,
+        "rate": 0.05,
+        "items": [
+          {
+            "concept": "capa de transporte",
+            "resources": 3,
+            "titles": [
+              "Diferencias en la transmision de datos en la capa de transporte",
+              "Exploración inicial sobre características operativas de la capa de transporte",
+              "Glosario de la unidad: Fundamentos y protocolos de transporte"
+            ]
+          }
+        ]
+      },
+      "conceptReexplanationEvidence": {
+        "source": "evidence",
+        "concepts": 20,
+        "reexplained": 1,
+        "rate": 0.05,
+        "items": [
+          {
+            "concept": "capa de transporte",
+            "resources": 3,
+            "titles": [
+              "Diferencias en la transmision de datos en la capa de transporte",
+              "Exploración inicial sobre características operativas de la capa de transporte",
+              "Glosario de la unidad: Fundamentos y protocolos de transporte"
+            ]
+          }
+        ]
+      },
+      "resources": [
+        {
+          "id": "rec-api-32040388-c528-4764-b330-a496a9b4a16d",
+          "title": "Diferencias en la transmision de datos en la capa de transporte",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Diferencias en la transmision de datos en la capa de transporte\nEn una red de computadoras, al transmitir paquetes pequeños y numerosos como muestras de audio en una llamada en tiempo real, se observa que algunos protocolos priorizan la velocidad y la baja latencia sin garantizar la entrega, mientras que otros establecen una conexion previa y aseguran la recepcion sin perdidas. A partir de las caracteristicas de la capa de transporte, ?por que el protocolo UDP resulta mas adecuado que TCP para aplicaciones de transmision de audio y video en tiempo real a pesar de no garantizar la confiabilidad?"
+        },
+        {
+          "id": "rec-api-cca2c128-e180-4184-b97a-4836f2cdbd62",
+          "title": "Analisis de cabeceras y control de flujo",
+          "type": "pregunta_detonante",
+          "planItemPosition": null,
+          "text": "Analisis de cabeceras y control de flujo\nDurante el analisis del trafico de red en un laboratorio, se observa que un protocolo incorpora una cabecera minima de 8 bytes compuesta unicamente por puerto de origen, puerto de destino, longitud y suma de verificacion, operando bajo un modelo de entrega de mejor esfuerzo (best-effort). Considerando la estructura y funcionamiento de los protocolos de transporte, ?de que manera la ausencia de un saludo de tres vias y de control de flujo en este protocolo impacta el rendimiento y la eficiencia en la red?"
+        },
+        {
+          "id": "rec-api-5084a76d-6a8a-40f3-9c13-72a998e1e12b",
+          "title": "Sondeo diagnóstico: Fundamentos de los protocolos TCP y UDP",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Sondeo diagnóstico: Fundamentos de los protocolos TCP y UDP\nEstimados estudiantes, antes de iniciar con la revisión profunda de los mecanismos de transporte, respondan las siguientes afirmaciones para verificar sus ideas iniciales sobre el funcionamiento y las diferencias entre TCP y UDP."
+        },
+        {
+          "id": "rec-api-b7184127-c7cc-490f-b4e8-3ba4022c4809",
+          "title": "Exploración inicial sobre características operativas de la capa de transporte",
+          "type": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "text": "Exploración inicial sobre características operativas de la capa de transporte\nResponda verdadero o falso a cada una de las siguientes cuestiones sobre los protocolos de la capa de transporte para activar sus conocimientos previos sobre latencia, conexiones y entrega de paquetes."
+        },
+        {
+          "id": "rec-api-005749a5-e803-49ba-a543-54b32d11d2fd",
+          "title": "Guía de exploración de cabeceras y transmisión en la capa de transporte",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guía de exploración de cabeceras y transmisión en la capa de transporte\nEsta guía permite a los estudiantes indagar en las diferencias operativas y estructurales de los protocolos de transporte TCP y UDP mediante la revisión de cabeceras, control de flujo y entrega de paquetes."
+        },
+        {
+          "id": "rec-api-afaf00b6-8bca-48f4-a37d-076cd3b38680",
+          "title": "Guía de indagación comparativa sobre TCP y UDP en el transporte de datos",
+          "type": "guia_exploracion",
+          "planItemPosition": null,
+          "text": "Guía de indagación comparativa sobre TCP y UDP en el transporte de datos\nRecurso estructurado para guiar a los estudiantes en la identificación de las diferencias prácticas entre el flujo fiable orientado a conexión de TCP y la transmisión ligera de datagramas UDP."
+        },
+        {
+          "id": "rec-api-74c81d5e-aa38-4e6a-acc8-d29fc61aed05",
+          "title": "Caso de estudio: Transmisión de voz en tiempo real y selección de protocolo",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Caso de estudio: Transmisión de voz en tiempo real y selección de protocolo\nDurante el desarrollo de una aplicación institucional de llamadas de voz en tiempo real, el equipo de ingeniería observa que al utilizar TCP se generan retrasos perceptibles y llamadas entrecortadas debido al estricto requisito de retransmisión y control de congestión. Por el contrario, al cambiar el flujo a UDP, las llamadas fluyen con menor latencia, aunque ocasionalmente se pierden o desordenan algunos paquetes con muestras de audio sin que el protocolo lo notifique al emisor."
+        },
+        {
+          "id": "rec-api-5820713b-93ef-4403-9950-282f48f896a0",
+          "title": "Caso analítico: Evaluación del tráfico de red en un servidor corporativo",
+          "type": "caso_indagacion",
+          "planItemPosition": null,
+          "text": "Caso analítico: Evaluación del tráfico de red en un servidor corporativo\nUn administrador de redes analiza el rendimiento de un servidor que atiende simultáneamente consultas cortas de DNS y transferencias masivas de archivos mediante FTP. Nota que las consultas DNS operan mediante datagramas independientes con cabeceras de solo 8 bytes y sin establecer conexión previa, mientras que las transferencias FTP requieren un saludo inicial de tres vías y un seguimiento exhaustivo mediante acuses de recibo y control de flujo."
+        },
+        {
+          "id": "rec-api-d32f4a5d-ec38-4fbf-96ec-a014c14da823",
+          "title": "Mecanismos de conexion y fiabilidad en los protocolos de transporte",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Mecanismos de conexion y fiabilidad en los protocolos de transporte\nLa capa de transporte proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos mediante el uso de puertos y direcciones IP que conforman los sockets. Dentro de esta capa, el protocolo TCP opera orientado a la conexión y garantiza la entrega fiable de los datos mediante mecanismos como el saludo de tres vías y el uso de acuses de recibo y retransmisiones. En contraste, el protocolo UDP funciona sin establecer una conexión previa y ofrece una entrega best-effort, donde cada datagrama se transmite de manera independiente sin garantías de recepción ni control de flujo, priorizando la reducción de la latencia. Asimismo, TCP incorpora un complejo control de congestión basado en una ventana que protege a la red de saturaciones, mientras que UDP carece de estos mecanismos de control y mantiene una estructura de cabecera muy simple."
+        },
+        {
+          "id": "rec-api-f84f6899-6f9a-418d-9a8b-afea0b922302",
+          "title": "Arquitectura y caracteristicas estructurales de las cabeceras de transporte",
+          "type": "explicacion",
+          "planItemPosition": null,
+          "text": "Arquitectura y caracteristicas estructurales de las cabeceras de transporte\nLa estructura interna de los protocolos de transporte difiere significativamente en función de los requerimientos de la comunicación. Por un lado, UDP se define de manera deliberada como un protocolo mínimo cuya cabecera ocupa exactamente 8 bytes, integrada únicamente por cuatro campos de 16 bits que corresponden al puerto de origen, puerto de destino, longitud y suma de verificación. Por otro lado, la cabecera de TCP es considerablemente más compleja y extensa, requiriendo entre 20 y 60 bytes para albergar números de secuencia, acuses de recibo, indicadores de control como SYN y FIN, además del campo de ventana y checksum. Esta disparidad estructural impacta directamente en el rendimiento de la red, siendo la alternativa ligera de UDP ideal para aplicaciones de baja latencia o paquetes pequeños y numerosos, mientras que la robustez de TCP se adapta a la transferencia masiva de archivos y páginas web."
+        },
+        {
+          "id": "rec-api-a9a2dcd8-1e17-44e1-8f79-88016cd7c37d",
+          "title": "Glosario de la unidad: Fundamentos y protocolos de transporte",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario de la unidad: Fundamentos y protocolos de transporte\nCapa de transporte: Cuarta capa del modelo OSI que proporciona comunicación lógica entre procesos que se ejecutan en equipos distintos [F5].\nSocket: Combinación de dirección IP y puerto que identifica de forma única a cada extremo de una comunicación [F5].\nTCP (Transmission Control Protocol): Protocolo que proporciona un transporte fiable de flujo de bits entre aplicaciones, orientado a conexión [F3, F4, F5].\nUDP (User Datagram Protocol): Protocolo del nivel de transporte basado en la transmisión sin conexión de datagramas y orientado a una entrega ligera [F1, F5].\nSaludo de tres vías (three-way handshake): Mecanismo mediante el cual TCP establece una conexión antes de intercambiar datos [F5].\nEntrega best-effort (mejor esfuerzo): Modo de operación de UDP donde envía cada datagrama sin garantías, sin acuses de recibo ni retransmisión [F6].\nControl de congestión: Mecanismo que protege a la red mediante el mantenimiento de una ventana de congestión y algoritmos como slow start [F9].\nChecksum (suma de verificación): Campo presente en las cabeceras de transporte que permite detectar corrupción en los datos [F6]."
+        },
+        {
+          "id": "rec-api-2aea8b9f-d309-465b-b3b8-4ac05439f8e6",
+          "title": "Glosario complementario de protocolos y mecanismos de red",
+          "type": "glosario",
+          "planItemPosition": null,
+          "text": "Glosario complementario de protocolos y mecanismos de red\nSegmento: Unidad de información o PDU de la capa 4 cuando corresponde al protocolo TCP [F8].\nDatagrama: Unidad de información o PDU de la capa 4 cuando corresponde al protocolo UDP [F8].\nVentana de congestión (cwnd): Parámetro utilizado por el emisor en TCP para controlar la cantidad de datos enviados y proteger la red [F9].\nArranque lento (slow start): Algoritmo de control de congestión que parte de un valor pequeño y duplica cwnd en cada RTT [F9].\nCabecera UDP: Estructura mínima de 8 bytes compuesta por puerto de origen, puerto de destino, longitud y suma de verificación [F6].\nCabecera TCP: Estructura que ocupa como mínimo 20 bytes e incluye números de secuencia, acuse, indicadores y ventana [F6].\nIP (Protocolo de Internet): Protocolo no orientado a conexión que permite el envío de datos entre origen y destino a través de una red de conmutación de paquetes [F4].\nPuerto: Número lógico que, junto con la dirección IP, permite a la capa de transporte resolver a qué aplicación pertenece cada paquete [F5, F8]."
+        },
+        {
+          "id": "rec-api-85219dc0-167c-4025-8afe-e61e0e554226",
+          "title": "Evaluación de protocolos de transporte en escenarios de red",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Evaluación de protocolos de transporte en escenarios de red\nEn una institución educativa se evalúa la implementación de dos servicios nuevos: una plataforma de transferencia masiva de archivos históricos para el área administrativa y un sistema de transmisión de vídeo en tiempo real para las aulas virtuales. Como ingeniero de redes, debe determinar qué protocolo de la capa de transporte se ajusta mejor a cada servicio considerando las características de conexión, fiabilidad, control de flujo y datagramas estudiadas."
+        },
+        {
+          "id": "rec-api-9ce907f3-4034-475a-96c9-52fa8979b01f",
+          "title": "Selección de protocolo para servicios corporativos",
+          "type": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "text": "Selección de protocolo para servicios corporativos\nAnalice el siguiente caso práctico: una empresa requiere desplegar un servicio crítico de banca en línea donde cada transacción financiera debe entregarse de forma exacta, ordenada y sin pérdidas, y paralelamente requiere un servicio de monitoreo de red interno que emite alertas breves y constantes donde la prioridad es la baja latencia y la ligereza del datagrama. A partir de los fundamentos de los protocolos de transporte, resuelva el cuestionamiento propuesto."
+        },
+        {
+          "id": "rec-api-c7f9a650-0bdb-45c4-9407-a90f77477b6c",
+          "title": "Concepto clave 1: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 1: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«La ________ es una decisión de diseño que equilibra fiabilidad y latencia.»\nelección entre ambos\npregunta clave\nchecksum\nUDP"
+        },
+        {
+          "id": "rec-api-c9e03113-1db3-431f-834b-a463c8574aca",
+          "title": "Concepto clave 2: Protocolos de transporte",
+          "type": "item_opcion_multiple",
+          "planItemPosition": null,
+          "text": "Concepto clave 2: Protocolos de transporte\nSegún el material de la unidad, ¿qué término completa correctamente la siguiente afirmación?\n\n«El ________ permite detectar corrupción, pero el datagrama dañado simplemente se descarta, sin aviso al emisor.»\nchecksum\npregunta clave\nUDP\nelección entre ambos"
+        }
+      ]
+    }
+  ]
+}

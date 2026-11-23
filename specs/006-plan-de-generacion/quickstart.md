@@ -6,7 +6,7 @@
 
 - **Base de datos:** el backend local de [005 QA-17](../005-atributos-calidad/plan.md#qa-17--concurrencia-y-capacidad-con-locust), con PostgreSQL en Docker, o SQLite.
 - **Variables:** `LLM_PROVIDER=rules`, `EMBEDDINGS_ENABLED=false` y `GENERATION_REQUIRE_PLAN=false`. Gemini solo en V3, V9 y V10, con la clave local y nunca en Render.
-- **Datos:** un docente con una unidad de redes y el corpus de T067 procesado (`backend/evaluation/corpus_t067`), como en `collect_samples.py`.
+- **Datos:** un docente con una unidad de redes y el corpus de T067 procesado (`backend/evaluation/corpus_t067`), como en `collect_samples.py`. En V10, la cuenta (`EVAL_EMAIL`) es siempre la misma: solo la cuenta que creó los pedidos de un informe puede leerlos después para recalcular o calibrar.
 - **Interfaz:** frontend en `http://localhost:5173` para V11.
 
 ## Pruebas automáticas

@@ -128,3 +128,15 @@ def test_develops_concept_uses_the_same_rule_on_any_text():
     assert develops_concept("El protocolo UDP es un protocolo sin conexión.", "protocolo UDP")  # lo define
     assert develops_concept("El protocolo UDP no confirma. Por eso el protocolo UDP es rápido.", "protocolo UDP")
     assert not develops_concept("TCP es distinto del protocolo UDP en la conexión.", "protocolo UDP")  # una mención
+
+
+
+def test_concept_usage_separates_mentioned_developed_and_defined():
+    from platform5e.domain.generation.plan_coverage import concept_usage
+
+    assert concept_usage("TCP es distinto del protocolo UDP.", "protocolo UDP") == {
+        "mentioned": True, "developed": False, "defined": False}
+    assert concept_usage("El protocolo UDP no confirma. El protocolo UDP es rápido porque no espera.",
+                         "protocolo UDP") == {"mentioned": True, "developed": True, "defined": True}
+    assert concept_usage("Nada que ver con el tema.", "protocolo UDP") == {
+        "mentioned": False, "developed": False, "defined": False}

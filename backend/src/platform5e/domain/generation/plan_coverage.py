@@ -221,6 +221,18 @@ def develops_concept(text: str, concept: str) -> bool:
     return len(appearances) >= MIN_FOREIGN_SENTENCES or any(defines(s, concept) for s in appearances)
 
 
+def concept_usage(text: str, concept: str) -> dict[str, bool]:
+    """Cómo usa el texto el concepto: lo menciona (el término completo en alguna oración), lo desarrolla (la regla de
+    `develops_concept`) o lo define (una oración que empieza por él con «es», «son», «:»…). La medición de P4 lo
+    informa por concepto para ver si la regla de «desarrollado» es demasiado estricta."""
+    sentences = [sentence for paragraph in _paragraphs(text) for sentence in extract_sentences(paragraph)]
+    words = concept_words(concept)
+    appearances = [s for s in sentences if _contains_words(text_words(s), words)]
+    defined = any(defines(s, concept) for s in appearances)
+    return {"mentioned": bool(appearances), "developed": len(appearances) >= MIN_FOREIGN_SENTENCES or defined,
+            "defined": defined}
+
+
 def backbone_concepts(items: Sequence[PlanItem], fragments_by_id: Mapping[str, str]) -> set[str]:
     """Los conceptos del plan (por su forma normalizada) que están en los fragmentos de la mitad o más de los ítems, y
     de al menos 2: son contexto compartido de la unidad («capa de transporte»), no de un solo recurso."""

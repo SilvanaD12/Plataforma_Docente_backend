@@ -152,14 +152,16 @@ GENERATION_IMPLICIT_PLAN=true .venv/bin/python -m uvicorn platform5e.main:create
 ```
 
 ```bash
-# Otra terminal, mientras corre cada backend
+# Otra terminal, mientras corre cada backend. La cuenta debe ser siempre la misma: la que crea los pedidos es la
+# única que puede leerlos después para recalcular o calibrar (otra cuenta recibe 404).
 export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
 # Con el backend 1 (línea base)
 .venv/bin/python evaluation/measure_duplication.py --mode baseline --corpus evaluation/corpus_t067 --runs 5 \
-  --quantity 2 --out ../docs/evidence/GEN-P4/gemini-baseline.json
+  --quantity 2 --threshold 0.885 --sentence-threshold 0.865 --out ../docs/evidence/GEN-P4/v4-gemini-baseline.json
 # Con el backend 2 (plan), con la comparación con la meta
 .venv/bin/python evaluation/measure_duplication.py --mode plan --corpus evaluation/corpus_t067 --runs 5 \
-  --quantity 2 --out ../docs/evidence/GEN-P4/gemini-plan.json --compare ../docs/evidence/GEN-P4/gemini-baseline.json
+  --quantity 2 --threshold 0.885 --sentence-threshold 0.865 --out ../docs/evidence/GEN-P4/v4-gemini-plan.json \
+  --compare ../docs/evidence/GEN-P4/v4-gemini-baseline.json
 ```
 
 - **Guarda de la línea base:** si un pedido de `--mode baseline` vuelve con un plan, el backend tiene el interruptor encendido. El script se detiene sin escribir el informe.
@@ -167,20 +169,30 @@ export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
 - **Con reglas:** lo mismo con `LLM_PROVIDER=rules` y sin clave, y `--out …/rules-*.json`.
 - **`faithfulness`:** con `run_ragas.py` sobre las muestras de cada modo.
 
-**Calibrar los umbrales** con los informes guardados (traen los textos de los recursos; los informes anteriores, sin textos, se leen de la API con el mismo backend y la misma base):
+**Calibrar los umbrales** con los informes guardados. Los informes traen los textos de los recursos; los anteriores, sin textos, se leen de la API con el mismo backend, la misma base y **la misma cuenta que los creó**. Si la API no devuelve un pedido (otra cuenta, otra base), la calibración se detiene con el motivo.
 
 ```bash
 .venv/bin/python evaluation/measure_duplication.py --calibrate \
-  --from ../docs/evidence/GEN-P4/gemini-plan.json ../docs/evidence/GEN-P4/gemini-baseline.json \
-  --out ../docs/evidence/GEN-P4/calibration.json
+  --from ../docs/evidence/GEN-P4/v3-gemini-plan.json ../docs/evidence/GEN-P4/v3-gemini-baseline.json \
+  --out ../docs/evidence/GEN-P4/calibration-v3.json
+```
+
+**Recalcular sin generar** (solo embeddings) un informe con las métricas corregidas, y compararlo. Los dos informes se recalculan con los mismos umbrales; para leer los conceptos que los informes v3 no guardan, con la misma cuenta:
+
+```bash
+.venv/bin/python evaluation/measure_duplication.py --recompute --from ../docs/evidence/GEN-P4/v3-gemini-baseline.json \
+  --threshold 0.885 --sentence-threshold 0.865 --out ../docs/evidence/GEN-P4/v3r-gemini-baseline.json
+.venv/bin/python evaluation/measure_duplication.py --recompute --from ../docs/evidence/GEN-P4/v3-gemini-plan.json \
+  --threshold 0.885 --sentence-threshold 0.865 --out ../docs/evidence/GEN-P4/v3r-gemini-plan.json \
+  --compare ../docs/evidence/GEN-P4/v3r-gemini-baseline.json
 ```
 
 Después se vuelve a correr la medición con `--threshold` y `--sentence-threshold` sugeridos, si cambian.
 
 **Cómo leer los informes** ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
-1. **¿Los dos modos los redactó la IA?** `aiSteps` y `fallbackSteps`, y `planGenerators` (planes de Gemini o de reglas).
-2. **La evidencia de «no repetición»:** `sentenceNearDuplicateRate` y `meanReexplainedEvidenceConcepts`, y sus bajas en `comparison`.
-3. **La tasa de pares:** con su umbral calibrado.
+1. **¿Los dos modos los redactó la IA?** `aiSteps` y `fallbackSteps` (con `fallbacks` y sus motivos), `undelivered` y `planGenerators` (planes de Gemini o de reglas).
+2. **La evidencia de «no repetición»:** `crossTypeSentenceRate` (la principal) y `meanReexplainedEvidenceConcepts` con su tabla por concepto, y sus bajas en `comparison`; lo mismo en `aiOnly`, sin los recursos del respaldo.
+3. **La tasa de pares:** `crossTypeDuplicateRate` y la de todos, con su umbral calibrado; `variants` aparte.
 
 Meta (la de P4 se conserva para la tasa de pares): duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90. La evidencia principal de que no se repite contenido son las oraciones casi repetidas y los conceptos explicados otra vez, que deben bajar con plan.
 

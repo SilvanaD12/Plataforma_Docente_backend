@@ -1,0 +1,1223 @@
+{
+  "measure": "P4 · duplicación entre recursos de una misma generación",
+  "mode": "baseline",
+  "api": "http://127.0.0.1:8000",
+  "corpus": "evaluation/corpus_t067",
+  "resourceTypes": [
+    "pregunta_detonante",
+    "sondeo_diagnostico",
+    "guia_exploracion",
+    "caso_indagacion",
+    "explicacion",
+    "glosario",
+    "ejercicio_aplicacion",
+    "item_opcion_multiple"
+  ],
+  "quantity": 2,
+  "threshold": 0.85,
+  "similarity": "embeddings (coseno), gemini-embedding-001",
+  "server": "GENERATION_IMPLICIT_PLAN=false (cuerpo anterior, redactado como antes de GEN-P1)",
+  "createdAt": "2026-11-23T05:05:55.349447+00:00",
+  "summary": {
+    "runs": 3,
+    "finishedRuns": 3,
+    "duplicateRate": 0.3233,
+    "meanDuplicateRatePerRun": 0.3309,
+    "meanMaxSimilarity": 0.9209,
+    "resourcesPerRequest": 15.33
+  },
+  "runs": [
+    {
+      "key": "p4-baseline-20261123T050435-1",
+      "requestId": "gen-req-67557d00-aa4e-40f5-8f12-80ff56d7aa2a",
+      "requestPlanId": null,
+      "status": "partially_succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": null,
+          "delivered": 0,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        }
+      ],
+      "rejectionKinds": {
+        "grounding": 2,
+        "structure": 2
+      },
+      "metrics": {
+        "resources": 14,
+        "pairs": 91,
+        "duplicatePairs": 38,
+        "duplicateRate": 0.4176,
+        "meanMaxSimilarity": 0.9292,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.9099,
+            "titles": [
+              "Comparación de protocolos de transporte en situaciones de red",
+              "Análisis del impacto de la cabecera y la fiabilidad en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 5,
+            "similarity": 0.8577,
+            "titles": [
+              "Comparación de protocolos de transporte en situaciones de red",
+              "Indagación sobre el establecimiento de conexión y fiabilidad"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 6,
+            "similarity": 0.8966,
+            "titles": [
+              "Comparación de protocolos de transporte en situaciones de red",
+              "Caso práctico: Diagnóstico de transmisión en tiempo real y transferencia masiva"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 7,
+            "similarity": 0.8547,
+            "titles": [
+              "Comparación de protocolos de transporte en situaciones de red",
+              "Caso de estudio: Análisis de cabeceras y entrega de paquetes en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 8,
+            "similarity": 0.8721,
+            "titles": [
+              "Comparación de protocolos de transporte en situaciones de red",
+              "Funcionamiento y caracteristicas operativas de los protocolos TCP y UDP"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.8605,
+            "titles": [
+              "Comparación de protocolos de transporte en situaciones de red",
+              "Diferenciacion estructural y de control entre TCP y UDP en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 10,
+            "similarity": 0.9403,
+            "titles": [
+              "Comparación de protocolos de transporte en situaciones de red",
+              "Aplicación de protocolos de transporte en una transmisión de audio"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 11,
+            "similarity": 0.8573,
+            "titles": [
+              "Comparación de protocolos de transporte en situaciones de red",
+              "Selección de protocolo para transferencia masiva de archivos"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 4,
+            "similarity": 0.8749,
+            "titles": [
+              "Análisis del impacto de la cabecera y la fiabilidad en la capa de transporte",
+              "Exploración de la cabecera y el tamaño de los paquetes en TCP y UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 6,
+            "similarity": 0.8809,
+            "titles": [
+              "Análisis del impacto de la cabecera y la fiabilidad en la capa de transporte",
+              "Caso práctico: Diagnóstico de transmisión en tiempo real y transferencia masiva"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 7,
+            "similarity": 0.9153,
+            "titles": [
+              "Análisis del impacto de la cabecera y la fiabilidad en la capa de transporte",
+              "Caso de estudio: Análisis de cabeceras y entrega de paquetes en la capa de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 8,
+            "similarity": 0.8549,
+            "titles": [
+              "Análisis del impacto de la cabecera y la fiabilidad en la capa de transporte",
+              "Funcionamiento y caracteristicas operativas de los protocolos TCP y UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 9,
+            "similarity": 0.8624,
+            "titles": [
+              "Análisis del impacto de la cabecera y la fiabilidad en la capa de transporte",
+              "Diferenciacion estructural y de control entre TCP y UDP en la capa de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 10,
+            "similarity": 0.8897,
+            "titles": [
+              "Análisis del impacto de la cabecera y la fiabilidad en la capa de transporte",
+              "Aplicación de protocolos de transporte en una transmisión de audio"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 11,
+            "similarity": 0.8775,
+            "titles": [
+              "Análisis del impacto de la cabecera y la fiabilidad en la capa de transporte",
+              "Selección de protocolo para transferencia masiva de archivos"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.958,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de TCP y UDP en la capa de transporte",
+              "Sondeo diagnóstico: Características de fiabilidad y conexiones"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.8858,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de TCP y UDP en la capa de transporte",
+              "Exploración de la cabecera y el tamaño de los paquetes en TCP y UDP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 5,
+            "similarity": 0.8807,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de TCP y UDP en la capa de transporte",
+              "Indagación sobre el establecimiento de conexión y fiabilidad"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 4,
+            "similarity": 0.859,
+            "titles": [
+              "Sondeo diagnóstico: Características de fiabilidad y conexiones",
+              "Exploración de la cabecera y el tamaño de los paquetes en TCP y UDP"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 5,
+            "similarity": 0.8889,
+            "titles": [
+              "Sondeo diagnóstico: Características de fiabilidad y conexiones",
+              "Indagación sobre el establecimiento de conexión y fiabilidad"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 12,
+            "similarity": 0.8515,
+            "titles": [
+              "Sondeo diagnóstico: Características de fiabilidad y conexiones",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.8965,
+            "titles": [
+              "Exploración de la cabecera y el tamaño de los paquetes en TCP y UDP",
+              "Indagación sobre el establecimiento de conexión y fiabilidad"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 7,
+            "similarity": 0.8553,
+            "titles": [
+              "Exploración de la cabecera y el tamaño de los paquetes en TCP y UDP",
+              "Caso de estudio: Análisis de cabeceras y entrega de paquetes en la capa de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 8,
+            "similarity": 0.8655,
+            "titles": [
+              "Exploración de la cabecera y el tamaño de los paquetes en TCP y UDP",
+              "Funcionamiento y caracteristicas operativas de los protocolos TCP y UDP"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 9,
+            "similarity": 0.8734,
+            "titles": [
+              "Exploración de la cabecera y el tamaño de los paquetes en TCP y UDP",
+              "Diferenciacion estructural y de control entre TCP y UDP en la capa de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 10,
+            "similarity": 0.8526,
+            "titles": [
+              "Exploración de la cabecera y el tamaño de los paquetes en TCP y UDP",
+              "Aplicación de protocolos de transporte en una transmisión de audio"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.8753,
+            "titles": [
+              "Caso práctico: Diagnóstico de transmisión en tiempo real y transferencia masiva",
+              "Caso de estudio: Análisis de cabeceras y entrega de paquetes en la capa de transporte"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 8,
+            "similarity": 0.8593,
+            "titles": [
+              "Caso práctico: Diagnóstico de transmisión en tiempo real y transferencia masiva",
+              "Funcionamiento y caracteristicas operativas de los protocolos TCP y UDP"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 9,
+            "similarity": 0.8506,
+            "titles": [
+              "Caso práctico: Diagnóstico de transmisión en tiempo real y transferencia masiva",
+              "Diferenciacion estructural y de control entre TCP y UDP en la capa de transporte"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 10,
+            "similarity": 0.8805,
+            "titles": [
+              "Caso práctico: Diagnóstico de transmisión en tiempo real y transferencia masiva",
+              "Aplicación de protocolos de transporte en una transmisión de audio"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 11,
+            "similarity": 0.8759,
+            "titles": [
+              "Caso práctico: Diagnóstico de transmisión en tiempo real y transferencia masiva",
+              "Selección de protocolo para transferencia masiva de archivos"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 8,
+            "similarity": 0.8702,
+            "titles": [
+              "Caso de estudio: Análisis de cabeceras y entrega de paquetes en la capa de transporte",
+              "Funcionamiento y caracteristicas operativas de los protocolos TCP y UDP"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 9,
+            "similarity": 0.8755,
+            "titles": [
+              "Caso de estudio: Análisis de cabeceras y entrega de paquetes en la capa de transporte",
+              "Diferenciacion estructural y de control entre TCP y UDP en la capa de transporte"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 9,
+            "similarity": 0.9661,
+            "titles": [
+              "Funcionamiento y caracteristicas operativas de los protocolos TCP y UDP",
+              "Diferenciacion estructural y de control entre TCP y UDP en la capa de transporte"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.8705,
+            "titles": [
+              "Funcionamiento y caracteristicas operativas de los protocolos TCP y UDP",
+              "Aplicación de protocolos de transporte en una transmisión de audio"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 10,
+            "similarity": 0.8628,
+            "titles": [
+              "Diferenciacion estructural y de control entre TCP y UDP en la capa de transporte",
+              "Aplicación de protocolos de transporte en una transmisión de audio"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.8686,
+            "titles": [
+              "Aplicación de protocolos de transporte en una transmisión de audio",
+              "Selección de protocolo para transferencia masiva de archivos"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.9412,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "p4-baseline-20261123T050435-2",
+      "requestId": "gen-req-d41a20f5-9776-42ac-81a6-b1d6c5aa2cf2",
+      "requestPlanId": null,
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        }
+      ],
+      "rejectionKinds": {
+        "structure": 2
+      },
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 31,
+        "duplicateRate": 0.2583,
+        "meanMaxSimilarity": 0.9053,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.8692,
+            "titles": [
+              "Explorando la transmision sin conexion",
+              "Analizando la fiabilidad en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 6,
+            "similarity": 0.8777,
+            "titles": [
+              "Explorando la transmision sin conexion",
+              "Caso 1: Transmision en tiempo real frente a restricciones de latencia"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.8673,
+            "titles": [
+              "Explorando la transmision sin conexion",
+              "Fundamentos y desempeño del protocolo UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 6,
+            "similarity": 0.8679,
+            "titles": [
+              "Analizando la fiabilidad en la capa de transporte",
+              "Caso 1: Transmision en tiempo real frente a restricciones de latencia"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 7,
+            "similarity": 0.9159,
+            "titles": [
+              "Analizando la fiabilidad en la capa de transporte",
+              "Caso 2: Gestion de fiabilidad y control de flujo en la capa de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 8,
+            "similarity": 0.8901,
+            "titles": [
+              "Analizando la fiabilidad en la capa de transporte",
+              "Operación y características del protocolo TCP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 9,
+            "similarity": 0.8549,
+            "titles": [
+              "Analizando la fiabilidad en la capa de transporte",
+              "Fundamentos y desempeño del protocolo UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 12,
+            "similarity": 0.8799,
+            "titles": [
+              "Analizando la fiabilidad en la capa de transporte",
+              "Evaluacion de escenarios de transporte: Aplicacion de TCP y UDP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9161,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de la capa de transporte y protocolos",
+              "Sondeo diagnóstico: Conexión, control y fiabilidad en redes"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.9018,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de la capa de transporte y protocolos",
+              "Guia de exploracion: Indagando en la operacion de UDP y TCP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 5,
+            "similarity": 0.8638,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de la capa de transporte y protocolos",
+              "Guia de exploracion: Comparando el rendimiento de datagramas y segmentos"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 12,
+            "similarity": 0.8673,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de la capa de transporte y protocolos",
+              "Evaluacion de escenarios de transporte: Aplicacion de TCP y UDP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 14,
+            "similarity": 0.8503,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de la capa de transporte y protocolos",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 15,
+            "similarity": 0.8522,
+            "titles": [
+              "Sondeo diagnóstico: Fundamentos de la capa de transporte y protocolos",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 4,
+            "similarity": 0.8601,
+            "titles": [
+              "Sondeo diagnóstico: Conexión, control y fiabilidad en redes",
+              "Guia de exploracion: Indagando en la operacion de UDP y TCP"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 5,
+            "similarity": 0.8913,
+            "titles": [
+              "Sondeo diagnóstico: Conexión, control y fiabilidad en redes",
+              "Guia de exploracion: Comparando el rendimiento de datagramas y segmentos"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9245,
+            "titles": [
+              "Guia de exploracion: Indagando en la operacion de UDP y TCP",
+              "Guia de exploracion: Comparando el rendimiento de datagramas y segmentos"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 6,
+            "similarity": 0.8501,
+            "titles": [
+              "Guia de exploracion: Indagando en la operacion de UDP y TCP",
+              "Caso 1: Transmision en tiempo real frente a restricciones de latencia"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 12,
+            "similarity": 0.8828,
+            "titles": [
+              "Guia de exploracion: Indagando en la operacion de UDP y TCP",
+              "Evaluacion de escenarios de transporte: Aplicacion de TCP y UDP"
+            ]
+          },
+          {
+            "first": 5,
+            "second": 12,
+            "similarity": 0.8679,
+            "titles": [
+              "Guia de exploracion: Comparando el rendimiento de datagramas y segmentos",
+              "Evaluacion de escenarios de transporte: Aplicacion de TCP y UDP"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.8797,
+            "titles": [
+              "Caso 1: Transmision en tiempo real frente a restricciones de latencia",
+              "Caso 2: Gestion de fiabilidad y control de flujo en la capa de transporte"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 9,
+            "similarity": 0.8857,
+            "titles": [
+              "Caso 1: Transmision en tiempo real frente a restricciones de latencia",
+              "Fundamentos y desempeño del protocolo UDP"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 12,
+            "similarity": 0.8849,
+            "titles": [
+              "Caso 1: Transmision en tiempo real frente a restricciones de latencia",
+              "Evaluacion de escenarios de transporte: Aplicacion de TCP y UDP"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 8,
+            "similarity": 0.8992,
+            "titles": [
+              "Caso 2: Gestion de fiabilidad y control de flujo en la capa de transporte",
+              "Operación y características del protocolo TCP"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 9,
+            "similarity": 0.8526,
+            "titles": [
+              "Operación y características del protocolo TCP",
+              "Fundamentos y desempeño del protocolo UDP"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.8835,
+            "titles": [
+              "Operación y características del protocolo TCP",
+              "Glosario de la unidad: Fundamentos de la capa de transporte"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 11,
+            "similarity": 0.864,
+            "titles": [
+              "Operación y características del protocolo TCP",
+              "Glosario de la unidad: Arquitectura y operación de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 11,
+            "similarity": 0.8591,
+            "titles": [
+              "Fundamentos y desempeño del protocolo UDP",
+              "Glosario de la unidad: Arquitectura y operación de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.9029,
+            "titles": [
+              "Glosario de la unidad: Fundamentos de la capa de transporte",
+              "Glosario de la unidad: Arquitectura y operación de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.8538,
+            "titles": [
+              "Evaluacion de escenarios de transporte: Aplicacion de TCP y UDP",
+              "Seleccion de protocolo para servicios distribuidos"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9391,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "p4-baseline-20261123T050435-3",
+      "requestId": "gen-req-e8c9c20f-6e80-4d02-9e9a-7a90356abf66",
+      "requestPlanId": null,
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": null,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        }
+      ],
+      "rejectionKinds": {
+        "structure": 2
+      },
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 38,
+        "duplicateRate": 0.3167,
+        "meanMaxSimilarity": 0.9282,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.9118,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Control de congesti&oacute;n y fiabilidad en el transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 2,
+            "similarity": 0.8826,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Sondeo de ideas previas sobre TCP y UDP"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 4,
+            "similarity": 0.8556,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Guía de exploración: Análisis práctico de conexiones y datagramas en la capa de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 5,
+            "similarity": 0.854,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Guía de exploración: Contrastando el comportamiento de TCP y UDP ante la red"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 6,
+            "similarity": 0.8964,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Caso de estudio: Transmisión de voz en tiempo real sobre UDP"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 8,
+            "similarity": 0.8891,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Caracteristicas estructurales y operativas de TCP y UDP"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.8876,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Mecanismos de control y gestion de la comunicacion en el nivel de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 10,
+            "similarity": 0.8546,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Glosario de protocolos de transporte y red: Parte 1"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 12,
+            "similarity": 0.8684,
+            "titles": [
+              "Diferencias funcionales entre TCP y UDP en la transmisión de datos",
+              "Evaluación de escenarios para la elección de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 2,
+            "similarity": 0.8781,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Sondeo de ideas previas sobre TCP y UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 3,
+            "similarity": 0.8502,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Explorando concepciones sobre la capa de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 4,
+            "similarity": 0.8733,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Guía de exploración: Análisis práctico de conexiones y datagramas en la capa de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 5,
+            "similarity": 0.8564,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Guía de exploración: Contrastando el comportamiento de TCP y UDP ante la red"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 6,
+            "similarity": 0.8605,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Caso de estudio: Transmisión de voz en tiempo real sobre UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 8,
+            "similarity": 0.8861,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Caracteristicas estructurales y operativas de TCP y UDP"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 9,
+            "similarity": 0.925,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Mecanismos de control y gestion de la comunicacion en el nivel de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 10,
+            "similarity": 0.8664,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Glosario de protocolos de transporte y red: Parte 1"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 14,
+            "similarity": 0.8512,
+            "titles": [
+              "Control de congesti&oacute;n y fiabilidad en el transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9537,
+            "titles": [
+              "Sondeo de ideas previas sobre TCP y UDP",
+              "Explorando concepciones sobre la capa de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.8836,
+            "titles": [
+              "Sondeo de ideas previas sobre TCP y UDP",
+              "Guía de exploración: Análisis práctico de conexiones y datagramas en la capa de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 5,
+            "similarity": 0.8816,
+            "titles": [
+              "Sondeo de ideas previas sobre TCP y UDP",
+              "Guía de exploración: Contrastando el comportamiento de TCP y UDP ante la red"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 14,
+            "similarity": 0.8744,
+            "titles": [
+              "Sondeo de ideas previas sobre TCP y UDP",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 15,
+            "similarity": 0.8622,
+            "titles": [
+              "Sondeo de ideas previas sobre TCP y UDP",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 4,
+            "similarity": 0.8778,
+            "titles": [
+              "Explorando concepciones sobre la capa de transporte",
+              "Guía de exploración: Análisis práctico de conexiones y datagramas en la capa de transporte"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 5,
+            "similarity": 0.8617,
+            "titles": [
+              "Explorando concepciones sobre la capa de transporte",
+              "Guía de exploración: Contrastando el comportamiento de TCP y UDP ante la red"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.9569,
+            "titles": [
+              "Guía de exploración: Análisis práctico de conexiones y datagramas en la capa de transporte",
+              "Guía de exploración: Contrastando el comportamiento de TCP y UDP ante la red"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 8,
+            "similarity": 0.8509,
+            "titles": [
+              "Guía de exploración: Análisis práctico de conexiones y datagramas en la capa de transporte",
+              "Caracteristicas estructurales y operativas de TCP y UDP"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.8507,
+            "titles": [
+              "Caso de estudio: Transmisión de voz en tiempo real sobre UDP",
+              "Caso de análisis: Sobrecarga de cabeceras y control de flujo en la red"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 12,
+            "similarity": 0.8927,
+            "titles": [
+              "Caso de estudio: Transmisión de voz en tiempo real sobre UDP",
+              "Evaluación de escenarios para la elección de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 12,
+            "similarity": 0.8562,
+            "titles": [
+              "Caso de análisis: Sobrecarga de cabeceras y control de flujo en la red",
+              "Evaluación de escenarios para la elección de protocolos de transporte"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 13,
+            "similarity": 0.9441,
+            "titles": [
+              "Caso de análisis: Sobrecarga de cabeceras y control de flujo en la red",
+              "Análisis de sobrecarga en el envío de paquetes pequeños"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 9,
+            "similarity": 0.9226,
+            "titles": [
+              "Caracteristicas estructurales y operativas de TCP y UDP",
+              "Mecanismos de control y gestion de la comunicacion en el nivel de transporte"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.9098,
+            "titles": [
+              "Caracteristicas estructurales y operativas de TCP y UDP",
+              "Glosario de protocolos de transporte y red: Parte 1"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 10,
+            "similarity": 0.8666,
+            "titles": [
+              "Mecanismos de control y gestion de la comunicacion en el nivel de transporte",
+              "Glosario de protocolos de transporte y red: Parte 1"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 11,
+            "similarity": 0.8538,
+            "titles": [
+              "Mecanismos de control y gestion de la comunicacion en el nivel de transporte",
+              "Glosario de protocolos de transporte y red: Parte 2"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.8729,
+            "titles": [
+              "Glosario de protocolos de transporte y red: Parte 1",
+              "Glosario de protocolos de transporte y red: Parte 2"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.8605,
+            "titles": [
+              "Evaluación de escenarios para la elección de protocolos de transporte",
+              "Análisis de sobrecarga en el envío de paquetes pequeños"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.9425,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 2: Protocolos de transporte"
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
