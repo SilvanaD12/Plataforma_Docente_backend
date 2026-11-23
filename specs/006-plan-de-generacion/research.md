@@ -243,7 +243,24 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 - **Línea base:** sin plan, en el mismo servidor y la misma base, con `GENERATION_IMPLICIT_PLAN=false` (interruptor solo de medición: redacta el cuerpo anterior como antes de GEN-P1; [plan](plan.md#medición-de-p4)).
 - **Con plan:** aprobado sin cambios.
 
-Se registran en `docs/evidence/GEN-P4/` los dos informes, la calibración y la `faithfulness` media (con `run_ragas.py`).
+Se registran en `docs/evidence/GEN-P4/` los dos informes (con su fidelidad) y la calibración.
+
+**Fidelidad (T027 c).** La meta de P4 pide que el plan no baje la `faithfulness` de 0,90. `measure_duplication.py --faithfulness` la calcula en el mismo informe, en una corrida nueva o con `--recompute` sobre un informe guardado:
+- **Métrica y juez:** la `Faithfulness` de Ragas con el juez de `evaluation/run_ragas.py`: el mismo modelo (`RAGAS_JUDGE_MODEL`, `gemini-3.8-flash` por defecto), temperatura 0 y la misma configuración (180 s por llamada, 5 reintentos). `ResponseRelevancy` no se usa.
+- **Por cada recurso entregado:**
+  - la respuesta es el recurso sin su título ni los encabezados de su estructura (el texto de las oraciones);
+  - el contexto son los textos de los fragmentos que cita, la copia que guarda el recurso y muestra Revisión (`evidence`), como `run_ragas.py --contexts cited`;
+  - la pregunta son las indicaciones del pedido (las mismas en los dos modos).
+- **Omitidos:** los recursos sin citas no se califican y se cuentan (`skipped`).
+- **Errores:** si el juez falla con un recurso, el error queda en ese recurso (`errors`) y la medición sigue. Un puntaje vacío (NaN) también cuenta como error.
+- **Informe:** por corrida y en el resumen, la media, la parte de recursos con 0,90 o más (`atLeastTarget`) y cuántos se calificaron, se omitieron o fallaron; lo mismo solo con los recursos de la IA (`aiOnly`) y por tipo (`byType`). El resumen trae además la media de las medias por corrida (`meanPerRun`).
+- **Comparación:** con `--compare`, la diferencia plan − línea base y si el plan mantiene la media en 0,90 o más (`planMeetsTarget`), con todos los recursos y en `aiOnly`.
+- **Textos guardados:** el informe guarda los textos citados de cada recurso, así un recálculo posterior no usa la API. Los informes v4 y anteriores no los guardan: el primer `--recompute --faithfulness` los lee una vez con la misma cuenta.
+- **Llamadas al juez:** van en paralelo con pocos hilos (`--judge-concurrency`, 2 por defecto) y con el progreso en pantalla. Un recálculo solo califica los recursos sin puntaje, salvo con otro juez o con `--rescore-faithfulness`.
+
+**Comparabilidad con la v5.**
+- **Conceptos:** desde T027 (b), los conceptos candidatos de la evidencia (`conceptReexplanationEvidence`) salen de `concept_extraction.py`, la misma extracción del planificador por reglas, sin frases pegadas («ftp sftp») ni encabezados de página. Las cifras de conceptos de la v3 y la v4 no se comparan con las de la v5. Las de oraciones y pares sí.
+- **Opción múltiple:** en la v1 a la v4, `item_opcion_multiple` fue siempre al respaldo por reglas, con plan y sin plan, porque el esquema de Gemini no pedía el error conceptual de cada distractor (T027 a). En esas versiones, sus recursos no son de la IA en ningún modo.
 
 **Cómo leer el resultado.**
 1. **Primero, ¿los dos modos los redactó la IA?** Mira `aiSteps` frente a `fallbackSteps` y `planGenerators`. Si el plan salió de reglas en varias corridas, la comparación no mide el plan de Gemini.
@@ -274,7 +291,7 @@ Se registran en `docs/evidence/GEN-P4/` los dos informes, la calibración y la `
   - La baja de al menos 50 % solo se cumple en la v3.
   - La evidencia principal (oraciones entre tipos distintos) baja un 35 % en las dos.
   - El `meetsTarget` del informe se calcula sobre todos los pares y sale `false`; para P4 vale la cifra entre tipos distintos.
-- **Pendiente:** la `faithfulness` de los recursos redactados desde el plan no se midió (meta ≥ 0,90), y quedan problemas que encontró la v4 (T027 de [tareas](tasks.md)).
+- **Pendiente:** la `faithfulness` de los recursos redactados desde el plan (meta ≥ 0,90) se mide en la v5 con `--faithfulness` (arriba, «Fidelidad»), junto con los arreglos de T027 (a) y (b) ([tareas](tasks.md)).
 
 **Meta.**
 - **Evidencia principal:** con plan, las oraciones casi repetidas entre recursos de tipos distintos bajan frente a la línea base, con la mayoría de los pasos redactados por la IA en los dos modos; los conceptos explicados otra vez se informan.

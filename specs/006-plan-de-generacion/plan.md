@@ -167,7 +167,27 @@ export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
 - **Guarda de la línea base:** si un pedido de `--mode baseline` vuelve con un plan, el backend tiene el interruptor encendido. El script se detiene sin escribir el informe.
 - **Qué dice el informe:** cada uno registra el valor del interruptor con que se midió (`server`).
 - **Con reglas:** lo mismo con `LLM_PROVIDER=rules` y sin clave, y `--out …/rules-*.json`.
-- **`faithfulness`:** con `run_ragas.py` sobre las muestras de cada modo.
+- **`faithfulness`:** con `--faithfulness`, en el mismo informe ([research R7](research.md#r7-medición-de-la-duplicación-p4), «Fidelidad»).
+
+**Medición final (v5).** Las dos corridas con los arreglos de T027, 5 corridas por modo, los umbrales de `calibration-v2.json` y la fidelidad. En la terminal de la medición hacen falta Ragas (`pip install -r evaluation/requirements.txt` en el entorno de la medición, como para `run_ragas.py`) y la clave del juez; sin Ragas o sin clave, la medición se detiene antes de generar.
+
+```bash
+export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
+read -rs GEMINI_API_KEY && export GEMINI_API_KEY   # el juez de run_ragas.py; la clave no queda en el historial
+# Con el backend 1 (línea base, GENERATION_IMPLICIT_PLAN=false)
+.venv/bin/python evaluation/measure_duplication.py --mode baseline --corpus evaluation/corpus_t067 --runs 5 \
+  --quantity 2 --threshold 0.885 --sentence-threshold 0.865 --faithfulness \
+  --out ../docs/evidence/GEN-P4/v5-gemini-baseline.json
+# Con el backend 2 (plan, GENERATION_IMPLICIT_PLAN=true)
+.venv/bin/python evaluation/measure_duplication.py --mode plan --corpus evaluation/corpus_t067 --runs 5 \
+  --quantity 2 --threshold 0.885 --sentence-threshold 0.865 --faithfulness \
+  --out ../docs/evidence/GEN-P4/v5-gemini-plan.json --compare ../docs/evidence/GEN-P4/v5-gemini-baseline.json
+```
+
+- **Juez:** el modelo de `run_ragas.py` (`--judge-model`, o `RAGAS_JUDGE_MODEL`), con 2 llamadas a la vez (`--judge-concurrency`). Si el plan gratuito limita las solicitudes por minuto, `--judge-concurrency 1`.
+- **Errores del juez:** quedan en cada recurso. Para calificar solo esos después, sin generar: `--recompute --from ../docs/evidence/GEN-P4/v5-gemini-plan.json --faithfulness --out ../docs/evidence/GEN-P4/v5-gemini-plan.json` (con los mismos `--threshold` y `--sentence-threshold`).
+- **Informes anteriores:** `--recompute --faithfulness` también califica la v4; la primera vez lee los textos citados de la API con la misma cuenta.
+- **Qué mirar:** `summary.faithfulness` (media, `atLeastTarget`, `aiOnly`, `byType`) y `comparison.faithfulness` (`difference` y `planMeetsTarget`). Las cifras de conceptos de la v5 no se comparan con las de la v3 y la v4 (otra extracción, T027 b).
 
 **Calibrar los umbrales** con los informes guardados. Los informes traen los textos de los recursos; los anteriores, sin textos, se leen de la API con el mismo backend, la misma base y **la misma cuenta que los creó**. Si la API no devuelve un pedido (otra cuenta, otra base), la calibración se detiene con el motivo.
 

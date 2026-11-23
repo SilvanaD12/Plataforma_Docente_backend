@@ -151,9 +151,16 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
       - Las frases que aparecen una sola vez sin «de» quedan de último recurso, solo si faltan conceptos para el plan (con poco material).
       - Cada ítem recibe los fragmentos que mencionan sus conceptos (el término completo), primero los que mencionan más; la evidencia congelada no cambia.
     - Pruebas en `tests/unit/test_plan_generator_t027b.py`, con Gemini falso y el texto real del corpus de T067 (la petición de P4: 8 tipos × 2). Hecho en el PR del backend (enlace pendiente). **Pendiente:** confirmarlo en la próxima medición con Gemini.
-  - **(c) Fidelidad:** la `faithfulness` de los recursos redactados desde el plan no se midió todavía (meta ≥ 0,90, con `run_ragas.py`).
-  - **(d) Tiempos:** los demás respaldos fueron por el límite de 60 s de Gemini.
-  - **Pendiente:** analizar cada uno, decidir el arreglo y medir de nuevo.
+  - [x] **(c) Fidelidad:** la `faithfulness` de los recursos redactados desde el plan no se había medido (meta ≥ 0,90).
+    - **Arreglo:** `measure_duplication.py --faithfulness`, en una corrida nueva o con `--recompute`. Usa la `Faithfulness` de Ragas con el juez de `run_ragas.py` (el mismo modelo y la misma configuración; nuevo `faithfulness_evaluator`). Por cada recurso entregado: la respuesta es el recurso sin título, el contexto son los textos que cita (guardados en el informe) y la pregunta, las indicaciones del pedido.
+    - Los recursos sin citas se omiten y se cuentan; un error del juez queda en el recurso y la medición sigue. Las llamadas van con 2 hilos y con progreso.
+    - El informe trae la media, la parte con 0,90 o más y los calificados, omitidos y errores, por corrida y en el resumen, en `aiOnly` y por tipo; `--compare` agrega la diferencia y si el plan mantiene 0,90.
+    - Documentado en [research R7](research.md#r7-medición-de-la-duplicación-p4) («Fidelidad» y «Comparabilidad con la v5») y en [plan](plan.md#medición-de-p4) («Medición final (v5)»).
+    - Pruebas en `tests/unit/test_measure_faithfulness.py`, con un juez falso. **Pendiente:** la medición v5 con Gemini.
+  - [x] **(d) Tiempos:** los demás respaldos de la v4 fueron por el límite de 60 s de cada llamada a Gemini (`LLM_CALL_DEADLINE_SECONDS`, QA-06).
+    - **Decisión:** el límite se mantiene a propósito. Es el tope de Render y lo que se le promete al docente: un paso que no responde a tiempo se redacta con reglas en lugar de dejar el pedido esperando. Sin cambios en el código.
+    - En la v5, esos respaldos se leen en `fallbacks` (con su motivo) y no cuentan como recursos de la IA (`aiOnly`).
+  - **Pendiente:** la medición v5 (baseline y plan, 5 corridas cada uno, τ = 0,885, oraciones 0,865, `--faithfulness`) para confirmar (a), (b) y la fidelidad.
 - [x] T026 [BE] [GEN-P2] **Depende de T025.** Correcciones de la medición tras la v3 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
   - las oraciones sin títulos ni encabezados, y las tres cifras (todos, `crossType` como principal y `variants`), también en la tasa de pares;
   - la tabla por concepto (mencionado, desarrollado, definido);
