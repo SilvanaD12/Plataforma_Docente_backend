@@ -6,13 +6,18 @@
     "plural": "Frases célebres comentadas",
     "stage": "engage",
     "format": "text",
-    "description": "Presenta una cita verificable vinculada al tema y pide al estudiante explicar cómo la interpreta.",
+    "description": "Presenta una cita literal del material o de un referente respaldado por un fragmento disponible. Indica la fuente y pide al estudiante interpretar su relación con el tema. Si no hay una cita respaldada, indica que falta evidencia y omite la atribución.",
     "structure": "none",
     "modalities": [
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 30,
+      "maxWords": 90
+    },
+    "verification": "strict"
   },
   {
     "id": "dialogo_breve",
@@ -27,7 +32,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
   },
   {
     "id": "noticia_contextualizada",
@@ -36,13 +46,18 @@
     "plural": "Noticias contextualizadas",
     "stage": "engage",
     "format": "text",
-    "description": "Presenta un hecho documentado y pide al estudiante señalar cómo se relaciona con el tema de la sesión.",
+    "description": "Presenta un caso hipotético con formato de noticia, rotulado como simulación, y pide al estudiante relacionarlo con el tema. Sustenta las afirmaciones conceptuales en el material.",
     "structure": "none",
     "modalities": [
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
   },
   {
     "id": "historia_corta",
@@ -57,7 +72,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
   },
   {
     "id": "experimento_demostrativo_descrito",
@@ -72,7 +92,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
   },
   {
     "id": "dilema_inicial",
@@ -87,7 +112,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
   },
   {
     "id": "registro_observaciones",
@@ -102,7 +132,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 80,
+      "maxWords": 220
+    },
+    "verification": "strict"
   },
   {
     "id": "contraste_fuentes",
@@ -117,7 +152,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 80,
+      "maxWords": 220
+    },
+    "verification": "strict"
   },
   {
     "id": "formulacion_hipotesis",
@@ -132,7 +172,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 80,
+      "maxWords": 220
+    },
+    "verification": "strict"
   },
   {
     "id": "analisis_datos_tabulados",
@@ -141,13 +186,18 @@
     "plural": "Análisis de datos tabulados",
     "stage": "explore",
     "format": "text",
-    "description": "Presenta datos en una tabla y guía al estudiante para identificar tendencias y formular una interpretación inicial.",
+    "description": "Presenta datos del material y cita su fuente. Si no hay datos, usa valores sintéticos rotulados como ilustrativos. Pide al estudiante identificar una tendencia y explicar su interpretación.",
     "structure": "none",
     "modalities": [
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 80,
+      "maxWords": 220
+    },
+    "verification": "framed"
   },
   {
     "id": "analogia_comentada",
@@ -162,7 +212,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
   },
   {
     "id": "ejemplo_resuelto",
@@ -177,7 +232,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
   },
   {
     "id": "comparacion_conceptos",
@@ -192,7 +252,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
   },
   {
     "id": "errores_frecuentes",
@@ -207,7 +272,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
   },
   {
     "id": "resumen_ideas_clave",
@@ -222,7 +292,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
   },
   {
     "id": "problema_abierto",
@@ -237,7 +312,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
   },
   {
     "id": "propuesta_diseno",
@@ -252,7 +332,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
   },
   {
     "id": "diagnostico_fallas",
@@ -267,7 +352,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
   },
   {
     "id": "adaptacion_otro_contexto",
@@ -282,7 +372,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
   },
   {
     "id": "justificacion_decisiones",
@@ -297,7 +392,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
   },
   {
     "id": "resolucion_escenario_cambios",
@@ -312,7 +412,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
   },
   {
     "id": "respuesta_corta",
@@ -327,7 +432,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 30,
+      "maxWords": 90
+    },
+    "verification": "strict"
   },
   {
     "id": "ticket_salida",
@@ -342,7 +452,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 20,
+      "maxWords": 70
+    },
+    "verification": "strict"
   },
   {
     "id": "autoevaluacion_guiada",
@@ -357,7 +472,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "strict"
   },
   {
     "id": "analisis_caso_evaluativo",
@@ -372,7 +492,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "framed"
   },
   {
     "id": "correccion_razonada",
@@ -387,7 +512,12 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "strict"
   },
   {
     "id": "defensa_conclusion",
@@ -402,10 +532,15 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "strict"
   },
   {
-    "id": "valoracion_solucion_criterios",
+    "id": "evaluacion_solucion_criterios",
     "name": "Evaluación de una solución con criterios",
     "singular": "Evaluación de una solución con criterios",
     "plural": "Evaluaciones de soluciones con criterios",
@@ -417,6 +552,11 @@
       "Textual"
     ],
     "hasOptions": false,
-    "active": false
+    "active": false,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "strict"
   }
 ]
