@@ -4,18 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from platform5e.application.ports.outbound.generation_plan_repository_port import GenerationPlanRepositoryPort
 from platform5e.application.ports.outbound.session_typology_port import SessionTypologyPort
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.domain.generation.generation_plan import PreviousTypology
-from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_plan_repository import (
-    SQLAlchemyGenerationPlanRepository,
-)
 
 
 class CourseSessionTypologyAdapter(SessionTypologyPort):
     def __init__(
-        self, courses: TeacherRepositoryPort, plans: SQLAlchemyGenerationPlanRepository
+        self, courses: TeacherRepositoryPort, plans: GenerationPlanRepositoryPort
     ) -> None:
         self._courses = courses
         self._plans = plans
