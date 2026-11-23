@@ -60,6 +60,9 @@ paths:
         '409': { $ref: '#/components/responses/IdempotencyConflict' }
         '422': { $ref: '#/components/responses/InvalidInputs' }
         '429': { $ref: '#/components/responses/RateLimited' }
+        '503':
+          description: '`EVIDENCE_UNAVAILABLE`: the material search failed for a technical reason, as in GEN-01. No plan is created.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
     get:
       tags: [generation-plans]
       operationId: listGenerationPlans

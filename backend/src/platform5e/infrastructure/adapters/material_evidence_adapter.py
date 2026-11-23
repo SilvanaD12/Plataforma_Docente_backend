@@ -16,6 +16,7 @@ ya cumple. Los casos de uso de Generación siguen hablando solo con `EvidencePro
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any, Protocol, get_args
 
 from platform5e.application.services.provider_errors import redact_secrets
@@ -90,6 +91,13 @@ class MaterialEvidenceAdapter(EvidenceProviderPort):
         if not teacher_id or not unit_id:
             return False
         return bool(self._chunk_repository.get_chunks_by_unit(teacher_id, unit_id))
+
+    def existing_fragment_ids(self, teacher_id: str, unit_id: str, fragment_ids: Iterable[str]) -> set[str]:
+        wanted = set(fragment_ids)
+        if not teacher_id or not unit_id or not wanted:
+            return set()
+        own = {str(chunk["id"]) for chunk in self._chunk_repository.get_chunks_by_unit(teacher_id, unit_id)}
+        return wanted & own
 
     def retrieve(self, query: EvidenceQuery) -> EvidenceRetrieval:
         if not query.teacher_id or not query.unit_id:

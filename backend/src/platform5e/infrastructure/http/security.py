@@ -31,6 +31,7 @@ DEFAULT_MAX_JSON_BODY_BYTES = 1 * 1024 * 1024  # 1 MB
 _EXPENSIVE_POST_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"^/api/v1/generation-requests/?$"),
     re.compile(r"^/api/v1/generation-requests/interpret/?$"),
+    re.compile(r"^/api/v1/generation-plans/?$"),  # GEN-P1: arma el plan con la IA y recupera evidencia
     re.compile(r"^/api/v1/documents/?$"),
     re.compile(r"^/api/v1/documents/from-topic/?$"),
     re.compile(r"^/api/v1/documents/[^/]+/process/?$"),

@@ -27,6 +27,7 @@ from platform5e.application.ports.outbound.teacher_repository_port import Teache
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine
 from platform5e.infrastructure.persistence.error_translation import translate_persistence_errors
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_plan_repository import GenerationPlanORM
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     GenerationRequestORM,
     GenerationStepORM,
@@ -329,6 +330,13 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
                 session.execute(
                     delete(GenerationRequestORM).where(
                         GenerationRequestORM.teacher_id == teacher_id, GenerationRequestORM.unit_id.in_(unit_ids)
+                    )
+                )
+            # GEN-P1: planes de generación de las unidades del curso.
+            if inspect(connection).has_table(GenerationPlanORM.__tablename__):
+                session.execute(
+                    delete(GenerationPlanORM).where(
+                        GenerationPlanORM.teacher_id == teacher_id, GenerationPlanORM.unit_id.in_(unit_ids)
                     )
                 )
             session.execute(

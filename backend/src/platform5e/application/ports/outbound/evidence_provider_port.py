@@ -5,6 +5,7 @@ docente y la unidad, y los comparte entre los pasos del pedido.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
@@ -90,4 +91,9 @@ class EvidenceProviderPort(Protocol):
 
     def retrieve(self, query: EvidenceQuery) -> EvidenceRetrieval:
         """Solo busca en material listo del docente y la unidad. Lanza NoProcessedMaterial o EvidenceUnavailable."""
+        ...
+
+    def existing_fragment_ids(self, teacher_id: str, unit_id: str, fragment_ids: Iterable[str]) -> set[str]:
+        """GEN-P1 (T004): los ids de `fragment_ids` que todavía existen en el material de la unidad del docente. Un
+        fragmento de otro docente o de otra unidad no cuenta; al volver a procesar un documento, sus ids cambian."""
         ...

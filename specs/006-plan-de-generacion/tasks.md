@@ -19,49 +19,60 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 
 ## 1. Dominio del plan (GEN-P1)
 
-- [ ] T001 [BE] [GEN-P1] `domain/generation/generation_plan.py`: `GenerationPlan`, `PlanInputs`, `PlanItem`, `PlanEvidence`, `Referent`, `PlanStatus` y las transiciones de [data-model](data-model.md#transiciones-de-estado).
+- [x] T001 [BE] [GEN-P1] `domain/generation/generation_plan.py`: `GenerationPlan`, `PlanInputs`, `PlanItem`, `PlanEvidence`, `Referent`, `PlanStatus` y las transiciones de [data-model](data-model.md#transiciones-de-estado).
   - Pruebas en `tests/unit/test_generation_plan.py`, una por cada transición permitida (`draft→approved→used`, y `approved` que vuelve a `draft` al editar). Cada transición no permitida falla con su código (`PLAN_ALREADY_USED`, `PLAN_VERSION_CONFLICT`).
-- [ ] T002 [BE] [GEN-P1] **Depende de T001.** Validación (`validate_plan`) con los 10 códigos de [data-model](data-model.md#reglas-de-validación) y cálculo de `doesNotCover`.
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_generation_plan.py`.
+- [x] T002 [BE] [GEN-P1] **Depende de T001.** Validación (`validate_plan`) con los 10 códigos de [data-model](data-model.md#reglas-de-validación) y cálculo de `doesNotCover`.
   - Normalización de conceptos con la de QA-05 (`topic_coverage.normalize`).
   - Pruebas en `tests/unit/test_generation_plan_validation.py`, una por código; además: un concepto con otra forma («Control de flujo» frente a «control  de flújo») cuenta como el mismo, y `doesNotCover` cambia al editar los `covers` de otro ítem.
-- [ ] T003 [BE] [GEN-P1] **Depende de T002.** Reparto de los `covers` de un ítem en `quantity` bloques consecutivos (para GEN-P2). Pruebas: reparto estable y error con menos conceptos que la cantidad.
+  - Hecho en el PR del backend (enlace pendiente). La validación está en `domain/generation/plan_validation.py`; la normalización es `topic_coverage.concept_key` (la de QA-05 sin palabras vacías). Las pruebas quedaron en `tests/unit/test_generation_plan.py`, junto con las de T001.
+- [x] T003 [BE] [GEN-P1] **Depende de T002.** Reparto de los `covers` de un ítem en `quantity` bloques consecutivos (para GEN-P2). Pruebas: reparto estable y error con menos conceptos que la cantidad.
+  - Hecho en el PR del backend (enlace pendiente). `plan_validation.split_covers`; pruebas en `tests/unit/test_generation_plan.py`.
 
 ## 2. Puertos y adaptadores (GEN-P1)
 
-- [ ] T004 [BE] [GEN-P1] Puertos `ReferentsPort` (MAT-P2), `SessionTypologyPort` (CUR-P3) y `ResourceCatalogPort` (CUR-P2) en `application/ports/outbound/`, con adaptadores provisionales, y el método `existing_fragment_ids(teacher_id, unit_id, fragment_ids)` de `EvidenceProviderPort` (con MAT-01) sobre el repositorio de fragmentos.
+- [x] T004 [BE] [GEN-P1] Puertos `ReferentsPort` (MAT-P2), `SessionTypologyPort` (CUR-P3) y `ResourceCatalogPort` (CUR-P2) en `application/ports/outbound/`, con adaptadores provisionales, y el método `existing_fragment_ids(teacher_id, unit_id, fragment_ids)` de `EvidenceProviderPort` (con MAT-01) sobre el repositorio de fragmentos.
   - Prueba de integración de `existing_fragment_ids`: un fragmento de otro docente o de otra unidad no cuenta como existente; al volver a procesar un documento, sus ids anteriores dejan de existir.
   - Prueba de arquitectura: Generación no importa los servicios de Material ni de Cursos.
   - Pruebas de los adaptadores provisionales (lista vacía; el catálogo actual con su descripción y sin `structure` para los tipos de texto).
-- [ ] T005 [BE] [GEN-P1] **Depende de T001.** Repositorio `GenerationPlanRepositoryPort` con SQLAlchemy y migración de dbmate de `gen_generation_plans` ([data-model](data-model.md#persistencia)): `UNIQUE (teacher_id, idempotency_key)`, guardado condicional por versión, y borrado con el curso (como T047 de 002).
+  - Hecho en el PR del backend (enlace pendiente). `existing_fragment_ids` se probó en `tests/integration/test_generation_evidence_isolation.py`; los adaptadores, en `tests/unit/test_plan_context_adapters.py`; la regla de arquitectura de GEN-01 ahora incluye los puertos del plan. `CatalogEntry` todavía no tiene `structure`: llega con T015 y CUR-P2.
+- [x] T005 [BE] [GEN-P1] **Depende de T001.** Repositorio `GenerationPlanRepositoryPort` con SQLAlchemy y migración de dbmate de `gen_generation_plans` ([data-model](data-model.md#persistencia)): `UNIQUE (teacher_id, idempotency_key)`, guardado condicional por versión, y borrado con el curso (como T047 de 002).
   - Pruebas de integración en SQLite y PostgreSQL: dos `PUT` simultáneos con la misma versión (gana uno y el otro recibe `PLAN_VERSION_CONFLICT`); dos `POST` con la misma clave (crean un solo plan); otro docente no lo lee.
+  - Hecho en el PR del backend (enlace pendiente). Migración `20261122000001_generation_plans.sql`. Pruebas en `tests/integration/test_generation_plan_repository.py` (SQLite) y el borrado con el curso en `test_course_generation_requests_deletion.py`. Los dos `PUT` simultáneos se prueban en `tests/unit/test_generation_plan_use_cases.py`. En PostgreSQL, las e2e del plan (con el borrado del curso) pasaron con PostgreSQL 17 local y corren en la CI.
 
 ## 3. Planificadores (GEN-P1)
 
-- [ ] T006 [BE] [GEN-P1] **Depende de T002.** Planificador por reglas (`application/services/generation/rule_based_planner.py`, [research R4](research.md#r4-planificación-con-reglas-y-con-gemini)).
+- [x] T006 [BE] [GEN-P1] **Depende de T002.** Planificador por reglas (`application/services/generation/rule_based_planner.py`, [research R4](research.md#r4-planificación-con-reglas-y-con-gemini)).
   - Pruebas en `tests/unit/test_rule_based_planner.py` con el corpus de T067:
     - el plan es válido y determinista (dos corridas iguales);
     - todo ítem cita evidencia y no hay conceptos repetidos;
     - con cantidad `null`, el planificador elige según los conceptos;
     - con pocos conceptos, baja la cantidad o informa `NOT_ENOUGH_CONCEPTS`.
-- [ ] T007 [BE] [GEN-P1] **Depende de T006.** Planificador con Gemini: un solo `generate_plan`, con esquema de respuesta propio (como T073), el límite de 60 s de QA-06 y el respaldo por reglas con `fallbackReason`.
+  - Hecho en el PR del backend (enlace pendiente). El planificador por reglas quedó en `application/services/generation/plan_drafting.py` (`RuleBasedPlanner`) y sus pruebas, en `tests/unit/test_plan_drafting.py`.
+- [x] T007 [BE] [GEN-P1] **Depende de T006.** Planificador con Gemini: un solo `generate_plan`, con esquema de respuesta propio (como T073), el límite de 60 s de QA-06 y el respaldo por reglas con `fallbackReason`.
   - Pruebas con transporte HTTP falso:
     - el esquema exige `items`, `covers` y `fragmentos`;
     - una respuesta válida da un plan con `usesAi`;
     - una respuesta que gotea más del límite, un JSON inválido o un concepto en dos ítems pasan al respaldo con su motivo genérico;
     - el prompt no pide mencionar la metodología 5E.
+  - Hecho en el PR del backend (enlace pendiente). `GeminiLanguageModel.draft_plan` y `GenerationPlanner` en `plan_drafting.py`; pruebas en `tests/unit/test_plan_drafting.py`.
 
 ## 4. Casos de uso y router (GEN-P1)
 
-- [ ] T008 [BE] [GEN-P1] **Depende de T004 a T007.** `CreateGenerationPlan`: idempotencia, unidad del docente, material procesado, recuperación una sola vez, comprobación del tema de QA-05 (con `422 INSUFFICIENT_EVIDENCE`), referentes, contexto de sesión, aviso `SAME_TYPOLOGY_AS_LAST_SESSION`, planificador y validación.
+- [x] T008 [BE] [GEN-P1] **Depende de T004 a T007.** `CreateGenerationPlan`: idempotencia, unidad del docente, material procesado, recuperación una sola vez, comprobación del tema de QA-05 (con `422 INSUFFICIENT_EVIDENCE`), referentes, contexto de sesión, aviso `SAME_TYPOLOGY_AS_LAST_SESSION`, planificador y validación.
   - Pruebas unitarias con dobles de los puertos (PLAN-C1 a PLAN-C3).
-- [ ] T009 [BE] [GEN-P1] **Depende de T008.** `GetGenerationPlan`, `ListGenerationPlans`, `UpdateGenerationPlan` y `ApproveGenerationPlan`. Pruebas de PLAN-C4, PLAN-C5 y PLAN-C7.
-- [ ] T010 [BE] [GEN-P1] **Depende de T009.** Router `routers/generation_plans.py` y esquemas `schemas/generation_plans.py` según el [contrato](contracts/generation-plans.openapi.yaml); exportar OpenAPI.
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_generation_plan_use_cases.py`.
+- [x] T009 [BE] [GEN-P1] **Depende de T008.** `GetGenerationPlan`, `ListGenerationPlans`, `UpdateGenerationPlan` y `ApproveGenerationPlan`. Pruebas de PLAN-C4, PLAN-C5 y PLAN-C7.
+  - Hecho en el PR del backend (enlace pendiente). `GetGenerationPlan` incluye el listado. Pruebas en `tests/unit/test_generation_plan_use_cases.py`.
+- [x] T010 [BE] [GEN-P1] **Depende de T009.** Router `routers/generation_plans.py` y esquemas `schemas/generation_plans.py` según el [contrato](contracts/generation-plans.openapi.yaml); exportar OpenAPI.
   - Pruebas e2e en `tests/e2e/test_generation_plans_api.py`: V1, V2 y V4 a V8 de [quickstart](quickstart.md).
   - Pruebas de mensajes: ningún mensaje al docente dice «5E» (PLAN-R8).
+  - Hecho en el PR del backend (enlace pendiente). E2E de V1, V2, V4, V5 y V8 (V6, V7 y la generación de V8 son de GEN-P2). Conformidad con el contrato en `tests/integration/test_generation_plans_contract.py`; el contrato documenta ahora `503 EVIDENCE_UNAVAILABLE` en la creación. La creación del plan cuenta para el límite por IP de QA-16.
 
-- [ ] T023 [BE] [GEN-P1] **Depende de T008.** Referentes dentro de la evidencia del plan ([research R10](research.md#r10-referentes-mat-p2)): al crear el plan, `CreateGenerationPlan` deja en los `fragmentIds` de cada referente solo los ids de `evidence.fragments`, y conserva con `fragmentIds: []` el referente que se queda sin ninguno. No es un problema de validación.
+- [x] T023 [BE] [GEN-P1] **Depende de T008.** Referentes dentro de la evidencia del plan ([research R10](research.md#r10-referentes-mat-p2)): al crear el plan, `CreateGenerationPlan` deja en los `fragmentIds` de cada referente solo los ids de `evidence.fragments`, y conserva con `fragmentIds: []` el referente que se queda sin ninguno. No es un problema de validación.
   - Pruebas unitarias en `tests/unit/test_generation_plan_use_cases.py`, con un doble de `ReferentsPort`: un referente con un id de la evidencia y otro ajeno guarda solo el primero; un referente con solo ids ajenos se guarda con `fragmentIds: []`; el plan sigue válido y sin problemas nuevos; el orden de los referentes no cambia.
   - Prueba e2e en `tests/e2e/test_generation_plans_api.py`: el `GET` del plan devuelve los referentes ya filtrados.
+  - Hecho en el PR del backend (#69). El filtro es `within_evidence` en `create_generation_plan.py`, aplicado al resultado de `ReferentsPort` antes del planificador, así que vale para cualquier adaptador de MAT-P2. Pruebas en `tests/unit/test_generation_plan_use_cases.py` con un doble que devuelve ids dentro, fuera y mezclados; leen el plan guardado en el repositorio real (SQLite) con `GetGenerationPlan`. La prueba e2e queda para cuando llegue el adaptador de MAT-P2: hoy `main.py` usa `NoReferentsAdapter` y el API siempre devuelve `referents: []`.
 
 ## 5. Generación desde el plan (GEN-P2)
 
