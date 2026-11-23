@@ -202,6 +202,15 @@ def test_insufficient_evidence_before_drafting_meets_the_expectation(collect):
     assert collect.check_no_evidence(CASE, failed, None, {}, 1.0)["outcome"] == "pass"
 
 
+def test_insufficient_evidence_when_the_request_starts_meets_the_expectation(collect):
+    """GEN-P2: con el cuerpo anterior, el plan implícito comprueba el tema al iniciar (422 INSUFFICIENT_EVIDENCE)."""
+    failure = {"status": 422, "code": "INSUFFICIENT_EVIDENCE",
+               "message": "El material de la unidad no trata «tablas». Sube material sobre ese tema."}
+    record = collect.check_no_evidence(CASE, None, failure, {}, 0.5)
+    assert record["outcome"] == "pass" and record["resources"] == [] and record["request_id"] is None
+    assert record["reason"] == failure["message"] and record["problems"] == [failure]
+
+
 def test_a_delivered_resource_breaks_the_expectation_and_is_kept(collect):
     delivered = status("succeeded", [{"position": 1, "resourceIds": ["rec-1"], "rejections": []}])
     stored = {"rec-1": {"id": "rec-1", "title": "Tablas y llaves", "body": "Una tabla tiene una llave primaria."}}

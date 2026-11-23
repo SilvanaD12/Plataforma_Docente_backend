@@ -72,6 +72,7 @@ La entrada del catálogo que Generación lee por `ResourceCatalogPort` ([researc
 | `stage` | `engage` … `evaluate` | Etapa del tipo. |
 | `description` | `str` | Qué es el recurso y cómo se usa. Es la instrucción del prompt genérico. |
 | `lengthHint` | `{minWords: int, maxWords: int}` \| `null` | Opcional. `minWords` ≥ 20, `maxWords` ≤ 600 y `minWords` ≤ `maxWords`. Guía del prompt («entre X y Y palabras»), nunca regla de rechazo. Sin él, la extensión por defecto: de 3 a 5 párrafos. |
+| `verification` | `strict` \| `framed` \| `null` | En los tipos de texto nuevos ([research R6](research.md#verificación-strict-y-framed)). `strict`: cada párrafo se contrasta con el material, como en `explicacion`. `framed`: la ambientación no necesita cita, cada oración sobre un concepto sí, y hacen falta al menos 2 con respaldo. `null` en los tipos con redactor propio. |
 | `modalities` | `list[str]` | Modalidades que lo incluyen (HU-024). |
 | `format` | `text` \| `visual` \| `image` \| `audio` \| `interactive` | Los tipos nuevos de CUR-P2 son `text`. |
 | `structure` | `str` | `none` en los tipos nuevos. |
@@ -86,7 +87,7 @@ La entrada del catálogo que Generación lee por `ResourceCatalogPort` ([researc
 | `resourceType` | `str` | Del catálogo (CUR-P2) y de la modalidad, si hay. |
 | `quantity` | `int` | De 1 a 5. Sus `covers` se reparten en `quantity` bloques consecutivos, uno por recurso. |
 | `purpose` | `str` | Para qué sirve el ítem en la clase. De 1 a 300 caracteres. No menciona la metodología 5E. |
-| `covers` | `list[str]` | Conceptos o preguntas que el ítem desarrolla. Al menos `quantity`, de 1 a 120 caracteres cada uno. |
+| `covers` | `list[str]` | Conceptos que el ítem desarrolla: frases nominales de 2 a 4 palabras útiles tomadas del material, o siglas (`CONCEPT_NOT_SHORT` si no). Al menos `quantity`, de 1 a 120 caracteres cada uno. |
 | `doesNotCover` | `list[str]` | Lo calcula el servidor: los `covers` de los demás ítems, en orden. Solo lectura. |
 | `fragmentIds` | `list[str]` | Fragmentos de `evidence.fragments` que respaldan el ítem. Al menos uno. |
 
@@ -113,6 +114,7 @@ Se calculan en cada `POST` y `PUT`. El borrador inválido se guarda; `approve` r
 | `RESOURCE_TYPE_NOT_IN_MODALITY` | Con modalidad, cada tipo pertenece a ella. |
 | `QUANTITY_OUT_OF_RANGE` | `quantity` de 1 a 5. |
 | `TOO_MANY_TYPES` | Como máximo 8 tipos distintos, el límite de GEN-01. |
+| `CONCEPT_NOT_SHORT` | Cada concepto es una frase nominal de 2 a 4 palabras útiles, o una sigla: sin comas ni signos de oración, sin negaciones ni verbos conjugados, y con 7 palabras como máximo contando las vacías ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)). Corrección tras P4. |
 | `PURPOSE_REQUIRED` | `purpose` no está vacío. |
 
 ## Transiciones de estado
@@ -144,7 +146,10 @@ El plan congela su evidencia, pero el docente puede borrar o volver a procesar u
 | `GenerationRequest` | Columnas `plan_id` y `plan_version`. La evidencia del pedido es la del plan. |
 | `GenerationStep` | Columna `plan_item_position`. Un paso por ítem. |
 | `steps[].rejections[].kind` | Nuevo valor `plan`: el recurso no desarrolló sus conceptos o desarrolló los de otro ítem. |
-| `params` del recurso | `planId` y `planItemPosition`, para regenerar desde su ítem sin escribir el plan. |
+| `params` del recurso | `planId`, `planItemPosition` y `planBlock` (el bloque de conceptos, desde 0), para regenerar ese bloque desde su ítem sin escribir el plan. |
+| `regeneration` del pedido | `planBlock`, el bloque que se redacta otra vez, en una regeneración desde el plan. |
+| `planWarning` del recurso | Tras P4 ([research R5](research.md#r5-generación-desde-el-plan-gen-p2)): un recurso de la IA que pasó el anclaje y la estructura, pero que después del reintento sigue sin respetar su plan, se entrega con `{kind: overlap \| missing_concepts, reason, developedConcepts, missingOwnConcepts}`. Revisión lo muestra; no bloquea la aprobación. |
+| `steps[].planWarnings` | Los recursos del paso entregados con aviso: `[{title, reason, resourceId}]`. Columna `plan_warnings` (migración `20261123000002_generation_step_plan_warnings.sql`). |
 | `EvidenceProviderPort` | Método nuevo `existing_fragment_ids(teacher_id, unit_id, fragment_ids) -> set[str]`, de MAT-01, para la [evidencia vigente](#evidencia-vigente). |
 | Errores | `PLAN_EVIDENCE_STALE` (409) en `POST /generation-requests` y en la regeneración. |
 

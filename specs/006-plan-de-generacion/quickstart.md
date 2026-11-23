@@ -6,7 +6,7 @@
 
 - **Base de datos:** el backend local de [005 QA-17](../005-atributos-calidad/plan.md#qa-17--concurrencia-y-capacidad-con-locust), con PostgreSQL en Docker, o SQLite.
 - **Variables:** `LLM_PROVIDER=rules`, `EMBEDDINGS_ENABLED=false` y `GENERATION_REQUIRE_PLAN=false`. Gemini solo en V3, V9 y V10, con la clave local y nunca en Render.
-- **Datos:** un docente con una unidad de redes y el corpus de T067 procesado (`backend/evaluation/corpus_t067`), como en `collect_samples.py`.
+- **Datos:** un docente con una unidad de redes y el corpus de T067 procesado (`backend/evaluation/corpus_t067`), como en `collect_samples.py`. En V10, la cuenta (`EVAL_EMAIL`) es siempre la misma: solo la cuenta que creó los pedidos de un informe puede leerlos después para recalcular o calibrar.
 - **Interfaz:** frontend en `http://localhost:5173` para V11.
 
 ## Pruebas automáticas
@@ -42,8 +42,9 @@ Con 20 planes seguidos de la secuencia de V1, medir el tiempo de `POST /generati
 
 [Research R7](research.md#r7-medición-de-la-duplicación-p4):
 - **Corpus:** `corpus_t067`.
-- **Pedido:** secuencia de 8 tipos de texto × 2 recursos; 3 corridas por generador (reglas y Gemini).
-- **Comparación:** sin plan (línea base de `main` antes de GEN-P1) frente a plan aprobado sin cambios.
+- **Pedido:** secuencia de 8 tipos de texto × 2 recursos; 5 corridas por generador (reglas y Gemini).
+- **Métricas:** oraciones casi repetidas y conceptos explicados otra vez (evidencia principal), y la tasa de pares con τ calibrado ([research R7](research.md#r7-medición-de-la-duplicación-p4)).
+- **Comparación:** sin plan (línea base con `GENERATION_IMPLICIT_PLAN=false`, el mismo servidor y la misma base) frente a plan aprobado sin cambios; comandos en [plan](plan.md#medición-de-p4).
 
 Registrar en `docs/evidence/GEN-P4/` la tasa de pares duplicados (indicador de REV-P3, τ = 0,85 mientras REV-P3 no fije otro), la similitud máxima media, los recursos entregados y la `faithfulness` media.
 

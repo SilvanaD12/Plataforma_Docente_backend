@@ -125,27 +125,81 @@ Con PostgreSQL en Docker, los mismos comandos de la pila local de [QA-17](../005
 
 [Research R7](research.md#r7-medición-de-la-duplicación-p4) y [quickstart V10](quickstart.md#v10--duplicación-p4). El script `evaluation/measure_duplication.py` (T019):
 - prepara la unidad con `corpus_t067`;
-- pide 3 veces la secuencia de 8 tipos de texto × 2 recursos (con `--mode plan`, creando y aprobando el plan sin cambios);
-- calcula la tasa de pares duplicados con el indicador de REV-P3 (o la similitud léxica, marcada como provisional);
+- pide 5 veces (`--runs`, 5 por defecto) la secuencia de 8 tipos de texto × 2 recursos (con `--mode plan`, creando y aprobando el plan sin cambios);
+- calcula la evidencia principal de «no repetición»: las oraciones casi repetidas y los conceptos explicados en más de un recurso ([research R7](research.md#r7-medición-de-la-duplicación-p4));
+- calcula la tasa de pares duplicados con el indicador de REV-P3 (o la similitud léxica, marcada como provisional), con la meta de P4;
+- informa por corrida los pasos de la IA y del respaldo, los avisos del plan y si el plan salió de Gemini o de reglas;
 - escribe los resultados en `docs/evidence/GEN-P4/`.
 
-La línea base corre contra el backend de `main` antes de GEN-P1, en un árbol de trabajo aparte, sin un interruptor de medición en el código de producción. Desde la raíz del repositorio:
+**Interruptor de medición `GENERATION_IMPLICIT_PLAN`.** Solo sirve para medir P4. Con `true` (por defecto) el cuerpo anterior crea un plan implícito, como pide [research R2](research.md#r2-el-plan-es-obligatorio-compatibilidad-del-pedido-sin-plan). Con `false`, el cuerpo anterior se redacta como antes de GEN-P1: sin plan implícito, sin comprobación del plan y con los prompts de entonces.
+- **Nunca en `false` en Render ni en producción.** No se define en el panel de Render; el valor por defecto es `true`.
+- `GENERATION_REQUIRE_PLAN=true` tiene prioridad: el pedido sin plan se rechaza con `422 PLAN_REQUIRED` aunque el interruptor esté en `false`.
+- Un plan aprobado (`{planId, planVersion}`) se genera igual con los dos valores.
+
+**Las dos corridas usan el mismo código, el mismo servidor y la misma base**, con Gemini y el corpus de T067; solo cambia `GENERATION_IMPLICIT_PLAN` al arrancar el backend. Así la diferencia medida es la del plan, no la de otras correcciones del código. Desde `backend/`, con la clave local de Gemini en la terminal del backend (nunca en Render):
 
 ```bash
-# Línea base: backend de main antes de GEN-P1, en otro árbol y otro puerto
-git worktree add ../backend-baseline <commit de main antes de GEN-P1>
-(cd ../backend-baseline/backend && LLM_PROVIDER=rules EMBEDDINGS_ENABLED=false DATABASE_URL=sqlite:///baseline.db \
-  ../../Plataforma_Docente_backend/backend/.venv/bin/python -m uvicorn platform5e.main:create_application \
-  --factory --app-dir src --port 8001) &
+# Terminal del backend: misma base para las dos corridas
+export DATABASE_URL="sqlite:///$(pwd)/p4.db" LLM_PROVIDER=gemini GENERATION_REQUIRE_PLAN=false
+read -rs LLM_API_KEY && export LLM_API_KEY   # la clave no queda en el historial
 
-export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
-backend/.venv/bin/python backend/evaluation/measure_duplication.py --api http://127.0.0.1:8001 --mode baseline \
-  --corpus backend/evaluation/corpus_t067 --runs 3 --quantity 2 --out docs/evidence/GEN-P4/rules-baseline.json
-backend/.venv/bin/python backend/evaluation/measure_duplication.py --api http://127.0.0.1:8000 --mode plan \
-  --corpus backend/evaluation/corpus_t067 --runs 3 --quantity 2 --out docs/evidence/GEN-P4/rules-plan.json
+# 1. Línea base: GENERATION_IMPLICIT_PLAN=false (solo para medir)
+GENERATION_IMPLICIT_PLAN=false .venv/bin/python -m uvicorn platform5e.main:create_application --factory \
+  --app-dir src --host 127.0.0.1 --port 8000
+# 2. Con plan: detener el backend y arrancarlo otra vez con la misma base y GENERATION_IMPLICIT_PLAN=true
+GENERATION_IMPLICIT_PLAN=true .venv/bin/python -m uvicorn platform5e.main:create_application --factory \
+  --app-dir src --host 127.0.0.1 --port 8000
 ```
 
-Con Gemini, lo mismo con la clave local en las dos terminales del backend (nunca en Render) y `--out …/gemini-*.json`, y la `faithfulness` con `run_ragas.py` sobre las muestras de cada modo. Meta: duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90.
+```bash
+# Otra terminal, mientras corre cada backend. La cuenta debe ser siempre la misma: la que crea los pedidos es la
+# única que puede leerlos después para recalcular o calibrar (otra cuenta recibe 404).
+export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
+# Con el backend 1 (línea base)
+.venv/bin/python evaluation/measure_duplication.py --mode baseline --corpus evaluation/corpus_t067 --runs 5 \
+  --quantity 2 --threshold 0.885 --sentence-threshold 0.865 --out ../docs/evidence/GEN-P4/v4-gemini-baseline.json
+# Con el backend 2 (plan), con la comparación con la meta
+.venv/bin/python evaluation/measure_duplication.py --mode plan --corpus evaluation/corpus_t067 --runs 5 \
+  --quantity 2 --threshold 0.885 --sentence-threshold 0.865 --out ../docs/evidence/GEN-P4/v4-gemini-plan.json \
+  --compare ../docs/evidence/GEN-P4/v4-gemini-baseline.json
+```
+
+- **Guarda de la línea base:** si un pedido de `--mode baseline` vuelve con un plan, el backend tiene el interruptor encendido. El script se detiene sin escribir el informe.
+- **Qué dice el informe:** cada uno registra el valor del interruptor con que se midió (`server`).
+- **Con reglas:** lo mismo con `LLM_PROVIDER=rules` y sin clave, y `--out …/rules-*.json`.
+- **`faithfulness`:** con `run_ragas.py` sobre las muestras de cada modo.
+
+**Calibrar los umbrales** con los informes guardados. Los informes traen los textos de los recursos; los anteriores, sin textos, se leen de la API con el mismo backend, la misma base y **la misma cuenta que los creó**. Si la API no devuelve un pedido (otra cuenta, otra base), la calibración se detiene con el motivo.
+
+```bash
+.venv/bin/python evaluation/measure_duplication.py --calibrate \
+  --from ../docs/evidence/GEN-P4/v3-gemini-plan.json ../docs/evidence/GEN-P4/v3-gemini-baseline.json \
+  --out ../docs/evidence/GEN-P4/calibration-v3.json
+```
+
+**Recalcular sin generar** (solo embeddings) un informe con las métricas corregidas, y compararlo. Los dos informes se recalculan con los mismos umbrales; para leer los conceptos que los informes v3 no guardan, con la misma cuenta:
+
+```bash
+.venv/bin/python evaluation/measure_duplication.py --recompute --from ../docs/evidence/GEN-P4/v3-gemini-baseline.json \
+  --threshold 0.885 --sentence-threshold 0.865 --out ../docs/evidence/GEN-P4/v3r-gemini-baseline.json
+.venv/bin/python evaluation/measure_duplication.py --recompute --from ../docs/evidence/GEN-P4/v3-gemini-plan.json \
+  --threshold 0.885 --sentence-threshold 0.865 --out ../docs/evidence/GEN-P4/v3r-gemini-plan.json \
+  --compare ../docs/evidence/GEN-P4/v3r-gemini-baseline.json
+```
+
+Después se vuelve a correr la medición con `--threshold` y `--sentence-threshold` sugeridos, si cambian.
+
+**Cómo leer los informes** ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
+1. **¿Los dos modos los redactó la IA?** `aiSteps` y `fallbackSteps` (con `fallbacks` y sus motivos), `undelivered` y `planGenerators` (planes de Gemini o de reglas).
+2. **La evidencia de «no repetición»:** `crossTypeSentenceRate` (la principal) y `meanReexplainedEvidenceConcepts` con su tabla por concepto, y sus bajas en `comparison`; lo mismo en `aiOnly`, sin los recursos del respaldo.
+3. **La tasa de pares:** `crossTypeDuplicateRate` y la de todos, con su umbral calibrado; `variants` aparte.
+
+Meta (la de P4 se conserva para la tasa de pares entre tipos distintos): duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90. La evidencia principal de que no se repite contenido son las oraciones casi repetidas entre recursos de tipos distintos, que deben bajar con plan.
+
+**Resultado con Gemini** (v3 recalculada y v4; detalle en [research R7](research.md#r7-medición-de-la-duplicación-p4)):
+- **Oraciones casi repetidas entre tipos distintos:** −35 % en las dos corridas con plan.
+- **Meta de P4, cumplida en parte:** pares entre tipos distintos ≤ 5 % en las dos; −50 % solo en la v3.
+- **Pendiente:** la `faithfulness` y los problemas de T027.
 
 ## Seguimiento de complejidad
 

@@ -1,6 +1,12 @@
 """
 Generador basado en reglas deterministas: extrae oraciones y términos del material
 para componer propuestas sin requerir dependencias de modelos LLM externos.
+
+GEN-P2 (specs/006-plan-de-generacion, research R5): con un plan (`context["plan"]`), cada recurso usa primero las
+oraciones de sus conceptos y deja fuera las que desarrollan conceptos de otros recursos del plan; la explicación usa
+solo las de sus conceptos si las hay. Los tipos de texto nuevos del catálogo (CUR-P2) tienen un redactor genérico:
+`strict`, párrafos citados con las oraciones de sus conceptos; `framed`, una oración de ambientación, las oraciones
+citadas de sus conceptos y una pregunta.
 """
 
 from __future__ import annotations
@@ -9,6 +15,13 @@ import re
 from collections import Counter
 from typing import Any
 
+from platform5e.domain.generation.plan_coverage import contains_term, mentions
+from platform5e.domain.generation.text_types import (
+    EVIDENCE_REQUIREMENTS,
+    LITERAL_QUOTE,
+    VERIFICATION_FRAMED,
+    literal_quotes,
+)
 from platform5e.domain.materials.chunking import extract_sentences
 from platform5e.domain.materials.text_analysis import (
     STOPWORDS,
@@ -123,6 +136,52 @@ _BUILDERS_BY_TYPE: dict[str, str] = {
 }
 
 
+# GEN-P2: oraciones por recurso del redactor genérico de los tipos de texto del catálogo.
+MAX_CATALOG_SENTENCES: int = 4
+
+
+def _plan_focus(
+    sentence_pairs: list[tuple[str, str]], terms: list[str], plan: dict[str, Any]
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """Con un plan: primero las oraciones de los conceptos del recurso, después las que no desarrollan conceptos de
+    otros recursos; los términos empiezan por los conceptos del recurso y dejan fuera los ajenos."""
+    own, foreign = list(plan.get("conceptos") or []), list(plan.get("noDesarrollar") or [])
+    own_pairs = [pair for pair in sentence_pairs if any(mentions(pair[1], concept) for concept in own)]
+    neutral = [
+        pair for pair in sentence_pairs
+        if pair not in own_pairs and not any(contains_term(pair[1], concept) for concept in foreign)
+    ]
+    taken = {normalize_text(concept) for concept in own}
+    rest = [
+        term for term in terms
+        if normalize_text(term) not in taken
+        and not any(mentions(term, concept) or contains_term(concept, term) for concept in foreign)
+    ]
+    return own_pairs + neutral, own + rest
+
+
+def _own_pairs(sentence_pairs: list[tuple[str, str]], context: dict[str, Any]) -> list[tuple[str, str]]:
+    """Las oraciones que mencionan los conceptos del recurso según el plan: solo las que no usaron los recursos
+    anteriores (`secuenciaPrevia`), si queda alguna; primero las que no nombran conceptos de otros recursos, y sin que
+    un concepto ajeno aparezca en más de una (así el recurso no lo desarrolla). Vacío sin plan."""
+    plan = context.get("plan") or {}
+    own, foreign = plan.get("conceptos") or [], plan.get("noDesarrollar") or []
+    covered = " ".join(normalize_text(str(p.get("resumen") or "")) for p in context.get("secuenciaPrevia") or [])
+    candidates = [pair for pair in sentence_pairs if any(mentions(pair[1], concept) for concept in own)]
+    unused = [pair for pair in candidates if normalize_text(pair[1])[:80] not in covered]
+    candidates = unused or candidates  # si todas ya se usaron, se reutilizan antes que dejar el recurso vacío
+    candidates.sort(key=lambda pair: sum(contains_term(pair[1], concept) for concept in foreign))
+    chosen: list[tuple[str, str]] = []
+    named: set[str] = set()
+    for pair in candidates:
+        found = {concept for concept in foreign if contains_term(pair[1], concept)}
+        if found & named:
+            continue
+        named |= found
+        chosen.append(pair)
+    return chosen
+
+
 def _shorten(text: str, limit: int = 200) -> str:
     return text if len(text) <= limit else text[:limit].rsplit(" ", 1)[0] + "…"
 
@@ -186,9 +245,13 @@ class RuleBasedGenerator:
             if normalize_text(term) not in {"fuente", "licencia", "wikipedia"}
         ]
         key_terms = _extract_domain_terms(sentence_pairs, frequent_terms)
+        if context.get("plan"):
+            sentence_pairs, key_terms = _plan_focus(sentence_pairs, key_terms, context["plan"])
 
         request_info = context["solicitud"]
         builder_name = _BUILDERS_BY_TYPE.get(request_info["tipo"])
+        if builder_name is None and request_info.get("catalogo"):
+            builder_name = "_catalog_text"
         builder_method = getattr(self, builder_name) if builder_name else None
         if builder_method is None:
             return {"recursos": []}
@@ -445,7 +508,10 @@ class RuleBasedGenerator:
         context: dict[str, Any],
     ) -> dict[str, Any] | None:
         order_index = {pair: n for n, pair in enumerate(sentence_pairs)}
-        scored_pairs = sorted(
+        # GEN-P2: con un plan, la explicación usa solo las oraciones de sus conceptos, si las hay, en el orden de
+        # `_own_pairs` (primero las que no usaron los recursos anteriores).
+        own = _own_pairs(sentence_pairs, context)
+        scored_pairs = own or sorted(
             sentence_pairs, key=lambda pair: -sum(_contains_word(pair[1], term) for term in terms[:10])
         )
         selected = sorted(
@@ -460,6 +526,41 @@ class RuleBasedGenerator:
             "titulo": f"{_capitalize_first(topic)}: explicación del material",
             "contenido": "\n\n".join(sentence for _, sentence in selected),
             "citas": [{"afirmacion": sentence, "fragmentos": [tag]} for tag, sentence in selected],
+            "alternativas": [],
+        }
+
+    def _catalog_text(
+        self,
+        index: int,
+        sentence_pairs: list[tuple[str, str]],
+        terms: list[str],
+        context: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        """GEN-P2 (CUR-P2): redactor genérico de un tipo de texto nuevo del catálogo, con las oraciones de los
+        conceptos del recurso. La frase célebre comentada empieza por la oración con la cita textual."""
+        request = context["solicitud"]
+        catalog = request.get("catalogo") or {}
+        candidates = _own_pairs(sentence_pairs, context) or sentence_pairs
+        if EVIDENCE_REQUIREMENTS.get(request["tipo"]) == LITERAL_QUOTE:
+            quoted = [pair for pair in sentence_pairs if literal_quotes(pair[1])]
+            candidates = quoted[:1] + [pair for pair in candidates if pair not in quoted[:1]]
+        start = index * MAX_CATALOG_SENTENCES
+        selected = candidates[start:start + MAX_CATALOG_SENTENCES] or candidates[:MAX_CATALOG_SENTENCES]
+        if not selected:
+            return None
+        concepts = (context.get("plan") or {}).get("conceptos") or terms[:1] or [context["unidad"]["titulo"]]
+        name = catalog.get("nombre") or request["tipo"]
+        citations = [{"afirmacion": sentence, "fragmentos": [tag]} for tag, sentence in selected]
+        if catalog.get("verificacion") == VERIFICATION_FRAMED:
+            setting = f"Imagina esta situación en una clase de {context['unidad']['titulo']}."
+            question = f"¿Qué papel cumple {concepts[0]} en lo que acabas de leer?"
+            body = " ".join([setting, *(sentence for _, sentence in selected), question])
+        else:
+            body = "\n\n".join(sentence for _, sentence in selected)
+        return {
+            "titulo": f"{name}: {concepts[0]}",
+            "contenido": body,
+            "citas": citations,
             "alternativas": [],
         }
 

@@ -68,15 +68,20 @@ def evidence_query_text(unit_title: str, outcome_texts: list[str], instructions:
 
 
 def previous_sequence(accepted: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Resumen de lo que redactaron los agentes anteriores, para que el siguiente no lo repita (`secuenciaPrevia`)."""
-    return [
-        {
+    """Resumen de lo que redactaron los agentes anteriores, para que el siguiente no lo repita (`secuenciaPrevia`).
+
+    GEN-P2: un recurso redactado desde el plan agrega sus conceptos (`conceptos`)."""
+    summary = []
+    for previous in accepted:
+        entry = {
             "etapa": previous["etapa"],
             "titulo": previous["titulo"],
             "resumen": resource_text(previous)[:SEQUENCE_PREVIEW_CHARS],
         }
-        for previous in accepted
-    ]
+        if previous.get("conceptos"):
+            entry["conceptos"] = list(previous["conceptos"])
+        summary.append(entry)
+    return summary
 
 
 def saved_parameters(request_data: dict[str, Any]) -> dict[str, Any]:

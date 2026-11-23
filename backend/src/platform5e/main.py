@@ -114,7 +114,9 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_resource_repo
 )
 from platform5e.infrastructure.settings import (
     GENERATION_STALE_REQUEST_SECONDS,
+    generation_implicit_plan,
     generation_max_workers,
+    generation_require_plan,
     generation_regeneration_wait_seconds,
     generation_request_deadline_seconds,
     generation_sweep_interval_seconds,
@@ -304,6 +306,23 @@ def create_application() -> FastAPI:
 
     # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
     evidence_provider = MaterialEvidenceAdapter(chunk_repository, evidence_retriever, account_repository)
+    # GEN-P1 y GEN-P2: el plan de generación, del que parte todo pedido. La IA arma el plan si el generador activo
+    # sabe hacerlo (Gemini); si no, reglas.
+    resource_catalog = StaticResourceCatalogAdapter()
+    generation_plan_repository = SQLAlchemyGenerationPlanRepository()
+    # CUR-P3: las tipologías de las últimas sesiones del curso, para el plan y para el pedido.
+    session_typologies = CourseSessionTypologyAdapter(account_repository, generation_plan_repository)
+    plan_drafter = primary_generator if hasattr(primary_generator, "draft_plan") else None
+    create_plan = CreateGenerationPlan(
+        unit_membership,
+        evidence_provider,
+        NoReferentsAdapter(),
+        session_typologies,
+        resource_catalog,
+        GenerationPlanner(plan_drafter, {entry.id: entry for entry in resource_catalog.entries()}),
+        generation_plan_repository,
+        topic_coverage_threshold=topic_coverage_threshold(),
+    )
     run_generation = RunGenerationRequest(
         generation_request_repository,
         unit_membership,
@@ -316,30 +335,28 @@ def create_application() -> FastAPI:
         media_repository=media_repository,
         deadline_seconds=generation_request_deadline_seconds(),
         topic_coverage_threshold=topic_coverage_threshold(),
+        plans=generation_plan_repository,
+        catalog=resource_catalog,
     )
     generation_runner = ThreadPoolGenerationRunner(
         run_generation.execute, generation_request_repository, max_workers=generation_max_workers()
     )
+    # GEN-P2: el pedido parte de un plan aprobado; el cuerpo anterior crea un plan implícito mientras
+    # GENERATION_REQUIRE_PLAN=false. GENERATION_IMPLICIT_PLAN=false (solo para medir la línea base de P4) lo redacta
+    # como antes de GEN-P1; GENERATION_REQUIRE_PLAN=true tiene prioridad, porque se comprueba primero.
     start_generation = StartGenerationRequest(
-        unit_membership, evidence_provider, generation_request_repository, generation_runner
+        unit_membership,
+        evidence_provider,
+        generation_request_repository,
+        generation_runner,
+        plans=generation_plan_repository,
+        implicit_plans=create_plan if generation_implicit_plan() else None,
+        require_plan=generation_require_plan(),
+        typologies=session_typologies,
     )
     get_generation = GetGenerationRequest(generation_request_repository, unit_membership, resource_repository)
     get_evidence = GetGenerationEvidence(generation_request_repository)
 
-    # GEN-P1: el plan de generación. La IA arma el plan si el generador activo sabe hacerlo (Gemini); si no, reglas.
-    resource_catalog = StaticResourceCatalogAdapter()
-    generation_plan_repository = SQLAlchemyGenerationPlanRepository()
-    plan_drafter = primary_generator if hasattr(primary_generator, "draft_plan") else None
-    create_plan = CreateGenerationPlan(
-        unit_membership,
-        evidence_provider,
-        referent_service,
-        CourseSessionTypologyAdapter(account_repository, generation_plan_repository),
-        resource_catalog,
-        GenerationPlanner(plan_drafter, {entry.id: entry for entry in resource_catalog.entries()}),
-        generation_plan_repository,
-        topic_coverage_threshold=topic_coverage_threshold(),
-    )
     get_plan = GetGenerationPlan(generation_plan_repository, unit_membership, resource_catalog)
     update_plan = UpdateGenerationPlan(generation_plan_repository, resource_catalog)
     approve_plan = ApproveGenerationPlan(generation_plan_repository, resource_catalog)

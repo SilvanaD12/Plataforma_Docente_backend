@@ -73,7 +73,7 @@ Entre la aprobación y la generación, el docente puede borrar un documento o vo
 
 **Con reglas (`LLM_PROVIDER=rules`, o como respaldo).** El resultado es determinista: las mismas entradas y la misma evidencia dan el mismo plan.
 
-1. **Conceptos candidatos.** Primero las frases y los términos del tema que aparecen en la evidencia (`topic_phrases` y `topic_terms` de QA-05), después los términos clave de la evidencia (`extract_key_terms` de `domain/materials/text_analysis.py`). Cada grupo se ordena por el primer fragmento donde aparece cada concepto (el orden de relevancia de la búsqueda); en el mismo fragmento, las frases antes que las palabras sueltas, y en empate, por orden alfabético. Una palabra suelta que ya está dentro de un concepto elegido («modelo» en «modelo OSI») no se agrega.
+1. **Conceptos candidatos.** Primero las frases y los términos del tema que aparecen en la evidencia (`topic_phrases` y `topic_terms` de QA-05), después los términos clave de la evidencia (`extract_key_terms` de `domain/materials/text_analysis.py`). Cada grupo se ordena por el primer fragmento donde aparece cada concepto (el orden de relevancia de la búsqueda); en el mismo fragmento, las frases antes que las palabras sueltas, y en empate, por orden alfabético. Una palabra suelta que ya está dentro de un concepto elegido («modelo» en «modelo OSI») no se agrega. **Corrección tras P4:** solo entran frases nominales cortas (2 a 4 palabras útiles del material) y siglas que aparecen al menos dos veces («UDP», «TCP»); las palabras sueltas comunes («decide», «camino», «conexión») ya no son conceptos.
 2. **Ítems.** Uno por tipo pedido, ordenados por etapa; los tipos con cantidad N reciben N bloques de conceptos.
    - **Cantidad vacía (`null`).** Con C conceptos candidatos y T tipos pedidos, la cantidad es `min(3, max(1, C // (2 × T)))`: un recurso por cada dos conceptos que le tocarían al tipo, al menos 1.
    - **Por qué hasta 3 y no hasta 5.** El tope automático es más bajo que el máximo que puede pedir el docente (5): si el docente no lo pidió, el planificador no multiplica los recursos, y cada bloque conserva por lo menos dos conceptos. Para tener 4 o 5, el docente escribe la cantidad.
@@ -87,9 +87,18 @@ Entre la aprobación y la generación, el docente puede borrar un documento o vo
 - **Entrada:** el catálogo de los tipos pedidos (nombre, etapa y descripción), la evidencia con etiquetas F1…Fn, los referentes, el contexto de sesión y las entradas del docente.
 - **Cantidad.** Para un tipo con cantidad pedida, el prompt dice «cantidad N» y el servidor conserva N aunque el modelo devuelva otra. Para un tipo con cantidad vacía, dice «cantidad de 1 a 5, según los conceptos», con la regla de que cada ítem tenga al menos tantos conceptos como su cantidad. La cantidad que devuelve el modelo se acota de 1 a 5; si el plan resultante no tiene conceptos suficientes (`NOT_ENOUGH_CONCEPTS`), cuenta como inválido y va al respaldo por reglas.
 - **Esquema de respuesta propio**, como el de la actividad kinestésica en T073: `items` obligatorio, con `minItems` 1 y `maxItems` igual a la cantidad de tipos pedidos (como máximo 8, el límite de GEN-01); cada ítem exige `resourceType`, `quantity`, `purpose`, `covers` (con `minItems` 1) y `fragmentos` (con `minItems` 1).
+- **Conceptos cortos (corrección tras P4).** En la medición con Gemini, el planificador escribió oraciones y listas como conceptos («no hay confirmacion de entrega o recepcion», «puerto de origen, puerto de destino, longitud y suma de verificación»), y la comprobación de cobertura rechazó los recursos que los parafraseaban. Desde esta corrección:
+  - **Qué es un concepto:** una frase nominal de 2 a 4 palabras útiles tomadas del material, o una sigla; nunca una oración, una lista, una pregunta ni una palabra suelta común. La regla es `short_concept_problem` (`plan_validation.py`): sin comas ni signos de oración, sin negaciones ni verbos conjugados frecuentes, y con 7 palabras como máximo contando las vacías.
+  - **En la validación:** un concepto que no la cumple es el problema `CONCEPT_NOT_SHORT`, así que el docente lo ve junto al ítem.
+  - **Con Gemini:** el prompt y la descripción del esquema piden frases de 2 a 4 palabras. Los conceptos largos que devuelva se descartan; si el ítem se queda sin conceptos suficientes, el plan va al respaldo por reglas.
 - **Dos límites de ítems, a propósito.** Al crear el plan, la IA arma un ítem por tipo pedido, así que su esquema tiene como máximo 8 ítems. Un plan editado con `PUT` acepta hasta 40 ítems (`UpdateGenerationPlan.items` del contrato, `maxItems` 40): el docente puede partir un tipo en varios ítems con conceptos distintos (8 tipos × 5 de cantidad = 40). Los dos límites son intencionales: el primero limita lo que la IA propone, y el segundo, lo que el docente puede editar.
 - **Después de la respuesta:** las etiquetas se traducen a ids, se descartan los tipos no pedidos, se calcula `doesNotCover` y se valida.
 - **Respaldo:** si la llamada vence a los 60 s, si la respuesta no es JSON válido, o si el plan resultante no es válido, se arma con reglas y `generator.fallbackReason` guarda el motivo público genérico de `provider_errors.py`.
+- **Reintento con los problemas (segunda corrida de P4).** En 2 de 3 corridas con plan, Gemini devolvió un plan no válido (`CONCEPT_OWNED_TWICE`, `NOT_ENOUGH_CONCEPTS`) y se usó el de reglas.
+  - Desde entonces, si el plan no es válido (problemas de validación o tipos que faltan), se le pide una vez más. Se le devuelve, por cada problema, el código, el ítem (posición y tipo) y el mensaje. Si vuelve a fallar, se arma con reglas.
+  - Un error del proveedor, un tiempo vencido o un JSON inválido no se reintentan aquí: el adaptador de Gemini ya reintenta el JSON.
+  - `generator.attempts` guarda las llamadas a la IA (0 sin IA, 1 o 2).
+  - El reintento puede duplicar el tiempo de creación del plan con Gemini (dos llamadas de hasta 60 s); V9 mide si el p95 sigue bajo 30 s.
 
 Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuenta como inválido y va al respaldo por reglas, igual que los recursos sin la estructura del tipo (T073).
 
@@ -102,19 +111,31 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 - **Lo que recibe el prompt de cada recurso:**
   - su bloque de conceptos (`covers` del bloque), que debe desarrollar completo;
   - el propósito del ítem;
-  - los conceptos de los demás ítems (`doesNotCover`), que no debe desarrollar: puede nombrarlos, pero no explicarlos (en los recursos de un solo párrafo, no debe nombrarlos; ver la comprobación de cobertura);
+  - los conceptos de los demás recursos del plan, que no debe desarrollar: los `doesNotCover` del ítem y los bloques de los otros recursos del mismo ítem. Puede nombrarlos, pero no explicarlos (en los recursos de un solo párrafo, no debe nombrarlos; ver la comprobación de cobertura);
   - el resumen de lo ya cubierto: por cada recurso entregado antes en el pedido, su título, sus conceptos y un resumen de hasta 300 caracteres (`secuenciaPrevia`, como hoy);
   - la evidencia, con los fragmentos del ítem primero.
 - **Sin acortar.** Se mantienen las reglas de formato y extensión de cada tipo; se quita la instrucción «si los fragmentos no alcanzan, devuelve menos recursos» para los ítems del plan, porque el plan ya decidió cuántos.
-- **Comprobación de cobertura**, léxica y sin IA, con la normalización de QA-05:
-  - el recurso debe mencionar al menos uno de sus conceptos;
-  - no debe desarrollar un concepto ajeno: un concepto ajeno que aparece en más de un párrafo cuenta como desarrollado.
-  - **Recursos de un solo párrafo** (`pregunta_detonante`, `item_opcion_multiple`, `audio_detonante` y los demás tipos cortos, también los tipos nuevos de CUR-P2 cuyo contenido salga en un párrafo): la regla anterior nunca se cumple, porque no hay un segundo párrafo. Para ellos rige una regla más estricta: un concepto ajeno que aparece como término completo (todas sus palabras seguidas, con la normalización de QA-05) en el enunciado, la situación, la pregunta o una opción cuenta como desarrollado. La retroalimentación de las opciones no se cuenta. Su prompt dice que no nombre los conceptos ajenos, en vez de «puede nombrarlos». La regla se decide por el contenido entregado (sin línea en blanco que separe párrafos), no por una lista fija de tipos.
-  - **Falsos rechazos.** Las pruebas de T013 con el corpus de T067 deciden si la regla estricta rechaza recursos correctos. Si rechaza más del 5 % de los recursos cortos marcados como correctos, se afloja (por ejemplo, contar solo el enunciado y no las opciones) y el cambio se registra aquí.
-  - Si falla, se pide de nuevo una vez con la indicación del problema. Si sigue fallando, se rechaza con `kind: plan` (nuevo tipo de rechazo en el contrato) y su motivo, y el respaldo por reglas lo intenta como hoy.
+- **Comprobación de cobertura**, léxica y sin IA, con la normalización de QA-05 (corregida tras la medición de P4):
+  - **Conceptos propios.** El recurso desarrolla al menos uno de sus conceptos: el 60 % o más de sus palabras útiles en un mismo párrafo (el título, un párrafo, un texto de la estructura o una opción). Se cuenta así, y no la frase exacta, para que valga una paráfrasis («un saludo en tres pasos» para «saludo de tres vías»). Las palabras se comparan por su raíz: sin plural y, si tienen seis letras o más, por sus seis primeras, como en la verificación de anclaje («confirma» y «confirmación»).
+  - **Conceptos ajenos.** Cuentan solo si el recurso los desarrolla: el término completo en al menos dos oraciones, o en una oración que lo define («El protocolo UDP es…», «Datagrama: …»). Nombrarlo una vez no cuenta, tampoco en un recurso corto. Así se reemplaza la regla estricta de los recursos de un solo párrafo, que en P4 rechazaba simples menciones. No cuenta un concepto ajeno que solo aparece dentro de uno propio («capas» en «capa de transporte»), ni la retroalimentación de las opciones.
+  - **Conceptos de fondo.** Un concepto del plan que está en los fragmentos de la mitad o más de los ítems (y de al menos 2) es contexto compartido de la unidad, no de un solo recurso. No se le pasa a ningún recurso como ajeno, ni en el prompt ni en la comprobación. Ejemplos de P4: «capa de transporte», «Transmission Control Protocol».
+  - **Qué es un párrafo.** Los párrafos se separan con una línea en blanco; si no hay ninguna, cada línea es un párrafo, como en la verificación del glosario (HU-049). Cada texto de la estructura y cada opción cuentan como un párrafo más.
+  - **El prompt de los tipos breves** sigue diciendo «no los nombres» para `pregunta_detonante`, `item_opcion_multiple`, `audio_detonante` y los tipos del catálogo de hasta 120 palabras. Es más estricto que la comprobación, a propósito: nombrar una vez no se rechaza.
+  - **Falsos rechazos (T013).** `tests/fixtures/plan_coverage_short_resources.json` tiene 16 recursos cortos que solo nombran un concepto ajeno o ninguno (marcados correctos) y 6 que lo desarrollan (incorrectos): 0 falsos rechazos y 0 aceptados por error. `tests/fixtures/plan_coverage_p4_cases.json` rearma los casos de P4 con oraciones del corpus de T067. Sergio debe revisar las marcas con el corpus.
+- **Si la comprobación falla**, se pide de nuevo una vez con la indicación del problema. **Política tras P4** (acordada al revisar la medición):
+  - **Recurso de la IA:** si después del reintento solo falla la comprobación del plan (el anclaje y la estructura pasaron), se entrega igual, con un aviso de solapamiento. El recurso lleva `planWarning` (`kind` `overlap` o `missing_concepts`, el motivo y los conceptos) y el paso lo lista en `planWarnings`. Revisión lo muestra y el docente decide. No se reemplaza con el generador por reglas.
+  - **Camino por reglas:** el rechazo `kind: plan` queda solo para él (el generador por reglas como principal, o un respaldo que tampoco respeta el plan).
+  - **Si falla el anclaje o la estructura**, el respaldo por reglas actúa como siempre.
+  - **Por qué (lo que se gana y lo que se pierde).** En P4, 14 de 24 pasos con plan terminaron en el respaldo por reglas (3 de 24 sin plan). La duplicación bajó (32,3 % → 12,0 %), pero en parte porque los recursos los redactaron las reglas, con oraciones del material casi literales, más cortos y menos variados. Cambiar un buen recurso de la IA por uno de reglas por un solapamiento parcial cuesta más calidad de la que ahorra en repetición. A cambio, un recurso con aviso puede repetir algo de otro: la duplicación puede subir un poco frente a la medición anterior. Por eso el aviso se ve en Revisión, y la medición de P4 cuenta los pasos de la IA, los del respaldo y los avisos de cada corrida (`measure_duplication.py`), para comparar con los mismos generadores.
 - **Verificación de anclaje (HU-016, HU-049, REV-01):** sin cambios. Cada recurso se verifica contra la evidencia del plan.
 - **Control de repetición:** el filtro léxico actual (`SIMILARITY_THRESHOLD` = 0,6 en `domain/generation/sequence.py`) se mantiene como red de seguridad. Con el plan, su reintento agrega los conceptos que el recurso no debe repetir.
-- **Generador por reglas:** redacta cada recurso con las oraciones de los fragmentos que contienen sus conceptos, así respeta el plan sin IA.
+- **Generador por reglas:** redacta cada recurso con las oraciones de los fragmentos que contienen sus conceptos, así respeta el plan sin IA. Al implementar GEN-P2:
+  - deja fuera las oraciones que desarrollan conceptos de otros recursos y no repite un concepto ajeno en dos oraciones;
+  - prefiere las oraciones que no usaron los recursos anteriores (`secuenciaPrevia`), así dos bloques del mismo ítem no quedan iguales y el filtro de repetición no los rechaza;
+  - si no hay oraciones nuevas de sus conceptos, reutiliza las ya usadas antes que dejar el recurso vacío.
+
+- **Lo que guarda cada recurso:** `params.planId`, `params.planItemPosition` y `params.planBlock` (el bloque, desde 0). La regeneración desde Revisión los usa para rehacer ese bloque (R2).
+- **Sesión (CUR-P3):** cuando el plan pasa a usado, se llama a `record_typology` con los tipos del plan. Si Cursos falla, el pedido sigue: la tipología es contexto para el plan siguiente, no una condición para generar.
 
 **Alternativas descartadas.**
 - **Redactar todos los recursos en una sola llamada:** es justo lo que hoy produce repetición y recursos más cortos.
@@ -135,6 +156,7 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 | `description` | Una o dos oraciones de qué es el recurso y cómo lo usa el estudiante. Es la instrucción del prompt genérico. |
 | `structure` | `none` para los tipos nuevos; los tipos actuales conservan la suya (pasos, pares, afirmaciones…). |
 | `lengthHint` | Opcional. Extensión esperada del recurso en palabras, `{minWords, maxWords}` ([reglas](#extensión-lengthhint)). |
+| `verification` | `strict` o `framed` en los tipos de texto nuevos ([verificación](#verificación-strict-y-framed)). |
 | `modalities` | Las modalidades que lo incluyen (HU-024). |
 | `hasOptions` | Solo `item_opcion_multiple`. |
 | `active` | Si se ofrece en el formulario. |
@@ -146,6 +168,7 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 | `stage` | Una de las cinco etapas. |
 | `description` | Qué es el recurso y cómo lo usa el estudiante, en una o dos oraciones. |
 | `lengthHint` | Opcional: `{minWords, maxWords}`. |
+| `verification` | `strict` o `framed`. |
 | `modalities` | Las modalidades que lo incluyen. |
 | `format` | `text`. |
 | `structure` | `none`. |
@@ -156,35 +179,110 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 - **Uso.** Es una guía para la redacción: el prompt pide «entre X y Y palabras». Nunca es una regla de rechazo: un recurso más corto o más largo no se rechaza ni se regenera por su extensión.
 - **Sin `lengthHint`.** Vale la extensión por defecto del prompt genérico, la misma de `explicacion`: de 3 a 5 párrafos, sin un rango de palabras.
 
+<a id="verificación-strict-y-framed"></a>**Verificación (`strict` y `framed`).** Acordado con CUR-P2 (PR #70 de Silvana: 15 tipos `strict` y 13 `framed` en el borrador del catálogo). En los dos modos se verifican las citas (HU-016), como en todos los tipos.
+- **`strict`:** cada párrafo se contrasta con el material, como en `explicacion` (HU-049): los párrafos sin respaldo se quitan y, si queda menos de la mitad, el recurso se rechaza (`kind: grounding`).
+- **`framed`:** las oraciones de ambientación (la escena, los personajes, el formato de noticia o de diálogo) y las preguntas al estudiante no necesitan cita. Cada oración sobre un concepto del recurso (las que nombran alguno de sus conceptos del plan) sí: si una no se apoya en el material, el recurso se rechaza. También se rechaza si tiene menos de 2 afirmaciones sobre sus conceptos con respaldo. El rechazo es `kind: grounding`, con un motivo claro («solo 1 afirmación sobre los conceptos se apoya en el material; este tipo necesita al menos 2»).
+- **Evidencia que necesita un tipo `strict`.** Antes de redactar, si la evidencia del ítem no tiene lo que el tipo necesita, el recurso no se redacta (ni con la IA ni con reglas) y se rechaza (`kind: grounding`) con el motivo:
+  - `frase_celebre_comentada` necesita una cita textual en un fragmento del ítem (entre comillas, de 4 palabras o más): «El material no tiene una cita textual para este tema.»;
+  - los demás tipos `strict` necesitan que algún fragmento del ítem trate al menos uno de sus conceptos.
+
+  La exigencia de cada tipo está en el código de Generación (`EVIDENCE_REQUIREMENTS`); si Cursos agrega tipos con otras exigencias, conviene que el catálogo las declare en un campo propio.
+
 **Tipos nuevos de texto.**
-- Se redactan con un prompt genérico: la `description` de la entrada, el ítem del plan, y el contenido con citas como en `explicacion`.
-- Se verifican como `explicacion`: las citas (HU-016) y los párrafos (HU-049).
-- El generador por reglas tiene un redactor genérico, de párrafos citados con las oraciones de los conceptos del ítem.
+- Se redactan con un prompt genérico: la `description` de la entrada, su `lengthHint` (o la extensión por defecto), el ítem del plan y el contenido con citas como en `explicacion`.
+- Se verifican según su `verification` (arriba).
+- El generador por reglas tiene un redactor genérico con las oraciones de los conceptos del ítem: en `strict`, párrafos citados; en `framed`, una oración de ambientación, las oraciones citadas y una pregunta. La frase célebre empieza por la oración con la cita textual.
+- **Mientras CUR-P2 no los cablee**, los 28 tipos nuevos siguen inactivos: el adaptador provisional del catálogo no los ofrece. Las pruebas usan entradas falsas de los dos modos.
 - Revisión y la exportación los tratan como texto. Su etiqueta sale del catálogo, sin caer en «Pregunta de opción múltiple», como pide T059.
 
 **Alternativa descartada.** Escribir un redactor por cada tipo nuevo: no escala a 50 a 75 tipos, y los tipos de texto solo cambian la intención.
 
 ## R7. Medición de la duplicación (P4)
 
-**Métrica.** Para cada generación, la similitud coseno de los embeddings de cada par de recursos (título y contenido), con el indicador de REV-P3:
+**Lo que aprendimos de las dos primeras corridas con Gemini** (`docs/evidence/GEN-P4/v1-*` y `v2-*`):
+- **v1:** −62,8 % en la tasa de pares, pero 14 de 24 pasos con plan los redactó el respaldo por reglas. La baja venía sobre todo de eso.
+- **v2:** con la corrección del respaldo, la IA redactó 21 de 24 pasos sin plan y 20 de 24 con plan, y la tasa de pares quedó en 30,1 % frente a 29,7 % (−1,4 %).
+- **Planes de reglas:** en 2 de 3 corridas con plan, el plan de Gemini no fue válido y se usó el de reglas (de ahí el reintento de R4).
+- **La métrica de pares mide el tema:** la similitud máxima media fue de 0,91 en los dos modos. Con τ = 0,85, la métrica de pares capta sobre todo «el mismo tema», no «contenido repetido».
+- **Pocas corridas:** con 3 corridas por modo, la tasa varió entre 0,20 y 0,41 de una corrida a otra.
+- **v3** (5 corridas por modo, τ = 0,885 y umbral de oraciones 0,865 de `calibration-v2.json`):
+  - pares: 10,1 % → 6,5 % (−36 %); oraciones casi repetidas: 52,4 % → 40,5 % (−23 %); conceptos explicados otra vez: 1,2 → 1,2;
+  - con plan hubo más respaldo (8 de 40 pasos, frente a 5 de 40) y menos recursos por pedido (15,0 frente a 15,8);
+  - **qué falló en la medición:** las oraciones incluían títulos; no separaban la repetición entre recursos distintos de la de las dos variantes de un tipo; y la métrica de conceptos no discriminaba (solo «capa de transporte», en los dos modos). Las métricas se corrigieron (abajo) y la v3 se puede recalcular sin generar (`--recompute`).
 
-- **Tasa de duplicación** = pares con similitud ≥ τ ÷ total de pares de la generación. τ lo fija REV-P3; mientras tanto, 0,85.
-- **Similitud máxima media** = promedio, sobre los recursos, de su similitud más alta con otro recurso de la misma generación. Es la métrica secundaria.
+**Métricas.** Por cada generación (`evaluation/measure_duplication.py`):
+- **Oraciones casi repetidas (evidencia principal).** La parte de las oraciones de 8 palabras o más (normalizadas) que tienen una casi igual en otro recurso de la misma generación: coseno de embeddings de oración ≥ un umbral calibrado (0,92 hasta calibrarlo), o Jaccard ≥ 0,6 si no hay embeddings. Es lo más parecido a la queja del profesor: el mismo contenido redactado otra vez.
+  - **Sin títulos:** el título del recurso y los encabezados de su estructura (títulos de pasos, titulares, conceptos centrales) no son oraciones. En los informes v3 y anteriores, que guardan el texto con el título en la primera línea, esa línea se quita al recalcular.
+  - **Tres cifras:** todos los pares (`all`); los de recursos de tipos distintos (`crossType`, **la principal**, porque la queja es la repetición entre recursos distintos); y los de recursos del mismo tipo (`variants`, las dos variantes de un tipo), aparte. Cada grupo trae sus ejemplos.
+- **Conceptos explicados otra vez (evidencia principal).** Los conceptos que se definen o se desarrollan en más de un recurso, con la regla de la comprobación del plan (dos oraciones, o una definición: `plan_coverage.develops_concept`).
+  - `conceptReexplanationEvidence` usa en los dos modos los mismos conceptos: los candidatos de la evidencia del pedido, con la extracción del planificador por reglas. Los dos modos piden 12 fragmentos. Es la que se compara.
+  - `conceptReexplanation` usa los conceptos del plan si lo hay; sirve para ver el plan por dentro.
+  - **Tabla por concepto (`table`):** en cuántos recursos se menciona (el término completo en una oración), se desarrolla (la regla de arriba) y se define (una oración que lo define). En la v3 la métrica no discriminó; la tabla muestra si la regla de «desarrollado» es demasiado estricta antes de cambiarla. La regla no cambia todavía.
+- **Tasa de pares duplicados (secundaria).** Pares de recursos con similitud de embeddings ≥ τ ÷ total de pares, con la misma división: todos, `crossType` y `variants`. Se conserva la meta de P4 sobre la de todos. La similitud máxima media se sigue informando.
+- **Solo los recursos de la IA (`aiOnly`).** Las mismas métricas sin los recursos del respaldo por reglas, en cada corrida y en el resumen, para que la comparación no la sesgue el respaldo (que en la v3 fue mayor con plan).
+- **Contexto de cada corrida.** Pasos redactados por la IA, por el respaldo y por reglas; avisos de solapamiento del plan (R5); y si el plan salió de Gemini (en 1 o 2 intentos) o del planificador por reglas. Una baja que viene de recursos del respaldo o de planes de reglas no cuenta como evidencia de la IA con plan.
+  - **`fallbacks`:** qué pasos redactó el respaldo y por qué (`steps[].generator.fallbackReason`).
+  - **`undelivered`:** qué recursos planeados no se entregaron (en la v3, 14 o 15 de 16 con plan), con los rechazos o el error de su paso.
+
+**Recalcular sin generar.** `measure_duplication.py --recompute --from <informe> --out <nuevo>` recalcula todas las métricas con los textos guardados en el informe (solo embeddings) y conserva los datos de cada corrida.
+- **Quién redactó cada recurso:** en los informes v3, sale del paso de su ítem (con plan) o de su tipo.
+- **Conceptos:** si el informe no los guarda (v3 y anteriores), se leen de la API con la misma cuenta. Sin cuenta, quedan vacíos.
+- **Comparar:** acepta `--compare`. Para comparar, se recalculan los dos informes con los mismos umbrales.
+- **Desde ahora:** los informes guardan, por recurso, el texto completo, el texto sin títulos y quién lo redactó, y los conceptos de la evidencia y del plan, así el recálculo no necesita la API.
+
+**Cómo se eligen τ y el umbral de oraciones.** Con `measure_duplication.py --calibrate --from <informes>`:
+- **Pares sin repetición:** recursos de tipos distintos en ítems distintos del plan, y de otro corpus si se pasa un informe de otro corpus.
+- **Pares repetidos:** el mismo recurso con sus oraciones en otro orden, y medio recurso copiado. En oraciones: la misma oración sin su primera palabra y con sus mitades cambiadas.
+- **Umbral sugerido:** el punto medio entre el p95 de los pares sin repetición y el p5 de los repetidos.
+- **Si se mezclan** (`overlap`), se informa el p95 de los pares sin repetición, y esa métrica no sirve para separar «mismo tema» de «repetido». Es lo que se espera de los pares completos.
+- **Registro:** el umbral elegido y el informe de calibración van en `docs/evidence/GEN-P4/`. τ = 0,85 queda hasta que la calibración o REV-P3 fijen otro.
 
 **Procedimiento.**
 - **Corpus:** `corpus_t067` (unidad de redes de C-01 a C-05).
-- **Pedido:** una secuencia de 8 tipos de texto × 2 recursos, la misma de `measure_generation_load.py`. Se repite 3 veces con cada generador (reglas y Gemini).
-- **Línea base:** sin plan, con el código de `main` antes de GEN-P1.
+- **Pedido:** una secuencia de 8 tipos de texto × 2 recursos, la misma de `measure_generation_load.py`. Se repite **5 veces** con cada generador (reglas y Gemini): con 3, la variación entre corridas tapaba la diferencia.
+- **Línea base:** sin plan, en el mismo servidor y la misma base, con `GENERATION_IMPLICIT_PLAN=false` (interruptor solo de medición: redacta el cuerpo anterior como antes de GEN-P1; [plan](plan.md#medición-de-p4)).
 - **Con plan:** aprobado sin cambios.
 
-Se registran en `docs/evidence/GEN-P4/` la tasa, la similitud máxima media, los recursos entregados por pedido y la `faithfulness` media (con `run_ragas.py`).
+Se registran en `docs/evidence/GEN-P4/` los dos informes, la calibración y la `faithfulness` media (con `run_ragas.py`).
+
+**Cómo leer el resultado.**
+1. **Primero, ¿los dos modos los redactó la IA?** Mira `aiSteps` frente a `fallbackSteps` y `planGenerators`. Si el plan salió de reglas en varias corridas, la comparación no mide el plan de Gemini.
+2. **Luego, la evidencia de «no repetición»:**
+   - `crossTypeSentenceRate` (la principal): oraciones casi repetidas entre recursos de tipos distintos. `sentenceNearDuplicateRate` (todas) y `variantsSentenceRate` (variantes de un tipo) van aparte;
+   - `meanReexplainedEvidenceConcepts`: conceptos explicados en más de un recurso, con los mismos conceptos en los dos modos, y la tabla por concepto;
+   - `crossTypeSentenceReduction` y `reexplainedConceptsReduction` (con `--compare`), la baja frente a la línea base;
+   - lo mismo en `aiOnly`, sin los recursos del respaldo: si la baja no se sostiene ahí, viene del respaldo.
+3. **Al final, la tasa de pares,** con su umbral calibrado y sabiendo que mezcla tema y repetición.
+
+**Resultado (v3 recalculada y v4, con Gemini).** Evidencia en `docs/evidence/GEN-P4/`: `v3r-gemini-baseline.json`, `v3r-gemini-plan.json` (la v3 recalculada con las métricas corregidas) y `v4-gemini-plan.json`, comparado con la línea base v3r. Umbrales de `calibration-v2.json`: τ = 0,885 y 0,865 en oraciones. Cinco corridas por modo.
+
+| Métrica | Línea base | Plan v3 | Plan v4 |
+| --- | --- | --- | --- |
+| Oraciones casi repetidas entre tipos distintos (principal) | 32,4 % | 21,2 % (−35 %; solo IA −39 %) | 21,1 % (−35 %; solo IA −50 %) |
+| Pares duplicados entre tipos distintos (secundaria) | 6,0 % | 2,7 % (−56 %) | 4,1 % (−32 %) |
+| Conceptos explicados otra vez (evidencia) | 0 | 0,4 | 0,6 |
+| Recursos por pedido (de 16) | 15,8 | 15,0 | 16,0 |
+| Planes de Gemini / de reglas | — | 5 / 0 | 1 / 4 |
+
+- **La métrica principal es la de oraciones entre tipos distintos.** Es la queja del profesor: el mismo contenido redactado otra vez en recursos distintos. Las variantes de un tipo se parecen por diseño, así que la cifra de todos los pares y la de `variants` se informan, pero no cuentan para la meta.
+- **El resultado se repite.** La baja de −35 % se dio en las dos corridas con plan, aunque los planes de la v3 fueron 5 de 5 de Gemini y los de la v4, 4 de 5 del planificador por reglas. Solo con los recursos de la IA, la baja se mantiene o crece (−39 % y −50 %): no viene del respaldo.
+- **Pares entre tipos distintos:** bajan en las dos corridas, pero cambian mucho de una a otra (−56 % y −32 %). Se informan como evidencia secundaria.
+- **Conceptos explicados otra vez:** no discriminan (0 frente a 0,4 y 0,6). El resultado es inconcluso; la tabla por concepto queda para revisar la regla.
+- **Recursos:** la pérdida de la v3 (15,0 de 16) no se repitió en la v4 (16,0 de 16, `resourcesKept`).
+- **Meta de P4, cumplida en parte.**
+  - El valor absoluto se cumple: pares entre tipos distintos ≤ 5 % en las dos corridas con plan.
+  - La baja de al menos 50 % solo se cumple en la v3.
+  - La evidencia principal (oraciones entre tipos distintos) baja un 35 % en las dos.
+  - El `meetsTarget` del informe se calcula sobre todos los pares y sale `false`; para P4 vale la cifra entre tipos distintos.
+- **Pendiente:** la `faithfulness` de los recursos redactados desde el plan no se midió (meta ≥ 0,90), y quedan problemas que encontró la v4 (T027 de [tareas](tasks.md)).
 
 **Meta.**
-- La tasa de duplicación con plan baja al menos un 50 % frente a la línea base y queda en 5 % o menos.
-- Los recursos entregados no bajan.
-- La `faithfulness` media sigue en 0,90 o más.
+- **Evidencia principal:** con plan, las oraciones casi repetidas entre recursos de tipos distintos bajan frente a la línea base, con la mayoría de los pasos redactados por la IA en los dos modos; los conceptos explicados otra vez se informan.
+- **Tasa de pares (se conserva la meta de P4):** la de recursos de tipos distintos, con plan, baja al menos un 50 % frente a la línea base y queda en 5 % o menos, con el τ calibrado.
+- **Recursos:** los entregados no bajan.
+- **Fidelidad:** la `faithfulness` media sigue en 0,90 o más.
 
-Mientras REV-P3 no esté, la medición provisional usa la similitud léxica de `most_similar` (`domain/generation/sequence.py`), registrada como tal.
+Mientras REV-P3 no esté, sin embeddings la medición usa la similitud léxica (Jaccard de `most_similar`, `domain/generation/sequence.py`), registrada como provisional.
 
 ## R8. La interfaz no menciona la metodología 5E
 

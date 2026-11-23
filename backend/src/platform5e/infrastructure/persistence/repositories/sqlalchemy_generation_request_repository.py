@@ -8,6 +8,10 @@ microsegundos, para que el orden alfabético coincida con el orden temporal.
 Las escrituras del ejecutor son `UPDATE` sobre filas existentes: si el curso se borró mientras se generaba, no
 insertan nada y devuelven False. El alta con cupo (`create_within_limit`) serializa los envíos de un mismo docente con
 `pg_advisory_xact_lock` en PostgreSQL y con `BEGIN IMMEDIATE` en SQLite.
+
+GEN-P2: el pedido guarda el plan del que parte (`plan_id`, `plan_version`) y cada paso su ítem (`plan_item_position`).
+Las columnas las agrega la migración `20261123000001_generation_request_plan.sql`; en una base SQLite que ya existía,
+este repositorio las agrega al iniciar. El plan pasa a usado en la misma transacción que el alta del pedido.
 """
 
 from __future__ import annotations
@@ -27,6 +31,7 @@ from sqlalchemy import (
     and_,
     exists,
     func,
+    inspect,
     or_,
     select,
     text,
@@ -41,14 +46,18 @@ from platform5e.application.ports.outbound.generation_request_repository_port im
     ActiveRequestLimitReached,
     GenerationRequestRepositoryPort,
     IdempotencyKeyTaken,
+    PlanClaim,
+    PlanClaimLost,
     UnitNoLongerOwned,
 )
+from platform5e.domain.generation.generation_plan import PlanStatus
 from platform5e.domain.generation.generation_request import (
     FINAL_REQUEST_STATUSES,
     GenerationMode,
     GenerationParameters,
     GenerationRequest,
     GenerationStep,
+    PlanReference,
     Problem,
     RegenerationTarget,
     RequestStatus,
@@ -91,6 +100,9 @@ class GenerationRequestORM(Base):
     finished_at = Column(String, nullable=True)
     heartbeat_at = Column(String, nullable=True)
     worker_boot_id = Column(String, nullable=True)
+    # GEN-P2: el plan del que parte el pedido; NULL en los pedidos anteriores al plan.
+    plan_id = Column(String, nullable=True)
+    plan_version = Column(Integer, nullable=True)
 
 
 class GenerationStepORM(Base):
@@ -117,6 +129,40 @@ class GenerationStepORM(Base):
     error = Column(JSON, nullable=True)
     started_at = Column(String, nullable=True)
     finished_at = Column(String, nullable=True)
+    # GEN-P2: el ítem del plan que redacta el paso; NULL en los pedidos sin plan.
+    plan_item_position = Column(Integer, nullable=True)
+    # GEN-P2 (tras P4): avisos de solapamiento de los recursos de la IA entregados; NULL o [] si no hay.
+    plan_warnings = Column(JSON, nullable=True)
+
+
+# Columnas de GEN-P2 que una base SQLite anterior no tiene (PostgreSQL usa la migración).
+PLAN_COLUMNS: dict[str, tuple[tuple[str, str], ...]] = {
+    "gen_generation_requests": (("plan_id", "VARCHAR NULL"), ("plan_version", "INTEGER NULL")),
+    "gen_generation_steps": (("plan_item_position", "INTEGER NULL"), ("plan_warnings", "JSON NULL")),
+}
+
+
+def ensure_plan_columns_in_sqlite(bind: Engine) -> None:
+    """En SQLite `create(checkfirst=True)` no agrega columnas a una tabla que ya existe: se agregan aquí para
+    conservar las bases locales, como hace el repositorio de recursos (REV-01, H12)."""
+    if bind.dialect.name != "sqlite":
+        return
+    inspector = inspect(bind)
+    with bind.begin() as connection:
+        for table, columns in PLAN_COLUMNS.items():
+            present = {column["name"] for column in inspector.get_columns(table)}
+            for name, definition in columns:
+                if name not in present:
+                    connection.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {definition}"))  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
+
+
+def _plan_table():
+    """La tabla de planes. Se importa aquí porque el repositorio de planes usa `utc_text` de este módulo."""
+    from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_plan_repository import (
+        GenerationPlanORM,
+    )
+
+    return GenerationPlanORM.__table__
 
 
 def utc_text(value: datetime | str | None = None) -> str:
@@ -184,6 +230,8 @@ def _step_values(step: GenerationStep) -> dict[str, Any]:
         "error": _problem_to_json(step.error),
         "started_at": utc_text(step.started_at) if step.started_at else None,
         "finished_at": utc_text(step.finished_at) if step.finished_at else None,
+        "plan_item_position": step.plan_item_position,
+        "plan_warnings": list(step.plan_warnings),
     }
 
 
@@ -207,6 +255,8 @@ def _step_from_orm(row: GenerationStepORM) -> GenerationStep:
         error=_problem_from_json(row.error),
         started_at=row.started_at,
         finished_at=row.finished_at,
+        plan_item_position=row.plan_item_position,
+        plan_warnings=tuple(row.plan_warnings or ()),
     )
 
 
@@ -229,6 +279,8 @@ def _request_to_orm(request: GenerationRequest) -> GenerationRequestORM:
         finished_at=utc_text(request.finished_at) if request.finished_at else None,
         heartbeat_at=utc_text(request.heartbeat_at) if request.heartbeat_at else None,
         worker_boot_id=request.worker_boot_id,
+        plan_id=request.plan.plan_id if request.plan else None,
+        plan_version=request.plan.plan_version if request.plan else None,
     )
 
 
@@ -248,13 +300,16 @@ def _request_from_orm(row: GenerationRequestORM, steps: list[GenerationStepORM])
         retrieval_mode=row.retrieval_mode,
         evidence=tuple(row.evidence or ()),
         regeneration=(
-            RegenerationTarget(regeneration["resourceId"], regeneration["resourceVersion"]) if regeneration else None
+            RegenerationTarget(regeneration["resourceId"], regeneration["resourceVersion"],
+                               regeneration.get("planBlock"))
+            if regeneration else None
         ),
         failure=_problem_from_json(row.failure),
         started_at=row.started_at,
         finished_at=row.finished_at,
         heartbeat_at=row.heartbeat_at,
         worker_boot_id=row.worker_boot_id,
+        plan=PlanReference(row.plan_id, row.plan_version) if row.plan_id else None,
     )
 
 
@@ -281,6 +336,9 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
         if self._engine.dialect.name == "sqlite":
             GenerationRequestORM.__table__.create(bind=self._engine, checkfirst=True)
             GenerationStepORM.__table__.create(bind=self._engine, checkfirst=True)
+            # El alta con plan (GEN-P2) escribe en la tabla de planes en la misma transacción.
+            _plan_table().create(bind=self._engine, checkfirst=True)
+            ensure_plan_columns_in_sqlite(self._engine)
 
     # Lecturas
 
@@ -366,6 +424,7 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
         request: GenerationRequest,
         max_active: int,
         unit_still_owned: Callable[[], bool] | None = None,
+        plan_claim: PlanClaim | None = None,
     ) -> GenerationRequest:
         with self._sessions() as session:
             # Mientras dura la transacción, ningún otro envío del docente cuenta ni registra pedidos, y el borrado de
@@ -389,6 +448,9 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
             if active >= max_active:
                 session.rollback()
                 raise ActiveRequestLimitReached(max_active)
+            if plan_claim is not None and not self._claim_plan(session, plan_claim):
+                session.rollback()
+                raise PlanClaimLost()
             session.add(_request_to_orm(request))
             session.add_all(_step_to_orm(request.id, step) for step in request.steps)
             try:
@@ -400,6 +462,27 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
                     raise
                 raise IdempotencyKeyTaken(existing) from None
             return self._load(session, session.get(GenerationRequestORM, request.id))  # type: ignore[return-value]
+
+    @staticmethod
+    def _claim_plan(session: Session, claim: PlanClaim) -> bool:
+        """GEN-P2: el plan pasa a usado solo si sigue aprobado y en la versión leída, en la transacción del alta."""
+        from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_plan_repository import (
+            GenerationPlanORM,
+            plan_update_values,
+        )
+
+        plan = claim.plan
+        result = session.execute(
+            update(GenerationPlanORM)
+            .where(
+                GenerationPlanORM.teacher_id == plan.teacher_id,
+                GenerationPlanORM.id == plan.id,
+                GenerationPlanORM.version == claim.expected_version,
+                GenerationPlanORM.status == PlanStatus.APPROVED.value,
+            )
+            .values(**plan_update_values(plan))
+        )
+        return result.rowcount == 1
 
     @staticmethod
     def _lock_teacher(session: Session, teacher_id: str) -> None:

@@ -4,10 +4,15 @@ GEN-P1: validación del plan, `doesNotCover` y reparto de los conceptos de un í
 
 Los conceptos se comparan con la normalización de QA-05 (`topic_coverage.concept_key`): minúsculas, sin tildes, sin
 espacios repetidos ni palabras vacías. Los mensajes son para el docente y nunca mencionan la metodología 5E.
+
+Corrección tras la medición de P4 (research R4): cada concepto es una frase nominal corta, de 2 a 4 palabras útiles
+tomadas del material, o una sigla («UDP», «IPv4»); nunca una oración, una lista ni una palabra suelta común
+(`CONCEPT_NOT_SHORT`).
 """
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 
 from platform5e.domain.generation.generation_plan import (
@@ -19,7 +24,41 @@ from platform5e.domain.generation.generation_plan import (
     PlanProblem,
 )
 from platform5e.domain.generation.resource_formats import MODALITY_TYPES
-from platform5e.domain.generation.topic_coverage import concept_key
+from platform5e.domain.generation.topic_coverage import concept_key, normalize
+
+MIN_CONCEPT_WORDS: int = 2
+MAX_CONCEPT_WORDS: int = 4
+# Más palabras en total (con las vacías) ya es una oración, aunque tenga pocas útiles.
+MAX_CONCEPT_RAW_WORDS: int = 7
+CONCEPT_NOT_SHORT_MESSAGE: str = (
+    "«{concept}» no es un concepto corto: usa una frase de 2 a 4 palabras del material, no una oración ni una lista."
+)
+_RAW_WORD = re.compile(r"[a-z0-9ñ]+")
+# Separadores de listas y de oraciones.
+_LIST_OR_SENTENCE = re.compile(r"[,;:.!?¿¡]")
+# Una sigla: «UDP», «TCP», «IPv4», «DNS».
+_ACRONYM = re.compile(r"[A-Z]{2,}[A-Za-z0-9]{0,4}")
+# Palabras que convierten la frase en una oración (negación y verbos conjugados frecuentes).
+_SENTENCE_WORDS = frozenset(
+    "no ni es son hay esta estan tiene tienen puede pueden debe deben mantiene mantienen compiten resuelven "
+    "equilibra equilibran permite permiten garantiza garantizan usa usan".split()
+)
+
+
+def short_concept_problem(concept: str) -> str | None:
+    """Por qué el concepto no es una frase nominal corta, o None si lo es."""
+    text = " ".join(str(concept).split())
+    words = concept_key(text).split()
+    raw = _RAW_WORD.findall(normalize(text))
+    acronym = len(text.split()) == 1 and _ACRONYM.fullmatch(text) is not None
+    if (
+        _LIST_OR_SENTENCE.search(text)
+        or any(word in _SENTENCE_WORDS for word in raw)
+        or len(raw) > MAX_CONCEPT_RAW_WORDS
+        or not (MIN_CONCEPT_WORDS <= len(words) <= MAX_CONCEPT_WORDS or acronym)
+    ):
+        return CONCEPT_NOT_SHORT_MESSAGE.format(concept=text)
+    return None
 
 
 def does_not_cover(items: Sequence[PlanItem], position: int) -> list[str]:
@@ -100,6 +139,9 @@ def validate_items(
             key = concept_key(concept)
             if not key:
                 continue
+            not_short = short_concept_problem(concept)
+            if not_short is not None:
+                problems.append(PlanProblem("CONCEPT_NOT_SHORT", not_short, position))
             owner = owners.setdefault(key, position)
             if owner != position:
                 problems.append(PlanProblem(

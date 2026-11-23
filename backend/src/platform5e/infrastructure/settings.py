@@ -26,6 +26,16 @@ GENERATION_MAX_WORKERS      hilos que ejecutan pedidos de generación por proces
 GENERATION_REQUEST_DEADLINE_SECONDS  tiempo máximo de un pedido de generación (por defecto 900)
 GENERATION_REGENERATION_WAIT_SECONDS  segundos que la regeneración desde Revisión espera el pedido antes de responder
                             `running` (por defecto 10; 0 responde enseguida)
+GENERATION_REQUIRE_PLAN     GEN-P2: true | false (por defecto). Con true, POST /generation-requests solo acepta
+                            {planId, planVersion} de un plan aprobado y el cuerpo anterior responde 422 PLAN_REQUIRED.
+                            Con false, el cuerpo anterior crea un plan implícito aprobado y genera desde él. Queda en
+                            false hasta integrar el frontend del plan (GEN-P3); después pasa a true (T021)
+GENERATION_IMPLICIT_PLAN    GEN-P2, SOLO PARA MEDIR P4: true (por defecto) | false. Con false, el cuerpo anterior se
+                            redacta como antes de GEN-P1: sin plan implícito, sin comprobación del plan y con los
+                            prompts de entonces. Sirve para la línea base de measure_duplication.py --mode baseline en
+                            el mismo servidor y la misma base (specs/006-plan-de-generacion/plan.md, «Medición de P4»).
+                            Nunca en false en Render ni en producción. GENERATION_REQUIRE_PLAN=true tiene prioridad: el
+                            pedido sin plan se rechaza igual
 TOPIC_COVERAGE_THRESHOLD    QA-05: parte de los términos de las indicaciones que debe aparecer en la evidencia antes de
                             redactar, de 0 a 1 (por defecto 0.5). Si no llega y tampoco aparece ninguna frase del tema,
                             el pedido falla con INSUFFICIENT_EVIDENCE. 0 apaga la comprobación
@@ -62,6 +72,23 @@ def read_setting(name: str, default: str = "", environment: Mapping[str, str] | 
     if value is None and name in LEGACY_NAMES:
         value = env.get(LEGACY_NAMES[name])
     return default if value is None else value
+
+
+DEFAULT_GENERATION_REQUIRE_PLAN: bool = False
+
+
+DEFAULT_GENERATION_IMPLICIT_PLAN: bool = True
+
+
+def generation_implicit_plan(environment: Mapping[str, str] | None = None) -> bool:
+    """GEN-P2: si el cuerpo anterior crea un plan implícito (por defecto sí). `false` es solo para medir la línea base
+    de P4 en el mismo servidor; nunca en Render. GENERATION_REQUIRE_PLAN=true tiene prioridad."""
+    return read_flag("GENERATION_IMPLICIT_PLAN", DEFAULT_GENERATION_IMPLICIT_PLAN, environment)
+
+
+def generation_require_plan(environment: Mapping[str, str] | None = None) -> bool:
+    """GEN-P2: si el pedido de generación exige un plan aprobado (por defecto no, hasta integrar GEN-P3)."""
+    return read_flag("GENERATION_REQUIRE_PLAN", DEFAULT_GENERATION_REQUIRE_PLAN, environment)
 
 
 def read_flag(name: str, default: bool, environment: Mapping[str, str] | None = None) -> bool:

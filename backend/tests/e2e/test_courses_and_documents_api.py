@@ -193,7 +193,9 @@ def test_server_validation_does_not_save_invalid_data(server: str, e2e_database_
         assert material.status_code == 201, material.text
         processed = api.post(f"/api/v1/documents/{material.json()['id']}/process", headers=h)
         assert processed.status_code == 200 and processed.json()["fragmentCount"] >= 1, processed.text
-        reused = start_generation(api, h, "u2", "guia_exploracion", key=foreign_key, **GENERATION_PARAMS)
+        # GEN-P2: el plan implícito comprueba el tema al iniciar, así que las indicaciones son del material.
+        reused = start_generation(api, h, "u2", "guia_exploracion", key=foreign_key,
+                                  **{**GENERATION_PARAMS, "instructions": "Diferencias entre TCP y UDP"})
         assert reused.status_code == 202, reused.text
 
 

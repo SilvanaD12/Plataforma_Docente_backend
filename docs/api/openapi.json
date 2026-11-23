@@ -1254,7 +1254,7 @@
           "generations"
         ],
         "summary": "Start a generation request",
-        "description": "Validates the unit ownership, the outcome and that the unit has processed material, saves the request\nand runs it in the background (202 with `Location`). Poll `GET /generation-requests/{requestId}` for the\nstatus of each step.\n\nThe client sends a stable `Idempotency-Key`, unique per teacher. Repeating the same key with the same body\n(mode, unit and parameters) returns the existing request (200) without applying the other rules again;\nusing it with a different body returns 409 IDEMPOTENCY_KEY_REUSED. Without processed material the request\nis rejected (400 NO_PROCESSED_MATERIAL), and a teacher with 2 active requests gets 429 with `Retry-After`.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generation-requests\" -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $(uuidgen)\" -H 'Content-Type: application/json' --data '{\"mode\":\"sequence\",\"unitId\":\"unidad-1\",\"resourceTypes\":[\"pregunta_detonante\",\"item_opcion_multiple\"],\"quantity\":1}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 202; repeat with the same key to get 200.",
+        "description": "Validates the unit ownership, the outcome and that the unit has processed material, saves the request\nand runs it in the background (202 with `Location`). Poll `GET /generation-requests/{requestId}` for the\nstatus of each step.\n\nGEN-P2: the body is `{planId, planVersion}` of an approved plan. The mode, unit, types, quantities and\nevidence come from the plan, which becomes `used` together with the request: one step per plan item, each\nresource drafted from its block of concepts. A draft plan answers 422 PLAN_NOT_APPROVED; another version\n409 PLAN_VERSION_CONFLICT; a used plan 409 PLAN_ALREADY_USED. If a fragment cited by the plan no longer\nexists in the unit (a document was deleted or reprocessed), the answer is 409 PLAN_EVIDENCE_STALE with one\n`StaleDocument` per document in `details`, and nothing changes. While `GENERATION_REQUIRE_PLAN=false` the\nprevious body below is still accepted: the server builds an implicit approved plan (422 PLAN_INVALID with\nthe problems in `details` if it cannot be approved, 422 INSUFFICIENT_EVIDENCE if the material does not cover\nthe topic); with `true` it answers 422 PLAN_REQUIRED.\n\nThe client sends a stable `Idempotency-Key`, unique per teacher. Repeating the same key with the same body\n(mode, unit and parameters) returns the existing request (200) without applying the other rules again;\nusing it with a different body returns 409 IDEMPOTENCY_KEY_REUSED. Without processed material the request\nis rejected (400 NO_PROCESSED_MATERIAL), and a teacher with 2 active requests gets 429 with `Retry-After`.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generation-requests\" -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $(uuidgen)\" -H 'Content-Type: application/json' --data '{\"mode\":\"sequence\",\"unitId\":\"unidad-1\",\"resourceTypes\":[\"pregunta_detonante\",\"item_opcion_multiple\"],\"quantity\":1}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 202; repeat with the same key to get 200.",
         "operationId": "start_generation_request_api_v1_generation_requests_post",
         "security": [
           {
@@ -1290,7 +1290,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StartGenerationRequest"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StartPlannedGenerationRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StartGenerationRequest"
+                  }
+                ],
+                "title": "Body"
               }
             }
           }
@@ -5696,13 +5704,38 @@
             ],
             "title": "Startedat"
           },
+          "planId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planid",
+            "description": "GEN-P2: the approved plan the request started from (an implicit one for the previous body). `null` in requests created before generation plans."
+          },
+          "planVersion": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planversion",
+            "description": "GEN-P2: the plan version that was used."
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/GenerationStep"
             },
             "type": "array",
             "title": "Steps",
-            "description": "One step per resource type, in 5E order."
+            "description": "One step per resource type, in 5E order. With a plan, one step per plan item, in plan order."
           }
         },
         "additionalProperties": true,
@@ -6087,6 +6120,28 @@
               }
             ],
             "title": "Finishedat"
+          },
+          "planItemPosition": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planitemposition",
+            "description": "GEN-P2: the plan item this step drafts. `null` in requests without a plan."
+          },
+          "planWarnings": {
+            "items": {
+              "$ref": "#/components/schemas/StepPlanWarning"
+            },
+            "type": "array",
+            "title": "Planwarnings",
+            "description": "GEN-P2: AI resources of this step delivered although they did not fully follow the plan (another item's concept developed, or none of their own). The rule-based path rejects them with `kind: plan` instead.",
+            "default": []
           }
         },
         "additionalProperties": true,
@@ -6560,6 +6615,14 @@
             ],
             "title": "Fallbackreason",
             "description": "Generic public reason; null without fallback."
+          },
+          "attempts": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Attempts",
+            "description": "AI calls made to draft the plan: 0 without AI, 1, or 2 when the first plan was invalid and was asked again with its problems.",
+            "default": 0
           }
         },
         "additionalProperties": true,
@@ -6692,7 +6755,7 @@
             },
             "type": "array",
             "title": "Covers",
-            "description": "Concepts this item develops. Split in `quantity` consecutive blocks."
+            "description": "Concepts this item develops: short noun phrases of 2 to 4 content words from the material, or acronyms (`CONCEPT_NOT_SHORT` otherwise). Split in `quantity` consecutive blocks."
           },
           "doesNotCover": {
             "items": {
@@ -6739,7 +6802,8 @@
               "RESOURCE_TYPE_NOT_IN_MODALITY",
               "QUANTITY_OUT_OF_RANGE",
               "TOO_MANY_TYPES",
-              "PURPOSE_REQUIRED"
+              "PURPOSE_REQUIRED",
+              "CONCEPT_NOT_SHORT"
             ],
             "title": "Code"
           },
@@ -6816,6 +6880,50 @@
           "problems"
         ],
         "title": "PlanValidation"
+      },
+      "PlanWarning": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "overlap",
+              "missing_concepts"
+            ],
+            "title": "Kind",
+            "description": "`overlap`: it develops a concept of another resource of the plan. `missing_concepts`: it develops none of its own."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "In Spanish, shown to the teacher."
+          },
+          "developedConcepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Developedconcepts",
+            "description": "Concepts of other resources it develops.",
+            "default": []
+          },
+          "missingOwnConcepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missingownconcepts",
+            "description": "Its own concepts, when it develops none.",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "kind",
+          "reason"
+        ],
+        "title": "PlanWarning",
+        "description": "GEN-P2 (specs/006-plan-de-generacion, research R5): aviso de solapamiento con el plan."
       },
       "PreviousTypology": {
         "properties": {
@@ -7074,6 +7182,19 @@
           "resourceVersion": {
             "type": "integer",
             "title": "Resourceversion"
+          },
+          "planBlock": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planblock",
+            "description": "GEN-P2: the block of concepts of the plan item drafted again. Absent for resources without a plan."
           }
         },
         "additionalProperties": true,
@@ -7654,6 +7775,17 @@
               }
             ],
             "description": "For a regenerated resource: the resource and version it replaces (REV-C12)."
+          },
+          "planWarning": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanWarning"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "GEN-P2: an AI resource delivered although it did not fully follow its plan item (it develops another item's concept or none of its own). Shown in Review; it does not block approval."
           },
           "reviewReset": {
             "anyOf": [
@@ -8281,6 +8413,33 @@
         "title": "StartGenerationRequest",
         "description": "Cuerpo de POST /generation-requests. La clave de idempotencia va en la cabecera `Idempotency-Key`."
       },
+      "StartPlannedGenerationRequest": {
+        "properties": {
+          "planId": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Planid",
+            "description": "An approved plan of the teacher.",
+            "examples": [
+              "gen-plan-1"
+            ]
+          },
+          "planVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Planversion",
+            "description": "The plan version the teacher approved; another version answers 409."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "planId",
+          "planVersion"
+        ],
+        "title": "StartPlannedGenerationRequest",
+        "description": "GEN-P2: cuerpo de POST /generation-requests con un plan aprobado (specs/006-plan-de-generacion)."
+      },
       "StepGenerator": {
         "properties": {
           "description": {
@@ -8318,6 +8477,32 @@
         ],
         "title": "StepGenerator"
       },
+      "StepPlanWarning": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "In Spanish, shown to the teacher."
+          },
+          "resourceId": {
+            "type": "string",
+            "title": "Resourceid"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "title",
+          "reason",
+          "resourceId"
+        ],
+        "title": "StepPlanWarning",
+        "description": "GEN-P2: un recurso de la IA entregado con aviso de solapamiento con su plan (research R5)."
+      },
       "StepRejection": {
         "properties": {
           "title": {
@@ -8335,7 +8520,8 @@
               "grounding",
               "repetition",
               "structure",
-              "distractor"
+              "distractor",
+              "plan"
             ],
             "title": "Kind"
           }

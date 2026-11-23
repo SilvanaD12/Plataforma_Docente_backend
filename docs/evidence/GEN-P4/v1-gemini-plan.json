@@ -1,0 +1,634 @@
+{
+  "measure": "P4 · duplicación entre recursos de una misma generación",
+  "mode": "plan",
+  "api": "http://127.0.0.1:8000",
+  "corpus": "evaluation/corpus_t067",
+  "resourceTypes": [
+    "pregunta_detonante",
+    "sondeo_diagnostico",
+    "guia_exploracion",
+    "caso_indagacion",
+    "explicacion",
+    "glosario",
+    "ejercicio_aplicacion",
+    "item_opcion_multiple"
+  ],
+  "quantity": 2,
+  "threshold": 0.85,
+  "similarity": "embeddings (coseno), gemini-embedding-001",
+  "server": "GENERATION_IMPLICIT_PLAN=true (plan aprobado sin cambios)",
+  "createdAt": "2026-11-23T05:10:56.464089+00:00",
+  "summary": {
+    "runs": 3,
+    "finishedRuns": 3,
+    "duplicateRate": 0.1203,
+    "meanDuplicateRatePerRun": 0.1195,
+    "meanMaxSimilarity": 0.889,
+    "resourcesPerRequest": 15.0
+  },
+  "runs": [
+    {
+      "key": "p4-plan-20261123T050624-1",
+      "planId": "gen-plan-e788c389-d83c-4a2c-a80f-4c100f297c7e",
+      "planGenerator": {
+        "description": "Gemini · gemini-3.5-flash-lite",
+        "usesAi": true,
+        "fallback": false,
+        "fallbackReason": null
+      },
+      "planItems": 8,
+      "requestId": "gen-req-cefeefda-f365-4071-a8a5-264b49b33f01",
+      "requestPlanId": "gen-plan-e788c389-d83c-4a2c-a80f-4c100f297c7e",
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": 1,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": 2,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": 3,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": 4,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": 5,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": 6,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": 7,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": 8,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        }
+      ],
+      "rejectionKinds": {
+        "plan": 2,
+        "structure": 2
+      },
+      "metrics": {
+        "resources": 16,
+        "pairs": 120,
+        "duplicatePairs": 14,
+        "duplicateRate": 0.1167,
+        "meanMaxSimilarity": 0.8799,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.8763,
+            "titles": [
+              "Transmision de datos sin conexion en la red",
+              "La garantia en la transmision de datos"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 6,
+            "similarity": 0.8633,
+            "titles": [
+              "Transmision de datos sin conexion en la red",
+              "Caso practico de transmision de audio y video en tiempo real"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 7,
+            "similarity": 0.8704,
+            "titles": [
+              "Transmision de datos sin conexion en la red",
+              "Caso para indagar: estrictos requisitos de retardo"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 13,
+            "similarity": 0.8612,
+            "titles": [
+              "Transmision de datos sin conexion en la red",
+              "Ejercicio de aplicacion: Diseño de servicios con TCP y UDP"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.9094,
+            "titles": [
+              "Explorando la cabecera y el control en la capa de transporte",
+              "Sondeo diagnóstico: Control de flujo en la capa de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 4,
+            "similarity": 0.8776,
+            "titles": [
+              "Explorando la cabecera y el control en la capa de transporte",
+              "Guia de exploracion: Identificacion de aplicaciones mediante numeros de puerto"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 4,
+            "similarity": 0.8523,
+            "titles": [
+              "Sondeo diagnóstico: Control de flujo en la capa de transporte",
+              "Guia de exploracion: Identificacion de aplicaciones mediante numeros de puerto"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.863,
+            "titles": [
+              "Caso practico de transmision de audio y video en tiempo real",
+              "Caso para indagar: estrictos requisitos de retardo"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 12,
+            "similarity": 0.8664,
+            "titles": [
+              "Caso practico de transmision de audio y video en tiempo real",
+              "Ejercicio de aplicación: Diseño de protocolos para servicios de red"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 13,
+            "similarity": 0.8637,
+            "titles": [
+              "Caso practico de transmision de audio y video en tiempo real",
+              "Ejercicio de aplicacion: Diseño de servicios con TCP y UDP"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.8743,
+            "titles": [
+              "Glosario de la unidad: Protocolos de transporte",
+              "Glosario de la unidad: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 14,
+            "similarity": 0.8594,
+            "titles": [
+              "Glosario de la unidad: Protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 12,
+            "second": 13,
+            "similarity": 0.9432,
+            "titles": [
+              "Ejercicio de aplicación: Diseño de protocolos para servicios de red",
+              "Ejercicio de aplicacion: Diseño de servicios con TCP y UDP"
+            ]
+          },
+          {
+            "first": 14,
+            "second": 15,
+            "similarity": 0.8899,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "p4-plan-20261123T050624-2",
+      "planId": "gen-plan-d2d47e94-a63e-4d32-8969-f5b5cb1ae79d",
+      "planGenerator": {
+        "description": "Gemini · gemini-3.5-flash-lite",
+        "usesAi": true,
+        "fallback": false,
+        "fallbackReason": null
+      },
+      "planItems": 8,
+      "requestId": "gen-req-6d397c36-c882-4f46-bda5-2ed7a4cbf24f",
+      "requestPlanId": "gen-plan-d2d47e94-a63e-4d32-8969-f5b5cb1ae79d",
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": 1,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": 2,
+          "delivered": 1,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": 3,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": 4,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": 5,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": 6,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": 7,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": 8,
+          "delivered": 1,
+          "usesAi": false,
+          "fallback": true
+        }
+      ],
+      "rejectionKinds": {
+        "plan": 7,
+        "structure": 2
+      },
+      "metrics": {
+        "resources": 14,
+        "pairs": 91,
+        "duplicatePairs": 9,
+        "duplicateRate": 0.0989,
+        "meanMaxSimilarity": 0.8929,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.8805,
+            "titles": [
+              "Transmision rapida sin conexion en redes IP",
+              "La transmisión rápida y la necesidad de fiabilidad"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 4,
+            "similarity": 0.8871,
+            "titles": [
+              "Guía de exploración: puerto de origen, puerto de destino, longitud y suma de verificación",
+              "Guia de exploracion: campos y medida exacta de la cabecera UDP"
+            ]
+          },
+          {
+            "first": 5,
+            "second": 6,
+            "similarity": 0.8655,
+            "titles": [
+              "Caso para indagar: eleccion entre ambos es una decision de diseño que equilibra fiabilidad y latencia",
+              "Caso de estudio: Elección de protocolos en el diseño de arquitecturas de red"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 11,
+            "similarity": 0.8904,
+            "titles": [
+              "Caso de estudio: Elección de protocolos en el diseño de arquitecturas de red",
+              "Ejercicio de aplicación: Usos típicos de TCP y UDP"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 12,
+            "similarity": 0.8926,
+            "titles": [
+              "Caso de estudio: Elección de protocolos en el diseño de arquitecturas de red",
+              "Ejercicio de aplicacion: Criterios de eleccion de protocolos para servicios web, archivos y correo"
+            ]
+          },
+          {
+            "first": 7,
+            "second": 8,
+            "similarity": 0.8848,
+            "titles": [
+              "Saludo de tres vias: explicación del material",
+              "Funcionamiento y control en el protocolo TCP"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 10,
+            "similarity": 0.8596,
+            "titles": [
+              "Funcionamiento y control en el protocolo TCP",
+              "Glosario de conceptos clave en protocolos de transporte"
+            ]
+          },
+          {
+            "first": 9,
+            "second": 10,
+            "similarity": 0.9615,
+            "titles": [
+              "Glosario de la unidad",
+              "Glosario de conceptos clave en protocolos de transporte"
+            ]
+          },
+          {
+            "first": 11,
+            "second": 12,
+            "similarity": 0.9254,
+            "titles": [
+              "Ejercicio de aplicación: Usos típicos de TCP y UDP",
+              "Ejercicio de aplicacion: Criterios de eleccion de protocolos para servicios web, archivos y correo"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "key": "p4-plan-20261123T050624-3",
+      "planId": "gen-plan-477460a0-3760-49c9-b62b-fce853eac09c",
+      "planGenerator": {
+        "description": "Gemini · gemini-3.5-flash-lite",
+        "usesAi": true,
+        "fallback": false,
+        "fallbackReason": null
+      },
+      "planItems": 8,
+      "requestId": "gen-req-85bbace1-6ca3-4844-a316-6cf2ee058d00",
+      "requestPlanId": "gen-plan-477460a0-3760-49c9-b62b-fce853eac09c",
+      "status": "succeeded",
+      "steps": [
+        {
+          "resourceType": "pregunta_detonante",
+          "planItemPosition": 1,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "sondeo_diagnostico",
+          "planItemPosition": 2,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "guia_exploracion",
+          "planItemPosition": 3,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "caso_indagacion",
+          "planItemPosition": 4,
+          "delivered": 2,
+          "usesAi": true,
+          "fallback": false
+        },
+        {
+          "resourceType": "explicacion",
+          "planItemPosition": 5,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "glosario",
+          "planItemPosition": 6,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "ejercicio_aplicacion",
+          "planItemPosition": 7,
+          "delivered": 1,
+          "usesAi": false,
+          "fallback": true
+        },
+        {
+          "resourceType": "item_opcion_multiple",
+          "planItemPosition": 8,
+          "delivered": 2,
+          "usesAi": false,
+          "fallback": true
+        }
+      ],
+      "rejectionKinds": {
+        "grounding": 2,
+        "plan": 5,
+        "structure": 2
+      },
+      "metrics": {
+        "resources": 15,
+        "pairs": 105,
+        "duplicatePairs": 15,
+        "duplicateRate": 0.1429,
+        "meanMaxSimilarity": 0.8942,
+        "duplicates": [
+          {
+            "first": 0,
+            "second": 1,
+            "similarity": 0.8914,
+            "titles": [
+              "La transmisión sin conexión en la capa de transporte",
+              "Una alternativa ligera para la transmision rapida"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 3,
+            "similarity": 0.8726,
+            "titles": [
+              "La transmisión sin conexión en la capa de transporte",
+              "Sondeo de ideas previas: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 9,
+            "similarity": 0.8525,
+            "titles": [
+              "La transmisión sin conexión en la capa de transporte",
+              "Operacion de la capa de transporte y uso de numeros de puerto"
+            ]
+          },
+          {
+            "first": 0,
+            "second": 10,
+            "similarity": 0.8589,
+            "titles": [
+              "La transmisión sin conexión en la capa de transporte",
+              "Glosario: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 3,
+            "similarity": 0.8519,
+            "titles": [
+              "Una alternativa ligera para la transmision rapida",
+              "Sondeo de ideas previas: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 1,
+            "second": 6,
+            "similarity": 0.8753,
+            "titles": [
+              "Una alternativa ligera para la transmision rapida",
+              "Caso de estudio: Transmision de audio y video en tiempo real"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 3,
+            "similarity": 0.8539,
+            "titles": [
+              "Sondeo diagnóstico: Confirmación de entrega y control en la capa de transporte",
+              "Sondeo de ideas previas: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 2,
+            "second": 5,
+            "similarity": 0.8588,
+            "titles": [
+              "Sondeo diagnóstico: Confirmación de entrega y control en la capa de transporte",
+              "Guia de exploracion: Indagacion sobre la cabecera UDP"
+            ]
+          },
+          {
+            "first": 3,
+            "second": 13,
+            "similarity": 0.8591,
+            "titles": [
+              "Sondeo de ideas previas: Protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 4,
+            "second": 5,
+            "similarity": 0.946,
+            "titles": [
+              "Guia de exploracion: Indagacion de los campos de 16 bits",
+              "Guia de exploracion: Indagacion sobre la cabecera UDP"
+            ]
+          },
+          {
+            "first": 6,
+            "second": 7,
+            "similarity": 0.9147,
+            "titles": [
+              "Caso de estudio: Transmision de audio y video en tiempo real",
+              "Caso de estudio: Requisitos de retardo y transmision multimedia"
+            ]
+          },
+          {
+            "first": 8,
+            "second": 9,
+            "similarity": 0.9003,
+            "titles": [
+              "Comunicacion logica entre procesos: explicación del material",
+              "Operacion de la capa de transporte y uso de numeros de puerto"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 11,
+            "similarity": 0.8716,
+            "titles": [
+              "Glosario: Protocolos de transporte",
+              "Glosario de Protocolos de Transporte"
+            ]
+          },
+          {
+            "first": 10,
+            "second": 14,
+            "similarity": 0.8555,
+            "titles": [
+              "Glosario: Protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          },
+          {
+            "first": 13,
+            "second": 14,
+            "similarity": 0.899,
+            "titles": [
+              "Concepto clave 1: Protocolos de transporte",
+              "Concepto clave 1: Protocolos de transporte"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "comparison": {
+    "reduction": 0.6279,
+    "meetsTarget": false,
+    "resourcesKept": false
+  }
+}

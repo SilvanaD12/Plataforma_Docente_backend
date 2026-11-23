@@ -1,0 +1,64 @@
+{
+  "calibration": "P4 · umbrales de duplicación (research R7)",
+  "similarity": "embeddings (coseno), gemini-embedding-001",
+  "createdAt": "2026-11-23T09:58:18.714532+00:00",
+  "resourcePairs": {
+    "unrelated": {
+      "count": 336,
+      "min": 0.7279,
+      "p5": 0.7646,
+      "p25": 0.8001,
+      "p50": 0.826,
+      "p75": 0.8506,
+      "p95": 0.8798,
+      "max": 0.9079
+    },
+    "repeated": {
+      "count": 190,
+      "min": 0.8393,
+      "p5": 0.8902,
+      "p25": 0.9416,
+      "p50": 0.9626,
+      "p75": 0.9724,
+      "p95": 0.9845,
+      "max": 0.9937
+    }
+  },
+  "sentencePairs": {
+    "unrelated": {
+      "count": 1500,
+      "min": 0.6283,
+      "p5": 0.6652,
+      "p25": 0.7088,
+      "p50": 0.7379,
+      "p75": 0.7724,
+      "p95": 0.8188,
+      "max": 0.957
+    },
+    "repeated": {
+      "count": 390,
+      "min": 0.8529,
+      "p5": 0.9104,
+      "p25": 0.933,
+      "p50": 0.9501,
+      "p75": 0.964,
+      "p95": 0.9759,
+      "max": 0.9875
+    }
+  },
+  "crossCorpusPairs": 0,
+  "suggested": {
+    "pairThreshold": 0.885,
+    "pairOverlap": false,
+    "sentenceThreshold": 0.865,
+    "sentenceOverlap": false
+  },
+  "notes": [
+    "Sin repetición: recursos de tipos distintos en ítems distintos del plan (y de otro corpus, si se pasó un informe de otro corpus). Repetidos: el mismo recurso con sus oraciones en otro orden y medio recurso copiado; en oraciones, la misma oración sin su primera palabra y con sus mitades cambiadas.",
+    "Si `overlap` es true, los dos grupos se mezclan: el umbral sugerido es el p95 de los pares sin repetición y la métrica de pares no distingue bien «mismo tema» de «contenido repetido»."
+  ],
+  "reports": [
+    "v2-gemini-baseline.json",
+    "v2-gemini-plan.json"
+  ]
+}

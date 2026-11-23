@@ -54,3 +54,5 @@ class GenerationErrorCode(StrEnum):
     PLAN_ALREADY_USED = "PLAN_ALREADY_USED"  # 409: el plan ya inició un pedido de generación
     PLAN_INVALID = "PLAN_INVALID"  # 422: se intentó aprobar un plan con problemas de validación
     PLAN_NOT_APPROVED = "PLAN_NOT_APPROVED"  # 422: se intentó usar un plan en borrador (GEN-P2)
+    PLAN_EVIDENCE_STALE = "PLAN_EVIDENCE_STALE"  # 409: un fragmento del plan ya no existe en la unidad (GEN-P2)
+    PLAN_REQUIRED = "PLAN_REQUIRED"  # 422: pedido sin plan con GENERATION_REQUIRE_PLAN=true (GEN-P2)

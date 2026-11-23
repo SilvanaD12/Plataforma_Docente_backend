@@ -9,6 +9,10 @@ sinónimos, y la búsqueda por significado (EN-013) podrá reforzarla.
 
 HU-049: en la explicación y el glosario también se contrasta el contenido, párrafo por párrafo o entrada por entrada
 (`verify_statements`), y cada párrafo queda enlazado con los fragmentos que lo respaldan.
+
+GEN-P2 (CUR-P2): los tipos de texto nuevos del catálogo se verifican según su modo. `strict` usa la misma regla de
+párrafos que la explicación; `framed` (`verify_framed`) acepta oraciones de ambientación sin cita, pero cada oración
+sobre un concepto debe apoyarse en el material, y hacen falta al menos 2.
 """
 
 from __future__ import annotations
@@ -16,6 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from platform5e.domain.generation.plan_coverage import mentions
+from platform5e.domain.materials.chunking import extract_sentences
 from platform5e.domain.materials.text_analysis import extract_terms
 
 DEFAULT_THRESHOLD: float = 0.6
@@ -292,9 +298,13 @@ def verify_statements(
     resource_type: str,
     fragments_by_id: dict[str, str],
     threshold: float = DEFAULT_THRESHOLD,
+    mode: str | None = None,
 ) -> StatementsResult | None:
-    """Contrasta cada párrafo del contenido con la evidencia. None si el tipo de recurso no se verifica así."""
-    mode = STATEMENT_CHECKED_TYPES.get(resource_type)
+    """Contrasta cada párrafo del contenido con la evidencia. None si el tipo de recurso no se verifica así.
+
+    `mode` («paragraph» o «line») lo indica quien llama para un tipo del catálogo con verificación `strict`; sin él,
+    se usa el de los tipos conocidos (`STATEMENT_CHECKED_TYPES`)."""
+    mode = mode or STATEMENT_CHECKED_TYPES.get(resource_type)
     if mode is None:
         return None
     paragraph_threshold = max(threshold - PARAGRAPH_MARGIN, 0.0)
@@ -304,6 +314,79 @@ def verify_statements(
         threshold=paragraph_threshold,
         separator="\n" if mode == "line" or "\n\n" not in body else "\n\n",
     )
+
+
+# --- GEN-P2 (CUR-P2): verificación `framed` de los tipos de texto del catálogo --------------------------------------
+
+# Afirmaciones sobre los conceptos con respaldo que necesita un recurso `framed`.
+MIN_FRAMED_STATEMENTS: int = 2
+
+
+@dataclass
+class FramedResult:
+    """Verificación `framed`: las oraciones sobre un concepto deben apoyarse en el material; las demás son
+    ambientación y no se contrastan."""
+
+    statements: list[StatementCheck] = field(default_factory=list)
+    framing: int = 0
+    threshold: float = DEFAULT_THRESHOLD - PARAGRAPH_MARGIN
+
+    @property
+    def supported(self) -> list[StatementCheck]:
+        return [check for check in self.statements if check.supported]
+
+    @property
+    def unsupported(self) -> list[StatementCheck]:
+        return [check for check in self.statements if not check.supported]
+
+    @property
+    def accepted(self) -> bool:
+        return not self.unsupported and len(self.supported) >= MIN_FRAMED_STATEMENTS
+
+    def rejection_reason(self, title: str) -> str:
+        if self.unsupported:
+            return (
+                f"«{title}»: una afirmación sobre los conceptos no se apoya en el material "
+                f"(«{_short(self.unsupported[0].text)}»)."
+            )
+        count = len(self.supported)
+        noun = "afirmación" if count == 1 else "afirmaciones"
+        return (
+            f"«{title}»: solo {count} {noun} sobre los conceptos se apoya en el material; este tipo necesita al "
+            f"menos {MIN_FRAMED_STATEMENTS}."
+        )
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "framedThreshold": round(self.threshold, 2),
+            "conceptStatements": len(self.statements),
+            "supportedConceptStatements": len(self.supported),
+            "framingSentences": self.framing,
+            "statementSources": [check.fragment_ids for check in self.supported],
+            "unsupportedStatements": [check.as_dict() for check in self.unsupported],
+        }
+
+
+def verify_framed(
+    body: str,
+    concepts: list[str] | tuple[str, ...],
+    fragments_by_id: dict[str, str],
+    threshold: float = DEFAULT_THRESHOLD,
+) -> FramedResult:
+    """Contrasta con la evidencia cada oración del contenido que menciona un concepto del recurso; las demás oraciones
+    y las preguntas al estudiante son ambientación. Una oración sobre un concepto con muy pocas palabras útiles no se puede contrastar y no cuenta."""
+    statement_threshold = max(threshold - PARAGRAPH_MARGIN, 0.0)
+    result = FramedResult(threshold=statement_threshold)
+    for sentence in extract_sentences(body or ""):
+        # Las preguntas son la consigna para el estudiante, no afirmaciones: se cuentan como ambientación.
+        is_question = sentence.rstrip().endswith("?") or sentence.lstrip().startswith("¿")
+        if is_question or not any(mentions(sentence, concept) for concept in concepts):
+            result.framing += 1
+            continue
+        check = check_statement(sentence, fragments_by_id, statement_threshold)
+        if check.checked:
+            result.statements.append(check)
+    return result
 
 
 # --- HU-048, HU-047 y HU-050: cada elemento de una actividad cita su fragmento -------------------------------------

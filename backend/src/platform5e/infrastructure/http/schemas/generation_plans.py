@@ -28,7 +28,7 @@ PlanWarning = Literal["SAME_TYPOLOGY_AS_LAST_SESSION"]
 PlanProblemCode = Literal[
     "PLAN_EMPTY", "ITEM_WITHOUT_EVIDENCE", "FRAGMENT_NOT_IN_EVIDENCE", "CONCEPT_OWNED_TWICE", "NOT_ENOUGH_CONCEPTS",
     "TYPE_NOT_IN_CATALOG", "RESOURCE_TYPE_NOT_IN_MODALITY", "QUANTITY_OUT_OF_RANGE", "TOO_MANY_TYPES",
-    "PURPOSE_REQUIRED",
+    "PURPOSE_REQUIRED", "CONCEPT_NOT_SHORT",
 ]
 RESOURCE_TYPE_ID_PATTERN = r"^[a-z][a-z0-9_]{2,59}$"
 RESOURCE_TYPE_ID_DESCRIPTION = (
@@ -175,7 +175,10 @@ class PlanItem(ApiResponse):
     resource_type: str
     quantity: int = Field(ge=MIN_ITEM_QUANTITY, le=MAX_ITEM_QUANTITY)
     purpose: str
-    covers: list[str] = Field(description="Concepts this item develops. Split in `quantity` consecutive blocks.")
+    covers: list[str] = Field(
+        description="Concepts this item develops: short noun phrases of 2 to 4 content words from the material, or "
+        "acronyms (`CONCEPT_NOT_SHORT` otherwise). Split in `quantity` consecutive blocks."
+    )
     does_not_cover: list[str] = Field(description="Read-only. The `covers` of the other items, in order.")
     fragment_ids: list[str] = Field(description="Ids of `evidence.fragments` that support the item.")
 
@@ -196,6 +199,11 @@ class PlanGenerator(ApiResponse):
     uses_ai: bool
     fallback: bool = Field(description="True when the rule-based planner drafted the plan after the AI failed.")
     fallback_reason: str | None = Field(description="Generic public reason; null without fallback.")
+    attempts: int = Field(
+        default=0, ge=0, le=2,
+        description="AI calls made to draft the plan: 0 without AI, 1, or 2 when the first plan was invalid and was "
+        "asked again with its problems.",
+    )
 
 
 class GenerationPlan(ApiResponse):

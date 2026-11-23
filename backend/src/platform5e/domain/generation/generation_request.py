@@ -113,13 +113,31 @@ class GenerationParameters:
 
 @dataclass(frozen=True)
 class RegenerationTarget:
-    """Recurso de Revisión que se regenera y la versión que Revisión registró al pedirlo (GEN-R6)."""
+    """Recurso de Revisión que se regenera y la versión que Revisión registró al pedirlo (GEN-R6).
+
+    GEN-P2: si el recurso nació de un plan, `plan_block` es el bloque de conceptos de su ítem (0, 1…) que se redacta
+    otra vez; None en los recursos sin plan."""
 
     resource_id: str
     resource_version: int
+    plan_block: int | None = None
 
     def to_payload(self) -> dict[str, Any]:
-        return {"resourceId": self.resource_id, "resourceVersion": self.resource_version}
+        payload: dict[str, Any] = {"resourceId": self.resource_id, "resourceVersion": self.resource_version}
+        if self.plan_block is not None:
+            payload["planBlock"] = self.plan_block
+        return payload
+
+
+@dataclass(frozen=True)
+class PlanReference:
+    """GEN-P2: el plan aprobado del que parte un pedido, en la versión que se usó."""
+
+    plan_id: str
+    plan_version: int
+
+    def to_payload(self) -> dict[str, Any]:
+        return {"planId": self.plan_id, "planVersion": self.plan_version}
 
 
 @dataclass(frozen=True)
@@ -139,6 +157,10 @@ class GenerationStep:
     error: Problem | None = None
     started_at: str | None = None
     finished_at: str | None = None
+    # GEN-P2: el ítem del plan que redacta este paso (su `position` en el plan); None en los pedidos sin plan.
+    plan_item_position: int | None = None
+    # GEN-P2 (tras P4): recursos de la IA entregados aunque no respetaron del todo su plan ({title, reason, resourceId}).
+    plan_warnings: tuple[dict[str, Any], ...] = ()
 
     @classmethod
     def from_plan(cls, planned: PlannedStep) -> GenerationStep:
@@ -177,6 +199,8 @@ class GenerationRequest:
     finished_at: str | None = None
     heartbeat_at: str | None = None
     worker_boot_id: str | None = None
+    # GEN-P2: el plan del que parte el pedido y su versión; None en los pedidos anteriores al plan.
+    plan: PlanReference | None = None
 
     @property
     def is_final(self) -> bool:
@@ -219,11 +243,13 @@ def payload_hash(
     unit_id: str,
     parameters: GenerationParameters,
     regeneration: RegenerationTarget | None = None,
+    plan: PlanReference | None = None,
 ) -> str:
     """SHA-256 del JSON canónico del pedido normalizado: claves ordenadas y sin espacios (GEN-R5).
 
-    Incluye el modo, la unidad, los parámetros y, en una regeneración, el recurso y su versión. Dos envíos que solo
-    difieren en campos omitidos con su valor por defecto, o en tipos repetidos, dan el mismo hash.
+    Incluye el modo, la unidad, los parámetros, en una regeneración el recurso y su versión, y con GEN-P2 el plan y
+    su versión. Dos envíos que solo difieren en campos omitidos con su valor por defecto, o en tipos repetidos, dan el
+    mismo hash.
     """
     payload: dict[str, Any] = {
         "mode": GenerationMode(mode).value,
@@ -232,6 +258,8 @@ def payload_hash(
     }
     if regeneration is not None:
         payload["regeneration"] = regeneration.to_payload()
+    if plan is not None:
+        payload["plan"] = plan.to_payload()
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 

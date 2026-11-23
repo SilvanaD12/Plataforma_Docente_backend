@@ -52,7 +52,7 @@ def test_create_returns_a_draft_plan_and_the_same_key_returns_it_again(server: s
     plan = created.json()
     assert (plan["status"], plan["version"], plan["origin"], plan["unitId"]) == ("draft", 1, "teacher", unit["id"])
     assert plan["generator"] == {"description": "Planificador por reglas (sin IA)", "usesAi": False,
-                                 "fallback": False, "fallbackReason": None}
+                                 "fallback": False, "fallbackReason": None, "attempts": 0}
     assert [i["resourceType"] for i in plan["items"]] == ["pregunta_detonante", "explicacion", "item_opcion_multiple"]
     evidence_ids = {f["id"] for f in plan["evidence"]["fragments"]}
     for item in plan["items"]:

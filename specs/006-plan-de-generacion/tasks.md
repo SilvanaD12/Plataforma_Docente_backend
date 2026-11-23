@@ -22,7 +22,7 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 - [x] T001 [BE] [GEN-P1] `domain/generation/generation_plan.py`: `GenerationPlan`, `PlanInputs`, `PlanItem`, `PlanEvidence`, `Referent`, `PlanStatus` y las transiciones de [data-model](data-model.md#transiciones-de-estado).
   - Pruebas en `tests/unit/test_generation_plan.py`, una por cada transición permitida (`draft→approved→used`, y `approved` que vuelve a `draft` al editar). Cada transición no permitida falla con su código (`PLAN_ALREADY_USED`, `PLAN_VERSION_CONFLICT`).
   - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_generation_plan.py`.
-- [x] T002 [BE] [GEN-P1] **Depende de T001.** Validación (`validate_plan`) con los 10 códigos de [data-model](data-model.md#reglas-de-validación) y cálculo de `doesNotCover`.
+- [x] T002 [BE] [GEN-P1] **Depende de T001.** Validación (`validate_plan`) con los códigos de [data-model](data-model.md#reglas-de-validación) y cálculo de `doesNotCover`.
   - Normalización de conceptos con la de QA-05 (`topic_coverage.normalize`).
   - Pruebas en `tests/unit/test_generation_plan_validation.py`, una por código; además: un concepto con otra forma («Control de flujo» frente a «control  de flújo») cuenta como el mismo, y `doesNotCover` cambia al editar los `covers` de otro ítem.
   - Hecho en el PR del backend (enlace pendiente). La validación está en `domain/generation/plan_validation.py`; la normalización es `topic_coverage.concept_key` (la de QA-05 sin palabras vacías). Las pruebas quedaron en `tests/unit/test_generation_plan.py`, junto con las de T001.
@@ -76,31 +76,68 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 
 ## 5. Generación desde el plan (GEN-P2)
 
-- [ ] T011 [BE] [GEN-P2] **Depende de T010.** `StartGenerationRequest` acepta `{planId, planVersion}` ([research R2](research.md#r2-el-plan-es-obligatorio-compatibilidad-del-pedido-sin-plan)).
+- [x] T011 [BE] [GEN-P2] **Depende de T010.** `StartGenerationRequest` acepta `{planId, planVersion}` ([research R2](research.md#r2-el-plan-es-obligatorio-compatibilidad-del-pedido-sin-plan)).
   - Exige un plan aprobado y en esa versión, y lo marca `used`.
   - El modo sale del plan, y el pedido guarda `plan_id` y `plan_version`.
   - Con el cuerpo anterior, crea un plan implícito; con `GENERATION_REQUIRE_PLAN=true`, responde `422 PLAN_REQUIRED`.
   - Al usar el plan, llama a `record_typology`.
   - Antes de crear el pedido, comprueba la [evidencia vigente](data-model.md#evidencia-vigente): si falta algún fragmento del plan, `409 PLAN_EVIDENCE_STALE` con `StaleDocument` por documento, sin crear el pedido ni cambiar el plan.
   - Pruebas: V6, V7 (a, b) y V12 de [quickstart](quickstart.md); `PLAN_ALREADY_USED` y `PLAN_NOT_APPROVED`; idempotencia con plan; un documento borrado y otro procesado de nuevo después de aprobar dan `PLAN_EVIDENCE_STALE` con los dos documentos y sus fragmentos.
-- [ ] T012 [BE] [GEN-P2] **Depende de T003 y T011.** `RunGenerationRequest` desde el plan ([research R5](research.md#r5-generación-desde-el-plan-gen-p2)).
+  - Hecho en el PR del backend (enlace pendiente).
+    - `StartGenerationRequest.execute_planned` y el plan implícito (`CreateGenerationPlan.create_implicit`, `origin: implicit`); el plan pasa a usado en la misma transacción que el alta del pedido (`PlanClaim` en `create_within_limit`), así que un límite de pedidos activos o una carrera con otro envío lo dejan aprobado.
+    - Migración `20261123000001_generation_request_plan.sql` (`plan_id`, `plan_version`, `plan_item_position`); en SQLite las agrega el repositorio. `GENERATION_REQUIRE_PLAN` está en `settings.py`, con `false` por defecto.
+    - Pruebas en `tests/unit/test_planned_generation.py` (con dos documentos vencidos), `tests/unit/test_planned_request_domain.py` y `tests/e2e/test_planned_generation_api.py` (V6, V7 a y b, V12 con un documento procesado de nuevo).
+    - **Cambio visible:** con el cuerpo anterior, unas indicaciones que el material no trata ahora responden `422 INSUFFICIENT_EVIDENCE` al iniciar (el plan implícito comprueba el tema), en vez de un pedido que termina `failed`. `collect_samples.py` cuenta ese rechazo como «sin evidencia» (`pass`).
+- [x] T012 [BE] [GEN-P2] **Depende de T003 y T011.** `RunGenerationRequest` desde el plan ([research R5](research.md#r5-generación-desde-el-plan-gen-p2)).
   - Un paso por ítem, la evidencia del plan, y cada recurso redactado por separado con su bloque de conceptos, el propósito, los conceptos ajenos y el resumen de lo ya cubierto.
   - Se quita «devuelve menos recursos» para los ítems del plan.
   - Pruebas en `tests/unit/test_planned_generation.py`:
     - el prompt de cada recurso trae su bloque y el resumen de los anteriores;
     - un recurso solo cita fragmentos del plan;
     - con reglas, cada recurso usa las oraciones de sus conceptos.
-- [ ] T013 [BE] [GEN-P2] **Depende de T012.** Comprobación de cobertura y rechazo `kind: plan`, con un reintento con la indicación del problema; el filtro de repetición actual sigue activo y su reintento nombra los conceptos ajenos. `RejectionKind` suma `plan` en el contrato y en OpenAPI.
+  - Hecho en el PR del backend (enlace pendiente). `application/services/generation/planned_drafting.py`, el camino del plan en `RunGenerationRequest` y el foco del plan en `rule_based_generator.py`. Sin una búsqueda nueva ni la comprobación del tema (QA-05), que ya hizo el plan. Cada recurso guarda `planId`, `planItemPosition` y `planBlock` en `params`. Pruebas en `tests/unit/test_planned_generation.py`.
+- [x] T013 [BE] [GEN-P2] **Depende de T012.** Comprobación de cobertura y rechazo `kind: plan`, con un reintento con la indicación del problema; el filtro de repetición actual sigue activo y su reintento nombra los conceptos ajenos. `RejectionKind` suma `plan` en el contrato y en OpenAPI.
   - Pruebas: con un Gemini falso que desarrolla un concepto ajeno, se rechaza con `kind: plan` y motivo; un recurso que no menciona ninguno de sus conceptos se rechaza igual; un recurso correcto pasa sin reintento.
   - Recursos de un solo párrafo ([research R5](research.md#r5-generación-desde-el-plan-gen-p2)): la regla «en más de un párrafo» no se cumple nunca, así que rige la estricta. Pruebas: una `pregunta_detonante` con un concepto ajeno completo en la pregunta se rechaza con `kind: plan`; un `item_opcion_multiple` con un concepto ajeno completo en una opción se rechaza igual; el mismo concepto solo en la retroalimentación, o una palabra suelta de un concepto de varias palabras, no cuenta; un recurso de varios párrafos sigue con la regla de «más de un párrafo».
   - Falsos rechazos, con el corpus de T067 (`backend/evaluation/corpus_t067`): un conjunto fijo de recursos cortos (`pregunta_detonante`, `item_opcion_multiple`, `audio_detonante`) armados con sus fragmentos y marcados a mano como correctos o no, guardado en `tests/fixtures/`. La prueba falla si la regla estricta rechaza más del 5 % de los correctos o deja pasar alguno marcado como incorrecto. Si falla por falsos rechazos, se afloja la regla y se registra en research R5. Sin llamadas a Gemini.
-- [ ] T014 [BE] [GEN-P2] **Depende de T012.** Regeneración desde Revisión con el ítem del plan (`params.planId`, `params.planItemPosition`): lee el plan sin escribirlo, así que un plan `used` no responde `PLAN_ALREADY_USED`; comprueba la evidencia vigente de los fragmentos del ítem. Un recurso sin plan se regenera como hoy.
+  - Hecho en el PR del backend (enlace pendiente). La comprobación es `domain/generation/plan_coverage.py`; `RejectionKind` suma `plan` en el contrato de GEN-01, en el de esta ficha y en OpenAPI. Pruebas en `tests/unit/test_plan_coverage.py`, `tests/unit/test_planned_generation.py` y `tests/unit/test_plan_coverage_corpus.py`, con `tests/fixtures/plan_coverage_short_resources.json`: 16 recursos (10 correctos, 6 incorrectos), 0 falsos rechazos. **Pendiente:** Sergio revisa las marcas con el corpus; las puso Yan.
+- [x] T014 [BE] [GEN-P2] **Depende de T012.** Regeneración desde Revisión con el ítem del plan (`params.planId`, `params.planItemPosition`): lee el plan sin escribirlo, así que un plan `used` no responde `PLAN_ALREADY_USED`; comprueba la evidencia vigente de los fragmentos del ítem. Un recurso sin plan se regenera como hoy.
   - La comprobación se hace al iniciar la regeneración, antes de crear el pedido, como en T011: así Revisión recibe el rechazo en la respuesta de `POST …/regenerations` y no en el estado del pedido.
   - El 409 `PLAN_EVIDENCE_STALE` de Revisión usa el formato común `{"error": {"code", "message", "details"}}`, con el mismo `details` que en la generación: una lista de [`StaleDocument`](contracts/generation-plans.openapi.yaml) (`documentId`, `documentName`, `missingFragmentIds`), uno por documento afectado. Revisión pasa el `details` de Generación sin cambiarlo.
   - El contrato de Revisión (`specs/001-revision-citas`, de Juan) debe sumar `PLAN_EVIDENCE_STALE` a la respuesta 409 de `POST …/regenerations`, con este `details`. No se edita desde esta ficha: se le pide a Juan con REV-01.
   - Pruebas: V7 (c) y V12 de [quickstart](quickstart.md); regenerar con el plan `used` no cambia su `status`, `version` ni `usedByRequestId`; con un fragmento del ítem borrado, la regeneración falla con `PLAN_EVIDENCE_STALE`, Revisión responde 409 con ese código y un `details` igual al de la generación (los mismos campos y documentos, comparados con el esquema `StaleDocument`), y el recurso se conserva; un recurso anterior sin plan.
-- [ ] T015 [BE] [GEN-P2] **Depende de T004 y CUR-P2.** Tipos de texto nuevos del catálogo ([research R6](research.md#r6-catálogo-configurable-cur-p2)): prompt genérico con la `description`, redactor genérico por reglas y verificación de citas y párrafos como `explicacion`.
+  - Hecho en el PR del backend (enlace pendiente), del lado de Generación. `StartRegeneration` lee `planId`, `planItemPosition` y `planBlock`; el pedido rehace ese bloque con la evidencia del plan y el resumen de los demás recursos del plan. Pruebas en `tests/unit/test_planned_generation.py` y V7 (c) en `tests/e2e/test_planned_generation_api.py`.
+  - **Pendiente en Revisión (REV-01, Juan):** el adaptador entrega a Revisión `failed` con el código `PLAN_EVIDENCE_STALE`, pero hoy Revisión lo responde con 422 y sin `details`. `domain/review/errors.py` no lo tiene entre los códigos de 409, y `RegenerationStatus` no lleva `details`. No se editó desde esta ficha.
+- [x] T015 [BE] [GEN-P2] **Depende de T004 y CUR-P2.** Tipos de texto nuevos del catálogo ([research R6](research.md#r6-catálogo-configurable-cur-p2)): prompt genérico con la `description`, redactor genérico por reglas y verificación de citas y párrafos como `explicacion`.
   - Pruebas: un tipo nuevo de prueba en el catálogo se planifica, se genera con reglas y con Gemini falso, y Revisión lo muestra con su etiqueta.
+  - Hecho en el PR del backend (enlace pendiente). `CatalogEntry` suma `length_hint` y `verification` (`strict` o `framed`, [research R6](research.md#verificación-strict-y-framed)); `domain/generation/text_types.py`, `grounding.verify_framed` y el redactor genérico `_catalog_text`. El `lengthHint` llega al prompt también para los tipos actuales que lo tengan. Pruebas en `tests/unit/test_text_type_verification.py` y `tests/unit/test_planned_generation.py`, con entradas falsas de los dos modos.
+  - **Pendiente:** los 28 tipos nuevos siguen inactivos hasta que CUR-P2 cablee el catálogo. Mientras tanto, la etiqueta en Revisión y el esquema HTTP de `resourceType` (lista cerrada) no los aceptan todavía.
+
+- [ ] T027 [BE] [GEN-P2] **Depende de T026.** Problemas que encontró la v4 de P4 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
+  - **(a) Opción múltiple:** `item_opcion_multiple` (ítem 8 del plan) fue al respaldo por reglas en las 5 corridas con plan, sobre todo por «sin citas válidas».
+  - **(b) Plan de Gemini:** falló la validación dos veces (con su reintento) en 4 de 5 corridas de la v4: `NOT_ENOUGH_CONCEPTS` ×3 y `CONCEPT_OWNED_TWICE` ×1.
+  - **(c) Fidelidad:** la `faithfulness` de los recursos redactados desde el plan no se midió todavía (meta ≥ 0,90, con `run_ragas.py`).
+  - **(d) Tiempos:** los demás respaldos fueron por el límite de 60 s de Gemini.
+  - **Pendiente:** analizar cada uno, decidir el arreglo y medir de nuevo.
+- [x] T026 [BE] [GEN-P2] **Depende de T025.** Correcciones de la medición tras la v3 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
+  - las oraciones sin títulos ni encabezados, y las tres cifras (todos, `crossType` como principal y `variants`), también en la tasa de pares;
+  - la tabla por concepto (mencionado, desarrollado, definido);
+  - `--recompute` para recalcular un informe sin generar, con `--compare`, y las métricas solo con los recursos de la IA (`aiOnly`);
+  - por corrida, los pasos del respaldo con su motivo y los recursos no entregados con sus rechazos;
+  - en la calibración, un error claro si la API no devuelve el pedido, y embeddings por lotes con avance;
+  - en la documentación, la cuenta debe ser la misma que creó los informes.
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_measure_duplication.py` y `tests/unit/test_plan_coverage.py`. La v3 se recalculó con embeddings (`v3r-gemini-*.json`) y se repitió la medición con plan (`v4-gemini-plan.json`); resultado en [research R7](research.md#r7-medición-de-la-duplicación-p4).
+- [x] T025 [BE] [GEN-P2] **Depende de T024.** Segunda corrida de P4: la baja de la tasa de pares fue −1,4 % con la IA en los dos modos.
+  - **Planificador con Gemini:** un plan no válido se pide una vez más con sus problemas, y `generator.attempts` lo registra ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)).
+  - **Medición:** oraciones casi repetidas y conceptos explicados otra vez como evidencia principal, `--calibrate` para los umbrales, 5 corridas por defecto, y el origen del plan por corrida ([research R7](research.md#r7-medición-de-la-duplicación-p4)).
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_plan_drafting.py`, `test_measure_duplication.py`, `test_plan_coverage.py` y `test_plan_concepts.py`. Calibrado con los informes de la v2 (`calibration-v2.json`: τ = 0,885 y 0,865 en oraciones) y medido con 5 corridas (v3 y v4).
+    - El reintento no alcanzó: en 4 de 5 corridas de la v4, el plan de Gemini volvió a fallar la validación y se armó con reglas (T027).
+- [x] T024 [BE] [GEN-P2] **Depende de T013.** Corrección tras la medición de P4 con Gemini. En la medición, 14 de 24 pasos con plan fueron al respaldo por reglas, por rechazos `plan` de dos clases: paráfrasis de conceptos largos y simples menciones de términos de fondo.
+  - **Conceptos cortos** ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)): frases de 2 a 4 palabras del material o siglas, en los dos planificadores y en la validación (`CONCEPT_NOT_SHORT`).
+  - **Comprobación** ([research R5](research.md#r5-generación-desde-el-plan-gen-p2)): el concepto propio cuenta con el 60 % de sus palabras en un párrafo; el ajeno, solo si se desarrolla (dos oraciones o una definición); los conceptos de fondo no son ajenos.
+  - **Política:** el recurso de la IA que solo falla el plan se entrega con `planWarning`, y el rechazo `plan` queda para el camino por reglas.
+  - **Medición:** `measure_duplication.py` cuenta los pasos de la IA, los del respaldo y los avisos de cada corrida.
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_plan_concepts.py`, `test_plan_coverage.py`, `test_plan_coverage_p4.py` (con `tests/fixtures/plan_coverage_p4_cases.json`, del corpus de T067), `test_plan_coverage_corpus.py`, `test_planned_generation.py` y `test_measure_duplication.py`. **Pendiente:** repetir la medición de P4 con Gemini.
 
 ## 6. Frontend (GEN-P3)
 
@@ -121,9 +158,15 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 ## 7. Medición y cierre
 
 - [ ] T019 [E2E] [GEN-P2] **Depende de T012, T013 y REV-P3.** Script `backend/evaluation/measure_duplication.py` (`--mode baseline|plan`, `--runs`, `--quantity`, `--out`; comandos en [plan](plan.md#medición-de-p4)) y medición de P4 ([research R7](research.md#r7-medición-de-la-duplicación-p4)), V10 de [quickstart](quickstart.md). Pruebas del script con backend falso: la tasa de duplicación con pares conocidos y que no escribe tokens ni contraseñas.
-  - Línea base sin plan frente a plan aprobado, con reglas y con Gemini, 3 corridas cada uno.
+  - Línea base sin plan frente a plan aprobado, con reglas y con Gemini, 5 corridas cada uno, en el mismo servidor y la misma base: `--mode plan` con `GENERATION_IMPLICIT_PLAN=true` y `--mode baseline` con `false` (interruptor solo de medición, nunca en Render).
   - Resultados en `docs/evidence/GEN-P4/`.
   - Meta: duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90.
+  - El script ya está (PR del backend, enlace pendiente): `backend/evaluation/measure_duplication.py`, con pruebas en `tests/unit/test_measure_duplication.py` (backend y embeddings falsos). `--similarity auto` usa embeddings si hay modelo y si no la similitud léxica, registrada como provisional; `--compare` agrega la comparación con la meta.
+  - **Medición con Gemini hecha** ([resultado en research R7](research.md#r7-medición-de-la-duplicación-p4)): `v3r-gemini-baseline.json`, `v3r-gemini-plan.json` y `v4-gemini-plan.json`.
+    - Oraciones casi repetidas entre tipos distintos (principal): 32,4 % → 21,2 % y 21,1 % (−35 % en las dos corridas con plan).
+    - Pares entre tipos distintos: 6,0 % → 2,7 % y 4,1 %.
+    - Meta de P4 cumplida en parte: ≤ 5 % en las dos; −50 % solo en la v3.
+  - **Pendiente:** la medición con reglas, la `faithfulness` (T027) y REV-P3.
 - [ ] T020 [E2E] [GEN-P1] **Depende de T010.** Tiempos de creación del plan, V9 de [quickstart](quickstart.md): p95 < 1 s con reglas y < 30 s con Gemini. Si no se cumple con Gemini, revisar la decisión síncrona de [research R1](research.md#r1-el-plan-como-recurso-propio-creado-de-forma-síncrona).
 - [ ] T021 [BE] [GEN-P2] **Depende de T011 y T018.** Fin de la transición: `GENERATION_REQUIRE_PLAN=true` por defecto, y `collect_samples.py` y `measure_generation_load.py` crean el plan antes de generar. Pruebas de los dos scripts con backend falso.
 - [ ] T022 Preguntas abiertas para el profesor: P8 (referentes en la recuperación) y P10 (editor WYSIWYG). Registrar sus respuestas en [spec](spec.md#preguntas-abiertas-para-el-profesor) y ajustar R10 y GEN-P3 si cambian el alcance.
