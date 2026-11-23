@@ -194,7 +194,12 @@ Después se vuelve a correr la medición con `--threshold` y `--sentence-thresho
 2. **La evidencia de «no repetición»:** `crossTypeSentenceRate` (la principal) y `meanReexplainedEvidenceConcepts` con su tabla por concepto, y sus bajas en `comparison`; lo mismo en `aiOnly`, sin los recursos del respaldo.
 3. **La tasa de pares:** `crossTypeDuplicateRate` y la de todos, con su umbral calibrado; `variants` aparte.
 
-Meta (la de P4 se conserva para la tasa de pares): duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90. La evidencia principal de que no se repite contenido son las oraciones casi repetidas y los conceptos explicados otra vez, que deben bajar con plan.
+Meta (la de P4 se conserva para la tasa de pares entre tipos distintos): duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90. La evidencia principal de que no se repite contenido son las oraciones casi repetidas entre recursos de tipos distintos, que deben bajar con plan.
+
+**Resultado con Gemini** (v3 recalculada y v4; detalle en [research R7](research.md#r7-medición-de-la-duplicación-p4)):
+- **Oraciones casi repetidas entre tipos distintos:** −35 % en las dos corridas con plan.
+- **Meta de P4, cumplida en parte:** pares entre tipos distintos ≤ 5 % en las dos; −50 % solo en la v3.
+- **Pendiente:** la `faithfulness` y los problemas de T027.
 
 ## Seguimiento de complejidad
 

@@ -113,6 +113,12 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - Hecho en el PR del backend (enlace pendiente). `CatalogEntry` suma `length_hint` y `verification` (`strict` o `framed`, [research R6](research.md#verificación-strict-y-framed)); `domain/generation/text_types.py`, `grounding.verify_framed` y el redactor genérico `_catalog_text`. El `lengthHint` llega al prompt también para los tipos actuales que lo tengan. Pruebas en `tests/unit/test_text_type_verification.py` y `tests/unit/test_planned_generation.py`, con entradas falsas de los dos modos.
   - **Pendiente:** los 28 tipos nuevos siguen inactivos hasta que CUR-P2 cablee el catálogo. Mientras tanto, la etiqueta en Revisión y el esquema HTTP de `resourceType` (lista cerrada) no los aceptan todavía.
 
+- [ ] T027 [BE] [GEN-P2] **Depende de T026.** Problemas que encontró la v4 de P4 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
+  - **(a) Opción múltiple:** `item_opcion_multiple` (ítem 8 del plan) fue al respaldo por reglas en las 5 corridas con plan, sobre todo por «sin citas válidas».
+  - **(b) Plan de Gemini:** falló la validación dos veces (con su reintento) en 4 de 5 corridas de la v4: `NOT_ENOUGH_CONCEPTS` ×3 y `CONCEPT_OWNED_TWICE` ×1.
+  - **(c) Fidelidad:** la `faithfulness` de los recursos redactados desde el plan no se midió todavía (meta ≥ 0,90, con `run_ragas.py`).
+  - **(d) Tiempos:** los demás respaldos fueron por el límite de 60 s de Gemini.
+  - **Pendiente:** analizar cada uno, decidir el arreglo y medir de nuevo.
 - [x] T026 [BE] [GEN-P2] **Depende de T025.** Correcciones de la medición tras la v3 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
   - las oraciones sin títulos ni encabezados, y las tres cifras (todos, `crossType` como principal y `variants`), también en la tasa de pares;
   - la tabla por concepto (mencionado, desarrollado, definido);
@@ -120,11 +126,12 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - por corrida, los pasos del respaldo con su motivo y los recursos no entregados con sus rechazos;
   - en la calibración, un error claro si la API no devuelve el pedido, y embeddings por lotes con avance;
   - en la documentación, la cuenta debe ser la misma que creó los informes.
-  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_measure_duplication.py` y `tests/unit/test_plan_coverage.py`. **Pendiente:** recalcular la v3 con embeddings y la misma cuenta (`--recompute`) y repetir la medición (v4).
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_measure_duplication.py` y `tests/unit/test_plan_coverage.py`. La v3 se recalculó con embeddings (`v3r-gemini-*.json`) y se repitió la medición con plan (`v4-gemini-plan.json`); resultado en [research R7](research.md#r7-medición-de-la-duplicación-p4).
 - [x] T025 [BE] [GEN-P2] **Depende de T024.** Segunda corrida de P4: la baja de la tasa de pares fue −1,4 % con la IA en los dos modos.
   - **Planificador con Gemini:** un plan no válido se pide una vez más con sus problemas, y `generator.attempts` lo registra ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)).
   - **Medición:** oraciones casi repetidas y conceptos explicados otra vez como evidencia principal, `--calibrate` para los umbrales, 5 corridas por defecto, y el origen del plan por corrida ([research R7](research.md#r7-medición-de-la-duplicación-p4)).
-  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_plan_drafting.py`, `test_measure_duplication.py`, `test_plan_coverage.py` y `test_plan_concepts.py`. **Pendiente:** calibrar con los informes de la v2 y repetir la medición con 5 corridas.
+  - Hecho en el PR del backend (enlace pendiente). Pruebas en `tests/unit/test_plan_drafting.py`, `test_measure_duplication.py`, `test_plan_coverage.py` y `test_plan_concepts.py`. Calibrado con los informes de la v2 (`calibration-v2.json`: τ = 0,885 y 0,865 en oraciones) y medido con 5 corridas (v3 y v4).
+    - El reintento no alcanzó: en 4 de 5 corridas de la v4, el plan de Gemini volvió a fallar la validación y se armó con reglas (T027).
 - [x] T024 [BE] [GEN-P2] **Depende de T013.** Corrección tras la medición de P4 con Gemini. En la medición, 14 de 24 pasos con plan fueron al respaldo por reglas, por rechazos `plan` de dos clases: paráfrasis de conceptos largos y simples menciones de términos de fondo.
   - **Conceptos cortos** ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)): frases de 2 a 4 palabras del material o siglas, en los dos planificadores y en la validación (`CONCEPT_NOT_SHORT`).
   - **Comprobación** ([research R5](research.md#r5-generación-desde-el-plan-gen-p2)): el concepto propio cuenta con el 60 % de sus palabras en un párrafo; el ajeno, solo si se desarrolla (dos oraciones o una definición); los conceptos de fondo no son ajenos.
@@ -154,7 +161,12 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - Línea base sin plan frente a plan aprobado, con reglas y con Gemini, 5 corridas cada uno, en el mismo servidor y la misma base: `--mode plan` con `GENERATION_IMPLICIT_PLAN=true` y `--mode baseline` con `false` (interruptor solo de medición, nunca en Render).
   - Resultados en `docs/evidence/GEN-P4/`.
   - Meta: duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90.
-  - El script ya está (PR del backend, enlace pendiente): `backend/evaluation/measure_duplication.py`, con pruebas en `tests/unit/test_measure_duplication.py` (backend y embeddings falsos). `--similarity auto` usa embeddings si hay modelo y si no la similitud léxica, registrada como provisional; `--compare` agrega la comparación con la meta. **Pendiente:** correr la medición (Yan, con el backend local) y REV-P3.
+  - El script ya está (PR del backend, enlace pendiente): `backend/evaluation/measure_duplication.py`, con pruebas en `tests/unit/test_measure_duplication.py` (backend y embeddings falsos). `--similarity auto` usa embeddings si hay modelo y si no la similitud léxica, registrada como provisional; `--compare` agrega la comparación con la meta.
+  - **Medición con Gemini hecha** ([resultado en research R7](research.md#r7-medición-de-la-duplicación-p4)): `v3r-gemini-baseline.json`, `v3r-gemini-plan.json` y `v4-gemini-plan.json`.
+    - Oraciones casi repetidas entre tipos distintos (principal): 32,4 % → 21,2 % y 21,1 % (−35 % en las dos corridas con plan).
+    - Pares entre tipos distintos: 6,0 % → 2,7 % y 4,1 %.
+    - Meta de P4 cumplida en parte: ≤ 5 % en las dos; −50 % solo en la v3.
+  - **Pendiente:** la medición con reglas, la `faithfulness` (T027) y REV-P3.
 - [ ] T020 [E2E] [GEN-P1] **Depende de T010.** Tiempos de creación del plan, V9 de [quickstart](quickstart.md): p95 < 1 s con reglas y < 30 s con Gemini. Si no se cumple con Gemini, revisar la decisión síncrona de [research R1](research.md#r1-el-plan-como-recurso-propio-creado-de-forma-síncrona).
 - [ ] T021 [BE] [GEN-P2] **Depende de T011 y T018.** Fin de la transición: `GENERATION_REQUIRE_PLAN=true` por defecto, y `collect_samples.py` y `measure_generation_load.py` crean el plan antes de generar. Pruebas de los dos scripts con backend falso.
 - [ ] T022 Preguntas abiertas para el profesor: P8 (referentes en la recuperación) y P10 (editor WYSIWYG). Registrar sus respuestas en [spec](spec.md#preguntas-abiertas-para-el-profesor) y ajustar R10 y GEN-P3 si cambian el alcance.

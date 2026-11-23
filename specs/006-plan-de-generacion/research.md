@@ -254,9 +254,31 @@ Se registran en `docs/evidence/GEN-P4/` los dos informes, la calibración y la `
    - lo mismo en `aiOnly`, sin los recursos del respaldo: si la baja no se sostiene ahí, viene del respaldo.
 3. **Al final, la tasa de pares,** con su umbral calibrado y sabiendo que mezcla tema y repetición.
 
+**Resultado (v3 recalculada y v4, con Gemini).** Evidencia en `docs/evidence/GEN-P4/`: `v3r-gemini-baseline.json`, `v3r-gemini-plan.json` (la v3 recalculada con las métricas corregidas) y `v4-gemini-plan.json`, comparado con la línea base v3r. Umbrales de `calibration-v2.json`: τ = 0,885 y 0,865 en oraciones. Cinco corridas por modo.
+
+| Métrica | Línea base | Plan v3 | Plan v4 |
+| --- | --- | --- | --- |
+| Oraciones casi repetidas entre tipos distintos (principal) | 32,4 % | 21,2 % (−35 %; solo IA −39 %) | 21,1 % (−35 %; solo IA −50 %) |
+| Pares duplicados entre tipos distintos (secundaria) | 6,0 % | 2,7 % (−56 %) | 4,1 % (−32 %) |
+| Conceptos explicados otra vez (evidencia) | 0 | 0,4 | 0,6 |
+| Recursos por pedido (de 16) | 15,8 | 15,0 | 16,0 |
+| Planes de Gemini / de reglas | — | 5 / 0 | 1 / 4 |
+
+- **La métrica principal es la de oraciones entre tipos distintos.** Es la queja del profesor: el mismo contenido redactado otra vez en recursos distintos. Las variantes de un tipo se parecen por diseño, así que la cifra de todos los pares y la de `variants` se informan, pero no cuentan para la meta.
+- **El resultado se repite.** La baja de −35 % se dio en las dos corridas con plan, aunque los planes de la v3 fueron 5 de 5 de Gemini y los de la v4, 4 de 5 del planificador por reglas. Solo con los recursos de la IA, la baja se mantiene o crece (−39 % y −50 %): no viene del respaldo.
+- **Pares entre tipos distintos:** bajan en las dos corridas, pero cambian mucho de una a otra (−56 % y −32 %). Se informan como evidencia secundaria.
+- **Conceptos explicados otra vez:** no discriminan (0 frente a 0,4 y 0,6). El resultado es inconcluso; la tabla por concepto queda para revisar la regla.
+- **Recursos:** la pérdida de la v3 (15,0 de 16) no se repitió en la v4 (16,0 de 16, `resourcesKept`).
+- **Meta de P4, cumplida en parte.**
+  - El valor absoluto se cumple: pares entre tipos distintos ≤ 5 % en las dos corridas con plan.
+  - La baja de al menos 50 % solo se cumple en la v3.
+  - La evidencia principal (oraciones entre tipos distintos) baja un 35 % en las dos.
+  - El `meetsTarget` del informe se calcula sobre todos los pares y sale `false`; para P4 vale la cifra entre tipos distintos.
+- **Pendiente:** la `faithfulness` de los recursos redactados desde el plan no se midió (meta ≥ 0,90), y quedan problemas que encontró la v4 (T027 de [tareas](tasks.md)).
+
 **Meta.**
-- **Evidencia principal:** con plan, las oraciones casi repetidas y los conceptos explicados otra vez bajan frente a la línea base, con la mayoría de los pasos redactados por la IA en los dos modos.
-- **Tasa de pares (se conserva la meta de P4):** con plan baja al menos un 50 % frente a la línea base y queda en 5 % o menos, con el τ calibrado.
+- **Evidencia principal:** con plan, las oraciones casi repetidas entre recursos de tipos distintos bajan frente a la línea base, con la mayoría de los pasos redactados por la IA en los dos modos; los conceptos explicados otra vez se informan.
+- **Tasa de pares (se conserva la meta de P4):** la de recursos de tipos distintos, con plan, baja al menos un 50 % frente a la línea base y queda en 5 % o menos, con el τ calibrado.
 - **Recursos:** los entregados no bajan.
 - **Fidelidad:** la `faithfulness` media sigue en 0,90 o más.
 
