@@ -21,6 +21,13 @@ Modos (specs/006-plan-de-generacion, research R7):
   informe (solo embeddings, sin generar), conserva los datos de cada corrida (pasos de la IA y del respaldo, origen
   del plan) y admite --compare. Si el informe no guarda los conceptos (informes v3 y anteriores), los lee de la API
   con la misma cuenta; sin cuenta, las métricas de conceptos quedan vacías.
+- `--faithfulness` (en una corrida nueva o con --recompute): la fidelidad de cada recurso entregado, con la métrica
+  Faithfulness de Ragas y el juez de evaluation/run_ragas.py (el mismo modelo y la misma configuración). La respuesta es
+  el recurso sin su título; el contexto, los textos de los fragmentos que cita (los que muestra Revisión, guardados en
+  el informe: un recálculo posterior no usa la API); la pregunta, las indicaciones del pedido. Los recursos sin citas
+  se omiten y se cuentan; un error del juez se registra en el recurso y la medición sigue. Las llamadas al juez van en
+  paralelo, con --judge-concurrency hilos (2 por defecto). En un recálculo solo se califican los recursos sin puntaje
+  (o todos, con otro juez o con --rescore-faithfulness). Necesita GEMINI_API_KEY en la terminal de la medición.
 - `--calibrate --from informe.json …`: distribuciones de similitud de pares sin repetición y repetidos, y los umbrales
   sugeridos.
 
@@ -56,6 +63,7 @@ import re
 import sys
 import time
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from types import ModuleType
@@ -108,6 +116,10 @@ SERVER_SETTING = {
 }
 LEXICAL_LABEL = "lexical (provisional: Jaccard de most_similar, sin REV-P3)"
 EMBEDDINGS_LABEL = "embeddings (coseno)"
+# Meta de P4: el plan no baja la fidelidad de 0,90 (T027 c).
+FAITHFULNESS_TARGET = 0.90
+DEFAULT_JUDGE_CONCURRENCY = 2
+MAX_JUDGE_ERROR = 300
 
 Similarity = Callable[[Sequence[str]], list[list[float]]]
 
@@ -441,7 +453,18 @@ def summarize(runs: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "undeliveredResources": sum(u["missing"] for run in done for u in run.get("undelivered") or []),
         "planGenerators": {"ai": sources.count("ai"), "rules": sources.count("rules")},
         "aiOnly": {**metric_summary(ai_only), "resources": sum(m["resources"] for m in ai_only)} if ai_only else None,
+        "faithfulness": _faithfulness_summary(done),
     }
+
+
+def _faithfulness_summary(runs: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """La fidelidad de todos los recursos de las corridas terminadas, y la media de las medias por corrida."""
+    report = faithfulness_report([r for run in runs for r in run.get("resources") or []])
+    if report is None:
+        return None
+    means = [run["faithfulness"]["mean"] for run in runs
+             if run.get("faithfulness") and run["faithfulness"].get("mean") is not None]
+    return {**report, "meanPerRun": _mean(means)}
 
 
 def _reduction(old: Any, new: Any) -> float | None:
@@ -467,6 +490,9 @@ def compare(baseline: dict[str, Any], planned: dict[str, Any]) -> dict[str, Any]
         and not fewer,
         "resourcesKept": not fewer,
     }
+    faithfulness = compare_faithfulness(baseline.get("faithfulness"), planned.get("faithfulness"))
+    if faithfulness is not None:
+        result["faithfulness"] = faithfulness
     if baseline.get("aiOnly") and planned.get("aiOnly"):
         result["aiOnly"] = {
             "crossTypeSentenceReduction": _reduction(baseline["aiOnly"].get("crossTypeSentenceRate"),
@@ -478,6 +504,133 @@ def compare(baseline: dict[str, Any], planned: dict[str, Any]) -> dict[str, Any]
             "reduction": _reduction(baseline["aiOnly"].get("duplicateRate"), planned["aiOnly"].get("duplicateRate")),
         }
     return result
+
+
+# --------------------------------------------------------------------------- fidelidad (T027 c)
+
+
+def faithfulness_stats(resources: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    """Fidelidad media, parte de los recursos con 0,90 o más, y cuántos se calificaron, se omitieron (sin citas) o
+    tuvieron un error del juez."""
+    records = [r["faithfulness"] for r in resources if r.get("faithfulness")]
+    scores = [record["score"] for record in records if record.get("score") is not None]
+    return {"mean": _mean(scores),
+            "atLeastTarget": _ratio(sum(score >= FAITHFULNESS_TARGET for score in scores), len(scores)),
+            "scored": len(scores),
+            "skipped": sum("skipped" in record for record in records),
+            "errors": sum("error" in record for record in records)}
+
+
+def faithfulness_report(resources: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
+    """La fidelidad de una lista de recursos: de todos, por tipo y solo de los que redactó la IA (`aiOnly`). None si
+    ninguno se calificó todavía."""
+    if not any(r.get("faithfulness") for r in resources):
+        return None
+    types = dict.fromkeys(str(r.get("type") or "") for r in resources)
+    return {**faithfulness_stats(resources),
+            "byType": {t: faithfulness_stats([r for r in resources if str(r.get("type") or "") == t]) for t in types},
+            "aiOnly": faithfulness_stats([r for r in resources if r.get("drafter") == "ai"])}
+
+
+def compare_faithfulness(baseline: dict[str, Any] | None, planned: dict[str, Any] | None) -> dict[str, Any] | None:
+    """La fidelidad con plan frente a la línea base, y si el plan la mantiene en 0,90 o más (meta de P4)."""
+    if not baseline or not planned:
+        return None
+
+    def part(before: dict[str, Any], after: dict[str, Any]) -> dict[str, Any]:
+        old, new = before.get("mean"), after.get("mean")
+        return {"baseline": old, "plan": new,
+                "difference": None if old is None or new is None else round(new - old, 4),
+                "planMeetsTarget": new is not None and new >= FAITHFULNESS_TARGET,
+                "baselineAtLeastTarget": before.get("atLeastTarget"), "planAtLeastTarget": after.get("atLeastTarget")}
+
+    result = part(baseline, planned)
+    if baseline.get("aiOnly") and planned.get("aiOnly"):
+        result["aiOnly"] = part(baseline["aiOnly"], planned["aiOnly"])
+    return result
+
+
+def _judge_once(evaluate_one: Callable[[dict], dict], row: dict[str, Any]) -> dict[str, Any]:
+    try:
+        value = evaluate_one(row).get("faithfulness")
+    except Exception as error:  # un error del juez con un recurso no detiene la medición
+        return {"error": f"{type(error).__name__}: {str(error)[:MAX_JUDGE_ERROR]}"}
+    if value is None or value != value:  # NaN: Ragas no pudo calificar
+        return {"error": "el juez no devolvió puntaje"}
+    return {"score": round(float(value), 4)}
+
+
+def score_faithfulness(
+    runs: Sequence[dict[str, Any]],
+    evaluate_one: Callable[[dict], dict],
+    instructions: str,
+    concurrency: int = DEFAULT_JUDGE_CONCURRENCY,
+    rescore: bool = False,
+) -> int:
+    """Califica con el juez los recursos que citan el material y todavía no tienen puntaje (o todos, con `rescore`).
+    Los que no citan quedan como omitidos. Devuelve cuántos se enviaron al juez."""
+    pending = []
+    for run in runs:
+        for resource in run.get("resources") or []:
+            if not resource.get("contexts"):
+                resource["faithfulness"] = {"skipped": "noCitations"}
+            elif rescore or (resource.get("faithfulness") or {}).get("score") is None:
+                pending.append(resource)
+    if not pending:
+        return 0
+    progress(f"Fidelidad: {len(pending)} recursos con el juez, {concurrency} a la vez…")
+    with ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+        futures = {pool.submit(_judge_once, evaluate_one, {
+            "user_input": instructions, "response": resource_body(resource),
+            "retrieved_contexts": list(resource["contexts"])}): resource for resource in pending}
+        for done, future in enumerate(as_completed(futures), 1):
+            futures[future]["faithfulness"] = future.result()
+            progress(f"Fidelidad: {done}/{len(pending)}")
+    return len(pending)
+
+
+def apply_faithfulness(runs: Sequence[dict[str, Any]]) -> None:
+    for run in runs:
+        if run.get("resources"):
+            run["faithfulness"] = faithfulness_report(run["resources"])
+
+
+def default_judge(model: str) -> Callable[[dict], dict]:
+    """El juez de run_ragas.py (Gemini por su endpoint compatible con OpenAI), solo con Faithfulness."""
+    if importlib.util.find_spec("ragas") is None:
+        raise SystemExit("--faithfulness necesita Ragas: instala evaluation/requirements.txt en el entorno de la "
+                         "medición, como para run_ragas.py.")
+    ragas = load_run_ragas()
+    llm, _ = ragas.build_judge(model, ragas.build_parser().get_default("embedding_model"))
+    return ragas.faithfulness_evaluator(llm)
+
+
+def load_run_ragas() -> ModuleType:
+    spec = importlib.util.spec_from_file_location("run_ragas", HERE / "run_ragas.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    return module
+
+
+def judge_info(model: str, concurrency: int) -> dict[str, Any]:
+    return {"judge": model, "metric": "Faithfulness (Ragas, evaluation/run_ragas.py)",
+            "contexts": "cited (los fragmentos que cita cada recurso)", "response": "el recurso sin su título",
+            "target": FAITHFULNESS_TARGET, "concurrency": concurrency}
+
+
+def add_faithfulness(args: argparse.Namespace, report: dict[str, Any],
+                     judge_factory: Callable[[str], Callable[[dict], dict]] | None,
+                     evaluate_one: Callable[[dict], dict] | None = None) -> None:
+    """Califica los recursos del informe (si se pidió --faithfulness) y resume la fidelidad por corrida y en total."""
+    runs = report.get("runs", [])
+    if args.faithfulness:
+        previous = (report.get("faithfulnessJudge") or {}).get("judge")
+        evaluate_one = evaluate_one or (judge_factory or default_judge)(args.judge_model)
+        score_faithfulness(runs, evaluate_one, report.get("instructions") or INSTRUCTIONS, args.judge_concurrency,
+                           rescore=args.rescore_faithfulness or (previous is not None and previous != args.judge_model))
+        report["faithfulnessJudge"] = judge_info(args.judge_model, args.judge_concurrency)
+    apply_faithfulness(runs)
+    report["summary"] = summarize(runs)
 
 
 # --------------------------------------------------------------------------- HTTP
@@ -626,7 +779,9 @@ def stored_resources(resources: Sequence[dict[str, Any]], steps: Sequence[dict[s
     return [{"id": r.get("id"), "title": r.get("title"), "type": r.get("type"),
              "planItemPosition": (r.get("params") or {}).get("planItemPosition"),
              "drafter": drafters.get(r.get("id"), "none"),
-             "text": resource_text(r), "sentenceText": resource_body(r)} for r in resources]
+             "text": resource_text(r), "sentenceText": resource_body(r),
+             # Los textos de los fragmentos que cita, como los muestra Revisión: el contexto de la fidelidad.
+             "contexts": [str(e.get("text")) for e in r.get("evidence") or [] if e.get("text")]} for r in resources]
 
 
 def measure_run(
@@ -902,7 +1057,30 @@ def recompute_report(
     return recomputed
 
 
-def run_recompute(args: argparse.Namespace, embedder_factory: Callable[[], Any] | None) -> dict[str, Any]:
+def fill_contexts(args: argparse.Namespace, report: dict[str, Any], client: httpx.Client | None,
+                  headers: dict | None) -> None:
+    """Informes v4 y anteriores: los textos citados de cada recurso se leen una vez de la API (la misma cuenta) y quedan
+    en el informe recalculado."""
+    missing = [run for run in report.get("runs", [])
+               if any("contexts" not in r for r in run.get("resources") or [])]
+    if not missing:
+        return
+    own = client is None
+    if own:
+        client, headers = _api_session(args, "El informe no guarda los textos citados (--faithfulness)")
+    try:
+        for number, run in enumerate(missing, 1):
+            progress(f"Leyendo los textos citados del pedido {number}/{len(missing)}…")
+            fetched = {r["id"]: r["contexts"] for r in fetch_run_resources(client, headers, run)}
+            for resource in run["resources"]:
+                resource.setdefault("contexts", fetched.get(resource.get("id"), []))
+    finally:
+        if own:
+            client.close()
+
+
+def run_recompute(args: argparse.Namespace, embedder_factory: Callable[[], Any] | None,
+                  judge_factory: Callable[[str], Callable[[dict], dict]] | None = None) -> dict[str, Any]:
     if len(args.reports) != 1:
         raise SystemExit("--recompute necesita un informe con --from.")
     report = json.loads(args.reports[0].read_text(encoding="utf-8"))
@@ -925,11 +1103,14 @@ def run_recompute(args: argparse.Namespace, embedder_factory: Callable[[], Any] 
     elif needs_concepts:
         progress("El informe no guarda los conceptos y no hay EVAL_EMAIL: las métricas de conceptos quedan vacías.")
     try:
+        if args.faithfulness:
+            fill_contexts(args, report, client, headers if client is not None else None)
         recomputed = recompute_report(report, similarity, label, threshold, sentence_threshold, fetch)
     finally:
         if client is not None:
             client.close()
     recomputed["recomputedFrom"] = args.reports[0].name
+    add_faithfulness(args, recomputed, judge_factory)
     add_comparison(args, recomputed)
     write_json(args.out, recomputed)
     print_summary(recomputed, label, args.out)
@@ -947,6 +1128,7 @@ def build_report(args: argparse.Namespace, similarity_label: str, runs: list[dic
         "corpus": str(args.corpus),
         "resourceTypes": list(args.types),
         "quantity": args.quantity,
+        "instructions": INSTRUCTIONS,
         "threshold": args.threshold,
         "sentenceThreshold": args.sentence_threshold,
         "similarity": similarity_label,
@@ -976,6 +1158,16 @@ def print_summary(report: dict[str, Any], label: str, out: Path) -> None:
     print(f"Tasa de pares: {summary['duplicateRate']} (entre tipos distintos: {summary['crossTypeDuplicateRate']}) · "
           f"recursos por pedido: {summary['resourcesPerRequest']} · pasos IA/respaldo: {summary['aiSteps']}/"
           f"{summary['fallbackSteps']} · planes IA/reglas: {summary['planGenerators']} ({label}). Informe: {out}")
+    faithfulness = summary.get("faithfulness")
+    if faithfulness:
+        ai = faithfulness["aiOnly"]
+        print(f"Fidelidad: media {faithfulness['mean']} · ≥ {FAITHFULNESS_TARGET}: {faithfulness['atLeastTarget']} · "
+              f"calificados/omitidos/errores: {faithfulness['scored']}/{faithfulness['skipped']}/"
+              f"{faithfulness['errors']} · solo IA: {ai['mean']} ({ai['scored']} recursos).")
+    comparison = report.get("comparison", {}).get("faithfulness")
+    if comparison:
+        print(f"Fidelidad con plan frente a la línea base: {comparison['difference']} · el plan la mantiene en "
+              f"{FAITHFULNESS_TARGET} o más: {comparison['planMeetsTarget']}.")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1000,12 +1192,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--poll", type=float, default=2.0)
     parser.add_argument("--timeout", type=float, default=30 * 60, help="segundos máximos por corrida")
     parser.add_argument("--out", type=Path, required=True, help="archivo JSON del informe")
+    parser.add_argument("--faithfulness", action="store_true",
+                        help="califica la fidelidad de cada recurso con el juez de run_ragas.py (GEMINI_API_KEY)")
+    parser.add_argument("--judge-model", default=os.getenv("RAGAS_JUDGE_MODEL", "gemini-3.8-flash"),
+                        help="modelo del juez, el mismo de run_ragas.py por defecto")
+    parser.add_argument("--judge-concurrency", type=int, default=DEFAULT_JUDGE_CONCURRENCY,
+                        help="llamadas al juez a la vez (2 por defecto)")
+    parser.add_argument("--rescore-faithfulness", action="store_true",
+                        help="con --recompute, vuelve a calificar también los recursos que ya tienen puntaje")
     parser.add_argument("--compare", type=Path, default=None,
                         help="informe de la línea base: agrega la comparación (recalcúlalo antes si es anterior)")
     return parser
 
 
-def main(argv: Sequence[str] | None = None, embedder_factory: Callable[[], Any] | None = None) -> dict[str, Any]:
+def main(argv: Sequence[str] | None = None, embedder_factory: Callable[[], Any] | None = None,
+         judge_factory: Callable[[str], Callable[[dict], dict]] | None = None) -> dict[str, Any]:
     args = build_parser().parse_args(argv)
     args.threshold_given = args.threshold is not None
     if args.threshold is None:
@@ -1015,7 +1216,7 @@ def main(argv: Sequence[str] | None = None, embedder_factory: Callable[[], Any] 
     if args.calibrate:
         return run_calibration(args, embedder_factory)
     if args.recompute:
-        return run_recompute(args, embedder_factory)
+        return run_recompute(args, embedder_factory, judge_factory)
     if args.mode is None:
         raise SystemExit("Indica --mode plan o --mode baseline (o --calibrate, o --recompute).")
     if not 1 <= args.quantity <= 5:
@@ -1026,6 +1227,8 @@ def main(argv: Sequence[str] | None = None, embedder_factory: Callable[[], Any] 
     similarity, label = choose_similarity(args.similarity, embedder_factory)
     if args.sentence_threshold is None:
         args.sentence_threshold = DEFAULT_SENTENCE_THRESHOLDS["lexical" if label == LEXICAL_LABEL else "embeddings"]
+    # El juez se prepara antes de generar: sin Ragas o sin clave, la medición se detiene sin gastar corridas.
+    judge = (judge_factory or default_judge)(args.judge_model) if args.faithfulness else None
     collect = load_collect_samples()
     runs: list[dict[str, Any]] = []
     with httpx.Client(base_url=args.api, timeout=120) as client:
@@ -1039,6 +1242,7 @@ def main(argv: Sequence[str] | None = None, embedder_factory: Callable[[], Any] 
                                     similarity, args.threshold, args.poll, time.monotonic() + args.timeout,
                                     args.sentence_threshold))
     report = build_report(args, label, runs)
+    add_faithfulness(args, report, judge_factory, judge)
     add_comparison(args, report)
     write_json(args.out, report)
     print_summary(report, label, args.out)

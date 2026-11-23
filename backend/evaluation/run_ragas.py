@@ -108,14 +108,20 @@ def build_ragas_metrics(with_recall: bool) -> list:
     return metrics
 
 
+def run_config():
+    """La configuración de Ragas del juez: un trabajador, 180 s por llamada y 5 reintentos."""
+    from ragas.run_config import RunConfig
+
+    return RunConfig(max_workers=1, timeout=180, max_retries=5)
+
+
 def ragas_evaluator(llm, embeddings, with_recall: bool):
     """Evaluador real: califica una muestra con las métricas de Ragas y el juez dado. Devuelve {métrica: valor}."""
     from ragas import EvaluationDataset, evaluate
-    from ragas.run_config import RunConfig
 
     metrics = build_ragas_metrics(with_recall)
     names = dict(zip((m.name for m in metrics), metric_names(with_recall)))
-    config = RunConfig(max_workers=1, timeout=180, max_retries=5)
+    config = run_config()
 
     def evaluate_one(row: dict) -> dict:
         dataset = EvaluationDataset.from_list([row])
@@ -123,6 +129,21 @@ def ragas_evaluator(llm, embeddings, with_recall: bool):
                           show_progress=False)
         values = result.to_pandas().iloc[0].to_dict()
         return {name: values.get(original) for original, name in names.items()}
+
+    return evaluate_one
+
+
+def faithfulness_evaluator(llm):
+    """Solo faithfulness, con el mismo juez y la misma configuración que `ragas_evaluator` (P4, spec 006, T027 c).
+    Devuelve {'faithfulness': valor}. Crea la métrica en cada llamada, para poder calificar en varios hilos."""
+    from ragas import EvaluationDataset, evaluate
+    from ragas.metrics import Faithfulness
+
+    def evaluate_one(row: dict) -> dict:
+        metric = Faithfulness()
+        result = evaluate(dataset=EvaluationDataset.from_list([row]), metrics=[metric], llm=llm,
+                          run_config=run_config(), show_progress=False)
+        return {'faithfulness': result.to_pandas().iloc[0].to_dict().get(metric.name)}
 
     return evaluate_one
 

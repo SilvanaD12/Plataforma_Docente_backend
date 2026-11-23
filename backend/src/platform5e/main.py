@@ -22,6 +22,7 @@ from platform5e.application.services.accounts.account_service import AccountServ
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.application.services.materials.material_service import MaterialService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
+from platform5e.application.services.materials.referent_service import ReferentService
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.application.services.generation.plan_drafting import GenerationPlanner
 from platform5e.application.use_cases.generation.approve_generation_plan import ApproveGenerationPlan
@@ -49,7 +50,8 @@ from platform5e.infrastructure.adapters.database_probe_adapter import DatabasePr
 from platform5e.infrastructure.adapters.gemini_probe_adapter import GeminiProbeAdapter
 from platform5e.infrastructure.adapters.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
-from platform5e.infrastructure.adapters.plan_context_adapters import NoReferentsAdapter, NoSessionTypologyAdapter
+from platform5e.infrastructure.adapters.course_session_typology_adapter import CourseSessionTypologyAdapter
+from platform5e.infrastructure.adapters.plan_context_adapters import NoReferentsAdapter
 from platform5e.infrastructure.adapters.resource_catalog_adapter import StaticResourceCatalogAdapter
 from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from platform5e.infrastructure.adapters.wikipedia_probe_adapter import WikipediaProbeAdapter
@@ -124,6 +126,11 @@ from platform5e.infrastructure.settings import (
     topic_coverage_threshold,
 )
 from platform5e.infrastructure.sources.wikipedia_source import WikipediaSource
+from platform5e.infrastructure.sources.web_page_extractor import WebPageExtractor
+from platform5e.infrastructure.llm.gemini_referent_extractor import GeminiReferentExtractor
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_referent_repository import (
+    SQLAlchemyReferentRepository,
+)
 
 API_DESCRIPTION = """
 Backend of **Platform 5E**: teachers upload the material of a unit, generate 5E learning resources that cite it
@@ -215,6 +222,7 @@ def create_application() -> FastAPI:
     chunk_repository = SQLAlchemyChunkRepository()
     resource_repository = SQLAlchemyResourceRepository()
     open_source = WikipediaSource() if read_flag("TOPIC_SEARCH_ENABLED", True) else None
+    web_fetcher = WebPageExtractor() if read_flag("URL_INGEST_ENABLED", True) else None
     primary_generator, fallback_generator = create_generators()
     media_repository = SQLAlchemyMediaRepository()
     media_generator = create_media_generator()
@@ -269,6 +277,21 @@ def create_application() -> FastAPI:
 
     interpret_generation = InterpretGenerationRequest(unit_membership, list_owned_units)
 
+    referent_repository = SQLAlchemyReferentRepository()
+    referent_extractor = (
+        GeminiReferentExtractor(
+            api_key=llm_api_key,
+            model=gemini_model,
+            base_url=gemini_base_url,
+        )
+        if gemini_configured and llm_api_key
+        else None
+    )
+    referent_service = ReferentService(
+        repository=referent_repository,
+        extractor=referent_extractor,
+    )
+
     material_service = MaterialService(
         teacher_repository=account_repository,
         chunk_repository=chunk_repository,
@@ -277,6 +300,8 @@ def create_application() -> FastAPI:
         embedding_service=embedding_service,
         unit_membership_port=unit_membership,
         evidence_retriever=evidence_retriever,
+        web_fetcher_port=web_fetcher,
+        referent_service=referent_service
     )
 
     # GEN-01: pedido de generación en segundo plano, con puertos hacia Cuentas, Material y Revisión.
@@ -284,8 +309,9 @@ def create_application() -> FastAPI:
     # GEN-P1 y GEN-P2: el plan de generación, del que parte todo pedido. La IA arma el plan si el generador activo
     # sabe hacerlo (Gemini); si no, reglas.
     resource_catalog = StaticResourceCatalogAdapter()
-    session_typologies = NoSessionTypologyAdapter()  # CUR-P3: provisional, sin sesiones
     generation_plan_repository = SQLAlchemyGenerationPlanRepository()
+    # CUR-P3: las tipologías de las últimas sesiones del curso, para el plan y para el pedido.
+    session_typologies = CourseSessionTypologyAdapter(account_repository, generation_plan_repository)
     plan_drafter = primary_generator if hasattr(primary_generator, "draft_plan") else None
     create_plan = CreateGenerationPlan(
         unit_membership,
