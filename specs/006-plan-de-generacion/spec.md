@@ -89,7 +89,7 @@ Como docente, quiero revisar el plan en la pantalla de Generación, corregirlo y
 ## Supuestos y dependencias
 
 - Material (MAT-P2) entrega los referentes por un puerto; mientras no exista, la lista queda vacía.
-- Cursos (CUR-P3) lee y guarda las tipologías por sesión; mientras no exista, el contexto de sesión queda vacío. Falta acordar qué es una «sesión» del curso ([research R9](research.md#r9-contexto-de-sesión-cur-p3)).
+- Cursos (CUR-P3) lee y guarda las tipologías por sesión; mientras no exista, el contexto de sesión queda vacío. Una sesión se cuenta cuando un plan pasa a `used`, y el plan muestra las últimas 3 del mismo curso ([research R9](research.md#r9-contexto-de-sesión-cur-p3)).
 - Cursos (CUR-P2) mantiene el catálogo de tipos; Generación lo lee por un puerto ([research R6](research.md#r6-catálogo-configurable-cur-p2)).
 - Revisión (REV-P3) entrega el indicador de duplicación por embeddings.
 - QA-16 agrega `POST /api/v1/generation-plans` a sus rutas costosas con límite por IP.

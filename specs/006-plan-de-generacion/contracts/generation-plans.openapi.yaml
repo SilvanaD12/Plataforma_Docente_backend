@@ -209,7 +209,10 @@ components:
           minimum: 1
           maximum: 5
           default: null
-          description: Optional. `null` lets the planner choose, from 1 to 5, according to the available concepts.
+          description: |
+            Optional. `null` lets the planner choose according to the available concepts: the rule-based planner
+            picks 1 to 3 (one resource per two concepts of the type), and the AI planner 1 to 5, with at least as
+            many concepts as resources. 5 is the GEN-01 limit per type.
 
     CreateGenerationPlan:
       type: object
@@ -320,12 +323,12 @@ components:
 
     PreviousTypology:
       type: object
-      description: From CUR-P3. Resource types used in a previous session of the course.
+      description: From CUR-P3. A session of the same course, counted when one of its plans became `used`.
       required: [sessionLabel, usedAt, resourceTypes]
       properties:
-        sessionLabel: { type: string }
-        usedAt: { type: string, format: date-time }
-        resourceTypes: { type: array, items: { $ref: '#/components/schemas/ResourceTypeId' } }
+        sessionLabel: { type: string, description: Session name shown to the teacher, set by Courses. }
+        usedAt: { type: string, format: date-time, description: When the plan of that session became `used`. }
+        resourceTypes: { type: array, items: { $ref: '#/components/schemas/ResourceTypeId' }, description: Types of the items of that plan. }
 
     PlanProblem:
       type: object
@@ -365,7 +368,13 @@ components:
           type: object
           required: [previousTypologies]
           properties:
-            previousTypologies: { type: array, items: { $ref: '#/components/schemas/PreviousTypology' }, maxItems: 3 }
+            previousTypologies:
+              type: array
+              items: { $ref: '#/components/schemas/PreviousTypology' }
+              maxItems: 3
+              description: |
+                The last 3 sessions of the same course, newest first. `SAME_TYPOLOGY_AS_LAST_SESSION` compares the
+                requested types with the first one. Empty if Courses does not answer or there are no sessions.
         items: { type: array, items: { $ref: '#/components/schemas/PlanItem' } }
         validation:
           type: object

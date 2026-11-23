@@ -32,7 +32,7 @@ Mismas convenciones que el [data-model de GEN-01](../002-generacion-multiple/dat
 | `audience`, `competency` | `str` | Hasta 200 caracteres cada uno. |
 | `outcomeId` | `str` \| `null` | Debe ser de la unidad. |
 | `modality` | `Textual` \| `Gamificado` \| `Multimedia` \| `Kinestésico` \| `null` | Si viene, todos los tipos deben pertenecer a ella (HU-024). |
-| `resourceTypes` | `list[{type, quantity}]` | De 1 a 8 tipos distintos del catálogo. `quantity` de 1 a 5, o `null`: decide el planificador. |
+| `resourceTypes` | `list[{type, quantity}]` | De 1 a 8 tipos distintos del catálogo. `quantity` de 1 a 5, o `null`: decide el planificador ([research R4](research.md#r4-planificación-con-reglas-y-con-gemini)): con reglas, de 1 a 3 según los conceptos; con Gemini, de 1 a 5. |
 | `difficulty`, `optionCount`, `evidenceThreshold` | como en GEN-01 | Pasan al pedido de generación. |
 | `topK` | `int` | Fragmentos que se recuperan para el plan, de 3 a 12 (12 por defecto: el plan reparte la evidencia entre ítems). |
 
@@ -56,7 +56,26 @@ Mismas convenciones que el [data-model de GEN-01](../002-generacion-multiple/dat
 
 | Campo | Tipo | Reglas |
 | --- | --- | --- |
-| `previousTypologies` | `list[{sessionLabel, usedAt, resourceTypes}]` | Hasta 3, de la más reciente a la más antigua. Vacía si CUR-P3 no responde o no hay sesiones. |
+| `previousTypologies` | `list[{sessionLabel, usedAt, resourceTypes}]` | Las últimas 3 sesiones del mismo curso, de la más reciente a la más antigua. Una sesión se cuenta cuando un plan pasa a `used` ([research R9](research.md#r9-contexto-de-sesión-cur-p3)). Vacía si CUR-P3 no responde o no hay sesiones. |
+| `…sessionLabel` | `str` | Nombre de la sesión para el docente, lo define Cursos. |
+| `…usedAt` | ISO 8601 UTC | Cuándo el plan de esa sesión pasó a `used`. |
+| `…resourceTypes` | `list[str]` | Los tipos de los ítems de ese plan. |
+
+### CatalogEntry (CUR-P2)
+
+La entrada del catálogo que Generación lee por `ResourceCatalogPort` ([research R6](research.md#r6-catálogo-configurable-cur-p2)). No se guarda en el plan: el plan guarda solo `resourceType` y `stage`.
+
+| Campo | Tipo | Reglas |
+| --- | --- | --- |
+| `id` | `str` | snake_case, `^[a-z][a-z0-9_]{2,59}$`. |
+| `name`, `singular`, `plural` | `str` | Lo que ve el docente. |
+| `stage` | `engage` … `evaluate` | Etapa del tipo. |
+| `description` | `str` | Qué es el recurso y cómo se usa. Es la instrucción del prompt genérico. |
+| `lengthHint` | `{minWords: int, maxWords: int}` \| `null` | Opcional. `minWords` ≥ 20, `maxWords` ≤ 600 y `minWords` ≤ `maxWords`. Guía del prompt («entre X y Y palabras»), nunca regla de rechazo. Sin él, la extensión por defecto: de 3 a 5 párrafos. |
+| `modalities` | `list[str]` | Modalidades que lo incluyen (HU-024). |
+| `format` | `text` \| `visual` \| `image` \| `audio` \| `interactive` | Los tipos nuevos de CUR-P2 son `text`. |
+| `structure` | `str` | `none` en los tipos nuevos. |
+| `active` | `bool` | Si se ofrece en el formulario. Un tipo inactivo en un plan guardado es `TYPE_NOT_IN_CATALOG`. |
 
 ### PlanItem
 
