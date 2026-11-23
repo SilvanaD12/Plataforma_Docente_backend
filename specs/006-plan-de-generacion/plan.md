@@ -136,11 +136,14 @@ Con PostgreSQL en Docker, los mismos comandos de la pila local de [QA-17](../005
 - `GENERATION_REQUIRE_PLAN=true` tiene prioridad: el pedido sin plan se rechaza con `422 PLAN_REQUIRED` aunque el interruptor esté en `false`.
 - Un plan aprobado (`{planId, planVersion}`) se genera igual con los dos valores.
 
+**El modelo, siempre explícito.** Toda medición (P4, Ragas, carga) define `LLM_MODEL` con el modelo de producción, el mismo de Render (`gemini-3.5-flash-lite`). Sin `LLM_MODEL`, el backend usa el modelo por defecto del código (`gemini-3.8-flash`): así se corrió la v5, con otros tiempos y mucho más respaldo, y se descartó ([research R7](research.md#r7-medición-de-la-duplicación-p4)).
+
 **Las dos corridas usan el mismo código, el mismo servidor y la misma base**, con Gemini y el corpus de T067; solo cambia `GENERATION_IMPLICIT_PLAN` al arrancar el backend. Así la diferencia medida es la del plan, no la de otras correcciones del código. Desde `backend/`, con la clave local de Gemini en la terminal del backend (nunca en Render):
 
 ```bash
 # Terminal del backend: misma base para las dos corridas
 export DATABASE_URL="sqlite:///$(pwd)/p4.db" LLM_PROVIDER=gemini GENERATION_REQUIRE_PLAN=false
+export LLM_MODEL=gemini-3.5-flash-lite   # el de Render: sin esto se usa el modelo por defecto del código
 read -rs LLM_API_KEY && export LLM_API_KEY   # la clave no queda en el historial
 
 # 1. Línea base: GENERATION_IMPLICIT_PLAN=false (solo para medir)
@@ -236,9 +239,10 @@ Después se vuelve a correr la medición con `--threshold` y `--sentence-thresho
 Meta (la de P4 se conserva para la tasa de pares entre tipos distintos): duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90. La evidencia principal de que no se repite contenido son las oraciones casi repetidas entre recursos de tipos distintos, que deben bajar con plan.
 
 **Resultado con Gemini** (v3 recalculada y v4; detalle en [research R7](research.md#r7-medición-de-la-duplicación-p4)):
-- **Oraciones casi repetidas entre tipos distintos:** −35 % en las dos corridas con plan.
+- **Oraciones casi repetidas entre tipos distintos:** −35 % en las dos corridas con plan. Es el resultado principal de P4.
 - **Meta de P4, cumplida en parte:** pares entre tipos distintos ≤ 5 % en las dos; −50 % solo en la v3.
-- **Pendiente:** la `faithfulness` y los problemas de T027.
+- **v5, descartada:** corrió con el modelo por defecto en lugar del de producción y con mucho respaldo. Su línea base queda solo como evidencia de la fidelidad por tipo.
+- **Fidelidad con plan, sin verificar:** el criterio por tipo (los tipos de contenido ≥ 0,90 y ningún tipo baja más de 0,05 frente a la línea base, con `gemini-3.5-flash-lite`) queda para decidirlo con el profesor.
 
 ## Seguimiento de complejidad
 
