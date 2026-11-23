@@ -58,15 +58,19 @@ REQUESTED = inputs(("explicacion", 1), ("pregunta_detonante", 1))
 
 
 class Referents:
-    def __init__(self, error: Exception | None = None) -> None:
+    """Doble de MAT-P2. Por defecto devuelve un referente con un fragmento de la evidencia (f1)."""
+
+    def __init__(self, error: Exception | None = None, result: tuple[Referent, ...] | None = None) -> None:
         self.error = error
+        self.result = result if result is not None else (
+            Referent("Andrew Tanenbaum", "Autor de Redes de computadoras", ("f1",)),)
         self.calls: list[tuple] = []
 
     def referents_for(self, teacher_id, unit_id, topic, fragments):
         self.calls.append((teacher_id, unit_id, topic, tuple(f.id for f in fragments)))
         if self.error:
             raise self.error
-        return (Referent("Andrew Tanenbaum", "Autor de Redes de computadoras", ("f1",)),)
+        return self.result
 
 
 class Typologies:
@@ -186,6 +190,45 @@ def test_another_typology_gives_no_warning_and_a_failing_port_gives_empty_contex
     failing = creator(repository, referents=Referents(RuntimeError("Material no responde"))).execute(
         command(key="clave-plan-0002")).view.plan
     assert failing.referents == ()
+
+
+# Referentes dentro de la evidencia del plan (T023, research R10). La evidencia falsa tiene f1 y f2.
+
+INSIDE = Referent("Andrew Tanenbaum", "Autor de Redes de computadoras", ("f1", "f2"))
+OUTSIDE = Referent("Vinton Cerf", "Coautor de TCP/IP", ("f9", "frag-de-otra-unidad"))
+MIXED = Referent("Jon Postel", "Editor de los RFC", ("f9", "f2", "f7", "f1"))
+
+
+def created_referents(repository, *referents: Referent) -> tuple[tuple[Referent, ...], tuple[Referent, ...]]:
+    """Crea un plan con esos referentes y devuelve los del resultado y los que quedaron guardados."""
+    result = creator(repository, referents=Referents(result=referents)).execute(command())
+    stored = GetGenerationPlan(repository, FakeMembership(), CATALOG).get("docente-a", result.view.plan.id).plan
+    assert result.view.problems == () and result.view.plan.items  # filtrar no informa problemas
+    return result.view.plan.referents, stored.referents
+
+
+@pytest.mark.parametrize(
+    ("given", "expected"),
+    [
+        pytest.param(INSIDE, ("f1", "f2"), id="dentro"),
+        pytest.param(OUTSIDE, (), id="fuera"),
+        pytest.param(MIXED, ("f2", "f1"), id="mezclados"),
+    ],
+)
+def test_referent_fragments_are_kept_only_if_they_are_in_the_frozen_evidence(repository, given, expected):
+    returned, stored = created_referents(repository, given)
+    assert returned == stored == (replace(given, fragment_ids=expected),)
+
+
+def test_referents_keep_their_order_and_one_without_fragments_stays_with_an_empty_list(repository):
+    returned, stored = created_referents(repository, OUTSIDE, MIXED, INSIDE)
+    assert returned == stored
+    assert [(r.name, r.description, r.fragment_ids) for r in stored] == [
+        ("Vinton Cerf", "Coautor de TCP/IP", ()),
+        ("Jon Postel", "Editor de los RFC", ("f2", "f1")),
+        ("Andrew Tanenbaum", "Autor de Redes de computadoras", ("f1", "f2")),
+    ]
+    assert stored[0].to_payload()["fragmentIds"] == []
 
 
 # Leer, listar, editar y aprobar (T009)

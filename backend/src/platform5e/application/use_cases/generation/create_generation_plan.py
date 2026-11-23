@@ -14,7 +14,7 @@ import hashlib
 import json
 import logging
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from uuid import uuid4
 
 from platform5e.application.ports.outbound.evidence_provider_port import (
@@ -47,6 +47,7 @@ from platform5e.domain.generation.generation_plan import (
     PlanFragment,
     PlanInputs,
     PlanStatus,
+    Referent,
     SessionContext,
 )
 from platform5e.domain.generation.generation_request import validate_idempotency_key
@@ -77,6 +78,17 @@ def plan_payload_hash(unit_id: str, inputs: PlanInputs) -> str:
     canonical = json.dumps({"unitId": unit_id, "inputs": inputs.to_payload()}, sort_keys=True,
                            separators=(",", ":"), ensure_ascii=False)
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def within_evidence(referents: tuple[Referent, ...], evidence: PlanEvidence) -> tuple[Referent, ...]:
+    """T023 (research R10): deja en cada referente solo los fragmentos de la evidencia congelada del plan, en su
+    orden. Un referente que se queda sin ninguno se conserva con la lista vacía: se muestra, pero no se cita. No es
+    un problema de validación."""
+    frozen = {fragment.id for fragment in evidence.fragments}
+    return tuple(
+        replace(referent, fragment_ids=tuple(i for i in referent.fragment_ids if i in frozen))
+        for referent in referents
+    )
 
 
 @dataclass(frozen=True)
@@ -166,12 +178,13 @@ class CreateGenerationPlan:
         if not coverage.accepted:
             raise GenerationError(GenerationErrorCode.INSUFFICIENT_EVIDENCE, off_topic_message(coverage))
 
-        # 8. Referentes (MAT-P2) y tipologías anteriores (CUR-P3). Si fallan, el plan se arma sin ellos.
-        referents = self._optional(
+        # 8. Referentes (MAT-P2) y tipologías anteriores (CUR-P3). Si fallan, el plan se arma sin ellos. Los
+        # fragmentos de cada referente se limitan a la evidencia congelada, sea cual sea el adaptador.
+        referents = within_evidence(self._optional(
             lambda: tuple(self._referents.referents_for(
                 command.teacher_id, command.unit_id, inputs.instructions, evidence.fragments)),
             "los referentes",
-        )
+        ), evidence)
         previous = self._optional(
             lambda: tuple(self._typologies.previous_typologies(
                 command.teacher_id, command.unit_id, MAX_PREVIOUS_TYPOLOGIES))[:MAX_PREVIOUS_TYPOLOGIES],

@@ -69,9 +69,10 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - Pruebas de mensajes: ningún mensaje al docente dice «5E» (PLAN-R8).
   - Hecho en el PR del backend (enlace pendiente). E2E de V1, V2, V4, V5 y V8 (V6, V7 y la generación de V8 son de GEN-P2). Conformidad con el contrato en `tests/integration/test_generation_plans_contract.py`; el contrato documenta ahora `503 EVIDENCE_UNAVAILABLE` en la creación. La creación del plan cuenta para el límite por IP de QA-16.
 
-- [ ] T023 [BE] [GEN-P1] **Depende de T008.** Referentes dentro de la evidencia del plan ([research R10](research.md#r10-referentes-mat-p2)): al crear el plan, `CreateGenerationPlan` deja en los `fragmentIds` de cada referente solo los ids de `evidence.fragments`, y conserva con `fragmentIds: []` el referente que se queda sin ninguno. No es un problema de validación.
+- [x] T023 [BE] [GEN-P1] **Depende de T008.** Referentes dentro de la evidencia del plan ([research R10](research.md#r10-referentes-mat-p2)): al crear el plan, `CreateGenerationPlan` deja en los `fragmentIds` de cada referente solo los ids de `evidence.fragments`, y conserva con `fragmentIds: []` el referente que se queda sin ninguno. No es un problema de validación.
   - Pruebas unitarias en `tests/unit/test_generation_plan_use_cases.py`, con un doble de `ReferentsPort`: un referente con un id de la evidencia y otro ajeno guarda solo el primero; un referente con solo ids ajenos se guarda con `fragmentIds: []`; el plan sigue válido y sin problemas nuevos; el orden de los referentes no cambia.
   - Prueba e2e en `tests/e2e/test_generation_plans_api.py`: el `GET` del plan devuelve los referentes ya filtrados.
+  - Hecho en el PR del backend (#69). El filtro es `within_evidence` en `create_generation_plan.py`, aplicado al resultado de `ReferentsPort` antes del planificador, así que vale para cualquier adaptador de MAT-P2. Pruebas en `tests/unit/test_generation_plan_use_cases.py` con un doble que devuelve ids dentro, fuera y mezclados; leen el plan guardado en el repositorio real (SQLite) con `GetGenerationPlan`. La prueba e2e queda para cuando llegue el adaptador de MAT-P2: hoy `main.py` usa `NoReferentsAdapter` y el API siempre devuelve `referents: []`.
 
 ## 5. Generación desde el plan (GEN-P2)
 
