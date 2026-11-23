@@ -67,6 +67,7 @@ from platform5e.application.services.generation.step_drafting import (
     saved_parameters,
 )
 from platform5e.application.services.media.media_attachment import PendingMedia, generate_media
+from platform5e.application.services.provider_errors import public_reason, redact_secrets
 from platform5e.domain.generation.topic_coverage import (
     DEFAULT_COVERAGE_THRESHOLD,
     TopicCoverage,
@@ -125,9 +126,36 @@ INSUFFICIENT_EVIDENCE_MESSAGE: str = (
     "Prueba con otros tipos de recurso o agrega más material a la unidad."
 )
 
+AI_RETRY_FAILED_MESSAGE: str = (
+    "No se pudo completar la generación asistida por IA tras reintentar. "
+    "Verifica la disponibilidad del servicio o intenta nuevamente."
+)
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _run_with_ai_retry(
+    operation: Callable[[], Any],
+    *,
+    max_retries: int = 1,
+    backoff_seconds: float = 0.25,
+    on_retry: Callable[[int, Exception], None] | None = None,
+) -> Any:
+    """Reintenta una operación de IA hasta `max_retries` veces ante fallos transitorios."""
+    attempt = 0
+    while True:
+        try:
+            return operation()
+        except Exception as exc:
+            if attempt >= max_retries:
+                raise
+            attempt += 1
+            if on_retry is not None:
+                on_retry(attempt, exc)
+            if backoff_seconds > 0:
+                time.sleep(backoff_seconds)
 
 
 class _RequestGone(Exception):
@@ -420,9 +448,43 @@ class RunGenerationRequest:
         context["secuenciaPrevia"] = previous_sequence(accepted)
 
         grounding_rejections: list[dict[str, Any]] = []
-        drafted = draft_step(
-            context, accepted, self._primary_generator, self._fallback_generator, grounding_rejections
-        )
+        try:
+            drafted = _run_with_ai_retry(
+                lambda: draft_step(
+                    context,
+                    accepted,
+                    self._primary_generator,
+                    self._fallback_generator,
+                    grounding_rejections,
+                ),
+                max_retries=1,
+                backoff_seconds=0.25,
+                on_retry=lambda attempt, exc: logger.warning(
+                    "Reintento %d de generación asistida por IA en pedido %s (paso %s): %s",
+                    attempt,
+                    request.id,
+                    step.position,
+                    redact_secrets(str(exc))[:300],
+                ),
+            )
+        except Exception as exc:
+            reason = public_reason(exc).replace("5E", "").strip()
+            logger.warning(
+                "Fallo persistente de IA en pedido %s (paso %s) tras reintentar: %s",
+                request.id,
+                step.position,
+                redact_secrets(str(exc))[:300],
+            )
+            return replace(
+                step,
+                status=StepStatus.FAILED,
+                error=Problem(
+                    GenerationErrorCode.GENERATION_FAILED,
+                    f"{AI_RETRY_FAILED_MESSAGE} Motivo: {reason}.",
+                ),
+                finished_at=self._clock(),
+            )
+
         generator = drafted.generator
         if generator is None:
             return replace(

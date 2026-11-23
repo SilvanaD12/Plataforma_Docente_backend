@@ -21,8 +21,12 @@ from platform5e.application.services.provider_errors import public_reason, redac
 from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.domain.materials.chunking import MaterialError, chunk_pages
+from platform5e.application.ports.outbound.web_content_fetcher_port import WebContentFetcherPort
+from platform5e.application.services.materials.referent_service import ReferentService
+from platform5e.domain.generation.generation_plan import PlanFragment
 
 OPEN_EDUCATIONAL_RESOURCE_TYPE: str = "Artículo de fuente abierta"
+WEB_URL_RESOURCE_TYPE: str = "Página web"
 NO_TEXT_FOUND_MESSAGE: str = (
     "No se encontró texto en el archivo. Si es un PDF escaneado (solo imágenes), "
     "súbelo como PDF con texto seleccionable o copia el contenido en un TXT."
@@ -57,6 +61,8 @@ class MaterialService:
         embedding_service: ChunkEmbeddingService | None = None,
         unit_membership_port: UnitMembershipPort | None = None,
         evidence_retriever: EvidenceRetrieverPort | None = None,
+        web_fetcher_port: WebContentFetcherPort | None = None,
+        referent_service: ReferentService | None = None,
     ) -> None:
         self._teacher_repository = teacher_repository
         self._chunk_repository = chunk_repository
@@ -65,6 +71,8 @@ class MaterialService:
         self._embedding_service = embedding_service
         self._unit_membership_port = unit_membership_port
         self._evidence_retriever = evidence_retriever
+        self._web_fetcher_port = web_fetcher_port
+        self._referent_service = referent_service
 
     def _get_document(self, teacher_id: str, document_id: str) -> tuple[dict[str, Any], bytes]:
         """Recupera los metadatos y bytes del documento validando existencia."""
@@ -180,6 +188,31 @@ class MaterialService:
             **self._embed_document_chunks(document_id),
         }
         self._chunk_repository.update_document(teacher_id, updated_metadata)
+
+        if self._referent_service is not None:
+            origin = metadata.get("origin") if isinstance(metadata.get("origin"), dict) else {}
+            doc_name = str(metadata.get("fileName") or metadata.get("file_name") or document_id)
+            plan_fragments = tuple(
+                PlanFragment(
+                    id=str(chunk["id"]),
+                    document_id=document_id,
+                    document_name=doc_name,
+                    location=str(chunk.get("location") or chunk.get("ubicacion") or ""),
+                    text=str(chunk.get("text") or chunk.get("texto") or ""),
+                    relevance=1.0,
+                    source_url=origin.get("url") if isinstance(origin, dict) else None,
+                    license=origin.get("license") if isinstance(origin, dict) else None,
+                )
+                for chunk in persisted_chunks
+            )
+            self._referent_service.extract_and_store_for_unit(
+                teacher_id=teacher_id,
+                unit_id=metadata["unitId"],
+                topic=doc_name,
+                fragments=plan_fragments,
+                document_id=document_id,
+            )
+
         return updated_metadata
 
     def _embed_document_chunks(self, document_id: str) -> dict[str, Any]:
@@ -319,3 +352,69 @@ class MaterialService:
             results.append(self.process_material(teacher_id, doc_data["id"]))
 
         return results
+
+    def create_from_url(
+        self,
+        teacher_id: str,
+        unit_id: str,
+        url: str,
+        outcome_ids: list[str] | None = None,
+    ) -> dict[str, Any]:
+        """Descarga una URL pública, extrae su texto limpio, la guarda e indexa como material (MAT-P1)."""
+        normalized_outcomes = list(dict.fromkeys(outcome_ids or []))
+
+        # MAT-C2 / MAT-C9: Validación segura de pertenencia a unidad y outcomes antes de hacer requests externos
+        self.validate_unit_membership_secure(teacher_id, unit_id, normalized_outcomes)
+
+        if self._web_fetcher_port is None:
+            raise MaterialError(
+                "URL_INGEST_UNAVAILABLE",
+                "La ingesta de materiales desde URL no está activada en el servidor.",
+                503,
+            )
+
+        fetched = self._web_fetcher_port.fetch(url)
+        final_url = fetched["url"]
+        title = fetched["title"]
+        text = fetched["text"]
+
+        # Evita duplicar la misma URL dentro de la misma unidad
+        for existing in self._teacher_repository.get_documents(teacher_id):
+            origin = existing.get("origin")
+            if (
+                existing.get("unitId") == unit_id
+                and isinstance(origin, dict)
+                and origin.get("url") == final_url
+            ):
+                return existing
+
+        filename = build_article_filename(title, "Web")
+        content_bytes = f"{title}\n\n{text}".encode("utf-8")
+        doc_data: dict[str, Any] = {
+            "unitId": unit_id,
+            "outcomeIds": normalized_outcomes,
+            "documentType": WEB_URL_RESOURCE_TYPE,
+            "suggestedStage": None,
+            "usePermission": True,
+            "id": f"doc-url-{uuid4()}",
+            "fileName": filename,
+            "kind": "txt",
+            "sizeBytes": len(content_bytes),
+            "status": "registrado",
+            "currentStep": None,
+            "registeredAt": _get_utc_now(),
+            "processedAt": None,
+            "fragmentCount": 0,
+            "pageCount": None,
+            "errorMessage": None,
+            "isDemo": False,
+            "source": "backend",
+            "origin": {
+                "source": "Web",
+                "url": final_url,
+                "license": None,
+                "topic": None,
+            },
+        }
+        self._teacher_repository.save_document(teacher_id, doc_data, content_bytes)
+        return self.process_material(teacher_id, doc_data["id"])

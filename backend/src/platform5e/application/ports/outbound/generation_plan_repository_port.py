@@ -31,6 +31,12 @@ class GenerationPlanRepositoryPort(Protocol):
         """Los planes de la unidad, del más reciente (por `updatedAt`) al más antiguo."""
         ...
 
+    def list_used_for_units(
+        self, teacher_id: str, unit_ids: Sequence[str], limit: int = 3
+    ) -> Sequence[GenerationPlan]:
+        """Return used plans for the teacher and units, ordered by most recent use."""
+        ...
+
     def create(self, plan: GenerationPlan) -> GenerationPlan:
         """Guarda un plan nuevo. Lanza `PlanKeyTaken` si la clave del docente ya tiene un plan."""
         ...

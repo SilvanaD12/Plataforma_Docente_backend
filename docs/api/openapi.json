@@ -1094,6 +1094,93 @@
         }
       }
     },
+    "/api/v1/documents/from-url": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Add material from a public web URL",
+        "description": "Downloads a public web page, extracts its clean text and indexes it into the unit.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nReplace unidad-1 with the ID of a unit you own.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/documents/from-url\" -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" --data '{\"unitId\":\"unidad-1\",\"url\":\"https://es.wikipedia.org/wiki/Modelo_OSI\"}'\n```\n\nExpected 201 with the processed document metadata.",
+        "operationId": "create_document_from_url_api_v1_documents_from_url_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UrlIngestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database or an external source is not available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
     "/api/v1/generation-requests/interpret": {
       "post": {
         "tags": [
@@ -3992,7 +4079,8 @@
             "type": "string",
             "title": "Source",
             "examples": [
-              "Wikipedia"
+              "Wikipedia",
+              "Web"
             ]
           },
           "url": {
@@ -4000,14 +4088,28 @@
             "title": "Url"
           },
           "license": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "License",
             "examples": [
               "CC BY-SA 4.0"
             ]
           },
           "topic": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Topic"
           }
         },
@@ -4015,12 +4117,10 @@
         "type": "object",
         "required": [
           "source",
-          "url",
-          "license",
-          "topic"
+          "url"
         ],
         "title": "DocumentOrigin",
-        "description": "Open source the document came from (POST /documents/from-topic)."
+        "description": "Open source or web URL the document came from (POST /documents/from-topic or /from-url)."
       },
       "DocumentResponse": {
         "properties": {
@@ -8595,6 +8695,42 @@
           "items"
         ],
         "title": "UpdateGenerationPlan"
+      },
+      "UrlIngestRequest": {
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "title": "Unitid",
+            "examples": [
+              "unidad-1"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 10,
+            "title": "Url",
+            "examples": [
+              "https://es.wikipedia.org/wiki/Modelo_OSI"
+            ]
+          },
+          "outcomeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Outcomeids",
+            "description": "Related learning outcomes."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unitId",
+          "url"
+        ],
+        "title": "UrlIngestRequest"
       },
       "ValidationError": {
         "properties": {
