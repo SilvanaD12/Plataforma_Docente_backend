@@ -6,7 +6,7 @@
     "plural": "Frases célebres comentadas",
     "stage": "engage",
     "format": "text",
-    "description": "Presenta una cita literal del material o de un referente respaldado por un fragmento disponible. Indica la fuente y pide al estudiante interpretar su relación con el tema. Si no hay una cita respaldada, indica que falta evidencia y omite la atribución.",
+    "description": "Presenta una cita textual tomada del material o de un referente cuya cita conste en un fragmento disponible. Indica la fuente y pide al estudiante interpretar su relación con el tema. Si la evidencia disponible no contiene una cita textual pertinente, rechaza el recurso con este motivo: «El material no tiene una cita textual para este tema».",
     "structure": "none",
     "modalities": [
       "Textual"
