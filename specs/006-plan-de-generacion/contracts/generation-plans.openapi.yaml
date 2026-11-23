@@ -1,0 +1,491 @@
+# Contrato de diseño de GEN-P1 a GEN-P3 (plan antes de generar). Es la referencia compartida con MAT-P2, CUR-P2,
+# CUR-P3 y REV-P3. Las rutas se implementarán en FastAPI (routers/generation_plans.py, schemas/generation_plans.py) y
+# se exportarán a docs/api/openapi.json con scripts/export_openapi.py; este archivo es la referencia para revisarla.
+openapi: 3.1.0
+info:
+  title: Platform 5E API — Generation plans (GEN-P1 to GEN-P3)
+  version: 0.1.0-draft
+  description: |
+    A plan lists the resources to generate, in stage order, with the purpose of each one, the concepts it owns
+    (`covers`), the concepts owned by the other items (`doesNotCover`, computed by the server) and the evidence
+    fragments that support it. The teacher reviews, edits and approves it; generation always starts from an
+    approved plan. Errors keep the common shape `{"error": {"code", "message", "details"}}`: `code` is stable and in
+    English, `message` is shown to the teacher in Spanish and never mentions the 5E methodology.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+
+paths:
+  /generation-plans:
+    post:
+      tags: [generation-plans]
+      operationId: createGenerationPlan
+      summary: Create a generation plan (synchronous)
+      description: |
+        Retrieves the unit evidence once and freezes it in the plan, asks Material for the referents (MAT-P2) and
+        Courses for the previous typologies (CUR-P3), drafts the plan with one AI call (60 s total deadline, QA-06)
+        or with the rule-based planner, and validates it. If the AI fails, times out or returns an invalid plan,
+        the rule-based planner drafts it and `generator.fallbackReason` says why. Same `Idempotency-Key` with the
+        same body returns the existing plan (200); with another body, 409.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateGenerationPlan' }
+            examples:
+              sequence:
+                value:
+                  unitId: unidad-1
+                  instructions: Diferencias entre TCP y UDP y cuándo conviene cada uno
+                  audience: Estudiantes de tercer ciclo
+                  competency: Pensamiento crítico
+                  modality: Textual
+                  resourceTypes:
+                    - { type: pregunta_detonante, quantity: 1 }
+                    - { type: explicacion, quantity: null }
+                    - { type: item_opcion_multiple, quantity: 2 }
+      responses:
+        '201':
+          description: Plan created in `draft`.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationPlan' } } }
+        '200':
+          description: The same key and body were already used; the existing plan is returned.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationPlan' } } }
+        '400': { $ref: '#/components/responses/BusinessRule' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/UnitNotFound' }
+        '409': { $ref: '#/components/responses/IdempotencyConflict' }
+        '422': { $ref: '#/components/responses/InvalidInputs' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+    get:
+      tags: [generation-plans]
+      operationId: listGenerationPlans
+      summary: List the teacher's plans of a unit
+      description: Most recently updated first. Used to recover the last plan after a reload (PLAN-C14).
+      parameters:
+        - { name: unitId, in: query, required: true, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { $ref: '#/components/schemas/PlanStatus' } }
+        - { name: limit, in: query, required: false, schema: { type: integer, minimum: 1, maximum: 20, default: 5 } }
+      responses:
+        '200':
+          description: Plans of the unit (empty list if none). A foreign unit answers like a missing one.
+          content:
+            application/json:
+              schema: { type: array, items: { $ref: '#/components/schemas/GenerationPlan' } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/UnitNotFound' }
+
+  /generation-plans/{planId}:
+    parameters:
+      - { name: planId, in: path, required: true, schema: { type: string } }
+    get:
+      tags: [generation-plans]
+      operationId: getGenerationPlan
+      summary: Get a plan
+      responses:
+        '200':
+          description: The plan, with `validation` and `doesNotCover` computed on read.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationPlan' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/PlanNotFound' }
+    put:
+      tags: [generation-plans]
+      operationId: updateGenerationPlan
+      summary: Save the teacher's edits
+      description: |
+        Replaces the items. `stage` and `doesNotCover` are ignored (read-only). The plan goes back to `draft` and
+        its `version` increases. An invalid plan is saved anyway, with its problems in `validation`, so the teacher
+        does not lose work; it cannot be approved until it is valid. `inputs` and `evidence` do not change: to change
+        the topic or the types, create a new plan.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateGenerationPlan' }
+      responses:
+        '200':
+          description: Saved. Check `validation`.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationPlan' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/PlanNotFound' }
+        '409': { $ref: '#/components/responses/PlanConflict' }
+        '422': { $ref: '#/components/responses/InvalidParameters' }
+
+  /generation-plans/{planId}/approve:
+    parameters:
+      - { name: planId, in: path, required: true, schema: { type: string } }
+    post:
+      tags: [generation-plans]
+      operationId: approveGenerationPlan
+      summary: Approve a valid plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [expectedVersion]
+              properties:
+                expectedVersion: { type: integer, minimum: 1 }
+      responses:
+        '200':
+          description: Approved. Approving an already approved plan with its current version returns it unchanged.
+          content: { application/json: { schema: { $ref: '#/components/schemas/GenerationPlan' } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/PlanNotFound' }
+        '409': { $ref: '#/components/responses/PlanConflict' }
+        '422':
+          description: '`PLAN_INVALID`: `details` lists every `PlanProblem`.'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+
+  /generation-requests:
+    post:
+      tags: [generations]
+      operationId: startPlannedGenerationRequest
+      summary: Start a generation request from an approved plan
+      description: |
+        Change to GEN-01. The body is `{planId, planVersion}`; the mode, unit, types, quantities and evidence come
+        from the plan, which becomes `used`. One step per plan item; each resource is drafted separately from its
+        item and the summary of what earlier resources covered (GEN-P2). While `GENERATION_REQUIRE_PLAN=false`, the
+        previous body of GEN-01 (`StartGenerationRequest` in specs/002) is still accepted and the server creates an
+        implicit approved plan; with `true` it answers 422 `PLAN_REQUIRED`. Same idempotency rules as GEN-01.
+        Before creating the request, every `fragmentId` of the plan items must still exist in the teacher's unit (a
+        deleted or reprocessed document gives new ids); otherwise 409 `PLAN_EVIDENCE_STALE` and the teacher creates a
+        new plan. Regenerating a resource from Review reads its plan item without writing the plan (no 409
+        `PLAN_ALREADY_USED`) and applies the same evidence check to that item.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/StartPlannedGenerationRequest' }
+      responses:
+        '202': { description: 'Accepted. Same response body as GEN-01 (`GenerationRequestStatus`), with `planId` and `planVersion`.' }
+        '200': { description: The same key and body were already used; the existing request is returned. }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/PlanNotFound' }
+        '409': { $ref: '#/components/responses/PlannedGenerationConflict' }
+        '422':
+          description: |
+            `PLAN_NOT_APPROVED`: the plan is a draft. `PLAN_REQUIRED`: the body has no plan and
+            `GENERATION_REQUIRE_PLAN=true`.
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '429': { description: '`TOO_MANY_ACTIVE_REQUESTS` (2 active requests), as in GEN-01.' }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer }
+
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Stable client key, unique per teacher, 8 to 128 of `[A-Za-z0-9_-]`, as in GEN-01. A missing key answers 400 IDEMPOTENCY_KEY_REQUIRED.
+      schema: { type: [string, 'null'], pattern: '^[A-Za-z0-9_-]{8,128}$' }
+
+  schemas:
+    Stage: { type: string, enum: [engage, explore, explain, elaborate, evaluate] }
+    PlanStatus: { type: string, enum: [draft, approved, used] }
+    Modality: { type: string, enum: [Textual, Gamificado, Multimedia, Kinestésico] }
+    ResourceTypeId:
+      type: string
+      pattern: '^[a-z][a-z0-9_]{2,59}$'
+      description: Id of an active entry of the configurable catalog (CUR-P2). Today, the values of `GET /resource-types`.
+
+    RequestedType:
+      type: object
+      additionalProperties: false
+      required: [type]
+      properties:
+        type: { $ref: '#/components/schemas/ResourceTypeId' }
+        quantity:
+          type: [integer, 'null']
+          minimum: 1
+          maximum: 5
+          default: null
+          description: |
+            Optional. `null` lets the planner choose according to the available concepts: the rule-based planner
+            picks 1 to 3 (one resource per two concepts of the type), and the AI planner 1 to 5, with at least as
+            many concepts as resources. 5 is the GEN-01 limit per type.
+
+    CreateGenerationPlan:
+      type: object
+      additionalProperties: false
+      required: [unitId, resourceTypes]
+      properties:
+        unitId: { type: string }
+        instructions: { type: string, maxLength: 500, default: '', description: The topic. Checked against the evidence (QA-05). }
+        audience: { type: string, maxLength: 200, default: '' }
+        competency: { type: string, maxLength: 200, default: '' }
+        outcomeId: { type: [string, 'null'], default: null }
+        modality: { oneOf: [{ $ref: '#/components/schemas/Modality' }, { type: 'null' }], default: null }
+        resourceTypes:
+          type: array
+          items: { $ref: '#/components/schemas/RequestedType' }
+          minItems: 1
+          maxItems: 8
+          description: Distinct catalog types; repeated types answer 422 INVALID_PARAMETERS.
+        difficulty: { type: string, enum: [basica, intermedia, avanzada], default: intermedia }
+        optionCount: { type: integer, minimum: 2, maximum: 5, default: 4 }
+        evidenceThreshold: { type: number, minimum: 0, maximum: 1, default: 0.6 }
+        topK: { type: integer, minimum: 3, maximum: 12, default: 12 }
+
+    EditablePlanItem:
+      type: object
+      additionalProperties: false
+      required: [resourceType, quantity, purpose, covers, fragmentIds]
+      properties:
+        resourceType: { $ref: '#/components/schemas/ResourceTypeId' }
+        quantity: { type: integer, minimum: 1, maximum: 5 }
+        purpose: { type: string, minLength: 1, maxLength: 300 }
+        covers:
+          type: array
+          items: { type: string, minLength: 1, maxLength: 120 }
+          minItems: 1
+          maxItems: 20
+        fragmentIds: { type: array, items: { type: string }, minItems: 1, maxItems: 12 }
+
+    UpdateGenerationPlan:
+      type: object
+      additionalProperties: false
+      required: [expectedVersion, items]
+      properties:
+        expectedVersion: { type: integer, minimum: 1 }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/EditablePlanItem' }
+          maxItems: 40
+          description: |
+            The new list, in the order the teacher wants inside each stage. An empty list is saved and reported as
+            `PLAN_EMPTY`. Up to 40 items (8 types × quantity 5): the teacher may split a type into several items. The
+            AI planner proposes at most one item per requested type (8); both limits are intended.
+
+    PlanItem:
+      type: object
+      required: [position, stage, resourceType, quantity, purpose, covers, doesNotCover, fragmentIds]
+      properties:
+        position: { type: integer, minimum: 1 }
+        stage: { $ref: '#/components/schemas/Stage' }
+        resourceType: { $ref: '#/components/schemas/ResourceTypeId' }
+        quantity: { type: integer, minimum: 1, maximum: 5 }
+        purpose: { type: string }
+        covers: { type: array, items: { type: string }, description: Concepts or questions this item develops. Split in `quantity` consecutive blocks, one per resource. }
+        doesNotCover: { type: array, items: { type: string }, description: Read-only. The `covers` of the other items, in order. }
+        fragmentIds: { type: array, items: { type: string }, description: Ids of `evidence.fragments` that support the item. }
+
+    PlanInputs:
+      type: object
+      required: [instructions, audience, competency, outcomeId, modality, resourceTypes, difficulty, optionCount, evidenceThreshold, topK]
+      properties:
+        instructions: { type: string }
+        audience: { type: string }
+        competency: { type: string }
+        outcomeId: { type: [string, 'null'] }
+        modality: { oneOf: [{ $ref: '#/components/schemas/Modality' }, { type: 'null' }] }
+        resourceTypes: { type: array, items: { $ref: '#/components/schemas/RequestedType' } }
+        difficulty: { type: string }
+        optionCount: { type: integer }
+        evidenceThreshold: { type: number }
+        topK: { type: integer }
+
+    PlanFragment:
+      type: object
+      required: [id, documentId, documentName, location, text, relevance]
+      properties:
+        id: { type: string }
+        documentId: { type: string }
+        documentName: { type: string }
+        location: { type: string }
+        text: { type: string }
+        relevance: { type: number, minimum: 0, maximum: 1 }
+        sourceUrl: { type: [string, 'null'] }
+        license: { type: [string, 'null'] }
+
+    PlanEvidence:
+      type: object
+      required: [retrievalMode, retrievedAt, fragments]
+      properties:
+        retrievalMode: { type: string, enum: [hybrid, bm25_fallback] }
+        retrievedAt: { type: string, format: date-time }
+        fragments: { type: array, items: { $ref: '#/components/schemas/PlanFragment' } }
+
+    Referent:
+      type: object
+      description: From MAT-P2. Main authors of the topic found in the unit material.
+      required: [name, description, fragmentIds]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        fragmentIds:
+          type: array
+          items: { type: string }
+          description: |
+            Fragments of the plan evidence that mention the referent. Always a subset of `evidence.fragments`: when the
+            plan is created, ids outside the frozen evidence are dropped (not a validation problem). May be empty: the
+            referent is shown but not cited.
+
+    PreviousTypology:
+      type: object
+      description: From CUR-P3. A session of the same course, counted when one of its plans became `used`.
+      required: [sessionLabel, usedAt, resourceTypes]
+      properties:
+        sessionLabel: { type: string, description: Session name shown to the teacher, set by Courses. }
+        usedAt: { type: string, format: date-time, description: When the plan of that session became `used`. }
+        resourceTypes: { type: array, items: { $ref: '#/components/schemas/ResourceTypeId' }, description: Types of the items of that plan. }
+
+    PlanProblem:
+      type: object
+      required: [code, message, itemPosition]
+      properties:
+        code:
+          type: string
+          enum: [PLAN_EMPTY, ITEM_WITHOUT_EVIDENCE, FRAGMENT_NOT_IN_EVIDENCE, CONCEPT_OWNED_TWICE, NOT_ENOUGH_CONCEPTS,
+                 TYPE_NOT_IN_CATALOG, RESOURCE_TYPE_NOT_IN_MODALITY, QUANTITY_OUT_OF_RANGE, TOO_MANY_TYPES,
+                 PURPOSE_REQUIRED]
+        message: { type: string, description: In Spanish, shown next to the item. }
+        itemPosition: { type: [integer, 'null'] }
+
+    PlanGenerator:
+      type: object
+      required: [description, usesAi, fallback, fallbackReason]
+      properties:
+        description: { type: string }
+        usesAi: { type: boolean }
+        fallback: { type: boolean, description: True when the rule-based planner drafted the plan after the AI failed. }
+        fallbackReason: { type: [string, 'null'], description: Generic public reason (provider_errors.py); null without fallback. }
+
+    GenerationPlan:
+      type: object
+      required: [id, version, status, origin, unitId, inputs, evidence, referents, sessionContext, items, validation,
+                 warnings, generator, usedByRequestId, createdAt, updatedAt, approvedAt, usedAt]
+      properties:
+        id: { type: string, examples: [gen-plan-3f6c2a1e-8b4d-4d7a-9a51-0c2f8e1b7d10] }
+        version: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/PlanStatus' }
+        origin: { type: string, enum: [teacher, implicit], description: '`implicit`: created by the server for a request without plan.' }
+        unitId: { type: string }
+        inputs: { $ref: '#/components/schemas/PlanInputs' }
+        evidence: { $ref: '#/components/schemas/PlanEvidence' }
+        referents: { type: array, items: { $ref: '#/components/schemas/Referent' }, description: 'From MAT-P2 (shown in the UI as «referentes»). May be empty.' }
+        sessionContext:
+          type: object
+          required: [previousTypologies]
+          properties:
+            previousTypologies:
+              type: array
+              items: { $ref: '#/components/schemas/PreviousTypology' }
+              maxItems: 3
+              description: |
+                The last 3 sessions of the same course, newest first. `SAME_TYPOLOGY_AS_LAST_SESSION` compares the
+                requested types with the first one. Empty if Courses does not answer or there are no sessions.
+        items: { type: array, items: { $ref: '#/components/schemas/PlanItem' } }
+        validation:
+          type: object
+          required: [valid, problems]
+          properties:
+            valid: { type: boolean }
+            problems: { type: array, items: { $ref: '#/components/schemas/PlanProblem' } }
+        warnings:
+          type: array
+          items: { type: string, enum: [SAME_TYPOLOGY_AS_LAST_SESSION] }
+        generator: { $ref: '#/components/schemas/PlanGenerator' }
+        usedByRequestId: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        approvedAt: { type: [string, 'null'], format: date-time }
+        usedAt: { type: [string, 'null'], format: date-time }
+
+    StartPlannedGenerationRequest:
+      type: object
+      additionalProperties: false
+      required: [planId, planVersion]
+      properties:
+        planId: { type: string }
+        planVersion: { type: integer, minimum: 1 }
+
+    StaleDocument:
+      type: object
+      description: |
+        One entry of `details` in 409 `PLAN_EVIDENCE_STALE`, one per affected document. Review's
+        `POST /units/{unit_id}/resources/{resource_id}/regenerations` (specs/001) answers 409 `PLAN_EVIDENCE_STALE` with
+        the same `{"error": {"code", "message", "details"}}` body and the same `details`.
+      required: [documentId, documentName, missingFragmentIds]
+      properties:
+        documentId: { type: string }
+        documentName: { type: string, description: From the plan evidence snapshot, so it is known even if the document was deleted. }
+        missingFragmentIds: { type: array, items: { type: string }, minItems: 1 }
+
+    RejectionKind:
+      type: string
+      description: Change to GEN-01 `steps[].rejections[].kind`. New value `plan`.
+      enum: [grounding, repetition, structure, distractor, plan]
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: { type: string }
+            message: { type: string }
+            details: { type: [array, 'null'], items: { type: object } }
+
+  responses:
+    BusinessRule:
+      description: '`NO_PROCESSED_MATERIAL`, `INVALID_OUTCOME` or `IDEMPOTENCY_KEY_REQUIRED`.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    Unauthorized:
+      description: Missing, invalid or expired session token (`UNAUTHORIZED`).
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    UnitNotFound:
+      description: '`UNIT_NOT_FOUND`: missing or belongs to another teacher. Both answers are identical.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    PlanNotFound:
+      description: '`PLAN_NOT_FOUND`: missing or belongs to another teacher. Both answers are identical.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    IdempotencyConflict:
+      description: '`IDEMPOTENCY_KEY_REUSED`: the key was already used by this teacher with a different body.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    PlanConflict:
+      description: |
+        `PLAN_VERSION_CONFLICT`: `expectedVersion` or `planVersion` is not the current version.
+        `PLAN_ALREADY_USED`: the plan already started a generation request; create a new plan.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    PlannedGenerationConflict:
+      description: |
+        `PLAN_VERSION_CONFLICT`: `planVersion` is not the current version. `PLAN_ALREADY_USED`: the plan already
+        started a generation request. `PLAN_EVIDENCE_STALE`: some fragments of the plan no longer exist in the unit
+        (a document was deleted or reprocessed); `details` is a list of `StaleDocument`. In every case nothing is
+        created and the plan does not change; create a new plan.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+          examples:
+            stale:
+              value:
+                error:
+                  code: PLAN_EVIDENCE_STALE
+                  message: El material del plan cambió. Crea un plan nuevo.
+                  details: [{ documentId: doc-api-1, documentName: protocolos_tcp_udp.pdf, missingFragmentIds: [frag-1a2b, frag-3c4d] }]
+    InvalidInputs:
+      description: |
+        `INVALID_PARAMETERS` (type, range, unknown or repeated type; `details` lists each problem),
+        `RESOURCE_TYPE_NOT_IN_MODALITY`, or `INSUFFICIENT_EVIDENCE`: the unit material does not cover the topic of the
+        instructions (QA-05); the message names what is missing. No plan is created.
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    InvalidParameters:
+      description: '`INVALID_PARAMETERS`: type, range or unknown field; `details` lists each problem.'
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+    RateLimited:
+      description: Per-IP limit of costly routes (QA-16), with `Retry-After`.
+      headers:
+        Retry-After: { schema: { type: integer } }
+      content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
