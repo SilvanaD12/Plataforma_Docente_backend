@@ -28,13 +28,22 @@ class TopicSearchRequest(ApiRequest):
     max_results: int = Field(default=3, ge=1, le=5, description="Maximum number of articles to add.")
 
 
-class DocumentOrigin(ApiResponse):
-    """Open source the document came from (POST /documents/from-topic)."""
+class UrlIngestRequest(ApiRequest):
+    unit_id: str = Field(examples=["unidad-1"])
+    url: str = Field(min_length=10, max_length=2048, examples=["https://es.wikipedia.org/wiki/Modelo_OSI"])
+    outcome_ids: list[str] = Field(default_factory=list, max_length=50, description="Related learning outcomes.")
 
-    source: str = Field(examples=["Wikipedia"])
+
+UrlIngestRequest.model_rebuild()
+
+
+class DocumentOrigin(ApiResponse):
+    """Open source or web URL the document came from (POST /documents/from-topic or /from-url)."""
+
+    source: str = Field(examples=["Wikipedia", "Web"])
     url: str
-    license: str = Field(examples=["CC BY-SA 4.0"])
-    topic: str
+    license: str | None = Field(default=None, examples=["CC BY-SA 4.0"])
+    topic: str | None = None
 
 
 class DocumentResponse(ApiResponse):
@@ -58,13 +67,13 @@ class DocumentResponse(ApiResponse):
     embedding_error: str | None = Field(
         default=None, description="Why the embeddings failed; the document stays processed and BM25 still works."
     )
+    origin: DocumentOrigin | None = None
 
     @field_validator("embedding_error", mode="before")
     @classmethod
     def _without_provider_text(cls, value: object) -> object:
         # Revisión del PR #43: errores guardados antes de la corrección pueden traer el mensaje del proveedor.
         return sanitize_stored_reason(value) if isinstance(value, str) else value
-    origin: DocumentOrigin | None = None
 
 
 class ChunkResponse(ApiResponse):

@@ -70,17 +70,27 @@ ERROR_STATUS: dict[str, int] = {
 }
 
 
+def _strip_internal_methodology(text: str) -> str:
+    """Elimina cualquier mención a '5E' en textos visibles para el docente (MAT-P3)."""
+    return " ".join(text.replace("5E", "").split()).strip()
+
+
 def generation_error_response(error: GenerationError) -> JSONResponse:
     """Traduce un error del pedido de generación al JSON común, con el estado del contrato."""
     status_code = ERROR_STATUS.get(error.code, 400)
-    response = error_json(status_code, str(error.code), error.message)
+    response = error_json(status_code, str(error.code), _strip_internal_methodology(error.message))
     if status_code == 429:
         response.headers["Retry-After"] = str(RETRY_AFTER_SECONDS)
     return response
 
 
 def _problem(problem: DomainProblem | None) -> dict[str, str] | None:
-    return None if problem is None else {"code": str(problem.code), "message": problem.message}
+    if problem is None:
+        return None
+    return {
+        "code": str(problem.code),
+        "message": _strip_internal_methodology(problem.message),
+    }
 
 
 def summary_payload(request: GenerationRequest) -> dict[str, Any]:
@@ -97,6 +107,10 @@ def summary_payload(request: GenerationRequest) -> dict[str, Any]:
 
 def _step_payload(step: DomainStep, view: GenerationRequestView | None) -> dict[str, Any]:
     resources = view.resources_by_step.get(step.position, ()) if view is not None else ()
+    generator_data = dict(step.generator) if isinstance(step.generator, dict) else step.generator
+    if isinstance(generator_data, dict) and isinstance(generator_data.get("fallbackReason"), str):
+        generator_data["fallbackReason"] = _strip_internal_methodology(generator_data["fallbackReason"])
+
     return {
         "position": step.position,
         "stage": step.stage,
@@ -108,9 +122,14 @@ def _step_payload(step: DomainStep, view: GenerationRequestView | None) -> dict[
             {"id": r.id, "title": r.title, "verificationStatus": r.verification_status} for r in resources
         ],
         "rejections": [
-            {"title": r["title"], "reason": r["reason"], "kind": r.get("kind", "grounding")} for r in step.rejections
+            {
+                "title": r["title"],
+                "reason": _strip_internal_methodology(r["reason"]),
+                "kind": r.get("kind", "grounding"),
+            }
+            for r in step.rejections
         ],
-        "generator": step.generator,
+        "generator": generator_data,
         "grounding": step.grounding,
         "distractorReliability": step.distractor_reliability,
         "error": _problem(step.error),
