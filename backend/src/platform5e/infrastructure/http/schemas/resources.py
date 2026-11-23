@@ -277,3 +277,20 @@ class UnitSummaryResponse(ApiResponse):
     unit_id: str
     approved: int = Field(description="Approved resources of the unit.")
     pending: int = Field(description="Resources waiting for review.")
+
+
+class FlaggedPair(ApiResponse):
+    resource_id_a: str = Field(description="First resource identifier.")
+    resource_id_b: str = Field(description="Second resource identifier.")
+    scope: Literal["resource", "question"] = Field(description="Comparison scope: whole resource or single question.")
+    score: float = Field(ge=0.0, le=1.0, description="Combined similarity score.")
+    excerpt_a: str = Field(description="Excerpt of first content (max 160 characters).")
+    excerpt_b: str = Field(description="Excerpt of second content (max 160 characters).")
+
+
+class DuplicationReportResponse(ApiResponse):
+    threshold: float = Field(ge=0.0, le=1.0, description="Similarity threshold applied.")
+    compared_pairs: int = Field(ge=0, description="Total number of evaluated pairs.")
+    flagged_pairs: list[FlaggedPair] = Field(description="Pairs with score >= threshold, sorted descending.")
+    duplicate_pair_rate: float = Field(ge=0.0, le=1.0, description="Proportion of flagged pairs over compared pairs.")
+

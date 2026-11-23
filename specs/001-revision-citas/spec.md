@@ -68,6 +68,32 @@ Como docente, quiero que mis descargas incluyan solo recursos aprobados y verifi
 - **REV-R10.** Pedir la regeneración a Generación con el identificador y la versión del recurso. Pasar el anterior a Descartados solo si la regeneración termina bien y el recurso sigue en la versión registrada.
 - **REV-R11.** Al migrar, calcular la huella de cada recurso antiguo que no la tenga. Una copia antigua cuenta como evidencia estructurada si cada fragmento que el recurso referencia tiene su texto en la copia. La falta de fecha de recuperación no la invalida: al migrar, esa fecha se registra como desconocida. Si el recurso tiene evidencia estructurada, ejecutar la comprobación local con el `evidenceThreshold` guardado, si existe, o con `DEFAULT_THRESHOLD` en caso contrario. Registrar el resultado como cualquier otro. Los recursos aprobados con resultado vigente siguen aprobados. Si el resultado es insuficiente o pendiente, vuelven a revisión. Solo los recursos sin copia histórica o con algún fragmento referenciado sin texto en la copia quedan pendientes y fuera de exportación, y su única salida es regenerarlos (confirmado por Sergio).
 - **REV-R12.** Cada guardado indica la versión de contenido de la que parte. Si no coincide con la vigente, rechazarlo con un conflicto sin modificar el recurso ni su verificación.
+- **REV-R13.** Permitir la edición con formato enriquecido (`bodyHtml`) restringido a etiquetas y atributos seguros (`p`, `br`, `strong`, `b`, `em`, `i`, `u`, `s`, `h1`, `h2`, `h3`, `ul`, `ol`, `li`, `a`, `blockquote`). Si el texto plano normalizado no cambia respecto al guardado, conservar el `body` original para no alterar la huella ni la verificación.
+- **REV-R14.** Proveer un endpoint de vista previa para paquetes SCORM que devuelva las páginas HTML construidas en memoria y el desglose de recursos excluidos, reutilizando el filtro de elegibilidad sin registrar descargas en el historial.
+- **REV-R15.** Implementar la detección de duplicidad y parafraseo entre recursos de una unidad sin dependencias externas ni modelos de lenguaje, reportando pares que superan el umbral configurado (`REVIEW_DUPLICATE_THRESHOLD`) a nivel de recurso y de pregunta con su puntaje de similitud y tasa de duplicidad.
+
+## Cambios solicitados en la asesoría del 21/11
+
+### REV-P1 · Editor de texto enriquecido en la revisión
+Como docente, quiero editar el contenido del recurso con formato (negrita, cursiva, subrayado, tachado, títulos, listas, cita y enlaces) y eliminar texto redundante antes de exportar, para que el material pedagógico tenga la presentación adecuada.
+
+| Caso | Dado y cuando | Entonces |
+|---|---|---|
+| REV-C15 | El docente aplica o modifica únicamente el formato (`bodyHtml`) sin alterar el texto verificable (`body`) | La huella (`content_fingerprint`) y el resultado de verificación (`verification`) se conservan sin cambios, sin disparar una nueva evaluación contra la evidencia. |
+
+### REV-P2 · Vista previa y validación del paquete SCORM
+Como docente, quiero ver cada página del paquete SCORM tal como saldrá antes de descargarlo, para validar la secuencia y la presentación sin generar un registro en mi historial de descargas.
+
+| Caso | Dado y cuando | Entonces |
+|---|---|---|
+| REV-C16 | El docente solicita la vista previa de exportación SCORM para una unidad con recursos aprobados | El sistema genera las páginas en memoria con su HTML, incrustando estilos, scripts y medios en base64 para su renderizado fiel en iframes aislados (`sandbox="allow-scripts"` sin `allow-same-origin`), y el listado de recursos excluidos con motivos legibles, sin registrar una descarga en el historial. Si no hay recursos elegibles, devuelve 422 `NO_APPROVED_RESOURCES`. |
+
+### REV-P3 · Control de duplicidad entre recursos
+Como docente, quiero identificar recursos o preguntas con contenido repetido o parafraseado dentro de la unidad, para evitar redundancias antes de publicar o exportar.
+
+| Caso | Dado y cuando | Entonces |
+|---|---|---|
+| REV-C17 | Se consulta el reporte de duplicidad de una unidad con recursos generados | El sistema compara los textos completos de los recursos y los enunciados de las preguntas mediante raíz ligera (`stem`), similitud combinada de n-gramas de caracteres y Jaccard de palabras; reporta los pares que superan el umbral configurado (`REVIEW_DUPLICATE_THRESHOLD`, por defecto `0.70`) y la tasa de duplicidad (`duplicatePairRate`), como un aviso no bloqueante que no impide la aprobación ni la exportación. |
 
 ## Criterios de éxito
 

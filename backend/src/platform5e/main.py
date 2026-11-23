@@ -118,6 +118,7 @@ from platform5e.infrastructure.settings import (
     generation_sweep_interval_seconds,
     read_flag,
     read_setting,
+    review_duplicate_threshold,
     topic_coverage_threshold,
 )
 from platform5e.infrastructure.sources.wikipedia_source import WikipediaSource
@@ -327,6 +328,7 @@ def create_application() -> FastAPI:
             get_generation,
             wait_seconds=generation_regeneration_wait_seconds(),
         ),
+        default_duplicate_threshold=review_duplicate_threshold(),
     )
     export_use_case = ExportUnitResourcesUseCase(
         account_repository,

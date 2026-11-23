@@ -35,13 +35,17 @@ Resultado esperado: todo pasa, y `tests/architecture` confirma que `domain/revie
 | `tests/unit/test_media_cleanup.py` | REV-C8: archivo sin referencia tras el 409 (T063) |
 | `tests/unit/test_export_eligibility.py`, `tests/unit/test_export_unit_resources.py` | REV-C7 |
 | `tests/unit/test_download_history.py` | REV-C9 |
+| `tests/unit/test_duplication.py` | REV-P3: similitud, n-gramas, Jaccard y reporte (REV-R15) |
+| `tests/unit/test_scorm_package_structure.py` | REV-P2: manifiesto, unicidad, referencias biunívocas y seguridad (REV-R14) |
 | `tests/unit/test_resource_regeneration.py`, `tests/unit/test_background_regeneration.py` | REV-C12, C13 y D10 en segundo plano |
 | `tests/unit/test_regenerated_resource_missing.py` | REV-C13: el recurso nuevo ya no existe |
 | `tests/integration/test_regeneration_concurrency.py`, `tests/integration/test_regeneration_late_running_answer.py` | REV-C12: pedidos simultáneos, respuestas tardías e intentos terminados (T066, T067) |
 | `tests/integration/test_regeneration_route_errors.py` | REV-C13 por la ruta: 409 `REGENERATION_ATTEMPTS_EXHAUSTED`, 422 `REGENERATION_TARGET_INVALID` y `REGENERATION_PARAMETERS_MISSING` |
 | `tests/integration/test_course_download_retention.py` | REV-C9 al borrar un curso |
 | `tests/e2e/test_accounts_and_review_api.py` | REV-C1, C3, C11, C12, C13, C14 y aislamiento A/B |
+| `tests/e2e/test_duplication_api.py` | REV-P3: reporte de duplicidad por HTTP, 401 y 404 (REV-R15) |
 | `tests/e2e/test_exports_api.py` | REV-C7, C9 |
+| `tests/e2e/test_exports_preview_api.py` | REV-P2: vista previa SCORM sin registrar descarga en historial (REV-R14) |
 | `tests/e2e/test_generation_requests_api.py` (las de regeneración) | REV-C12, C13 con el adaptador de Generación, incluida una respuesta `running` |
 
 ## Pruebas e2e con PostgreSQL en una base desechable
@@ -93,3 +97,14 @@ Usa los IDs del registro de avance. En cada paso, la columna «Esperado» es lo 
 | 13 | Con B: `GET`, `PUT`, `POST …/verification`, `POST …/regenerations`, `GET …/regeneration` y `POST …/exports` sobre la unidad de A | 404 `UNIT_NOT_FOUND`, sin datos de A. `GET /api/v1/downloads` de B no muestra las descargas de A. |
 
 Anota cada resultado (estado HTTP y lo observado, sin tokens) en el registro de avance y en el PR.
+
+## Importación manual de paquete SCORM en Moodle (T076)
+
+1. Exportar la unidad en formato SCORM (`POST /api/v1/units/{unit_id}/exports` con `{"format": "scorm_zip"}`) obteniendo `<codigo>-unidad-<numero>-scorm.zip`.
+2. Ingresar a la plataforma Moodle (por ejemplo `sandbox.moodledemo.net` con rol de profesor).
+3. Activar el modo de edición en el curso correspondiente.
+4. Seleccionar «Añadir una actividad o recurso» → «Paquete SCORM».
+5. Colocar un nombre a la actividad y en la sección «Paquete de contenido» arrastrar el archivo ZIP exportado.
+6. Guardar cambios y mostrar la actividad.
+7. Comprobar que el paquete despliegue la estructura multirrecurso (menú de navegación con las etapas 5E e ítems ordenados), que las páginas de contenido reporten estado `completed` y que las preguntas y evaluaciones por niveles registren la calificación obtenida en el libro de calificaciones del LMS.
+
