@@ -48,3 +48,9 @@ class GenerationErrorCode(StrEnum):
     REGENERATION_PARAMETERS_MISSING = "REGENERATION_PARAMETERS_MISSING"  # 422: sin `params` o sin `resourceType`
     REGENERATION_TARGET_INVALID = "REGENERATION_TARGET_INVALID"  # 422: id o versión del recurso no válidos
     REGENERATION_ATTEMPTS_EXHAUSTED = "REGENERATION_ATTEMPTS_EXHAUSTED"  # 409: se agotaron los intentos de la versión
+    # Plan de generación (GEN-P1, specs/006-plan-de-generacion)
+    PLAN_NOT_FOUND = "PLAN_NOT_FOUND"  # 404: no existe o es de otro docente
+    PLAN_VERSION_CONFLICT = "PLAN_VERSION_CONFLICT"  # 409: expectedVersion o planVersion no es la actual
+    PLAN_ALREADY_USED = "PLAN_ALREADY_USED"  # 409: el plan ya inició un pedido de generación
+    PLAN_INVALID = "PLAN_INVALID"  # 422: se intentó aprobar un plan con problemas de validación
+    PLAN_NOT_APPROVED = "PLAN_NOT_APPROVED"  # 422: se intentó usar un plan en borrador (GEN-P2)

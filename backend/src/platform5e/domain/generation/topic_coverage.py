@@ -76,6 +76,15 @@ def normalize(text: str) -> str:
     return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
+def concept_key(text: str) -> str:
+    """GEN-P1: forma comparable de un concepto del plan, con la misma normalización: minúsculas, sin tildes, sin
+    espacios repetidos ni palabras vacías («Control  de Flújo» → «control flujo»). Si solo tiene palabras vacías, se
+    conservan."""
+    words = _WORD.findall(normalize(text or ""))
+    meaningful = [word for word in words if word not in _STOPWORDS]
+    return " ".join(meaningful or words)
+
+
 def _is_term(word: str) -> bool:
     """Palabra del tema: 3 o más letras, o una sigla de 2 en mayúsculas (IP), que no sea vacía, de estilo ni de
     formulación."""

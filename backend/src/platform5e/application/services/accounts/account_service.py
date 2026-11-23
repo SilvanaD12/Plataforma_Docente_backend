@@ -200,7 +200,7 @@ class AccountService:
         }
         saved_course["code"] = code
 
-        for field_name in ("summary", "learningGoal"):
+        for field_name in ("summary", "learningGoal", "educationLevel", "academicCycle", "activityType"):
             incoming_val = course_data.get(field_name)
             saved_course[field_name] = (
                 incoming_val.strip()

@@ -1,0 +1,13 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.8, pytest-9.2.0, pluggy-1.7.0 -- C:\Users\USER\Proyectos_5E\Plataforma_Docente_backend\venv\Scripts\python.exe
+cachedir: .pytest_cache
+rootdir: C:\Users\USER\Proyectos_5E\Plataforma_Docente_backend\backend
+configfile: pyproject.toml
+plugins: anyio-4.16.0, langsmith-0.14.17, platformdirs-4.14.5, asyncio-1.4.1.post1, cov-7.1.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 2 items
+
+backend\tests\e2e\test_sql_injection.py::test_sessions_endpoint_rejects_sql_payloads_safely PASSED [ 50%]
+backend\tests\e2e\test_sql_injection.py::test_authenticated_endpoints_resist_sql_payloads_and_preserve_isolation PASSED [100%]
+
+============================== 2 passed in 8.80s ==============================

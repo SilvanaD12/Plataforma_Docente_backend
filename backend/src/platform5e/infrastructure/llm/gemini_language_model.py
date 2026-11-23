@@ -291,6 +291,17 @@ class GeminiLanguageModel(ResourceGeneratorPort):
 
         return parsed_data if isinstance(parsed_data, dict) else {"recursos": parsed_data}
 
+    def draft_plan(self, prompt: Any) -> Any:
+        """GEN-P1 (`PlanDrafterPort`): el plan en una sola llamada, con su esquema de respuesta y el mismo tiempo límite
+        total de QA-06 (el reintento por JSON inválido comparte el plazo)."""
+        deadline = time.monotonic() + self.call_deadline_seconds
+        try:
+            return self._complete_json(prompt.system, prompt.user, prompt.schema, attempt=1, deadline=deadline)
+        except ValueError:
+            return self._complete_json(
+                prompt.system, prompt.user + RETRY_PROMPT_SUFFIX, prompt.schema, attempt=2, deadline=deadline
+            )
+
     def _complete_json(
         self, system_instruction: str, user_prompt: str, schema: dict[str, Any], attempt: int,
         deadline: float | None = None,

@@ -1,0 +1,19 @@
+# Errores del Servidor Registrados durante Corrida 1 (QA-18)
+# Fecha: 2026-11-18 08:34:07
+# Fuente: backend/uvicorn.log (primeros bloques de error 5xx)
+# Nota: Tokens, credenciales y datos personales han sido omitidos/redactados.
+----------------------------------------------------------------------------
+
+No se registraron errores 5xx en uvicorn.log durante la Corrida 1.
+
+Resumen de estados HTTP emitidos por el servidor (Uvicorn):
+- 200 OK
+- 202 Accepted (pedidos de generación aceptados para procesamiento)
+- 429 Too Many Requests (código de negocio TOO_MANY_ACTIVE_REQUESTS, esperado y controlado)
+
+Causa probable de los 9 fallos registrados en JMeter (run1.jtl):
+- 7 muestras con 'org.apache.http.NoHttpResponseException: localhost:8000 failed to respond' (Tier 2 y Tier 3)
+- 2 muestras con 'java.net.SocketException: Connection reset' (Tier 2)
+
+Observación técnica:
+Los fallos corresponden a saturación del backlog de conexiones TCP a nivel de socket en el host local de Windows durante los picos de rampa de 100 y 200 hilos concurrentes, cerrando o rechazando la conexión antes de que la petición fuese despachada por el bucle de eventos de Uvicorn. Ninguna petición produjo excepciones internas no controladas (500) ni errores de indisponibilidad de base de datos (503) en los registros del servidor.

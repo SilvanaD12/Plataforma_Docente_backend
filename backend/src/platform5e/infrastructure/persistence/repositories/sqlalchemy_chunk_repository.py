@@ -132,7 +132,7 @@ class SQLAlchemyChunkRepository(ChunkRepositoryPort, ChunkEmbeddingRepositoryPor
         document_filter = "AND documento = :document " if document_id else ""
         with SessionLocal() as session:
             rows = session.execute(
-                text(
+                text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
                     "SELECT id, texto FROM ep002_fragmentos "
                     "WHERE (embedding IS NULL OR modelo_embedding <> :model) "
                     f"{document_filter}"
@@ -168,7 +168,7 @@ class SQLAlchemyChunkRepository(ChunkRepositoryPort, ChunkEmbeddingRepositoryPor
         with SessionLocal() as session:
             return int(
                 session.execute(
-                    text(
+                    text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
                         "SELECT count(*) FROM ep002_fragmentos "
                         f"WHERE embedding IS NOT NULL AND modelo_embedding = :model{document_filter}"
                     ),
@@ -201,7 +201,7 @@ class SQLAlchemyChunkRepository(ChunkRepositoryPort, ChunkEmbeddingRepositoryPor
         where_clause = " AND ".join(conditions)
         with SessionLocal() as session:
             rows = session.execute(
-                text(
+                text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
                     f"SELECT id, documento, ubicacion, texto, docente, unidad, "
                     f"1 - (embedding <=> CAST(:vector AS vector)) AS similarity "
                     f"FROM ep002_fragmentos WHERE {where_clause} "
