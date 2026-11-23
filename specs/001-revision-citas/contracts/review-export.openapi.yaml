@@ -78,6 +78,25 @@ paths:
       responses:
         '200': { description: State of the request, content: { application/json: { schema: { $ref: '#/components/schemas/RegenerationStatusResponse' } } } }
         '404': { description: 'UNIT_NOT_FOUND, RESOURCE_NOT_FOUND or REGENERATION_NOT_FOUND' }
+  /api/v1/units/{unit_id}/duplication-report:
+    get:
+      summary: Duplication report for unit resources (REV-P3)
+      description: >
+        Compares resources and questions within the unit using character n-grams and word Jaccard similarity.
+        Returns pairs with similarity score >= REVIEW_DUPLICATE_THRESHOLD sorted descending by score.
+      parameters:
+        - name: unit_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Duplication report
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DuplicationReportResponse' }
+        '401': { description: Missing, invalid or expired session token }
+        '404': { description: UNIT_NOT_FOUND }
   /api/v1/units/{unit_id}/exports:
     post:
       summary: Export the eligible resources of a unit
@@ -90,6 +109,31 @@ paths:
           description: >
             NO_APPROVED_RESOURCES. `details` lists, per reason, how many resources were left out
             (for example `{"reason": "verification_pending", "count": 2}`).
+  /api/v1/units/{unit_id}/exports/preview:
+    post:
+      summary: Preview SCORM export pages for a unit (REV-P2)
+      description: >
+        Renders in-memory SCORM HTML pages for eligible resources without saving a download record.
+        Only supports export format scorm_zip.
+      parameters:
+        - name: unit_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ExportPreviewRequest' }
+      responses:
+        '200':
+          description: Preview pages and excluded resources
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ExportPreviewResponse' }
+        '401': { description: Missing, invalid or expired session token }
+        '404': { description: UNIT_NOT_FOUND }
+        '422': { description: 'INVALID_PREVIEW_FORMAT or NO_APPROVED_RESOURCES' }
   /api/v1/downloads:
     get:
       summary: List my downloads
@@ -178,6 +222,49 @@ components:
         courseName: { type: [string, 'null'], description: null for records saved before this change. }
         unitName: { type: [string, 'null'] }
         unitNumber: { type: [integer, 'null'] }
+    DuplicationReportResponse:
+      type: object
+      required: [threshold, comparedPairs, flaggedPairs, duplicatePairRate]
+      properties:
+        threshold: { type: number, minimum: 0, maximum: 1 }
+        comparedPairs: { type: integer, minimum: 0 }
+        flaggedPairs: { type: array, items: { $ref: '#/components/schemas/FlaggedPair' } }
+        duplicatePairRate: { type: number, minimum: 0, maximum: 1 }
+    FlaggedPair:
+      type: object
+      required: [resourceIdA, resourceIdB, scope, score, excerptA, excerptB]
+      properties:
+        resourceIdA: { type: string }
+        resourceIdB: { type: string }
+        scope: { type: string, enum: [resource, question] }
+        score: { type: number, minimum: 0, maximum: 1 }
+        excerptA: { type: string }
+        excerptB: { type: string }
+    ExportPreviewRequest:
+      type: object
+      required: [format]
+      properties:
+        format: { type: string, enum: [scorm_zip] }
+        resourceIds: { type: array, items: { type: string }, default: [] }
+    ExportPreviewResponse:
+      type: object
+      required: [pages, excluded]
+      properties:
+        pages: { type: array, items: { $ref: '#/components/schemas/ExportPreviewPage' } }
+        excluded: { type: array, items: { $ref: '#/components/schemas/ExportExcludedReason' } }
+    ExportPreviewPage:
+      type: object
+      required: [number, title, html]
+      properties:
+        number: { type: integer, minimum: 1 }
+        title: { type: string }
+        html: { type: string }
+    ExportExcludedReason:
+      type: object
+      required: [reason, count]
+      properties:
+        reason: { type: string }
+        count: { type: integer, minimum: 0 }
     ResourceGrounding:
       description: Unchanged (see docs/api/openapi.json).
       type: object

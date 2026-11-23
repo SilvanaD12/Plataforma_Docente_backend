@@ -50,7 +50,8 @@ from platform5e.infrastructure.adapters.database_probe_adapter import DatabasePr
 from platform5e.infrastructure.adapters.gemini_probe_adapter import GeminiProbeAdapter
 from platform5e.infrastructure.adapters.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
-from platform5e.infrastructure.adapters.plan_context_adapters import NoReferentsAdapter, NoSessionTypologyAdapter
+from platform5e.infrastructure.adapters.course_session_typology_adapter import CourseSessionTypologyAdapter
+from platform5e.infrastructure.adapters.plan_context_adapters import NoReferentsAdapter
 from platform5e.infrastructure.adapters.resource_catalog_adapter import StaticResourceCatalogAdapter
 from platform5e.infrastructure.adapters.review_verification_adapter import ReviewVerificationAdapter
 from platform5e.infrastructure.adapters.wikipedia_probe_adapter import WikipediaProbeAdapter
@@ -119,6 +120,7 @@ from platform5e.infrastructure.settings import (
     generation_sweep_interval_seconds,
     read_flag,
     read_setting,
+    review_duplicate_threshold,
     topic_coverage_threshold,
 )
 from platform5e.infrastructure.sources.wikipedia_source import WikipediaSource
@@ -332,7 +334,7 @@ def create_application() -> FastAPI:
         unit_membership,
         evidence_provider,
         referent_service,
-        NoSessionTypologyAdapter(),
+        CourseSessionTypologyAdapter(account_repository, generation_plan_repository),
         resource_catalog,
         GenerationPlanner(plan_drafter, {entry.id: entry for entry in resource_catalog.entries()}),
         generation_plan_repository,
@@ -351,6 +353,7 @@ def create_application() -> FastAPI:
             get_generation,
             wait_seconds=generation_regeneration_wait_seconds(),
         ),
+        default_duplicate_threshold=review_duplicate_threshold(),
     )
     export_use_case = ExportUnitResourcesUseCase(
         account_repository,

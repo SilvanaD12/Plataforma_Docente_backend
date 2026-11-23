@@ -10,7 +10,11 @@ from platform5e.application.services.accounts.account_service import AccountServ
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.infrastructure.http.dependencies import current_teacher_dependency
 from platform5e.infrastructure.http.schemas.common import error_responses
-from platform5e.infrastructure.http.schemas.downloads import ExportRequest
+from platform5e.infrastructure.http.schemas.downloads import (
+    ExportPreviewRequest,
+    ExportPreviewResponse,
+    ExportRequest,
+)
 
 
 def create_exports_router(use_case: ExportUnitResourcesUseCase, account_service: AccountService) -> APIRouter:
@@ -59,5 +63,30 @@ def create_exports_router(use_case: ExportUnitResourcesUseCase, account_service:
             media_type=exported.media_type,
             headers={"Content-Disposition": f'attachment; filename="{exported.file_name}"'},
         )
+
+    @router.post(
+        "/{unit_id}/exports/preview",
+        summary="Preview SCORM export pages for a unit",
+        response_model=ExportPreviewResponse,
+        responses=error_responses(401, 404, 422),
+    )
+    def preview_export(
+        unit_id: str,
+        body: ExportPreviewRequest,
+        teacher_id: str = Depends(current_teacher),
+    ) -> dict:
+        """REV-P2: renders in-memory SCORM pages for eligible resources without recording downloads.
+
+        Only format `scorm_zip` is supported for preview.
+
+        Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
+        Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
+
+        ```bash
+        curl --fail-with-body -X POST "$BASE_URL/api/v1/units/${UNIT_ID}/exports/preview" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' --data '{"format":"scorm_zip","resourceIds":[]}'
+        ```
+
+        Expected 200 with preview pages and excluded items breakdown."""
+        return use_case.preview(teacher_id, unit_id, body.format, body.resource_ids)
 
     return router

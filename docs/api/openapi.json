@@ -2379,6 +2379,90 @@
         }
       }
     },
+    "/api/v1/units/{unit_id}/duplication-report": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Duplication report for unit resources",
+        "description": "REV-P3: analyzes content duplication across resources and questions in the unit.\n\nCompares resources and questions using character n-grams and word Jaccard similarity.\nReturns pairs with similarity score >= threshold (default from REVIEW_DUPLICATE_THRESHOLD)\nsorted descending by score.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/duplication-report\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200 with the duplication report. 404 if the unit is not owned by the teacher.",
+        "operationId": "get_duplication_report_api_v1_units__unit_id__duplication_report_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "threshold",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Threshold"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicationReportResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/units/{unit_id}/resources/{resource_id}": {
       "put": {
         "tags": [
@@ -3230,6 +3314,84 @@
               "application/zip": {},
               "application/xml": {},
               "text/html": {}
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/exports/preview": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Preview SCORM export pages for a unit",
+        "description": "REV-P2: renders in-memory SCORM pages for eligible resources without recording downloads.\n\nOnly format `scorm_zip` is supported for preview.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/exports/preview\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"scorm_zip\",\"resourceIds\":[]}'\n```\n\nExpected 200 with preview pages and excluded items breakdown.",
+        "operationId": "preview_export_api_v1_units__unit_id__exports_preview_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportPreviewResponse"
+                }
+              }
             }
           },
           "401": {
@@ -4188,6 +4350,47 @@
         ],
         "title": "DownloadResponse"
       },
+      "DuplicationReportResponse": {
+        "properties": {
+          "threshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Threshold",
+            "description": "Similarity threshold applied."
+          },
+          "comparedPairs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Comparedpairs",
+            "description": "Total number of evaluated pairs."
+          },
+          "flaggedPairs": {
+            "items": {
+              "$ref": "#/components/schemas/FlaggedPair"
+            },
+            "type": "array",
+            "title": "Flaggedpairs",
+            "description": "Pairs with score >= threshold, sorted descending."
+          },
+          "duplicatePairRate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Duplicatepairrate",
+            "description": "Proportion of flagged pairs over compared pairs."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "threshold",
+          "comparedPairs",
+          "flaggedPairs",
+          "duplicatePairRate"
+        ],
+        "title": "DuplicationReportResponse"
+      },
       "EditablePlanItem": {
         "properties": {
           "resourceType": {
@@ -4430,6 +4633,110 @@
         ],
         "title": "EvidenceSearchResponse"
       },
+      "ExportExcludedReason": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Exclusion reason code."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Number of resources excluded for this reason."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "reason",
+          "count"
+        ],
+        "title": "ExportExcludedReason"
+      },
+      "ExportPreviewPage": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Number",
+            "description": "1-based page index in sequential order."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Page title or quiz name."
+          },
+          "html": {
+            "type": "string",
+            "title": "Html",
+            "description": "Full rendered HTML content for this page."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "number",
+          "title",
+          "html"
+        ],
+        "title": "ExportPreviewPage"
+      },
+      "ExportPreviewRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "description": "Format to preview. Only `scorm_zip` is supported for preview.",
+            "examples": [
+              "scorm_zip"
+            ]
+          },
+          "resourceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Resourceids",
+            "description": "Resources to preview; empty includes every eligible resource."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "format"
+        ],
+        "title": "ExportPreviewRequest"
+      },
+      "ExportPreviewResponse": {
+        "properties": {
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/ExportPreviewPage"
+            },
+            "type": "array",
+            "title": "Pages",
+            "description": "Rendered SCORM pages."
+          },
+          "excluded": {
+            "items": {
+              "$ref": "#/components/schemas/ExportExcludedReason"
+            },
+            "type": "array",
+            "title": "Excluded",
+            "description": "Summary of excluded resources by reason."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "pages",
+          "excluded"
+        ],
+        "title": "ExportPreviewResponse"
+      },
       "ExportRequest": {
         "properties": {
           "format": {
@@ -4458,6 +4765,57 @@
           "format"
         ],
         "title": "ExportRequest"
+      },
+      "FlaggedPair": {
+        "properties": {
+          "resourceIdA": {
+            "type": "string",
+            "title": "Resourceida",
+            "description": "First resource identifier."
+          },
+          "resourceIdB": {
+            "type": "string",
+            "title": "Resourceidb",
+            "description": "Second resource identifier."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "resource",
+              "question"
+            ],
+            "title": "Scope",
+            "description": "Comparison scope: whole resource or single question."
+          },
+          "score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "description": "Combined similarity score."
+          },
+          "excerptA": {
+            "type": "string",
+            "title": "Excerpta",
+            "description": "Excerpt of first content (max 160 characters)."
+          },
+          "excerptB": {
+            "type": "string",
+            "title": "Excerptb",
+            "description": "Excerpt of second content (max 160 characters)."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "resourceIdA",
+          "resourceIdB",
+          "scope",
+          "score",
+          "excerptA",
+          "excerptB"
+        ],
+        "title": "FlaggedPair"
       },
       "GeneratedChunk": {
         "properties": {

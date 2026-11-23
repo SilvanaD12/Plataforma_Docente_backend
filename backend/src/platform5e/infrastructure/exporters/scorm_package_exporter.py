@@ -17,6 +17,7 @@ desaprobada.
 """
 from __future__ import annotations
 
+import base64
 import html
 import io
 import json
@@ -186,15 +187,19 @@ def _question(options: list[Mapping]) -> str:
 
 def _sco_page(resource: Mapping, files: list[tuple[str, bytes]] | None = None) -> str:
     options = _exported_options(resource) if resource.get("options") else []
-    is_activity = resource_format(resource.get("type", "")) == INTERACTIVE
+    rtype = str(resource.get("type", ""))
+    is_activity = resource_format(rtype) == INTERACTIVE
     kind = "question" if options else "activity" if is_activity else "content"
-    stage = STAGE_LABELS.get(resource.get("stage", ""), "")
+    stage_val = resource.get("stage", "")
+    stage = STAGE_LABELS.get(stage_val, stage_val or "")
+    title = resource.get("title") or "Recurso"
+    content_html = body_html(resource)
     return f"""<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{_esc(resource.get("title"))}</title>
+<title>{_esc(title)}</title>
 <link rel="stylesheet" href="../shared/style.css">
 <script src="../shared/scorm.js"></script>
 <script src="../shared/activity.js"></script>
@@ -202,8 +207,8 @@ def _sco_page(resource: Mapping, files: list[tuple[str, bytes]] | None = None) -
 <body data-kind="{kind}">
 <main>
 <p class="stage">{_esc(stage)}</p>
-<h1>{_esc(resource.get("title"))}</h1>
-{body_html(resource)}
+<h1>{_esc(title)}</h1>
+{content_html}
 {_media_block(resource, files or [])}
 {_question(options) if options else ""}
 {_sources(resource)}
@@ -336,14 +341,23 @@ SCORM_JS = r"""/* API de SCORM 1.2: busca el objeto API que expone el LMS en las
 (function () {
   'use strict';
   function findApi(win) {
-    for (var i = 0; win && i < 10; i++) {
-      if (win.API) return win.API;
-      if (win.parent === win) break;
-      win = win.parent;
+    try {
+      for (var i = 0; win && i < 10; i++) {
+        if (win.API) return win.API;
+        if (win.parent === win) break;
+        win = win.parent;
+      }
+    } catch (e) {
+      return null;
     }
     return null;
   }
-  var api = findApi(window) || (window.opener ? findApi(window.opener) : null);
+  var api = null;
+  try {
+    api = findApi(window) || (window.opener ? findApi(window.opener) : null);
+  } catch (e) {
+    api = null;
+  }
   var finished = false;
 
   function setValue(name, value) { if (api) api.LMSSetValue(name, String(value)); }
@@ -850,12 +864,11 @@ class ScormPackageExporter(UnitExporterPort):
     def supports(self, resource: Mapping) -> bool:
         return True  # cada recurso aprobado es una página de la lección
 
+    def preview(self, resources: Sequence[Mapping]) -> list[tuple[int, str, str]]:
+        return build_scorm_pages(resources)
+
     def export(self, resources: Sequence[Mapping], course: Mapping, unit: Mapping) -> ExportedFile:
-        ordered = sorted(
-            resources,
-            key=lambda r: (STAGE_ORDER.index(r["stage"]) if r.get("stage") in STAGE_ORDER else 99, r.get("createdAt", "")),
-        )
-        entries = _with_leveled_quiz(ordered)
+        entries = _ordered_entries(resources)
         number = unit.get("number", "")
         title = f"{course.get('code', '')} · Unidad {number}: {unit.get('title', '')}".strip()
         pages = [
@@ -876,11 +889,53 @@ class ScormPackageExporter(UnitExporterPort):
             add("shared/activity.js", ACTIVITY_JS)
             add("shared/quiz.js", QUIZ_JS)
             for (href, _), entry, resource_files in zip(pages, entries, files):
-                add(href, _quiz_page(entry) if isinstance(entry, LeveledQuiz) else _sco_page(entry, resource_files))
+                add(href, _page_html(entry, resource_files))
                 for name, content in resource_files:
                     add(name, content)
         file_name = f"{_slug(course.get('code', ''))}-unidad-{number}-scorm.zip"
         return ExportedFile(file_name, self.media_type, buffer.getvalue())
+
+
+def _page_html(entry: Mapping | LeveledQuiz, files: list[tuple[str, bytes]]) -> str:
+    """Genera el contenido HTML original de la página para exportación en paquete SCORM."""
+    if isinstance(entry, LeveledQuiz):
+        return _quiz_page(entry)
+    return _sco_page(entry, files)
+
+
+def _ordered_entries(resources: Sequence[Mapping]) -> list[Mapping | LeveledQuiz]:
+    """Ordena los recursos según las etapas 5E y fecha de creación, unificando ítems de cuestionario."""
+    ordered = sorted(
+        resources,
+        key=lambda r: (STAGE_ORDER.index(r["stage"]) if r.get("stage") in STAGE_ORDER else 99, r.get("createdAt", "")),
+    )
+    return _with_leveled_quiz(ordered)
+
+
+def _inline_for_preview(html_content: str, files: list[tuple[str, bytes]]) -> str:
+    """REV-P2 (B3): incrusta estilos, scripts y medios en la página HTML para renderizar dentro de srcDoc."""
+    inlined = html_content
+    inlined = inlined.replace('<link rel="stylesheet" href="../shared/style.css">', f"<style>\n{STYLE_CSS}\n</style>")
+    inlined = inlined.replace('<script src="../shared/scorm.js"></script>', f"<script>\n{SCORM_JS}\n</script>")
+    inlined = inlined.replace('<script src="../shared/activity.js"></script>', f"<script>\n{ACTIVITY_JS}\n</script>")
+    inlined = inlined.replace('<script src="../shared/quiz.js"></script>', f"<script>\n{QUIZ_JS}\n</script>")
+    for path, data in files:
+        ext = path.rsplit(".", 1)[-1].lower() if "." in path else "bin"
+        mime = {
+            "svg": "image/svg+xml",
+            "png": "image/png",
+            "jpg": "image/jpeg",
+            "jpeg": "image/jpeg",
+            "gif": "image/gif",
+            "webp": "image/webp",
+            "mp3": "audio/mpeg",
+            "wav": "audio/wav",
+            "ogg": "audio/ogg",
+        }.get(ext, "application/octet-stream")
+        b64 = base64.b64encode(data).decode("ascii")
+        data_url = f"data:{mime};base64,{b64}"
+        inlined = inlined.replace(f'src="../{path}"', f'src="{data_url}"')
+    return inlined
 
 
 def _with_leveled_quiz(ordered: list[Mapping]) -> list[Mapping | LeveledQuiz]:
@@ -893,3 +948,21 @@ def _with_leveled_quiz(ordered: list[Mapping]) -> list[Mapping | LeveledQuiz]:
         elif resource is items[0]:
             entries.append(LeveledQuiz(items))
     return entries
+
+
+def build_scorm_pages(resources: Sequence[Mapping]) -> list[tuple[int, str, str]]:
+    """Construye las páginas HTML ordenadas de los recursos SCORM con recursos incrustados para vista previa."""
+    entries = _ordered_entries(resources)
+    pages: list[tuple[int, str, str]] = []
+    for n, entry in enumerate(entries, start=1):
+        if isinstance(entry, LeveledQuiz):
+            title = QUIZ_TITLE
+            entry_files: list[tuple[str, bytes]] = []
+        else:
+            title = str(entry.get("title") or f"Recurso {n}")
+            entry_files = media_files(entry, n)
+        raw_html = _page_html(entry, entry_files)
+        preview_html = _inline_for_preview(raw_html, entry_files)
+        pages.append((n, title, preview_html))
+    return pages
+

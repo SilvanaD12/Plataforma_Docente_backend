@@ -22,6 +22,7 @@ from platform5e.application.services.media.media_attachment import EDITED_NOTES,
 from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION
 from platform5e.domain.generation.resource_formats import needs_structure, normalize_structure, structure_problems
 from platform5e.domain.review.content_fingerprint import content_fingerprint
+from platform5e.domain.review.duplication import DEFAULT_DUPLICATE_THRESHOLD, find_duplicates
 from platform5e.domain.review.media_change import media_source_changed
 from platform5e.application.services.review.legacy_verification import upgrade_resource_verification
 from platform5e.domain.review.resource_verification import (
@@ -133,10 +134,12 @@ class ResourceReviewService:
         teacher_repository: TeacherRepositoryPort,
         review_repository: ResourceReviewRepositoryPort,
         regeneration: ResourceRegenerationPort | None = None,
+        default_duplicate_threshold: float = DEFAULT_DUPLICATE_THRESHOLD,
     ) -> None:
         self._teacher_repository = teacher_repository
         self._review_repository = review_repository
         self._regeneration = regeneration
+        self._default_duplicate_threshold = default_duplicate_threshold
 
     def _verify_unit_access(self, teacher_id: str, unit_id: str) -> None:
         """Comprueba que la unidad académica pertenezca al docente en sesión."""
@@ -170,6 +173,19 @@ class ResourceReviewService:
             for resource in self._review_repository.get_resources_by_unit(teacher_id, unit_id)
         ]
         return sorted(resources, key=lambda r: r.get("createdAt", ""), reverse=True)
+
+    def get_duplication_report(
+        self, teacher_id: str, unit_id: str, threshold: float | None = None
+    ) -> dict[str, Any]:
+        """REV-P3: evalúa la duplicidad entre recursos y preguntas de la unidad."""
+        self._verify_unit_access(teacher_id, unit_id)
+        applied_threshold = (
+            threshold
+            if threshold is not None and 0.0 <= threshold <= 1.0
+            else self._default_duplicate_threshold
+        )
+        resources = self._review_repository.get_resources_by_unit(teacher_id, unit_id)
+        return find_duplicates(resources, applied_threshold)
 
     def retry_verification(
         self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int

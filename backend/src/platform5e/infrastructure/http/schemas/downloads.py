@@ -35,3 +35,32 @@ class ExportRequest(ApiRequest):
         max_length=500,
         description="Approved resources to export; empty exports every approved resource that fits the format.",
     )
+
+
+class ExportPreviewRequest(ApiRequest):
+    format: str = Field(
+        description="Format to preview. Only `scorm_zip` is supported for preview.",
+        examples=["scorm_zip"],
+    )
+    resource_ids: list[str] = Field(
+        default_factory=list,
+        max_length=500,
+        description="Resources to preview; empty includes every eligible resource.",
+    )
+
+
+class ExportPreviewPage(ApiResponse):
+    number: int = Field(ge=1, description="1-based page index in sequential order.")
+    title: str = Field(description="Page title or quiz name.")
+    html: str = Field(description="Full rendered HTML content for this page.")
+
+
+class ExportExcludedReason(ApiResponse):
+    reason: str = Field(description="Exclusion reason code.")
+    count: int = Field(ge=0, description="Number of resources excluded for this reason.")
+
+
+class ExportPreviewResponse(ApiResponse):
+    pages: list[ExportPreviewPage] = Field(description="Rendered SCORM pages.")
+    excluded: list[ExportExcludedReason] = Field(description="Summary of excluded resources by reason.")
+
