@@ -24,6 +24,9 @@ class RegenerationStatus:
     # Solo en `failed`: código del rechazo por los datos del docente (p. ej. NO_PROCESSED_MATERIAL). None si falló el
     # proveedor o algo inesperado.
     code: str | None = None
+    # Solo en `failed`: detalle estructurado cuando Generación rechaza con problemas específicos (hoy,
+    # PLAN_EVIDENCE_STALE con una lista de StaleDocument). Tupla vacía si no hay detalle.
+    details: tuple[dict[str, Any], ...] = ()
 
 
 class ResourceRegenerationPort(Protocol):

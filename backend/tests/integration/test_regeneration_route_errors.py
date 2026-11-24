@@ -34,6 +34,7 @@ class SignedInTeacher:
         ("REGENERATION_ATTEMPTS_EXHAUSTED", 409),
         ("REGENERATION_TARGET_INVALID", 422),
         ("REGENERATION_PARAMETERS_MISSING", 422),
+        ("PLAN_EVIDENCE_STALE", 409),
     ],
 )
 def test_the_regeneration_route_answers_generation_rejection_codes(generation_code, http_status):
@@ -51,3 +52,20 @@ def test_the_regeneration_route_answers_generation_rejection_codes(generation_co
     old = resources.by_id["viejo"]
     assert {k: old[k] for k in ("status", "body", "version")} == {k: before[k] for k in ("status", "body", "version")}
     assert "viejo" not in resources.claims, "la reserva quedó tomada tras el rechazo"
+
+
+def test_the_regeneration_route_includes_details_when_provided():
+    stale_docs = [{"documentId": "doc-1", "documentName": "redes.pdf", "missingFragmentIds": ["f1", "f2"]}]
+    service, resources, _ = build(
+        outcome="failed", failure_code="PLAN_EVIDENCE_STALE", failure_details=tuple(stale_docs)
+    )
+    app = FastAPI()
+    app.add_exception_handler(AccountConfigurationError, domain_error_handler)
+    app.include_router(create_resources_router(service, SignedInTeacher(), None, None))  # type: ignore[arg-type]
+
+    response = TestClient(app).post(ROUTE, headers={"Authorization": "Bearer token"}, json={"expectedVersion": 3})
+
+    assert response.status_code == 409, response.text
+    error = response.json()["error"]
+    assert error["code"] == "PLAN_EVIDENCE_STALE"
+    assert error["details"] == stale_docs

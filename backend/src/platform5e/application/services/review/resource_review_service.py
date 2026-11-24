@@ -538,7 +538,7 @@ class ResourceReviewService:
             if record is failed:  # si otra consulta ya cerró este intento, o hay uno nuevo, se devuelve lo guardado
                 self._review_repository.release_regeneration(teacher_id, unit_id, resource_id, failed["attemptId"])
                 if raise_on_failure:
-                    raise RegenerationFailedError(reason, outcome.code)
+                    raise RegenerationFailedError(reason, outcome.code, details=list(outcome.details) or None)
             return record if as_record else _regeneration_response(resource_id, record)
 
         record = {**record, "status": "succeeded"}

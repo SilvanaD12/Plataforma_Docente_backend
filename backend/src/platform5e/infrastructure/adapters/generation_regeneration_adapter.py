@@ -145,7 +145,9 @@ class GenerationRegenerationAdapter:
                 StartRegenerationCommand(teacher_id, unit_id, resource_id, resource_version, params)
             )
         except GenerationError as error:  # rechazo por los datos del docente: Revisión responde con su código
-            return RegenerationStatus(key, "failed", (), error.message, str(error.code))
+            return RegenerationStatus(
+                key, "failed", (), error.message, str(error.code), details=tuple(getattr(error, "details", None) or ())
+            )
         except Exception as error:  # fallo inesperado: sin código, Revisión responde 502
             logger.warning("No se pudo iniciar la regeneración de %s: %s", resource_id, redact_secrets(str(error))[:200])
             return RegenerationStatus(key, "failed", (), UNEXPECTED_ERROR)
