@@ -63,7 +63,28 @@ paths:
       responses:
         '200': { description: Regeneration result, content: { application/json: { schema: { $ref: '#/components/schemas/RegenerationResponse' } } } }
         '404': { description: 'UNIT_NOT_FOUND or RESOURCE_NOT_FOUND; UNIT_NOT_FOUND also when Generation rejects the request for a missing unit, as in generation-requests' }
-        '409': { description: 'VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review; or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the resource to ask again). The previous resource is unchanged and `message` gives the reason' }
+        '409':
+          description: >
+            VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE);
+            PLAN_EVIDENCE_STALE: a fragment from the plan item no longer exists in the unit (a document was deleted or reprocessed),
+            with `details` containing a list of `StaleDocument`; REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new
+            resource is still in review; or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the
+            resource to ask again). The previous resource is unchanged and `message` gives the reason.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error:
+                    type: object
+                    required: [code, message]
+                    properties:
+                      code: { type: string }
+                      message: { type: string }
+                      details:
+                        type: array
+                        items: { $ref: '#/components/schemas/StaleDocument' }
         '422': { description: 'Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING, REGENERATION_TARGET_INVALID); the previous resource is unchanged. The REGENERATION_* codes come from Generation PR #23' }
         '429': { description: 'TOO_MANY_ACTIVE_REQUESTS, the same status as generation-requests; the previous resource is unchanged' }
         '502': { description: 'REGENERATION_FAILED: only for provider or unexpected failures; the previous resource is unchanged' }
@@ -268,3 +289,12 @@ components:
     ResourceGrounding:
       description: Unchanged (see docs/api/openapi.json).
       type: object
+    StaleDocument:
+      type: object
+      description: |
+        One entry of `details` in 409 `PLAN_EVIDENCE_STALE`, one per affected document.
+      required: [documentId, documentName, missingFragmentIds]
+      properties:
+        documentId: { type: string }
+        documentName: { type: string, description: Document file name from the plan evidence snapshot. }
+        missingFragmentIds: { type: array, items: { type: string }, minItems: 1 }

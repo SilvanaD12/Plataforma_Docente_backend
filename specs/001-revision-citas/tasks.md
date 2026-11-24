@@ -364,6 +364,15 @@ Acordado con Silvana en la revisión de los PR (2026-11-09). Ninguna bloquea la 
 - [x] T096 [FE] [F7] Mostrar textos legibles de motivos de exclusión, aislar iframe con `sandbox="allow-scripts"` y mover estilos a `export.css`.
 - [x] T097 [ALL] [B7] Actualizar especificaciones, contratos OpenAPI, registrar investigación D13 y regenerar `docs/api/openapi.json`.
 
+### T014 · Regeneración con plan y evidencia modificada (GEN-P2 / B1..B7)
+- [x] T098 [BE] [B1] Agregar campo `details: tuple[dict[str, Any], ...] = ()` a `RegenerationStatus` en `resource_regeneration_port.py`.
+- [x] T099 [BE] [B2] Propagar `details` en `GenerationRegenerationAdapter` capturando `error.details` al fallar el inicio.
+- [x] T100 [BE] [B3] Incorporar `PLAN_EVIDENCE_STALE` a `MATERIAL_STATE_CODES` (409) y soporte de `details` en `RegenerationFailedError`.
+- [x] T101 [BE] [B4] Propagar `details=list(outcome.details) or None` al lanzar `RegenerationFailedError` en `resource_review_service.py`.
+- [x] T102 [BE] [B5] Documentar `PLAN_EVIDENCE_STALE` y esquema `StaleDocument` en respuesta 409 de `POST .../regenerations` en `routers/resources.py`.
+- [x] T103 [BE] [B6] Pruebas unitarias (`test_generation_requests_regeneration_adapter.py`, `test_review_errors.py`, `test_resource_regeneration.py`) y prueba E2E (`test_review_planned_regeneration_stale_api.py`).
+- [x] T104 [ALL] [B7] Actualizar especificación `spec.md`, contrato OpenAPI `review-export.openapi.yaml` y regenerar `docs/api/openapi.json`.
+
 ## Historias del Sprint 1 (Cierre de evidencias)
 
 - [x] HU-043 [E2E] **Exportación a Moodle XML.** Comprobada en Moodle 5.3.1 (`sandbox.moodledemo.net`): formulario con XML, «Importing 1 questions from file», categoría y vista previa respondida (UDP incorrecta con retroalimentación y capa de transporte correcta). Evidencia: `docs/evidence/HU-043/`.

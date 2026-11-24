@@ -71,6 +71,7 @@ Como docente, quiero que mis descargas incluyan solo recursos aprobados y verifi
 - **REV-R13.** Permitir la edición con formato enriquecido (`bodyHtml`) restringido a etiquetas y atributos seguros (`p`, `br`, `strong`, `b`, `em`, `i`, `u`, `s`, `h1`, `h2`, `h3`, `ul`, `ol`, `li`, `a`, `blockquote`). Si el texto plano normalizado no cambia respecto al guardado, conservar el `body` original para no alterar la huella ni la verificación.
 - **REV-R14.** Proveer un endpoint de vista previa para paquetes SCORM que devuelva las páginas HTML construidas en memoria y el desglose de recursos excluidos, reutilizando el filtro de elegibilidad sin registrar descargas en el historial.
 - **REV-R15.** Implementar la detección de duplicidad y parafraseo entre recursos de una unidad sin dependencias externas ni modelos de lenguaje, reportando pares que superan el umbral configurado (`REVIEW_DUPLICATE_THRESHOLD`) a nivel de recurso y de pregunta con su puntaje de similitud y tasa de duplicidad.
+- **REV-R16.** Cuando se solicite la regeneración de un recurso originado de un plan pedagógico y algún fragmento de su ítem ya no exista en la unidad (se borró o reprocesó un documento), responder con 409 `PLAN_EVIDENCE_STALE` y el detalle estructurado de documentos afectados (`StaleDocument`), manteniendo el recurso y el plan sin modificaciones (T014).
 
 ## Cambios solicitados en la asesoría del 21/11
 
@@ -95,9 +96,16 @@ Como docente, quiero identificar recursos o preguntas con contenido repetido o p
 |---|---|---|
 | REV-C17 | Se consulta el reporte de duplicidad de una unidad con recursos generados | El sistema compara los textos completos de los recursos y los enunciados de las preguntas mediante raíz ligera (`stem`), similitud combinada de n-gramas de caracteres y Jaccard de palabras; reporta los pares que superan el umbral configurado (`REVIEW_DUPLICATE_THRESHOLD`, por defecto `0.70`) y la tasa de duplicidad (`duplicatePairRate`), como un aviso no bloqueante que no impide la aprobación ni la exportación. |
 
+### T014 · Regeneración con plan y evidencia modificada (GEN-P2)
+Como docente, cuando pido regenerar un recurso originado de un plan cuya evidencia ya no existe en la unidad (porque se eliminó o reprocesó un documento), quiero recibir una respuesta clara que indique qué documentos y fragmentos faltan, conservando el recurso actual intacto.
+
+| Caso | Dado y cuando | Entonces |
+|---|---|---|
+| REV-C18 | El docente pide regenerar desde Revisión un recurso originado de un plan y algún fragmento de su ítem ya no existe en la unidad (se borró o reprocesó un documento) | El sistema responde 409 `PLAN_EVIDENCE_STALE` con el detalle de documentos afectados (`details` con `documentId`, `documentName`, `missingFragmentIds`); el recurso previo no se modifica (conserva versión y contenido) y el plan permanece en su estado previo sin alteraciones. |
+
 ## Criterios de éxito
 
-- Todos los escenarios REV-C1 a REV-C14 pasan en el nivel de prueba que corresponda.
+- Todos los escenarios REV-C1 a REV-C18 pasan en el nivel de prueba que corresponda.
 - La API y el recorrido de interfaz demuestran que un recurso pendiente o insuficiente queda fuera de nuevas exportaciones. El archivo final excluye esos recursos.
 - Las pruebas existentes de multimedia editada, historial de descargas y exportadores siguen pasando con las reglas nuevas, salvo `test_edited_media.py::test_editing_the_script_drops_the_old_audio_everywhere`, que se actualiza para exigir el bloqueo de la aprobación de REV-C8.
 

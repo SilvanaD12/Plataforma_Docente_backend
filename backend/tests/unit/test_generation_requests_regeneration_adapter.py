@@ -11,6 +11,7 @@ from platform5e.application.use_cases.generation.get_generation_request import G
 from platform5e.application.use_cases.generation.start_generation_request import StartGenerationResult
 from platform5e.application.use_cases.generation.start_regeneration import StartRegeneration
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
+from platform5e.domain.generation.planned_request import PlanEvidenceStale
 from platform5e.domain.generation.generation_request import (
     GenerationMode,
     Problem,
@@ -272,3 +273,28 @@ def test_the_generation_routes_give_each_regeneration_code_its_status(code, http
 
     response = generation_error_response(GenerationError(code, "Motivo para el docente."))
     assert response.status_code == http_status
+
+
+def test_adapter_passes_details_from_generation_error():
+    stale_details = [
+        {"documentId": "doc-1", "documentName": "protocolos.pdf", "missingFragmentIds": ["f1", "f2"]}
+    ]
+    stale_error = PlanEvidenceStale(stale_details)
+    failed_adapter = adapter(FakeStartGeneration(error=stale_error), FakeGetGeneration())
+
+    status = failed_adapter.request_regeneration("ana", "rec-viejo", 3, PARAMS)
+
+    assert status.status == "failed"
+    assert status.code == "PLAN_EVIDENCE_STALE"
+    assert status.details == tuple(stale_details)
+
+
+def test_adapter_leaves_details_empty_for_generation_error_without_details():
+    simple_error = GenerationError(GenerationErrorCode.NO_PROCESSED_MATERIAL, "Sin material.")
+    failed_adapter = adapter(FakeStartGeneration(error=simple_error), FakeGetGeneration())
+
+    status = failed_adapter.request_regeneration("ana", "rec-viejo", 3, PARAMS)
+
+    assert status.status == "failed"
+    assert status.code == "NO_PROCESSED_MATERIAL"
+    assert status.details == ()

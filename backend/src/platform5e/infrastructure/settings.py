@@ -39,7 +39,7 @@ GENERATION_IMPLICIT_PLAN    GEN-P2, SOLO PARA MEDIR P4: true (por defecto) | fal
 TOPIC_COVERAGE_THRESHOLD    QA-05: parte de los términos de las indicaciones que debe aparecer en la evidencia antes de
                             redactar, de 0 a 1 (por defecto 0.5). Si no llega y tampoco aparece ninguna frase del tema,
                             el pedido falla con INSUFFICIENT_EVIDENCE. 0 apaga la comprobación
-REVIEW_DUPLICATE_THRESHOLD  REV-P3: umbral de similitud para reportar duplicados, de 0 a 1 (por defecto 0.75)
+REVIEW_DUPLICATE_THRESHOLD  REV-P3: umbral de similitud para reportar duplicados, de 0 a 1 (por defecto 0.70)
 """
 
 from __future__ import annotations
