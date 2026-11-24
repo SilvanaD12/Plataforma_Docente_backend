@@ -167,9 +167,9 @@ def create_resources_router(
                 "model": ErrorResponse,
                 "description": (
                     "VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, "
-                    "INSUFFICIENT_EVIDENCE); PLAN_EVIDENCE_STALE: un fragmento del ítem del plan ya no existe en la "
-                    "unidad (se borró o se volvió a procesar un documento); details lista los documentos afectados "
-                    "(documentId, documentName, missingFragmentIds). El recurso no cambia; crea un plan nuevo; "
+                    "INSUFFICIENT_EVIDENCE); PLAN_EVIDENCE_STALE: a fragment of the plan item no longer exists in the "
+                    "unit (a document was deleted or reprocessed); details lists the affected documents (documentId, "
+                    "documentName, missingFragmentIds). The resource is unchanged; create a new plan; "
                     "REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review; "
                     "or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the "
                     "resource to ask again). The previous resource is unchanged."
@@ -194,9 +194,9 @@ def create_resources_router(
         was edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version
         returns the same result without generating again. On failure the previous resource is unchanged and `message`
         gives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the
-        unit material, such as NO_PROCESSED_MATERIAL or PLAN_EVIDENCE_STALE: un fragmento del ítem del plan ya no
-        existe en la unidad (se borró o se volvió a procesar un documento); details lista los documentos afectados
-        (documentId, documentName, missingFragmentIds). El recurso no cambia; crea un plan nuevo; 422 for the stored
+        unit material, such as NO_PROCESSED_MATERIAL or PLAN_EVIDENCE_STALE: a fragment of the plan item no longer
+        exists in the unit (a document was deleted or reprocessed); details lists the affected documents
+        (documentId, documentName, missingFragmentIds). The resource is unchanged; create a new plan; 422 for the stored
         parameters, such as INVALID_OUTCOME). If Generation finished but none of the new resources is still in review,
         the answer is 409 REGENERATED_RESOURCE_NOT_FOUND and the regeneration can be asked again. Rejections when
         Generation starts the request keep the status of `generation-requests`: 404 UNIT_NOT_FOUND, 429
