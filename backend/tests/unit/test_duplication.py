@@ -6,8 +6,11 @@ from typing import Any
 
 import pytest
 
+from platform5e.application.services.review.resource_review_service import ResourceReviewService
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.domain.review.duplication import (
     SPANISH_STOPWORDS,
+    find_cross_unit_duplicates,
     find_duplicates,
     normalize,
     question_texts,
@@ -259,3 +262,236 @@ def test_find_duplicates_deduplicates_same_resource_pair_keeping_highest_score()
     flagged = report["flaggedPairs"][0]
     assert {flagged["resourceIdA"], flagged["resourceIdB"]} == {"rec-a", "rec-b"}
     assert flagged["score"] >= 0.70
+
+
+def test_find_cross_unit_duplicates_flags_identical_pair_across_units():
+    current = [
+        {
+            "id": "u1-res-1",
+            "type": "explicacion",
+            "title": "Protocolo TCP",
+            "body": "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable.",
+        }
+    ]
+    others = [
+        (
+            "u2",
+            "Unidad 2: Transporte avanzado",
+            {
+                "id": "u2-res-1",
+                "type": "explicacion",
+                "title": "Protocolo TCP",
+                "body": "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable.",
+            },
+        )
+    ]
+
+    report = find_cross_unit_duplicates(current, others, threshold=0.70)
+    assert report["threshold"] == 0.70
+    assert report["comparedPairs"] == 1
+    assert report["duplicatePairRate"] == 1.0
+    assert len(report["flaggedPairs"]) == 1
+
+    pair = report["flaggedPairs"][0]
+    assert pair["resourceIdA"] == "u1-res-1"
+    assert pair["resourceIdB"] == "u2-res-1"
+    assert pair["unitIdB"] == "u2"
+    assert pair["unitTitleB"] == "Unidad 2: Transporte avanzado"
+    assert pair["crossUnit"] is True
+    assert pair["scope"] == "resource"
+    assert pair["score"] == 1.0
+
+
+def test_find_cross_unit_duplicates_does_not_flag_distinct_resources():
+    current = [
+        {
+            "id": "u1-res-1",
+            "type": "explicacion",
+            "title": "Fotosíntesis",
+            "body": "La fotosíntesis convierte la luz solar en energía química en las plantas.",
+        }
+    ]
+    others = [
+        (
+            "u2",
+            "Unidad 2: Algoritmos",
+            {
+                "id": "u2-res-1",
+                "type": "explicacion",
+                "title": "Algoritmo de Dijkstra",
+                "body": "El algoritmo de Dijkstra calcula la ruta más corta en un grafo ponderado.",
+            },
+        )
+    ]
+
+    report = find_cross_unit_duplicates(current, others, threshold=0.70)
+    assert report["comparedPairs"] == 1
+    assert report["flaggedPairs"] == []
+    assert report["duplicatePairRate"] == 0.0
+
+
+def test_find_cross_unit_duplicates_does_not_compare_other_units_with_each_other():
+    current = [
+        {
+            "id": "u1-res-1",
+            "type": "explicacion",
+            "title": "Revolución Industrial",
+            "body": "La revolución industrial transformó la economía y la producción manufacturera.",
+        }
+    ]
+    # u2 y u3 tienen recursos idénticos entre sí, pero distintos al de u1.
+    others = [
+        (
+            "u2",
+            "Unidad 2",
+            {
+                "id": "u2-res-1",
+                "type": "explicacion",
+                "title": "Protocolo UDP",
+                "body": "UDP envía datagramas sin establecer conexión previa ni confirmar entrega.",
+            },
+        ),
+        (
+            "u3",
+            "Unidad 3",
+            {
+                "id": "u3-res-1",
+                "type": "explicacion",
+                "title": "Protocolo UDP",
+                "body": "UDP envía datagramas sin establecer conexión previa ni confirmar entrega.",
+            },
+        ),
+    ]
+
+    report = find_cross_unit_duplicates(current, others, threshold=0.70)
+    assert report["comparedPairs"] == 2  # Solo u1 vs u2 y u1 vs u3; nunca u2 vs u3
+    assert report["flaggedPairs"] == []
+    assert report["duplicatePairRate"] == 0.0
+
+
+def test_find_cross_unit_duplicates_deduplicates_resource_and_question_keeping_highest_score():
+    current = [
+        {
+            "id": "u1-q1",
+            "type": "item_opcion_multiple",
+            "title": "Evaluación de protocolos de red en capa de transporte",
+            "body": "¿Cómo se gestionan los paquetes de redes?",
+            "options": [
+                {"text": "Mediante conmutación", "feedback": "Correcto."},
+                {"text": "Mediante difusión amplia", "feedback": "Incorrecto."},
+            ],
+        }
+    ]
+    others = [
+        (
+            "u2",
+            "Unidad 2",
+            {
+                "id": "u2-q1",
+                "type": "item_opcion_multiple",
+                "title": "Cuestionario de arquitectura alternativa en sistemas distribuidos",
+                "body": "¿Cómo se gestionaría los paquetes en una red?",
+                "options": [
+                    {"text": "Con nodos intermedios", "feedback": "Válido en ciertos contextos."},
+                    {"text": "Con canales dedicados", "feedback": "Descartado."},
+                ],
+            },
+        )
+    ]
+
+    report = find_cross_unit_duplicates(current, others, threshold=0.70)
+    # Pregunta coincide con score=1.0; además compara 1 par de recurso + 1 par de pregunta = 2
+    assert report["comparedPairs"] == 2
+    assert len(report["flaggedPairs"]) == 1
+    flagged = report["flaggedPairs"][0]
+    assert flagged["resourceIdA"] == "u1-q1"
+    assert flagged["resourceIdB"] == "u2-q1"
+    assert flagged["scope"] == "question"
+    assert flagged["score"] == 1.0
+    assert flagged["crossUnit"] is True
+    assert flagged["unitIdB"] == "u2"
+    assert flagged["unitTitleB"] == "Unidad 2"
+
+
+def test_service_cross_unit_duplication_report_behaves_additively():
+    class StubTeachers:
+        def __init__(self) -> None:
+            self.courses = {
+                "teacher-1": [
+                    {
+                        "id": "course-1",
+                        "units": [
+                            {"id": "u1", "title": "Unidad 1: Transporte"},
+                            {"id": "u2", "title": "Unidad 2: Enrutamiento"},
+                        ],
+                    }
+                ]
+            }
+
+        def get_courses(self, teacher_id: str) -> list[dict[str, Any]]:
+            return self.courses.get(teacher_id, [])
+
+    class StubReviews:
+        def __init__(self) -> None:
+            self.by_unit: dict[str, list[dict[str, Any]]] = {
+                "u1": [
+                    {
+                        "id": "r1a",
+                        "unitId": "u1",
+                        "type": "explicacion",
+                        "title": "Protocolo TCP",
+                        "body": "El protocolo TCP es orientado a la conexión y garantiza entrega confiable.",
+                    },
+                    {
+                        "id": "r1b",
+                        "unitId": "u1",
+                        "type": "explicacion",
+                        "title": "Protocolo TCP variante",
+                        "body": "El protocolo TCP es orientado a la conexión y garantiza entrega confiable.",
+                    },
+                    {
+                        "id": "r1c",
+                        "unitId": "u1",
+                        "type": "explicacion",
+                        "title": "Fotosíntesis",
+                        "body": "La fotosíntesis convierte la luz solar en energía química.",
+                    },
+                ],
+                "u2": [
+                    {
+                        "id": "r2a",
+                        "unitId": "u2",
+                        "type": "explicacion",
+                        "title": "TCP repetido",
+                        "body": "El protocolo TCP es orientado a la conexión y garantiza entrega confiable.",
+                    }
+                ],
+            }
+
+        def get_resources_by_unit(self, teacher_id: str, unit_id: str) -> list[dict[str, Any]]:
+            return self.by_unit.get(unit_id, []) if teacher_id == "teacher-1" else []
+
+    service = ResourceReviewService(StubTeachers(), StubReviews())  # type: ignore[arg-type]
+
+    within_only = service.get_duplication_report("teacher-1", "u1", threshold=0.70, include_course=False)
+    assert within_only["comparedPairs"] == 3
+    assert len(within_only["flaggedPairs"]) == 1
+    assert "crossUnit" not in within_only["flaggedPairs"][0]
+
+    with_course = service.get_duplication_report("teacher-1", "u1", threshold=0.70, include_course=True)
+    assert with_course["comparedPairs"] == 6  # 3 pares en u1 + 3*1 pares entre u1 y u2
+    assert len(with_course["flaggedPairs"]) == 3  # (r1a, r1b), (r1a, r2a), (r1b, r2a)
+    assert with_course["duplicatePairRate"] == round(3 / 6, 3)
+
+    same_unit_pairs = [p for p in with_course["flaggedPairs"] if not p["crossUnit"]]
+    cross_unit_pairs = [p for p in with_course["flaggedPairs"] if p["crossUnit"]]
+    assert len(same_unit_pairs) == 1
+    assert same_unit_pairs[0]["unitIdB"] is None
+    assert same_unit_pairs[0]["unitTitleB"] is None
+    assert len(cross_unit_pairs) == 2
+    assert all(p["unitIdB"] == "u2" and p["unitTitleB"] == "Unidad 2: Enrutamiento" for p in cross_unit_pairs)
+
+    with pytest.raises(AccountConfigurationError) as err:
+        service.get_duplication_report("other-teacher", "u1", include_course=True)
+    assert err.value.status_code == 404
+    assert err.value.code == "UNIT_NOT_FOUND"
