@@ -1094,6 +1094,93 @@
         }
       }
     },
+    "/api/v1/documents/from-url": {
+      "post": {
+        "tags": [
+          "documents"
+        ],
+        "summary": "Add material from a public web URL",
+        "description": "Downloads a public web page, extracts its clean text and indexes it into the unit.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nReplace unidad-1 with the ID of a unit you own.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/documents/from-url\" -H \"Authorization: Bearer $TOKEN\" -H \"Content-Type: application/json\" --data '{\"unitId\":\"unidad-1\",\"url\":\"https://es.wikipedia.org/wiki/Modelo_OSI\"}'\n```\n\nExpected 201 with the processed document metadata.",
+        "operationId": "create_document_from_url_api_v1_documents_from_url_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UrlIngestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The request breaks a business rule (the code says which one).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database or an external source is not available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ]
+      }
+    },
     "/api/v1/generation-requests/interpret": {
       "post": {
         "tags": [
@@ -1167,7 +1254,7 @@
           "generations"
         ],
         "summary": "Start a generation request",
-        "description": "Validates the unit ownership, the outcome and that the unit has processed material, saves the request\nand runs it in the background (202 with `Location`). Poll `GET /generation-requests/{requestId}` for the\nstatus of each step.\n\nThe client sends a stable `Idempotency-Key`, unique per teacher. Repeating the same key with the same body\n(mode, unit and parameters) returns the existing request (200) without applying the other rules again;\nusing it with a different body returns 409 IDEMPOTENCY_KEY_REUSED. Without processed material the request\nis rejected (400 NO_PROCESSED_MATERIAL), and a teacher with 2 active requests gets 429 with `Retry-After`.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generation-requests\" -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $(uuidgen)\" -H 'Content-Type: application/json' --data '{\"mode\":\"sequence\",\"unitId\":\"unidad-1\",\"resourceTypes\":[\"pregunta_detonante\",\"item_opcion_multiple\"],\"quantity\":1}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 202; repeat with the same key to get 200.",
+        "description": "Validates the unit ownership, the outcome and that the unit has processed material, saves the request\nand runs it in the background (202 with `Location`). Poll `GET /generation-requests/{requestId}` for the\nstatus of each step.\n\nGEN-P2: the body is `{planId, planVersion}` of an approved plan. The mode, unit, types, quantities and\nevidence come from the plan, which becomes `used` together with the request: one step per plan item, each\nresource drafted from its block of concepts. A draft plan answers 422 PLAN_NOT_APPROVED; another version\n409 PLAN_VERSION_CONFLICT; a used plan 409 PLAN_ALREADY_USED. If a fragment cited by the plan no longer\nexists in the unit (a document was deleted or reprocessed), the answer is 409 PLAN_EVIDENCE_STALE with one\n`StaleDocument` per document in `details`, and nothing changes. While `GENERATION_REQUIRE_PLAN=false` the\nprevious body below is still accepted: the server builds an implicit approved plan (422 PLAN_INVALID with\nthe problems in `details` if it cannot be approved, 422 INSUFFICIENT_EVIDENCE if the material does not cover\nthe topic); with `true` it answers 422 PLAN_REQUIRED.\n\nThe client sends a stable `Idempotency-Key`, unique per teacher. Repeating the same key with the same body\n(mode, unit and parameters) returns the existing request (200) without applying the other rules again;\nusing it with a different body returns 409 IDEMPOTENCY_KEY_REUSED. Without processed material the request\nis rejected (400 NO_PROCESSED_MATERIAL), and a teacher with 2 active requests gets 429 with `Retry-After`.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generation-requests\" -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $(uuidgen)\" -H 'Content-Type: application/json' --data '{\"mode\":\"sequence\",\"unitId\":\"unidad-1\",\"resourceTypes\":[\"pregunta_detonante\",\"item_opcion_multiple\"],\"quantity\":1}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 202; repeat with the same key to get 200.",
         "operationId": "start_generation_request_api_v1_generation_requests_post",
         "security": [
           {
@@ -1203,7 +1290,15 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/StartGenerationRequest"
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/StartPlannedGenerationRequest"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StartGenerationRequest"
+                  }
+                ],
+                "title": "Body"
               }
             }
           }
@@ -1572,6 +1667,504 @@
         }
       }
     },
+    "/api/v1/generation-plans": {
+      "post": {
+        "tags": [
+          "generation-plans"
+        ],
+        "summary": "Create a generation plan (synchronous)",
+        "description": "Retrieves the unit evidence once and freezes it in the plan, adds the referents and the previous\ntypologies, drafts the plan with one AI call (within the per-call deadline) or with the rule-based planner,\nand validates it. If the AI fails, times out or returns an invalid plan, the rule-based planner drafts it and\n`generator.fallbackReason` says why. The plan is saved in `draft` even with problems; see `validation`.\n\nSame `Idempotency-Key` with the same body returns the existing plan (200); with another body, 409.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generation-plans\" -H \"Authorization: Bearer $TOKEN\" -H \"Idempotency-Key: $(uuidgen)\" -H 'Content-Type: application/json' --data '{\"unitId\":\"unidad-1\",\"instructions\":\"Diferencias entre TCP y UDP\",\"resourceTypes\":[{\"type\":\"pregunta_detonante\",\"quantity\":1},{\"type\":\"explicacion\"}]}'\n```\n\nReplace unidad-1 with a unit containing processed material. Expected 201; repeat with the same key to get\n200.",
+        "operationId": "createGenerationPlan",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9_-]{8,128}$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Stable client key, unique per teacher: 8 to 128 letters, digits, `-` or `_`, as in GEN-01. Reuse it when retrying the same plan. Without it the API answers 400 IDEMPOTENCY_KEY_REQUIRED.",
+              "examples": [
+                "3f6c2a1e-8b4d-4d7a-9a51-0c2f8e1b7d10"
+              ],
+              "title": "Idempotency-Key"
+            },
+            "description": "Stable client key, unique per teacher: 8 to 128 letters, digits, `-` or `_`, as in GEN-01. Reuse it when retrying the same plan. Without it the API answers 400 IDEMPOTENCY_KEY_REQUIRED."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGenerationPlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Plan created in `draft`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationPlan"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`NO_PROCESSED_MATERIAL`, `INVALID_OUTCOME` or `IDEMPOTENCY_KEY_REQUIRED`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNIT_NOT_FOUND`: missing or belongs to another teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`IDEMPOTENCY_KEY_REUSED`: the key was already used by this teacher with a different body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`INVALID_PARAMETERS` (type, range, unknown or repeated type), `RESOURCE_TYPE_NOT_IN_MODALITY`, or `INSUFFICIENT_EVIDENCE`: the unit material does not cover the topic of the instructions; the message names what is missing. No plan is created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Per-IP limit of costly routes, with `Retry-After`.",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Seconds before retrying."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The database or an external source is not available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "The same key and body were already used; the existing plan is returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationPlan"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "generation-plans"
+        ],
+        "summary": "List the teacher's plans of a unit",
+        "description": "Plans of the teacher in the unit, most recently updated first (empty list if none). Used to recover the\nlast plan after a reload. A unit of another teacher answers 404 UNIT_NOT_FOUND, the same as a missing one.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generation-plans?unitId=unidad-1&status=draft\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nReplace unidad-1 with one of your units. Expected 200.",
+        "operationId": "listGenerationPlans",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unitId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Unit of the teacher.",
+              "title": "Unitid"
+            },
+            "description": "Unit of the teacher."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "draft",
+                    "approved",
+                    "used"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this status.",
+              "title": "Status"
+            },
+            "description": "Only this status."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 5,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/GenerationPlan"
+                  },
+                  "title": "Response Listgenerationplans"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`UNIT_NOT_FOUND`: missing or another teacher's.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generation-plans/{plan_id}": {
+      "get": {
+        "tags": [
+          "generation-plans"
+        ],
+        "summary": "Get a plan",
+        "description": "Returns the plan, with `validation` and `doesNotCover` computed on read. Plans of other teachers answer\n404 PLAN_NOT_FOUND, the same as missing ones.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/generation-plans/${PLAN_ID}\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200.",
+        "operationId": "getGenerationPlan",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationPlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PLAN_NOT_FOUND`: missing or belongs to another teacher. Both answers are identical.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "generation-plans"
+        ],
+        "summary": "Save the teacher's edits",
+        "description": "Replaces the items. The stage of each item comes from the catalog and `doesNotCover` is computed. The\nplan goes back to `draft` and its `version` increases. An invalid plan is saved anyway, with its problems in\n`validation`, so the teacher does not lose work; it cannot be approved until it is valid. `inputs` and\n`evidence` do not change: to change the topic or the types, create a new plan. A type that is not in the\ncatalog answers 422 INVALID_PARAMETERS.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X PUT \"$BASE_URL/api/v1/generation-plans/${PLAN_ID}\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1,\"items\":[{\"resourceType\":\"explicacion\",\"quantity\":1,\"purpose\":\"Explicar TCP\",\"covers\":[\"control de flujo\"],\"fragmentIds\":[\"frag-1\"]}]}'\n```\n\nExpected 200. Check `validation`.",
+        "operationId": "updateGenerationPlan",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateGenerationPlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationPlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PLAN_NOT_FOUND`: missing or belongs to another teacher. Both answers are identical.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PLAN_VERSION_CONFLICT`: `expectedVersion` is not the current version. `PLAN_ALREADY_USED`: the plan already started a generation request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/generation-plans/{plan_id}/approve": {
+      "post": {
+        "tags": [
+          "generation-plans"
+        ],
+        "summary": "Approve a valid plan",
+        "description": "Approves the plan in its current version if it has no problems; the version does not change. Approving\nan already approved plan with its current version returns it unchanged. Generation (next step) always starts\nfrom an approved plan.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/generation-plans/${PLAN_ID}/approve\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nExpected 200 with `status: approved`, or 422 PLAN_INVALID with the problems in `details`.",
+        "operationId": "approveGenerationPlan",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "plan_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Plan Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApproveGenerationPlan"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GenerationPlan"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`PLAN_NOT_FOUND`: missing or belongs to another teacher. Both answers are identical.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`PLAN_VERSION_CONFLICT`: `expectedVersion` is not the current version. `PLAN_ALREADY_USED`: the plan already started a generation request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`PLAN_INVALID`: `details` lists every `PlanProblem`. Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/generations": {
       "get": {
         "tags": [
@@ -1757,6 +2350,90 @@
                     "$ref": "#/components/schemas/ResourceResponse"
                   },
                   "title": "Response List Unit Resources Api V1 Units  Unit Id  Resources Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/duplication-report": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Duplication report for unit resources",
+        "description": "REV-P3: analyzes content duplication across resources and questions in the unit.\n\nCompares resources and questions using character n-grams and word Jaccard similarity.\nReturns pairs with similarity score >= threshold (default from REVIEW_DUPLICATE_THRESHOLD)\nsorted descending by score.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X GET \"$BASE_URL/api/v1/units/${UNIT_ID}/duplication-report\" -H \"Authorization: Bearer $TOKEN\"\n```\n\nExpected 200 with the duplication report. 404 if the unit is not owned by the teacher.",
+        "operationId": "get_duplication_report_api_v1_units__unit_id__duplication_report_get",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "threshold",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Threshold"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicationReportResponse"
                 }
               }
             }
@@ -2072,7 +2749,7 @@
           "resources"
         ],
         "summary": "Regenerate a resource from review",
-        "description": "REV-C12 and REV-C13 (decision D10, confirmed by Generation): asks Generation for a new resource with the\nstored parameters and the current evidence of the material. If Generation does not finish within its time\nlimit, the answer is `status: running` and the request goes on in the background: ask\n`GET …/resources/{resource_id}/regeneration` until it ends.\n\nOn success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the\nprevious one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it\nwas edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version\nreturns the same result without generating again. On failure the previous resource is unchanged and `message`\ngives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the\nunit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME). If\nGeneration finished but none of the new resources is still in review, the answer is 409\nREGENERATED_RESOURCE_NOT_FOUND and the regeneration can be asked again. Rejections when Generation starts the\nrequest keep the status of `generation-requests`: 404 UNIT_NOT_FOUND, 429 TOO_MANY_ACTIVE_REQUESTS and 409\nREGENERATION_ATTEMPTS_EXHAUSTED. 502\nREGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409\nVERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource of your unit with its current version. Expected 200.",
+        "description": "REV-C12 and REV-C13 (decision D10, confirmed by Generation): asks Generation for a new resource with the\nstored parameters and the current evidence of the material. If Generation does not finish within its time\nlimit, the answer is `status: running` and the request goes on in the background: ask\n`GET …/resources/{resource_id}/regeneration` until it ends.\n\nOn success the new resources wait for review (they keep `regeneratedFrom` and are verified when read) and the\nprevious one goes to discarded with reason `regenerado`, but only if it is still at `expectedVersion`; if it\nwas edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version\nreturns the same result without generating again. On failure the previous resource is unchanged and `message`\ngives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the\nunit material, such as NO_PROCESSED_MATERIAL or PLAN_EVIDENCE_STALE: a fragment of the plan item no longer\nexists in the unit (a document was deleted or reprocessed); details lists the affected documents\n(documentId, documentName, missingFragmentIds). The resource is unchanged; create a new plan; 422 for the stored\nparameters, such as INVALID_OUTCOME). If Generation finished but none of the new resources is still in review,\nthe answer is 409 REGENERATED_RESOURCE_NOT_FOUND and the regeneration can be asked again. Rejections when\nGeneration starts the request keep the status of `generation-requests`: 404 UNIT_NOT_FOUND, 429\nTOO_MANY_ACTIVE_REQUESTS and 409 REGENERATION_ATTEMPTS_EXHAUSTED. 502 REGENERATION_FAILED is only for\nprovider or unexpected failures. An outdated `expectedVersion` returns 409 VERSION_CONFLICT.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/resources/${RESOURCE_ID}/regenerations\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"expectedVersion\":1}'\n```\n\nUse a resource of your unit with its current version. Expected 200.",
         "operationId": "regenerate_resource_api_v1_units__unit_id__resources__resource_id__regenerations_post",
         "security": [
           {
@@ -2141,7 +2818,7 @@
             }
           },
           "409": {
-            "description": "VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review; or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the resource to ask again). The previous resource is unchanged.",
+            "description": "VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); PLAN_EVIDENCE_STALE: a fragment of the plan item no longer exists in the unit (a document was deleted or reprocessed); details lists the affected documents (documentId, documentName, missingFragmentIds). The resource is unchanged; create a new plan; REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review; or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the resource to ask again). The previous resource is unchanged.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2680,6 +3357,84 @@
         }
       }
     },
+    "/api/v1/units/{unit_id}/exports/preview": {
+      "post": {
+        "tags": [
+          "exports"
+        ],
+        "summary": "Preview SCORM export pages for a unit",
+        "description": "REV-P2: renders in-memory SCORM pages for eligible resources without recording downloads.\n\nOnly format `scorm_zip` is supported for preview.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -X POST \"$BASE_URL/api/v1/units/${UNIT_ID}/exports/preview\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"format\":\"scorm_zip\",\"resourceIds\":[]}'\n```\n\nExpected 200 with preview pages and excluded items breakdown.",
+        "operationId": "preview_export_api_v1_units__unit_id__exports_preview_post",
+        "security": [
+          {
+            "TeacherSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportPreviewResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing, invalid or expired session token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "The entity does not exist or does not belong to the teacher.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Invalid parameters (type, range or unknown field).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "tags": [
@@ -2737,6 +3492,22 @@
   },
   "components": {
     "schemas": {
+      "ApproveGenerationPlan": {
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "description": "The `version` the teacher reviewed."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expectedVersion"
+        ],
+        "title": "ApproveGenerationPlan"
+      },
       "Body_upload_document_api_v1_documents_post": {
         "properties": {
           "file": {
@@ -2874,6 +3645,47 @@
             "title": "Learninggoal",
             "description": "Course learning goal (logro)."
           },
+          "educationLevel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Educationlevel"
+          },
+          "academicCycle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Academiccycle"
+          },
+          "activityType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "course",
+                  "workshop",
+                  "conference",
+                  ""
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activitytype"
+          },
           "units": {
             "items": {
               "$ref": "#/components/schemas/CourseUnitInput"
@@ -2934,6 +3746,45 @@
               }
             ],
             "title": "Learninggoal"
+          },
+          "educationLevel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Educationlevel"
+          },
+          "academicCycle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Academiccycle"
+          },
+          "activityType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "course",
+                  "workshop",
+                  "conference",
+                  ""
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activitytype"
           },
           "units": {
             "items": {
@@ -2999,6 +3850,118 @@
           "title"
         ],
         "title": "CourseUnitInput"
+      },
+      "CreateGenerationPlan": {
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "title": "Unitid",
+            "description": "Unit whose processed material is used.",
+            "examples": [
+              "unidad-1"
+            ]
+          },
+          "instructions": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Instructions",
+            "description": "The topic. Checked against the evidence: the material must cover it.",
+            "default": ""
+          },
+          "audience": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Audience",
+            "default": ""
+          },
+          "competency": {
+            "type": "string",
+            "maxLength": 200,
+            "title": "Competency",
+            "default": ""
+          },
+          "outcomeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomeid",
+            "description": "Learning outcome of the unit, optional."
+          },
+          "modality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Textual",
+                  "Gamificado",
+                  "Multimedia",
+                  "Kinestésico"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modality",
+            "description": "Optional. When sent, every type must belong to it (422 otherwise)."
+          },
+          "resourceTypes": {
+            "items": {
+              "$ref": "#/components/schemas/RequestedType"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Resourcetypes",
+            "description": "Distinct catalog types; repeated types answer 422 INVALID_PARAMETERS."
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "basica",
+              "intermedia",
+              "avanzada"
+            ],
+            "title": "Difficulty",
+            "default": "intermedia"
+          },
+          "optionCount": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 2.0,
+            "title": "Optioncount",
+            "description": "Options per multiple-choice item.",
+            "default": 4
+          },
+          "evidenceThreshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Evidencethreshold",
+            "default": 0.6
+          },
+          "topK": {
+            "type": "integer",
+            "maximum": 12.0,
+            "minimum": 3.0,
+            "title": "Topk",
+            "description": "Chunks retrieved once and frozen in the plan.",
+            "default": 12
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unitId",
+          "resourceTypes"
+        ],
+        "title": "CreateGenerationPlan",
+        "description": "Cuerpo de POST /generation-plans. La clave de idempotencia va en la cabecera `Idempotency-Key`."
       },
       "DependencyCheckItem": {
         "properties": {
@@ -3116,7 +4079,8 @@
             "type": "string",
             "title": "Source",
             "examples": [
-              "Wikipedia"
+              "Wikipedia",
+              "Web"
             ]
           },
           "url": {
@@ -3124,14 +4088,28 @@
             "title": "Url"
           },
           "license": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "License",
             "examples": [
               "CC BY-SA 4.0"
             ]
           },
           "topic": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Topic"
           }
         },
@@ -3139,12 +4117,10 @@
         "type": "object",
         "required": [
           "source",
-          "url",
-          "license",
-          "topic"
+          "url"
         ],
         "title": "DocumentOrigin",
-        "description": "Open source the document came from (POST /documents/from-topic)."
+        "description": "Open source or web URL the document came from (POST /documents/from-topic or /from-url)."
       },
       "DocumentResponse": {
         "properties": {
@@ -3382,6 +4358,98 @@
         ],
         "title": "DownloadResponse"
       },
+      "DuplicationReportResponse": {
+        "properties": {
+          "threshold": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Threshold",
+            "description": "Similarity threshold applied."
+          },
+          "comparedPairs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Comparedpairs",
+            "description": "Total number of evaluated pairs."
+          },
+          "flaggedPairs": {
+            "items": {
+              "$ref": "#/components/schemas/FlaggedPair"
+            },
+            "type": "array",
+            "title": "Flaggedpairs",
+            "description": "Pairs with score >= threshold, sorted descending."
+          },
+          "duplicatePairRate": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Duplicatepairrate",
+            "description": "Proportion of flagged pairs over compared pairs."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "threshold",
+          "comparedPairs",
+          "flaggedPairs",
+          "duplicatePairRate"
+        ],
+        "title": "DuplicationReportResponse"
+      },
+      "EditablePlanItem": {
+        "properties": {
+          "resourceType": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,59}$",
+            "title": "Resourcetype",
+            "description": "Id of an active entry of the configurable catalog. Today, the values of `GET /resource-types`."
+          },
+          "quantity": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Quantity"
+          },
+          "purpose": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Purpose"
+          },
+          "covers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "minItems": 1,
+            "title": "Covers",
+            "description": "Concepts this item owns, each 1 to 120 characters."
+          },
+          "fragmentIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Fragmentids",
+            "description": "Ids of `evidence.fragments`. Empty is saved as ITEM_WITHOUT_EVIDENCE."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "resourceType",
+          "quantity",
+          "purpose",
+          "covers",
+          "fragmentIds"
+        ],
+        "title": "EditablePlanItem"
+      },
       "ErrorBody": {
         "properties": {
           "code": {
@@ -3573,6 +4641,110 @@
         ],
         "title": "EvidenceSearchResponse"
       },
+      "ExportExcludedReason": {
+        "properties": {
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "Exclusion reason code."
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Count",
+            "description": "Number of resources excluded for this reason."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "reason",
+          "count"
+        ],
+        "title": "ExportExcludedReason"
+      },
+      "ExportPreviewPage": {
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Number",
+            "description": "1-based page index in sequential order."
+          },
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Page title or quiz name."
+          },
+          "html": {
+            "type": "string",
+            "title": "Html",
+            "description": "Full rendered HTML content for this page."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "number",
+          "title",
+          "html"
+        ],
+        "title": "ExportPreviewPage"
+      },
+      "ExportPreviewRequest": {
+        "properties": {
+          "format": {
+            "type": "string",
+            "title": "Format",
+            "description": "Format to preview. Only `scorm_zip` is supported for preview.",
+            "examples": [
+              "scorm_zip"
+            ]
+          },
+          "resourceIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Resourceids",
+            "description": "Resources to preview; empty includes every eligible resource."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "format"
+        ],
+        "title": "ExportPreviewRequest"
+      },
+      "ExportPreviewResponse": {
+        "properties": {
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/ExportPreviewPage"
+            },
+            "type": "array",
+            "title": "Pages",
+            "description": "Rendered SCORM pages."
+          },
+          "excluded": {
+            "items": {
+              "$ref": "#/components/schemas/ExportExcludedReason"
+            },
+            "type": "array",
+            "title": "Excluded",
+            "description": "Summary of excluded resources by reason."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "pages",
+          "excluded"
+        ],
+        "title": "ExportPreviewResponse"
+      },
       "ExportRequest": {
         "properties": {
           "format": {
@@ -3601,6 +4773,57 @@
           "format"
         ],
         "title": "ExportRequest"
+      },
+      "FlaggedPair": {
+        "properties": {
+          "resourceIdA": {
+            "type": "string",
+            "title": "Resourceida",
+            "description": "First resource identifier."
+          },
+          "resourceIdB": {
+            "type": "string",
+            "title": "Resourceidb",
+            "description": "Second resource identifier."
+          },
+          "scope": {
+            "type": "string",
+            "enum": [
+              "resource",
+              "question"
+            ],
+            "title": "Scope",
+            "description": "Comparison scope: whole resource or single question."
+          },
+          "score": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "description": "Combined similarity score."
+          },
+          "excerptA": {
+            "type": "string",
+            "title": "Excerpta",
+            "description": "Excerpt of first content (max 160 characters)."
+          },
+          "excerptB": {
+            "type": "string",
+            "title": "Excerptb",
+            "description": "Excerpt of second content (max 160 characters)."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "resourceIdA",
+          "resourceIdB",
+          "scope",
+          "score",
+          "excerptA",
+          "excerptB"
+        ],
+        "title": "FlaggedPair"
       },
       "GeneratedChunk": {
         "properties": {
@@ -3780,26 +5003,54 @@
               "enum": [
                 "pregunta_detonante",
                 "sondeo_diagnostico",
+                "audio_detonante",
+                "reto_prediccion",
                 "guia_exploracion",
                 "caso_indagacion",
-                "explicacion",
-                "glosario",
-                "ejercicio_aplicacion",
-                "item_opcion_multiple",
-                "audio_detonante",
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
                 "actividad_kinestesica",
-                "reto_prediccion",
+                "explicacion",
+                "glosario",
                 "mapa_conceptual",
                 "infografia",
                 "podcast_resumen",
+                "ejercicio_aplicacion",
                 "caso_aplicado",
                 "emparejamiento",
                 "ordenar_pasos",
+                "item_opcion_multiple",
                 "verdadero_falso",
-                "completar_espacios"
+                "completar_espacios",
+                "frase_celebre_comentada",
+                "dialogo_breve",
+                "noticia_contextualizada",
+                "historia_corta",
+                "experimento_demostrativo_descrito",
+                "dilema_inicial",
+                "registro_observaciones",
+                "contraste_fuentes",
+                "formulacion_hipotesis",
+                "analisis_datos_tabulados",
+                "analogia_comentada",
+                "ejemplo_resuelto",
+                "comparacion_conceptos",
+                "errores_frecuentes",
+                "resumen_ideas_clave",
+                "problema_abierto",
+                "propuesta_diseno",
+                "diagnostico_fallas",
+                "adaptacion_otro_contexto",
+                "justificacion_decisiones",
+                "resolucion_escenario_cambios",
+                "respuesta_corta",
+                "ticket_salida",
+                "autoevaluacion_guiada",
+                "analisis_caso_evaluativo",
+                "correccion_razonada",
+                "defensa_conclusion",
+                "evaluacion_solucion_criterios"
               ]
             },
             "type": "array",
@@ -3992,26 +5243,54 @@
             "enum": [
               "pregunta_detonante",
               "sondeo_diagnostico",
+              "audio_detonante",
+              "reto_prediccion",
               "guia_exploracion",
               "caso_indagacion",
-              "explicacion",
-              "glosario",
-              "ejercicio_aplicacion",
-              "item_opcion_multiple",
-              "audio_detonante",
               "imagen_ilustrativa",
               "diagrama_proceso",
               "exploracion_guiada",
               "actividad_kinestesica",
-              "reto_prediccion",
+              "explicacion",
+              "glosario",
               "mapa_conceptual",
               "infografia",
               "podcast_resumen",
+              "ejercicio_aplicacion",
               "caso_aplicado",
               "emparejamiento",
               "ordenar_pasos",
+              "item_opcion_multiple",
               "verdadero_falso",
-              "completar_espacios"
+              "completar_espacios",
+              "frase_celebre_comentada",
+              "dialogo_breve",
+              "noticia_contextualizada",
+              "historia_corta",
+              "experimento_demostrativo_descrito",
+              "dilema_inicial",
+              "registro_observaciones",
+              "contraste_fuentes",
+              "formulacion_hipotesis",
+              "analisis_datos_tabulados",
+              "analogia_comentada",
+              "ejemplo_resuelto",
+              "comparacion_conceptos",
+              "errores_frecuentes",
+              "resumen_ideas_clave",
+              "problema_abierto",
+              "propuesta_diseno",
+              "diagnostico_fallas",
+              "adaptacion_otro_contexto",
+              "justificacion_decisiones",
+              "resolucion_escenario_cambios",
+              "respuesta_corta",
+              "ticket_salida",
+              "autoevaluacion_guiada",
+              "analisis_caso_evaluativo",
+              "correccion_razonada",
+              "defensa_conclusion",
+              "evaluacion_solucion_criterios"
             ],
             "title": "Resourcetype"
           },
@@ -4062,26 +5341,54 @@
               "enum": [
                 "pregunta_detonante",
                 "sondeo_diagnostico",
+                "audio_detonante",
+                "reto_prediccion",
                 "guia_exploracion",
                 "caso_indagacion",
-                "explicacion",
-                "glosario",
-                "ejercicio_aplicacion",
-                "item_opcion_multiple",
-                "audio_detonante",
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
                 "actividad_kinestesica",
-                "reto_prediccion",
+                "explicacion",
+                "glosario",
                 "mapa_conceptual",
                 "infografia",
                 "podcast_resumen",
+                "ejercicio_aplicacion",
                 "caso_aplicado",
                 "emparejamiento",
                 "ordenar_pasos",
+                "item_opcion_multiple",
                 "verdadero_falso",
-                "completar_espacios"
+                "completar_espacios",
+                "frase_celebre_comentada",
+                "dialogo_breve",
+                "noticia_contextualizada",
+                "historia_corta",
+                "experimento_demostrativo_descrito",
+                "dilema_inicial",
+                "registro_observaciones",
+                "contraste_fuentes",
+                "formulacion_hipotesis",
+                "analisis_datos_tabulados",
+                "analogia_comentada",
+                "ejemplo_resuelto",
+                "comparacion_conceptos",
+                "errores_frecuentes",
+                "resumen_ideas_clave",
+                "problema_abierto",
+                "propuesta_diseno",
+                "diagnostico_fallas",
+                "adaptacion_otro_contexto",
+                "justificacion_decisiones",
+                "resolucion_escenario_cambios",
+                "respuesta_corta",
+                "ticket_salida",
+                "autoevaluacion_guiada",
+                "analisis_caso_evaluativo",
+                "correccion_razonada",
+                "defensa_conclusion",
+                "evaluacion_solucion_criterios"
               ]
             },
             "type": "array",
@@ -4169,6 +5476,145 @@
         "title": "GenerationParametersView",
         "description": "Los parámetros guardados del pedido. El modo y la unidad están en el nivel superior."
       },
+      "GenerationPlan": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id",
+            "examples": [
+              "gen-plan-3f6c2a1e-8b4d-4d7a-9a51-0c2f8e1b7d10"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "approved",
+              "used"
+            ],
+            "title": "Status"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "teacher",
+              "implicit"
+            ],
+            "title": "Origin",
+            "description": "`implicit`: created by the server for a request without plan."
+          },
+          "unitId": {
+            "type": "string",
+            "title": "Unitid"
+          },
+          "inputs": {
+            "$ref": "#/components/schemas/PlanInputs"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/PlanEvidence"
+          },
+          "referents": {
+            "items": {
+              "$ref": "#/components/schemas/Referent"
+            },
+            "type": "array",
+            "title": "Referents"
+          },
+          "sessionContext": {
+            "$ref": "#/components/schemas/SessionContext"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PlanItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "validation": {
+            "$ref": "#/components/schemas/PlanValidation"
+          },
+          "warnings": {
+            "items": {
+              "type": "string",
+              "const": "SAME_TYPOLOGY_AS_LAST_SESSION"
+            },
+            "type": "array",
+            "title": "Warnings"
+          },
+          "generator": {
+            "$ref": "#/components/schemas/PlanGenerator"
+          },
+          "usedByRequestId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usedbyrequestid"
+          },
+          "createdAt": {
+            "type": "string",
+            "title": "Createdat"
+          },
+          "updatedAt": {
+            "type": "string",
+            "title": "Updatedat"
+          },
+          "approvedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approvedat"
+          },
+          "usedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usedat"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "status",
+          "origin",
+          "unitId",
+          "inputs",
+          "evidence",
+          "referents",
+          "sessionContext",
+          "items",
+          "validation",
+          "warnings",
+          "generator",
+          "usedByRequestId",
+          "createdAt",
+          "updatedAt",
+          "approvedAt",
+          "usedAt"
+        ],
+        "title": "GenerationPlan"
+      },
       "GenerationRequestRecord": {
         "properties": {
           "id": {
@@ -4249,26 +5695,54 @@
               "enum": [
                 "pregunta_detonante",
                 "sondeo_diagnostico",
+                "audio_detonante",
+                "reto_prediccion",
                 "guia_exploracion",
                 "caso_indagacion",
-                "explicacion",
-                "glosario",
-                "ejercicio_aplicacion",
-                "item_opcion_multiple",
-                "audio_detonante",
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
                 "actividad_kinestesica",
-                "reto_prediccion",
+                "explicacion",
+                "glosario",
                 "mapa_conceptual",
                 "infografia",
                 "podcast_resumen",
+                "ejercicio_aplicacion",
                 "caso_aplicado",
                 "emparejamiento",
                 "ordenar_pasos",
+                "item_opcion_multiple",
                 "verdadero_falso",
-                "completar_espacios"
+                "completar_espacios",
+                "frase_celebre_comentada",
+                "dialogo_breve",
+                "noticia_contextualizada",
+                "historia_corta",
+                "experimento_demostrativo_descrito",
+                "dilema_inicial",
+                "registro_observaciones",
+                "contraste_fuentes",
+                "formulacion_hipotesis",
+                "analisis_datos_tabulados",
+                "analogia_comentada",
+                "ejemplo_resuelto",
+                "comparacion_conceptos",
+                "errores_frecuentes",
+                "resumen_ideas_clave",
+                "problema_abierto",
+                "propuesta_diseno",
+                "diagnostico_fallas",
+                "adaptacion_otro_contexto",
+                "justificacion_decisiones",
+                "resolucion_escenario_cambios",
+                "respuesta_corta",
+                "ticket_salida",
+                "autoevaluacion_guiada",
+                "analisis_caso_evaluativo",
+                "correccion_razonada",
+                "defensa_conclusion",
+                "evaluacion_solucion_criterios"
               ]
             },
             "type": "array",
@@ -4342,13 +5816,38 @@
             ],
             "title": "Startedat"
           },
+          "planId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planid",
+            "description": "GEN-P2: the approved plan the request started from (an implicit one for the previous body). `null` in requests created before generation plans."
+          },
+          "planVersion": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planversion",
+            "description": "GEN-P2: the plan version that was used."
+          },
           "steps": {
             "items": {
               "$ref": "#/components/schemas/GenerationStep"
             },
             "type": "array",
             "title": "Steps",
-            "description": "One step per resource type, in 5E order."
+            "description": "One step per resource type, in 5E order. With a plan, one step per plan item, in plan order."
           }
         },
         "additionalProperties": true,
@@ -4406,26 +5905,54 @@
               "enum": [
                 "pregunta_detonante",
                 "sondeo_diagnostico",
+                "audio_detonante",
+                "reto_prediccion",
                 "guia_exploracion",
                 "caso_indagacion",
-                "explicacion",
-                "glosario",
-                "ejercicio_aplicacion",
-                "item_opcion_multiple",
-                "audio_detonante",
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
                 "actividad_kinestesica",
-                "reto_prediccion",
+                "explicacion",
+                "glosario",
                 "mapa_conceptual",
                 "infografia",
                 "podcast_resumen",
+                "ejercicio_aplicacion",
                 "caso_aplicado",
                 "emparejamiento",
                 "ordenar_pasos",
+                "item_opcion_multiple",
                 "verdadero_falso",
-                "completar_espacios"
+                "completar_espacios",
+                "frase_celebre_comentada",
+                "dialogo_breve",
+                "noticia_contextualizada",
+                "historia_corta",
+                "experimento_demostrativo_descrito",
+                "dilema_inicial",
+                "registro_observaciones",
+                "contraste_fuentes",
+                "formulacion_hipotesis",
+                "analisis_datos_tabulados",
+                "analogia_comentada",
+                "ejemplo_resuelto",
+                "comparacion_conceptos",
+                "errores_frecuentes",
+                "resumen_ideas_clave",
+                "problema_abierto",
+                "propuesta_diseno",
+                "diagnostico_fallas",
+                "adaptacion_otro_contexto",
+                "justificacion_decisiones",
+                "resolucion_escenario_cambios",
+                "respuesta_corta",
+                "ticket_salida",
+                "autoevaluacion_guiada",
+                "analisis_caso_evaluativo",
+                "correccion_razonada",
+                "defensa_conclusion",
+                "evaluacion_solucion_criterios"
               ]
             },
             "type": "array",
@@ -4606,26 +6133,54 @@
             "enum": [
               "pregunta_detonante",
               "sondeo_diagnostico",
+              "audio_detonante",
+              "reto_prediccion",
               "guia_exploracion",
               "caso_indagacion",
-              "explicacion",
-              "glosario",
-              "ejercicio_aplicacion",
-              "item_opcion_multiple",
-              "audio_detonante",
               "imagen_ilustrativa",
               "diagrama_proceso",
               "exploracion_guiada",
               "actividad_kinestesica",
-              "reto_prediccion",
+              "explicacion",
+              "glosario",
               "mapa_conceptual",
               "infografia",
               "podcast_resumen",
+              "ejercicio_aplicacion",
               "caso_aplicado",
               "emparejamiento",
               "ordenar_pasos",
+              "item_opcion_multiple",
               "verdadero_falso",
-              "completar_espacios"
+              "completar_espacios",
+              "frase_celebre_comentada",
+              "dialogo_breve",
+              "noticia_contextualizada",
+              "historia_corta",
+              "experimento_demostrativo_descrito",
+              "dilema_inicial",
+              "registro_observaciones",
+              "contraste_fuentes",
+              "formulacion_hipotesis",
+              "analisis_datos_tabulados",
+              "analogia_comentada",
+              "ejemplo_resuelto",
+              "comparacion_conceptos",
+              "errores_frecuentes",
+              "resumen_ideas_clave",
+              "problema_abierto",
+              "propuesta_diseno",
+              "diagnostico_fallas",
+              "adaptacion_otro_contexto",
+              "justificacion_decisiones",
+              "resolucion_escenario_cambios",
+              "respuesta_corta",
+              "ticket_salida",
+              "autoevaluacion_guiada",
+              "analisis_caso_evaluativo",
+              "correccion_razonada",
+              "defensa_conclusion",
+              "evaluacion_solucion_criterios"
             ],
             "title": "Resourcetype"
           },
@@ -4733,6 +6288,28 @@
               }
             ],
             "title": "Finishedat"
+          },
+          "planItemPosition": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planitemposition",
+            "description": "GEN-P2: the plan item this step drafts. `null` in requests without a plan."
+          },
+          "planWarnings": {
+            "items": {
+              "$ref": "#/components/schemas/StepPlanWarning"
+            },
+            "type": "array",
+            "title": "Planwarnings",
+            "description": "GEN-P2: AI resources of this step delivered although they did not fully follow the plan (another item's concept developed, or none of their own). The rule-based path rejects them with `kind: plan` instead.",
+            "default": []
           }
         },
         "additionalProperties": true,
@@ -5078,6 +6655,471 @@
         "title": "MediaResponse",
         "description": "Image or audio generated for the resource. `fallback`: no file, the review shows the description or uses the\nbrowser's voice."
       },
+      "PlanEvidence": {
+        "properties": {
+          "retrievalMode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "hybrid",
+                  "bm25_fallback"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retrievalmode"
+          },
+          "retrievedAt": {
+            "type": "string",
+            "title": "Retrievedat",
+            "description": "ISO 8601 UTC."
+          },
+          "fragments": {
+            "items": {
+              "$ref": "#/components/schemas/PlanFragment"
+            },
+            "type": "array",
+            "title": "Fragments"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "retrievalMode",
+          "retrievedAt",
+          "fragments"
+        ],
+        "title": "PlanEvidence"
+      },
+      "PlanFragment": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "documentId": {
+            "type": "string",
+            "title": "Documentid"
+          },
+          "documentName": {
+            "type": "string",
+            "title": "Documentname"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "relevance": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Relevance"
+          },
+          "sourceUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sourceurl"
+          },
+          "license": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "id",
+          "documentId",
+          "documentName",
+          "location",
+          "text",
+          "relevance"
+        ],
+        "title": "PlanFragment"
+      },
+      "PlanGenerator": {
+        "properties": {
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "usesAi": {
+            "type": "boolean",
+            "title": "Usesai"
+          },
+          "fallback": {
+            "type": "boolean",
+            "title": "Fallback",
+            "description": "True when the rule-based planner drafted the plan after the AI failed."
+          },
+          "fallbackReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallbackreason",
+            "description": "Generic public reason; null without fallback."
+          },
+          "attempts": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Attempts",
+            "description": "AI calls made to draft the plan: 0 without AI, 1, or 2 when the first plan was invalid and was asked again with its problems.",
+            "default": 0
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "description",
+          "usesAi",
+          "fallback",
+          "fallbackReason"
+        ],
+        "title": "PlanGenerator"
+      },
+      "PlanInputs": {
+        "properties": {
+          "instructions": {
+            "type": "string",
+            "title": "Instructions"
+          },
+          "audience": {
+            "type": "string",
+            "title": "Audience"
+          },
+          "competency": {
+            "type": "string",
+            "title": "Competency"
+          },
+          "outcomeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outcomeid"
+          },
+          "modality": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "Textual",
+                  "Gamificado",
+                  "Multimedia",
+                  "Kinestésico"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modality"
+          },
+          "resourceTypes": {
+            "items": {
+              "$ref": "#/components/schemas/PlanRequestedType"
+            },
+            "type": "array",
+            "title": "Resourcetypes"
+          },
+          "difficulty": {
+            "type": "string",
+            "title": "Difficulty"
+          },
+          "optionCount": {
+            "type": "integer",
+            "title": "Optioncount"
+          },
+          "evidenceThreshold": {
+            "type": "number",
+            "title": "Evidencethreshold"
+          },
+          "topK": {
+            "type": "integer",
+            "title": "Topk"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "instructions",
+          "audience",
+          "competency",
+          "outcomeId",
+          "modality",
+          "resourceTypes",
+          "difficulty",
+          "optionCount",
+          "evidenceThreshold",
+          "topK"
+        ],
+        "title": "PlanInputs"
+      },
+      "PlanItem": {
+        "properties": {
+          "position": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Position"
+          },
+          "stage": {
+            "type": "string",
+            "enum": [
+              "engage",
+              "explore",
+              "explain",
+              "elaborate",
+              "evaluate"
+            ],
+            "title": "Stage"
+          },
+          "resourceType": {
+            "type": "string",
+            "title": "Resourcetype"
+          },
+          "quantity": {
+            "type": "integer",
+            "maximum": 5.0,
+            "minimum": 1.0,
+            "title": "Quantity"
+          },
+          "purpose": {
+            "type": "string",
+            "title": "Purpose"
+          },
+          "covers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Covers",
+            "description": "Concepts this item develops: short noun phrases of 2 to 4 content words from the material, or acronyms (`CONCEPT_NOT_SHORT` otherwise). Split in `quantity` consecutive blocks."
+          },
+          "doesNotCover": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Doesnotcover",
+            "description": "Read-only. The `covers` of the other items, in order."
+          },
+          "fragmentIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fragmentids",
+            "description": "Ids of `evidence.fragments` that support the item."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "position",
+          "stage",
+          "resourceType",
+          "quantity",
+          "purpose",
+          "covers",
+          "doesNotCover",
+          "fragmentIds"
+        ],
+        "title": "PlanItem"
+      },
+      "PlanProblem": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "PLAN_EMPTY",
+              "ITEM_WITHOUT_EVIDENCE",
+              "FRAGMENT_NOT_IN_EVIDENCE",
+              "CONCEPT_OWNED_TWICE",
+              "NOT_ENOUGH_CONCEPTS",
+              "TYPE_NOT_IN_CATALOG",
+              "RESOURCE_TYPE_NOT_IN_MODALITY",
+              "QUANTITY_OUT_OF_RANGE",
+              "TOO_MANY_TYPES",
+              "PURPOSE_REQUIRED",
+              "CONCEPT_NOT_SHORT"
+            ],
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "description": "In Spanish, shown next to the item."
+          },
+          "itemPosition": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Itemposition"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "code",
+          "message",
+          "itemPosition"
+        ],
+        "title": "PlanProblem"
+      },
+      "PlanRequestedType": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "title": "Type"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "type",
+          "quantity"
+        ],
+        "title": "PlanRequestedType"
+      },
+      "PlanValidation": {
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "title": "Valid"
+          },
+          "problems": {
+            "items": {
+              "$ref": "#/components/schemas/PlanProblem"
+            },
+            "type": "array",
+            "title": "Problems"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "valid",
+          "problems"
+        ],
+        "title": "PlanValidation"
+      },
+      "PlanWarning": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "overlap",
+              "missing_concepts"
+            ],
+            "title": "Kind",
+            "description": "`overlap`: it develops a concept of another resource of the plan. `missing_concepts`: it develops none of its own."
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "In Spanish, shown to the teacher."
+          },
+          "developedConcepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Developedconcepts",
+            "description": "Concepts of other resources it develops.",
+            "default": []
+          },
+          "missingOwnConcepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missingownconcepts",
+            "description": "Its own concepts, when it develops none.",
+            "default": []
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "kind",
+          "reason"
+        ],
+        "title": "PlanWarning",
+        "description": "GEN-P2 (specs/006-plan-de-generacion, research R5): aviso de solapamiento con el plan."
+      },
+      "PreviousTypology": {
+        "properties": {
+          "sessionLabel": {
+            "type": "string",
+            "title": "Sessionlabel"
+          },
+          "usedAt": {
+            "type": "string",
+            "title": "Usedat"
+          },
+          "resourceTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Resourcetypes"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "sessionLabel",
+          "usedAt",
+          "resourceTypes"
+        ],
+        "title": "PreviousTypology"
+      },
       "Problem": {
         "properties": {
           "code": {
@@ -5125,6 +7167,35 @@
           "name"
         ],
         "title": "ProfileResponse"
+      },
+      "Referent": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "fragmentIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fragmentids",
+            "description": "Fragments of the plan evidence that mention the referent."
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "fragmentIds"
+        ],
+        "title": "Referent",
+        "description": "Main authors of the topic found in the unit material. Shown in the UI as «referentes»."
       },
       "RegeneratedFrom": {
         "properties": {
@@ -5279,6 +7350,19 @@
           "resourceVersion": {
             "type": "integer",
             "title": "Resourceversion"
+          },
+          "planBlock": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planblock",
+            "description": "GEN-P2: the block of concepts of the plan item drafted again. Absent for resources without a plan."
           }
         },
         "additionalProperties": true,
@@ -5424,6 +7508,39 @@
           "support"
         ],
         "title": "RemovedParagraph"
+      },
+      "RequestedType": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{2,59}$",
+            "title": "Type",
+            "description": "Id of an active entry of the configurable catalog. Today, the values of `GET /resource-types`.",
+            "examples": [
+              "explicacion"
+            ]
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 5.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity",
+            "description": "Optional. `null` lets the planner choose, from 1 to 5, according to the available concepts."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "RequestedType"
       },
       "ResourceGrounding": {
         "properties": {
@@ -5826,6 +7943,17 @@
               }
             ],
             "description": "For a regenerated resource: the resource and version it replaces (REV-C12)."
+          },
+          "planWarning": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanWarning"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "GEN-P2: an AI resource delivered although it did not fully follow its plan item (it develops another item's concept or none of its own). Shown in Review; it does not block approval."
           },
           "reviewReset": {
             "anyOf": [
@@ -6234,6 +8362,24 @@
         "title": "SequenceStep",
         "description": "What one stage agent did in a sequence request."
       },
+      "SessionContext": {
+        "properties": {
+          "previousTypologies": {
+            "items": {
+              "$ref": "#/components/schemas/PreviousTypology"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Previoustypologies"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "previousTypologies"
+        ],
+        "title": "SessionContext"
+      },
       "SessionResponse": {
         "properties": {
           "email": {
@@ -6299,26 +8445,54 @@
               "enum": [
                 "pregunta_detonante",
                 "sondeo_diagnostico",
+                "audio_detonante",
+                "reto_prediccion",
                 "guia_exploracion",
                 "caso_indagacion",
-                "explicacion",
-                "glosario",
-                "ejercicio_aplicacion",
-                "item_opcion_multiple",
-                "audio_detonante",
                 "imagen_ilustrativa",
                 "diagrama_proceso",
                 "exploracion_guiada",
                 "actividad_kinestesica",
-                "reto_prediccion",
+                "explicacion",
+                "glosario",
                 "mapa_conceptual",
                 "infografia",
                 "podcast_resumen",
+                "ejercicio_aplicacion",
                 "caso_aplicado",
                 "emparejamiento",
                 "ordenar_pasos",
+                "item_opcion_multiple",
                 "verdadero_falso",
-                "completar_espacios"
+                "completar_espacios",
+                "frase_celebre_comentada",
+                "dialogo_breve",
+                "noticia_contextualizada",
+                "historia_corta",
+                "experimento_demostrativo_descrito",
+                "dilema_inicial",
+                "registro_observaciones",
+                "contraste_fuentes",
+                "formulacion_hipotesis",
+                "analisis_datos_tabulados",
+                "analogia_comentada",
+                "ejemplo_resuelto",
+                "comparacion_conceptos",
+                "errores_frecuentes",
+                "resumen_ideas_clave",
+                "problema_abierto",
+                "propuesta_diseno",
+                "diagnostico_fallas",
+                "adaptacion_otro_contexto",
+                "justificacion_decisiones",
+                "resolucion_escenario_cambios",
+                "respuesta_corta",
+                "ticket_salida",
+                "autoevaluacion_guiada",
+                "analisis_caso_evaluativo",
+                "correccion_razonada",
+                "defensa_conclusion",
+                "evaluacion_solucion_criterios"
               ]
             },
             "type": "array",
@@ -6435,6 +8609,33 @@
         "title": "StartGenerationRequest",
         "description": "Cuerpo de POST /generation-requests. La clave de idempotencia va en la cabecera `Idempotency-Key`."
       },
+      "StartPlannedGenerationRequest": {
+        "properties": {
+          "planId": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Planid",
+            "description": "An approved plan of the teacher.",
+            "examples": [
+              "gen-plan-1"
+            ]
+          },
+          "planVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Planversion",
+            "description": "The plan version the teacher approved; another version answers 409."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "planId",
+          "planVersion"
+        ],
+        "title": "StartPlannedGenerationRequest",
+        "description": "GEN-P2: cuerpo de POST /generation-requests con un plan aprobado (specs/006-plan-de-generacion)."
+      },
       "StepGenerator": {
         "properties": {
           "description": {
@@ -6472,6 +8673,32 @@
         ],
         "title": "StepGenerator"
       },
+      "StepPlanWarning": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason",
+            "description": "In Spanish, shown to the teacher."
+          },
+          "resourceId": {
+            "type": "string",
+            "title": "Resourceid"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "title",
+          "reason",
+          "resourceId"
+        ],
+        "title": "StepPlanWarning",
+        "description": "GEN-P2: un recurso de la IA entregado con aviso de solapamiento con su plan (research R5)."
+      },
       "StepRejection": {
         "properties": {
           "title": {
@@ -6489,7 +8716,8 @@
               "grounding",
               "repetition",
               "structure",
-              "distractor"
+              "distractor",
+              "plan"
             ],
             "title": "Kind"
           }
@@ -6637,6 +8865,68 @@
           "pending"
         ],
         "title": "UnitSummaryResponse"
+      },
+      "UpdateGenerationPlan": {
+        "properties": {
+          "expectedVersion": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "description": "The `version` the teacher edited."
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EditablePlanItem"
+            },
+            "type": "array",
+            "maxItems": 40,
+            "title": "Items",
+            "description": "The new list, in the order the teacher wants inside each stage. An empty list is saved and reported as `PLAN_EMPTY`."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expectedVersion",
+          "items"
+        ],
+        "title": "UpdateGenerationPlan"
+      },
+      "UrlIngestRequest": {
+        "properties": {
+          "unitId": {
+            "type": "string",
+            "title": "Unitid",
+            "examples": [
+              "unidad-1"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 10,
+            "title": "Url",
+            "examples": [
+              "https://es.wikipedia.org/wiki/Modelo_OSI"
+            ]
+          },
+          "outcomeIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Outcomeids",
+            "description": "Related learning outcomes."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unitId",
+          "url"
+        ],
+        "title": "UrlIngestRequest"
       },
       "ValidationError": {
         "properties": {
@@ -6809,6 +9099,10 @@
     {
       "name": "generations",
       "description": "Resource generation from the unit material (RAG) and its history."
+    },
+    {
+      "name": "generation-plans",
+      "description": "The plan reviewed and approved before generating: resources, purposes, concepts and evidence."
     },
     {
       "name": "resources",
