@@ -11,6 +11,7 @@ from string import Template
 import unicodedata
 
 from platform5e.application.ports.outbound.unit_exporter_port import ExportedFile
+from platform5e.domain.generation.resource_catalog import CUR_P2_TEXT_TYPES, RESOURCE_TYPES
 from platform5e.domain.generation.resource_formats import AUDIO, IMAGE, INTERACTIVE, VISUAL, resource_format
 from platform5e.infrastructure.exporters.visual_renderer import SvgVisualRenderer, can_render
 from platform5e.infrastructure.html_sanitizer import clean_html
@@ -40,6 +41,11 @@ RESOURCE_LABELS = {
     "verdadero_falso": ("Para evaluar", "Verdadero o falso"),
     "completar_espacios": ("Para evaluar", "Completar espacios"),
 }
+RESOURCE_LABELS.update({
+    entry.id: (entry.group, entry.singular)
+    for entry in RESOURCE_TYPES
+    if entry.id in CUR_P2_TEXT_TYPES
+})
 GROUPS = tuple(dict.fromkeys(group for group, _ in RESOURCE_LABELS.values()))
 MONTHS = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre")
 LETTERS = "abcdefghij"

@@ -1,0 +1,562 @@
+[
+  {
+    "id": "frase_celebre_comentada",
+    "name": "Frase célebre comentada",
+    "singular": "Frase célebre comentada",
+    "plural": "Frases célebres comentadas",
+    "stage": "engage",
+    "format": "text",
+    "description": "Presenta una cita textual tomada del material o de un referente cuya cita conste en un fragmento disponible. Indica la fuente y pide al estudiante interpretar su relación con el tema. Si la evidencia disponible no contiene una cita textual pertinente, rechaza el recurso con este motivo: «El material no tiene una cita textual para este tema».",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 30,
+      "maxWords": 90
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "dialogo_breve",
+    "name": "Diálogo breve",
+    "singular": "Diálogo breve",
+    "plural": "Diálogos breves",
+    "stage": "engage",
+    "format": "text",
+    "description": "Plantea una conversación corta sobre una situación del tema y pide al estudiante identificar el problema que surge.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "noticia_contextualizada",
+    "name": "Noticia contextualizada",
+    "singular": "Noticia contextualizada",
+    "plural": "Noticias contextualizadas",
+    "stage": "engage",
+    "format": "text",
+    "description": "Presenta un caso hipotético con formato de noticia, rotulado como simulación, y pide al estudiante relacionarlo con el tema. Sustenta las afirmaciones conceptuales en el material.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "historia_corta",
+    "name": "Historia corta",
+    "singular": "Historia corta",
+    "plural": "Historias cortas",
+    "stage": "engage",
+    "format": "text",
+    "description": "Narra una situación breve y pide al estudiante identificar el momento en que el concepto estudiado ayudaría a entenderla.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "experimento_demostrativo_descrito",
+    "name": "Experimento demostrativo descrito",
+    "singular": "Experimento demostrativo descrito",
+    "plural": "Experimentos demostrativos descritos",
+    "stage": "engage",
+    "format": "text",
+    "description": "Describe una demostración sencilla en texto y pide al estudiante anticipar qué observaría y por qué.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "dilema_inicial",
+    "name": "Dilema inicial",
+    "singular": "Dilema inicial",
+    "plural": "Dilemas iniciales",
+    "stage": "engage",
+    "format": "text",
+    "description": "Presenta dos decisiones con ventajas distintas y pide al estudiante elegir una y explicar su primera impresión.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 40,
+      "maxWords": 120
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "registro_observaciones",
+    "name": "Registro de observaciones",
+    "singular": "Registro de observaciones",
+    "plural": "Registros de observaciones",
+    "stage": "explore",
+    "format": "text",
+    "description": "Da criterios para que el estudiante anote qué observa, detecte patrones y formule una pregunta a partir de ellos.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 80,
+      "maxWords": 220
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "contraste_fuentes",
+    "name": "Contraste de fuentes",
+    "singular": "Contraste de fuentes",
+    "plural": "Contrastes de fuentes",
+    "stage": "explore",
+    "format": "text",
+    "description": "Entrega dos fragmentos sobre el mismo tema y pide al estudiante identificar coincidencias, diferencias y evidencias.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 80,
+      "maxWords": 220
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "formulacion_hipotesis",
+    "name": "Formulación de hipótesis",
+    "singular": "Formulación de hipótesis",
+    "plural": "Ejercicios de formulación de hipótesis",
+    "stage": "explore",
+    "format": "text",
+    "description": "Presenta un fenómeno y pide al estudiante proponer una explicación comprobable y decir qué evidencia buscaría.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 80,
+      "maxWords": 220
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "analisis_datos_tabulados",
+    "name": "Análisis de datos tabulados",
+    "singular": "Análisis de datos tabulados",
+    "plural": "Análisis de datos tabulados",
+    "stage": "explore",
+    "format": "text",
+    "description": "Presenta datos del material y cita su fuente. Si no hay datos, usa valores sintéticos rotulados como ilustrativos. Pide al estudiante identificar una tendencia y explicar su interpretación.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 80,
+      "maxWords": 220
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "analogia_comentada",
+    "name": "Analogía comentada",
+    "singular": "Analogía comentada",
+    "plural": "Analogías comentadas",
+    "stage": "explain",
+    "format": "text",
+    "description": "Explica un concepto mediante una situación familiar e indica qué partes corresponden al concepto y dónde termina la comparación.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "ejemplo_resuelto",
+    "name": "Ejemplo resuelto",
+    "singular": "Ejemplo resuelto",
+    "plural": "Ejemplos resueltos",
+    "stage": "explain",
+    "format": "text",
+    "description": "Muestra un ejemplo completo y explica la razón de cada paso para que el estudiante pueda seguir el procedimiento.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "comparacion_conceptos",
+    "name": "Comparación de conceptos",
+    "singular": "Comparación de conceptos",
+    "plural": "Comparaciones de conceptos",
+    "stage": "explain",
+    "format": "text",
+    "description": "Distingue dos conceptos cercanos con criterios comunes y muestra cuándo conviene aplicar cada uno.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "errores_frecuentes",
+    "name": "Aclaración de errores frecuentes",
+    "singular": "Aclaración de errores frecuentes",
+    "plural": "Aclaraciones de errores frecuentes",
+    "stage": "explain",
+    "format": "text",
+    "description": "Describe confusiones habituales, explica por qué ocurren y muestra cómo corregirlas.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "resumen_ideas_clave",
+    "name": "Resumen de ideas clave",
+    "singular": "Resumen de ideas clave",
+    "plural": "Resúmenes de ideas clave",
+    "stage": "explain",
+    "format": "text",
+    "description": "Sintetiza las ideas principales y explica cómo se relacionan para que el estudiante pueda repasar el tema.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 120,
+      "maxWords": 300
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "problema_abierto",
+    "name": "Problema abierto",
+    "singular": "Problema abierto",
+    "plural": "Problemas abiertos",
+    "stage": "elaborate",
+    "format": "text",
+    "description": "Plantea un problema con varias soluciones posibles y pide al estudiante desarrollar y justificar una.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "propuesta_diseno",
+    "name": "Propuesta de diseño",
+    "singular": "Propuesta de diseño",
+    "plural": "Propuestas de diseño",
+    "stage": "elaborate",
+    "format": "text",
+    "description": "Define una necesidad y restricciones para que el estudiante diseñe una solución y explique sus componentes.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "diagnostico_fallas",
+    "name": "Diagnóstico de fallas",
+    "singular": "Diagnóstico de fallas",
+    "plural": "Diagnósticos de fallas",
+    "stage": "elaborate",
+    "format": "text",
+    "description": "Presenta síntomas de un problema y pide al estudiante inferir su causa y plantear cómo comprobarla.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "adaptacion_otro_contexto",
+    "name": "Adaptación a otro contexto",
+    "singular": "Adaptación a otro contexto",
+    "plural": "Adaptaciones a otro contexto",
+    "stage": "elaborate",
+    "format": "text",
+    "description": "Presenta un procedimiento conocido en una situación nueva y pide al estudiante adaptarlo a las condiciones del caso.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "justificacion_decisiones",
+    "name": "Justificación de decisiones",
+    "singular": "Justificación de decisiones",
+    "plural": "Ejercicios de justificación de decisiones",
+    "stage": "elaborate",
+    "format": "text",
+    "description": "Ofrece alternativas con restricciones explícitas y pide al estudiante defender su elección con criterios del tema.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "resolucion_escenario_cambios",
+    "name": "Resolución de escenario con cambios",
+    "singular": "Resolución de escenario con cambios",
+    "plural": "Resoluciones de escenarios con cambios",
+    "stage": "elaborate",
+    "format": "text",
+    "description": "Plantea una situación en dos momentos: el estudiante toma una decisión inicial y, al recibir una condición nueva, ajusta su respuesta y explica qué cambió.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 100,
+      "maxWords": 240
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "respuesta_corta",
+    "name": "Pregunta de respuesta corta",
+    "singular": "Pregunta de respuesta corta",
+    "plural": "Preguntas de respuesta corta",
+    "stage": "evaluate",
+    "format": "text",
+    "description": "Pide una respuesta breve y ofrece al docente criterios para identificar los elementos esenciales de una respuesta correcta.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 30,
+      "maxWords": 90
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "ticket_salida",
+    "name": "Ticket de salida",
+    "singular": "Ticket de salida",
+    "plural": "Tickets de salida",
+    "stage": "evaluate",
+    "format": "text",
+    "description": "Pide al estudiante escribir al final de la sesión qué aprendió y qué duda mantiene para orientar el repaso.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 20,
+      "maxWords": 70
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "autoevaluacion_guiada",
+    "name": "Autoevaluación guiada",
+    "singular": "Autoevaluación guiada",
+    "plural": "Autoevaluaciones guiadas",
+    "stage": "evaluate",
+    "format": "text",
+    "description": "Da criterios para que el estudiante valore su propio trabajo, identifique evidencia de su avance y elija qué mejorar.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "analisis_caso_evaluativo",
+    "name": "Análisis de caso evaluativo",
+    "singular": "Análisis de caso evaluativo",
+    "plural": "Análisis de casos evaluativos",
+    "stage": "evaluate",
+    "format": "text",
+    "description": "Presenta un caso nuevo y pide al estudiante aplicar el concepto estudiado, sustentar su conclusión con dos evidencias del enunciado y señalar qué dato podría cambiarla.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "framed"
+  },
+  {
+    "id": "correccion_razonada",
+    "name": "Corrección razonada",
+    "singular": "Corrección razonada",
+    "plural": "Correcciones razonadas",
+    "stage": "evaluate",
+    "format": "text",
+    "description": "Presenta una respuesta con un error y pide al estudiante corregirlo y explicar el razonamiento.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "defensa_conclusion",
+    "name": "Defensa de una conclusión",
+    "singular": "Defensa de una conclusión",
+    "plural": "Defensas de conclusiones",
+    "stage": "evaluate",
+    "format": "text",
+    "description": "Pide al estudiante defender una conclusión con evidencia y responder a una posible objeción.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "strict"
+  },
+  {
+    "id": "evaluacion_solucion_criterios",
+    "name": "Evaluación de una solución con criterios",
+    "singular": "Evaluación de una solución con criterios",
+    "plural": "Evaluaciones de soluciones con criterios",
+    "stage": "evaluate",
+    "format": "text",
+    "description": "Entrega criterios explícitos para que el estudiante valore una solución y justifique su juicio.",
+    "structure": "none",
+    "modalities": [
+      "Textual"
+    ],
+    "hasOptions": false,
+    "active": true,
+    "lengthHint": {
+      "minWords": 50,
+      "maxWords": 180
+    },
+    "verification": "strict"
+  }
+]

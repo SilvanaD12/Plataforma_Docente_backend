@@ -206,3 +206,51 @@ def test_require_plan_wins_over_the_implicit_plan_switch(implicit_plan_off, plan
         old = _generate(api, headers, {"mode": "individual", "unitId": unit["id"], "resourceTypes": ["explicacion"]})
 
     assert old.status_code == 422 and old.json()["error"]["code"] == "PLAN_REQUIRED"
+
+def test_cur_p2_catalog_type_generates_from_an_approved_plan(server: str):
+    resource_type = "resumen_ideas_clave"
+    with httpx.Client(base_url=server, timeout=60) as api:
+        response = api.get("/api/v1/resource-types")
+        assert response.status_code == 200, response.text
+        [entry] = [item for item in response.json() if item["id"] == resource_type]
+        assert (entry["stage"], entry["format"], entry["modalities"]) == (
+            "explain", "text", ["Textual"],
+        )
+
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        created = api.post(
+            PLANS,
+            headers={**headers, "Idempotency-Key": f"plan-{uuid4().hex}"},
+            json={
+                "unitId": unit["id"],
+                "instructions": "Diferencias entre TCP y UDP",
+                "modality": "Textual",
+                "resourceTypes": [{"type": resource_type, "quantity": 1}],
+            },
+        )
+        assert created.status_code == 201, created.text
+        plan = created.json()
+        assert plan["validation"]["valid"], plan["validation"]
+        assert [item["resourceType"] for item in plan["items"]] == [resource_type]
+
+        approved = api.post(
+            f"{PLANS}/{plan['id']}/approve",
+            headers=headers,
+            json={"expectedVersion": plan["version"]},
+        )
+        assert approved.status_code == 200, approved.text
+        started = _generate(
+            api, headers, {"planId": plan["id"], "planVersion": approved.json()["version"]},
+        )
+        assert started.status_code == 202, started.text
+        final = wait_until_final(api, headers, started.json()["id"])
+        assert final["status"] == "succeeded", final
+        [step] = final["steps"]
+        [resource_id] = step["resourceIds"]
+
+        saved = api.get(f"/api/v1/units/{unit['id']}/resources", headers=headers)
+        assert saved.status_code == 200, saved.text
+        [resource] = [item for item in saved.json() if item["id"] == resource_id]
+        assert (resource["type"], resource["format"]) == (resource_type, "text")
+        assert resource["citations"], resource
