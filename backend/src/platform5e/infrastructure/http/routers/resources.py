@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from platform5e.application.services.accounts.account_service import AccountService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
@@ -76,29 +76,38 @@ def create_resources_router(
     @router.get(
         "/units/{unit_id}/duplication-report",
         response_model=DuplicationReportResponse,
+        response_model_exclude_unset=True,
         summary="Duplication report for unit resources",
         responses=error_responses(401, 404),
     )
     def get_duplication_report(
         unit_id: str,
         threshold: float | None = None,
+        include_course: bool = Query(
+            default=False,
+            alias="includeCourse",
+            description="When true, also compares unit resources against resources from other units in the same course.",
+        ),
         teacher_id: str = Depends(current_teacher),
     ) -> dict[str, Any]:
-        """REV-P3: analyzes content duplication across resources and questions in the unit.
+        """REV-P3 / REV-P4: analyzes content duplication across resources and questions in the unit and optionally across other units of the same course.
 
         Compares resources and questions using character n-grams and word Jaccard similarity.
         Returns pairs with similarity score >= threshold (default from REVIEW_DUPLICATE_THRESHOLD)
-        sorted descending by score.
+        sorted descending by score. Pass `?includeCourse=true` to include cross-unit pairs within
+        the same course (`crossUnit`, `unitIdB`, `unitTitleB`).
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
 
         ```bash
-        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/units/${UNIT_ID}/duplication-report" -H "Authorization: Bearer $TOKEN"
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/units/${UNIT_ID}/duplication-report?includeCourse=true" -H "Authorization: Bearer $TOKEN"
         ```
 
         Expected 200 with the duplication report. 404 if the unit is not owned by the teacher."""
-        return review_service.get_duplication_report(teacher_id, unit_id, threshold)
+        return review_service.get_duplication_report(
+            teacher_id, unit_id, threshold, include_course=include_course
+        )
 
     @router.put(
         "/units/{unit_id}/resources/{resource_id}",

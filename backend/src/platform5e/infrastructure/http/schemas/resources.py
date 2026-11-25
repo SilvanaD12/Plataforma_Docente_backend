@@ -303,6 +303,18 @@ class FlaggedPair(ApiResponse):
     score: float = Field(ge=0.0, le=1.0, description="Combined similarity score.")
     excerpt_a: str = Field(description="Excerpt of first content (max 160 characters).")
     excerpt_b: str = Field(description="Excerpt of second content (max 160 characters).")
+    cross_unit: bool = Field(
+        default=False,
+        description="True when the flagged pair compares a resource in the unit against another unit of the same course.",
+    )
+    unit_id_b: str | None = Field(
+        default=None,
+        description="Identifier of the other unit in the course when `crossUnit` is true.",
+    )
+    unit_title_b: str | None = Field(
+        default=None,
+        description="Title of the other unit in the course when `crossUnit` is true.",
+    )
 
 
 class DuplicationReportResponse(ApiResponse):

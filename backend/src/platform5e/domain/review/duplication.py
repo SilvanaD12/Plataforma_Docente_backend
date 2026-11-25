@@ -260,6 +260,42 @@ def _excerpt(text: str, max_length: int = 160) -> str:
     return collapsed[: max_length - 3] + "..."
 
 
+def _resource_identifier(resource: Mapping[str, Any], index: int, prefix: str = "resource") -> str:
+    """Identificador estable de un recurso para deduplicar y ordenar hallazgos."""
+    return str(resource.get("id") or resource.get("exampleId") or f"{prefix}-{index}")
+
+
+def _record_flagged_pair(
+    pair_map: dict[tuple[str, str], dict[str, Any]],
+    pair_key: tuple[str, str],
+    candidate: dict[str, Any],
+) -> None:
+    """Conserva el hallazgo de mayor puntaje cuando un mismo par coincide en ambos niveles."""
+    existing = pair_map.get(pair_key)
+    if existing is None or candidate["score"] > existing["score"]:
+        pair_map[pair_key] = candidate
+
+
+def _finalize_report(
+    threshold: float,
+    total_compared: int,
+    pair_map: dict[tuple[str, str], dict[str, Any]],
+) -> dict[str, Any]:
+    """Ordena los pares marcados de forma descendente y calcula la tasa de duplicidad."""
+    flagged_pairs = list(pair_map.values())
+    flagged_pairs.sort(key=lambda p: (p["score"], p["resourceIdA"], p["resourceIdB"]), reverse=True)
+    duplicate_pair_rate = (
+        round(len(flagged_pairs) / total_compared, 3) if total_compared > 0 else 0.0
+    )
+
+    return {
+        "threshold": threshold,
+        "comparedPairs": total_compared,
+        "flaggedPairs": flagged_pairs,
+        "duplicatePairRate": duplicate_pair_rate,
+    }
+
+
 def find_duplicates(
     resources: Sequence[Mapping[str, Any]],
     threshold: float = DEFAULT_DUPLICATE_THRESHOLD,
@@ -277,23 +313,27 @@ def find_duplicates(
     resource_pairs_count = num_resources * (num_resources - 1) // 2
     for i in range(num_resources):
         resource_a = resource_list[i]
-        id_a = str(resource_a.get("id") or resource_a.get("exampleId") or f"resource-{i}")
+        id_a = _resource_identifier(resource_a, i)
         text_a = resource_text(resource_a)
         for j in range(i + 1, num_resources):
             resource_b = resource_list[j]
-            id_b = str(resource_b.get("id") or resource_b.get("exampleId") or f"resource-{j}")
+            id_b = _resource_identifier(resource_b, j)
             text_b = resource_text(resource_b)
             score = similarity(text_a, text_b)
             if score >= threshold:
                 pair_key = (min(id_a, id_b), max(id_a, id_b))
-                pair_map[pair_key] = {
-                    "resourceIdA": id_a,
-                    "resourceIdB": id_b,
-                    "scope": "resource",
-                    "score": score,
-                    "excerptA": _excerpt(text_a),
-                    "excerptB": _excerpt(text_b),
-                }
+                _record_flagged_pair(
+                    pair_map,
+                    pair_key,
+                    {
+                        "resourceIdA": id_a,
+                        "resourceIdB": id_b,
+                        "scope": "resource",
+                        "score": score,
+                        "excerptA": _excerpt(text_a),
+                        "excerptB": _excerpt(text_b),
+                    },
+                )
 
     all_questions: list[tuple[str, int, str]] = []
     for resource in resource_list:
@@ -310,30 +350,95 @@ def find_duplicates(
             score = similarity(q_text_a, q_text_b)
             if score >= threshold:
                 pair_key = (min(res_id_a, res_id_b), max(res_id_a, res_id_b))
-                q_pair = {
-                    "resourceIdA": res_id_a,
-                    "resourceIdB": res_id_b,
-                    "scope": "question",
-                    "score": score,
-                    "excerptA": _excerpt(q_text_a),
-                    "excerptB": _excerpt(q_text_b),
-                }
-                if pair_key in pair_map:
-                    if score > pair_map[pair_key]["score"]:
-                        pair_map[pair_key] = q_pair
-                else:
-                    pair_map[pair_key] = q_pair
+                _record_flagged_pair(
+                    pair_map,
+                    pair_key,
+                    {
+                        "resourceIdA": res_id_a,
+                        "resourceIdB": res_id_b,
+                        "scope": "question",
+                        "score": score,
+                        "excerptA": _excerpt(q_text_a),
+                        "excerptB": _excerpt(q_text_b),
+                    },
+                )
 
-    flagged_pairs = list(pair_map.values())
-    flagged_pairs.sort(key=lambda p: (p["score"], p["resourceIdA"], p["resourceIdB"]), reverse=True)
     total_compared = resource_pairs_count + question_pairs_count
-    duplicate_pair_rate = (
-        round(len(flagged_pairs) / total_compared, 3) if total_compared > 0 else 0.0
-    )
+    return _finalize_report(threshold, total_compared, pair_map)
 
-    return {
-        "threshold": threshold,
-        "comparedPairs": total_compared,
-        "flaggedPairs": flagged_pairs,
-        "duplicatePairRate": duplicate_pair_rate,
-    }
+
+def find_cross_unit_duplicates(
+    current: Sequence[Mapping[str, Any]],
+    others: Sequence[tuple[str, str, Mapping[str, Any]]],
+    threshold: float = DEFAULT_DUPLICATE_THRESHOLD,
+) -> dict[str, Any]:
+    """
+    REV-P4 · Compara los recursos y preguntas de `current` (unidad actual) contra `others`
+    (tuplas `(unit_id, unit_title, resource)` de otras unidades del mismo curso).
+
+    Solo compara pares donde un elemento pertenece a la unidad actual y el otro a otra unidad.
+    Si un par coincide a nivel de recurso y a nivel de pregunta, conserva el de mayor puntaje.
+    """
+    current_list = list(current)
+    others_list = list(others)
+    pair_map: dict[tuple[str, str], dict[str, Any]] = {}
+
+    resource_pairs_count = len(current_list) * len(others_list)
+    for i, resource_a in enumerate(current_list):
+        id_a = _resource_identifier(resource_a, i, prefix="resource")
+        text_a = resource_text(resource_a)
+        for j, (unit_id_b, unit_title_b, resource_b) in enumerate(others_list):
+            id_b = _resource_identifier(resource_b, j, prefix="other")
+            text_b = resource_text(resource_b)
+            score = similarity(text_a, text_b)
+            if score >= threshold:
+                _record_flagged_pair(
+                    pair_map,
+                    (id_a, id_b),
+                    {
+                        "resourceIdA": id_a,
+                        "resourceIdB": id_b,
+                        "scope": "resource",
+                        "score": score,
+                        "excerptA": _excerpt(text_a),
+                        "excerptB": _excerpt(text_b),
+                        "crossUnit": True,
+                        "unitIdB": unit_id_b,
+                        "unitTitleB": unit_title_b,
+                    },
+                )
+
+    current_questions: list[tuple[str, str]] = [
+        (_resource_identifier(resource, i, prefix="resource"), q_text)
+        for i, resource in enumerate(current_list)
+        for q_text in question_texts(resource)
+    ]
+    other_questions: list[tuple[str, str, str, str]] = [
+        (unit_id_b, unit_title_b, _resource_identifier(resource_b, j, prefix="other"), q_text)
+        for j, (unit_id_b, unit_title_b, resource_b) in enumerate(others_list)
+        for q_text in question_texts(resource_b)
+    ]
+
+    question_pairs_count = len(current_questions) * len(other_questions)
+    for res_id_a, q_text_a in current_questions:
+        for unit_id_b, unit_title_b, res_id_b, q_text_b in other_questions:
+            score = similarity(q_text_a, q_text_b)
+            if score >= threshold:
+                _record_flagged_pair(
+                    pair_map,
+                    (res_id_a, res_id_b),
+                    {
+                        "resourceIdA": res_id_a,
+                        "resourceIdB": res_id_b,
+                        "scope": "question",
+                        "score": score,
+                        "excerptA": _excerpt(q_text_a),
+                        "excerptB": _excerpt(q_text_b),
+                        "crossUnit": True,
+                        "unitIdB": unit_id_b,
+                        "unitTitleB": unit_title_b,
+                    },
+                )
+
+    total_compared = resource_pairs_count + question_pairs_count
+    return _finalize_report(threshold, total_compared, pair_map)
