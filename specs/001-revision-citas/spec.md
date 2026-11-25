@@ -72,11 +72,8 @@ Como docente, quiero que mis descargas incluyan solo recursos aprobados y verifi
 - **REV-R14.** Proveer un endpoint de vista previa para paquetes SCORM que devuelva las páginas HTML construidas en memoria y el desglose de recursos excluidos, reutilizando el filtro de elegibilidad sin registrar descargas en el historial.
 - **REV-R15.** Implementar la detección de duplicidad y parafraseo entre recursos de una unidad sin dependencias externas ni modelos de lenguaje, reportando pares que superan el umbral configurado (`REVIEW_DUPLICATE_THRESHOLD`) a nivel de recurso y de pregunta con su puntaje de similitud y tasa de duplicidad.
 - **REV-R16.** Cuando se solicite la regeneración de un recurso originado de un plan pedagógico y algún fragmento de su ítem ya no exista en la unidad (se borró o reprocesó un documento), responder con 409 `PLAN_EVIDENCE_STALE` y el detalle estructurado de documentos afectados (`StaleDocument`), manteniendo el recurso y el plan sin modificaciones (T014).
-<<<<<<< Updated upstream
-=======
 - **REV-R17 (REV-P4).** Extender de forma aditiva y retrocompatible el reporte de duplicidad (`GET /api/v1/units/{unit_id}/duplication-report`) mediante el parámetro opcional `includeCourse=true` para comparar también cada recurso y pregunta de la unidad actual contra los recursos y preguntas de las restantes unidades del mismo curso del docente (sin comparar unidades ajenas entre sí). Sin el parámetro, la respuesta conserva exactamente el formato y los pares actuales. Con `includeCourse=true`, los pares entre unidades devuelven `crossUnit: true`, `unitIdB` y `unitTitleB`, mientras los internos llevan `crossUnit: false` y `unitIdB`/`unitTitleB` nulos, ordenados por puntaje descendente y recalculando `comparedPairs` y `duplicatePairRate` sobre el total.
 - **REV-R18 (REV-P5).** Reorganizar la presentación de la pestaña Revisión en el frontend agrupando los recursos por estado en secciones plegables con contadores (`Pendientes de revisión`, `Aprobados` y `Descartados`), ordenados por etapa pedagógica y fecha de creación, mediante tarjetas plegables con cabecera resumida, insignia de verificación compacta sin botones anidados, resguardo ante cambios sin guardar al intentar cerrar, transición automática de foco al aprobar o descartar, sección plegable `Fuentes citadas (n)` con fragmentos enlazados y sello `Aprobado el {fecha}` cuando un recurso ya aprobado no presenta ediciones pendientes; además actualizar en Exportación la etiqueta SCORM (`SCORM (Moodle, Chamilo o Canvas)`) y su guía en Moodle, sin modificar el backend ni el contrato de la API.
->>>>>>> Stashed changes
 
 ## Cambios solicitados en la asesoría del 21/11
 
@@ -108,11 +105,6 @@ Como docente, cuando pido regenerar un recurso originado de un plan cuya evidenc
 |---|---|---|
 | REV-C18 | El docente pide regenerar desde Revisión un recurso originado de un plan y algún fragmento de su ítem ya no existe en la unidad (se borró o reprocesó un documento) | El sistema responde 409 `PLAN_EVIDENCE_STALE` con el detalle de documentos afectados (`details` con `documentId`, `documentName`, `missingFragmentIds`); el recurso previo no se modifica (conserva versión y contenido) y el plan permanece en su estado previo sin alteraciones. |
 
-<<<<<<< Updated upstream
-## Criterios de éxito
-
-- Todos los escenarios REV-C1 a REV-C18 pasan en el nivel de prueba que corresponda.
-=======
 ### REV-P4 · Control de duplicidad entre unidades del curso
 Como docente, quiero detectar en Revisión si un recurso o pregunta de mi unidad repite o parafrasea contenido ya existente en otras unidades del mismo curso, sin perder la compatibilidad con los reportes por unidad ni bloquear la edición, aprobación o exportación.
 
@@ -130,7 +122,6 @@ Como docente, quiero ver los recursos de Revisión agrupados por estado en tarje
 ## Criterios de éxito
 
 - Todos los escenarios REV-C1 a REV-C20 pasan en el nivel de prueba que corresponda.
->>>>>>> Stashed changes
 - La API y el recorrido de interfaz demuestran que un recurso pendiente o insuficiente queda fuera de nuevas exportaciones. El archivo final excluye esos recursos.
 - Las pruebas existentes de multimedia editada, historial de descargas y exportadores siguen pasando con las reglas nuevas, salvo `test_edited_media.py::test_editing_the_script_drops_the_old_audio_everywhere`, que se actualiza para exigir el bloqueo de la aprobación de REV-C8.
 
