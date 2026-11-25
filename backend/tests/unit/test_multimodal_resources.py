@@ -13,12 +13,14 @@ import pytest
 
 from platform5e.application.ports.outbound.media_port import GeneratedMedia
 from platform5e.application.services.media.media_attachment import attach_generated_media
+from platform5e.application.services.generation.planned_drafting import catalog_context
 from platform5e.application.services.generation.prompt_drafting import (
     build_prompt_instructions,
     normalize_generated_resources,
     structure_from_model,
 )
 from platform5e.application.services.generation.rule_based_generator import RuleBasedGenerator
+from platform5e.domain.generation.resource_catalog import CUR_P2_TEXT_TYPES
 from platform5e.domain.generation.resource_formats import (
     RESOURCE_CATALOG,
     normalize_structure,
@@ -26,6 +28,7 @@ from platform5e.domain.generation.resource_formats import (
     structure_problems,
 )
 from platform5e.domain.materials.chunking import chunk_pages
+from platform5e.infrastructure.adapters.resource_catalog_adapter import StaticResourceCatalogAdapter
 from platform5e.infrastructure.exporters.scorm_package_exporter import ScormPackageExporter
 from platform5e.infrastructure.exporters.unit_document_exporter import UnitDocumentExporter
 from platform5e.infrastructure.exporters.visual_renderer import SvgVisualRenderer
@@ -63,6 +66,15 @@ def test_every_stage_offers_at_least_two_types_and_multimodal_options():
 @pytest.mark.parametrize("resource_type", sorted(RESOURCE_CATALOG))
 def test_rule_based_fallback_writes_every_type_with_citations_and_valid_structure(resource_type):
     context = context_for(resource_type)
+    if resource_type in CUR_P2_TEXT_TYPES:
+        entry = next(item for item in StaticResourceCatalogAdapter().entries() if item.id == resource_type)
+        context["solicitud"]["catalogo"] = catalog_context(entry)
+        context["plan"] = {"conceptos": ["control de flujo"]}
+        context["fragmentos"][0]["texto"] = (
+            "El control de flujo de TCP evita que el emisor sature al receptor con demasiados segmentos. "
+            "Con el control de flujo, el receptor anuncia su ventana para que el emisor ajuste el envio. "
+            "El manual destaca: \u00abEl control de flujo protege al receptor de una sobrecarga\u00bb."
+        )
     resources = normalize_generated_resources(RuleBasedGenerator().generate(context), context)
     assert resources, resource_type
     for resource in resources:

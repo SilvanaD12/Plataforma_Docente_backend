@@ -7,9 +7,11 @@ def test_catalog_is_public_and_documented(server):
         response = api.get("/api/v1/resource-types")
         assert response.status_code == 200
         entries = response.json()
-        assert len(entries) == 22
+        assert len(entries) == 50
         assert entries[0]["id"] == "pregunta_detonante"
-        assert entries[-1]["id"] == "completar_espacios"
+        assert entries[21]["id"] == "completar_espacios"
+        added = {entry["id"]: entry for entry in entries[22:]}
+        assert added["frase_celebre_comentada"]["modalities"] == ["Textual"]
         assert {entry["format"] for entry in entries} == {"text", "visual", "image", "audio", "interactive"}
         assert all("hasOptions" in entry and "has_options" not in entry for entry in entries)
         assert api.get("/api/v1/resource-types").json() == entries

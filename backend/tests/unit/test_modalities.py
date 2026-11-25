@@ -22,7 +22,7 @@ from platform5e.domain.generation.generation_request import (
     RequestStatus,
     payload_hash,
 )
-from platform5e.domain.generation.resource_catalog import RESOURCE_TYPES
+from platform5e.domain.generation.resource_catalog import CUR_P2_TEXT_TYPES, RESOURCE_TYPES
 from platform5e.domain.generation.resource_formats import (
     MODALITIES,
     MODALITY_TYPES,
@@ -47,7 +47,7 @@ def test_the_four_modalities_group_the_types_of_the_data_model():
     assert MODALITY_TYPES["Textual"] == {
         "pregunta_detonante", "sondeo_diagnostico", "guia_exploracion", "caso_indagacion", "exploracion_guiada",
         "explicacion", "glosario", "ejercicio_aplicacion", "caso_aplicado", "item_opcion_multiple",
-    }
+    } | set(CUR_P2_TEXT_TYPES)
     assert MODALITY_TYPES["Gamificado"] == {
         "reto_prediccion", "emparejamiento", "ordenar_pasos", "verdadero_falso", "completar_espacios",
         "item_opcion_multiple",

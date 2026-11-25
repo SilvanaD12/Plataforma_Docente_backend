@@ -6,34 +6,13 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from platform5e.domain.generation.resource_catalog import RESOURCE_TYPES
+
 from platform5e.infrastructure.http.schemas.common import ApiResponse
 from platform5e.infrastructure.http.schemas.resources import ResourceResponse
 
 Stage = Literal["engage", "explore", "explain", "elaborate", "evaluate"]
-ResourceType = Literal[
-    "pregunta_detonante",
-    "sondeo_diagnostico",
-    "guia_exploracion",
-    "caso_indagacion",
-    "explicacion",
-    "glosario",
-    "ejercicio_aplicacion",
-    "item_opcion_multiple",
-    "audio_detonante",
-    "imagen_ilustrativa",
-    "diagrama_proceso",
-    "exploracion_guiada",
-    "actividad_kinestesica",
-    "reto_prediccion",
-    "mapa_conceptual",
-    "infografia",
-    "podcast_resumen",
-    "caso_aplicado",
-    "emparejamiento",
-    "ordenar_pasos",
-    "verdadero_falso",
-    "completar_espacios",
-]
+ResourceType = Literal[tuple(entry.id for entry in RESOURCE_TYPES)]
 Difficulty = Literal["basica", "intermedia", "avanzada"]
 
 
