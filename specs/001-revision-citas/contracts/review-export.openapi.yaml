@@ -101,15 +101,25 @@ paths:
         '404': { description: 'UNIT_NOT_FOUND, RESOURCE_NOT_FOUND or REGENERATION_NOT_FOUND' }
   /api/v1/units/{unit_id}/duplication-report:
     get:
-      summary: Duplication report for unit resources (REV-P3)
+      summary: Duplication report for unit resources (REV-P3, REV-P4)
       description: >
         Compares resources and questions within the unit using character n-grams and word Jaccard similarity.
+        When `includeCourse=true` is passed, also compares unit resources against resources from the other units in the same course.
         Returns pairs with similarity score >= REVIEW_DUPLICATE_THRESHOLD sorted descending by score.
       parameters:
         - name: unit_id
           in: path
           required: true
           schema: { type: string }
+        - name: threshold
+          in: query
+          required: false
+          schema: { type: number, minimum: 0, maximum: 1 }
+        - name: includeCourse
+          in: query
+          required: false
+          schema: { type: boolean, default: false }
+          description: When true, compares unit resources against the remaining units of the same course.
       responses:
         '200':
           description: Duplication report
@@ -261,6 +271,9 @@ components:
         score: { type: number, minimum: 0, maximum: 1 }
         excerptA: { type: string }
         excerptB: { type: string }
+        crossUnit: { type: boolean, default: false, description: True when compared against another unit of the same course. }
+        unitIdB: { type: [string, 'null'], description: Identifier of the other unit when crossUnit is true. }
+        unitTitleB: { type: [string, 'null'], description: Title of the other unit when crossUnit is true. }
     ExportPreviewRequest:
       type: object
       required: [format]

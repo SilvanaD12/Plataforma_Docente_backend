@@ -373,6 +373,16 @@ Acordado con Silvana en la revisión de los PR (2026-11-09). Ninguna bloquea la 
 - [x] T103 [BE] [B6] Pruebas unitarias (`test_generation_requests_regeneration_adapter.py`, `test_review_errors.py`, `test_resource_regeneration.py`) y prueba E2E (`test_review_planned_regeneration_stale_api.py`).
 - [x] T104 [ALL] [B7] Actualizar especificación `spec.md`, contrato OpenAPI `review-export.openapi.yaml` y regenerar `docs/api/openapi.json`.
 
+### Control de duplicidad entre unidades del curso (REV-P4)
+- [x] T105 [BE] [REV-P4] Agregar `find_cross_unit_duplicates` en `backend/src/platform5e/domain/review/duplication.py` comparando únicamente pares entre la unidad actual y otras unidades del curso, a nivel de recurso y de pregunta, devolviendo `crossUnit: True`, `unitIdB` y `unitTitleB` con deduplicación al mayor puntaje.
+- [x] T106 [BE] [REV-P4] Extender `get_duplication_report` en `backend/src/platform5e/application/services/review/resource_review_service.py` con `include_course: bool = False`, combinando pares de la unidad actual (`crossUnit: False`, `unitIdB`/`unitTitleB` en `null`) con pares entre unidades y recalculando `comparedPairs` y `duplicatePairRate`.
+- [x] T107 [BE] [REV-P4] Agregar query param `includeCourse` en `routers/resources.py` (`response_model_exclude_unset=True`) y campos opcionales `cross_unit`, `unit_id_b`, `unit_title_b` en `FlaggedPair` (`schemas/resources.py`), con ejemplo cURL `?includeCourse=true`.
+- [x] T108 [BE] [REV-P4] Crear pruebas unitarias en `backend/tests/unit/test_duplication.py` y E2E en `backend/tests/e2e/test_duplication_api.py` verificando compatibilidad sin `includeCourse`, pares cruzados con `unitTitleB` y aislamiento 404.
+- [x] T109 [BE] [REV-P4] Documentar `REV-P4` / `REV-R17` / `REV-C19` en `spec.md`, actualizar `contracts/review-export.openapi.yaml`, regenerar `docs/api/openapi.json` y verificar `test_openapi_documentation.py` y `test_api_documentation.py`.
+- [x] T110 [FE] [REV-P4] Extender `FlaggedPair` y `getDuplicationReport(token, unitId, includeCourse = true)` en `Plataforma_Docente_frontend/src/features/review/api/reviewApi.ts`.
+- [x] T111 [FE] [REV-P4] Mostrar el bloque accesible secundario «Posible contenido repetido en otras unidades» en `ReviewPage.tsx` reutilizando `.duplication-warning__*` en `review.css`, sin bloquear guardado, aprobación ni exportación.
+- [x] T112 [FE] [REV-P4] Agregar pruebas en `reviewApi.test.ts`, `ReviewPage.test.tsx` y `e2e/accessibility.spec.ts` (QA-09 axe-core) y validar `npm run lint`, `npm run build`, `npm run check:bundle`, `npm test` y `npm run test:e2e`.
+
 ## Historias del Sprint 1 (Cierre de evidencias)
 
 - [x] HU-043 [E2E] **Exportación a Moodle XML.** Comprobada en Moodle 5.3.1 (`sandbox.moodledemo.net`): formulario con XML, «Importing 1 questions from file», categoría y vista previa respondida (UDP incorrecta con retroalimentación y capa de transporte correcta). Evidencia: `docs/evidence/HU-043/`.
