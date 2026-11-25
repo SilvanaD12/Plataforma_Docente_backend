@@ -34,6 +34,12 @@ QA-06 (--teachers N): N docentes crean una secuencia al mismo tiempo.
 3. Espera cada pedido hasta su estado final con la sesión de su docente y agrega las duraciones de punta a punta de
    siempre. Sin --teachers, el script hace la medición de antes, sin cambios.
 
+Plan (T021, spec 006): desde que el servidor exige un plan aprobado (GENERATION_REQUIRE_PLAN=true por defecto), cada
+secuencia crea su plan (POST /api/v1/generation-plans, 8 tipos x 5), lo aprueba sin cambios y genera desde él con
+{planId, planVersion}. Los planes se crean antes de los envíos medidos o simultáneos, así que los tiempos de POST siguen
+siendo solo los de /generation-requests. Un plan que el servidor rechaza (o que no es válido al aprobarlo) cuenta como
+envío rechazado, con su código.
+
 Llamadas al modelo: la API no las cuenta. El script da una estimación por paso con lo que sí informa la API
 (`generator.usesAi`, `generator.fallback` y los rechazos `repetition`); ver `step_model_calls`.
 
@@ -61,6 +67,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 EVALUATION = BACKEND / "evaluation"
 RESULTS = EVALUATION / "results"
 REQUESTS_PATH = "/api/v1/generation-requests"
+PLANS_PATH = "/api/v1/generation-plans"
 FINAL_STATUSES = {"succeeded", "partially_succeeded", "failed", "interrupted"}
 # Los 8 tipos de texto del catálogo original: cubren las 5 etapas 5E y no piden imagen ni audio.
 SEQUENCE_TYPES: tuple[str, ...] = (
@@ -313,8 +320,39 @@ def load_collect_samples() -> ModuleType:
     return module
 
 
-def sequence_body(unit_id: str) -> dict[str, Any]:
-    return {"mode": "sequence", "unitId": unit_id, "resourceTypes": list(SEQUENCE_TYPES), "quantity": QUANTITY}
+def plan_body(unit_id: str) -> dict[str, Any]:
+    """El plan de la secuencia medida: 8 tipos x 5, con los demás parámetros por defecto."""
+    return {"unitId": unit_id, "resourceTypes": [{"type": t, "quantity": QUANTITY} for t in SEQUENCE_TYPES]}
+
+
+class PlanRejected(Exception):
+    """El servidor no creó o no aprobó el plan de una secuencia: el envío cuenta como rechazado."""
+
+    def __init__(self, response: httpx.Response) -> None:
+        super().__init__(f"HTTP {response.status_code}")
+        self.response = response
+
+
+def planned_body(client: httpx.Client | None, headers: dict, unit_id: str, key: str) -> dict[str, Any]:
+    """T021: crea el plan de la secuencia (con la clave `<key>-plan`), lo aprueba sin cambios y devuelve el cuerpo del
+    pedido, `{planId, planVersion}`. Lanza PlanRejected si el servidor no lo crea o no lo aprueba."""
+    created = client.post(PLANS_PATH, headers={**headers, "Idempotency-Key": f"{key}-plan"}, json=plan_body(unit_id))
+    if created.status_code not in (200, 201):
+        raise PlanRejected(created)
+    plan = created.json()
+    if plan.get("status") == "approved":  # la misma clave devolvió un plan ya aprobado
+        return {"planId": plan["id"], "planVersion": plan["version"]}
+    approved = client.post(f"{PLANS_PATH}/{plan['id']}/approve", headers=headers,
+                           json={"expectedVersion": plan["version"]})
+    if approved.status_code != 200:
+        raise PlanRejected(approved)
+    return {"planId": plan["id"], "planVersion": approved.json()["version"]}
+
+
+def rejected_answer(key: str, error: PlanRejected) -> dict[str, Any]:
+    body = error.response.json() if error.response.headers.get("content-type", "").startswith("application/json") else {}
+    return {"key": key, "status": error.response.status_code, "errorCode": (body.get("error") or {}).get("code"),
+            "body": error.response.text[:300]}
 
 
 def post_request(client: httpx.Client, headers: dict, key: str, body: dict) -> httpx.Response:
@@ -361,17 +399,34 @@ def wait_no_active(client: httpx.Client, headers: dict, unit_id: str, poll: floa
         time.sleep(poll)
 
 
-def concurrency_check(api: str, headers: dict, unit_id: str, run_id: str) -> dict[str, Any]:
-    """Lanza 3 secuencias a la vez con claves distintas: deben quedar 2 aceptadas (202) y una 429 con Retry-After."""
+def concurrency_check(api: str, headers: dict, unit_id: str, run_id: str,
+                      client: httpx.Client | None = None) -> dict[str, Any]:
+    """Lanza 3 secuencias a la vez con claves distintas: deben quedar 2 aceptadas (202) y una 429 con Retry-After.
+    Los 3 planes se crean y se aprueban antes, uno por uno (T021)."""
     barrier = threading.Barrier(CONCURRENT_STARTS)
     answers: list[dict[str, Any]] = [{} for _ in range(CONCURRENT_STARTS)]
+    bodies: list[dict[str, Any] | None] = []
+    for index in range(CONCURRENT_STARTS):
+        key = f"load-{run_id}-concurrency-{index}"
+        try:
+            bodies.append(planned_body(client, headers, unit_id, key))
+        except PlanRejected as error:
+            bodies.append(None)
+            answers[index] = {**rejected_answer(key, error), "retryAfter": None, "requestId": None,
+                              "error": {"type": "PlanRejected", "message": str(error)}}
+        except httpx.HTTPError as error:
+            bodies.append(None)
+            answers[index] = {"key": key, "status": None, "retryAfter": None, "requestId": None, "errorCode": None,
+                              "error": network_error(error)}
+    if any(body is None for body in bodies):
+        return {"answers": answers, "result": "INCONCLUSO: no se pudieron preparar los planes"}
 
     def start(index: int) -> None:
         key = f"load-{run_id}-concurrency-{index}"
         try:
             with httpx.Client(base_url=api, timeout=60) as client:
                 barrier.wait(timeout=30)
-                response = post_request(client, headers, key, sequence_body(unit_id))
+                response = post_request(client, headers, key, bodies[index])
         except httpx.HTTPError as error:  # el envío no llegó o no respondió: se registra y la medición sigue
             answers[index] = {"key": key, "status": None, "retryAfter": None, "requestId": None, "errorCode": None,
                               "error": network_error(error)}
@@ -426,11 +481,24 @@ def prepare_teachers(
     return teachers
 
 
-def simultaneous_posts(api: str, teachers: list[dict], run_id: str) -> list[dict[str, Any]]:
+def simultaneous_posts(api: str, teachers: list[dict], run_id: str,
+                       client: httpx.Client | None = None) -> list[dict[str, Any]]:
     """QA-06: cada docente envía su secuencia a la vez (un hilo por docente y una barrera). Mide el tiempo de respuesta
-    de cada POST en ms. Un envío que falla por red queda registrado, sin tiempo."""
+    de cada POST en ms. Un envío que falla por red queda registrado, sin tiempo. El plan de cada docente se crea y se
+    aprueba antes, fuera de la medición (T021)."""
     barrier = threading.Barrier(len(teachers))
     answers: list[dict[str, Any]] = [{} for _ in teachers]
+    bodies: dict[int, dict[str, Any]] = {}
+    for position, teacher in enumerate(teachers):
+        key = f"load-{run_id}-teacher-{teacher['index']}"
+        try:
+            bodies[position] = planned_body(client, teacher["headers"], teacher["unitId"], key)
+        except (PlanRejected, httpx.HTTPError) as error:
+            answers[position] = {"teacher": teacher["index"], "key": key, "status": None, "ms": None,
+                                 "requestId": None, "errorCode": None,
+                                 "error": {"type": type(error).__name__, "message": str(error)[:200]}}
+    if len(bodies) < len(teachers):
+        return answers  # sin todos los planes, los envíos no saldrían juntos
 
     def start(position: int) -> None:
         teacher = teachers[position]
@@ -441,7 +509,7 @@ def simultaneous_posts(api: str, teachers: list[dict], run_id: str) -> list[dict
             with httpx.Client(base_url=api, timeout=60) as client:
                 barrier.wait(timeout=30)
                 started = time.perf_counter()
-                response = post_request(client, teacher["headers"], key, sequence_body(teacher["unitId"]))
+                response = post_request(client, teacher["headers"], key, bodies[position])
                 elapsed_ms = (time.perf_counter() - started) * 1000
         except (httpx.HTTPError, threading.BrokenBarrierError) as error:
             answers[position] = {**base, "error": network_error(error)}
@@ -474,7 +542,7 @@ def run_teachers_measurement(
 ) -> dict[str, Any]:
     """QA-06: los POST simultáneos y, después, cada pedido hasta su estado final con la sesión de su docente."""
     print(f"QA-06: {len(teachers)} docentes envían su secuencia a la vez…")
-    posts = simultaneous_posts(api, teachers, run_id)
+    posts = simultaneous_posts(api, teachers, run_id, client)
     for answer in posts:
         shown = f"{answer['ms']:.0f} ms" if answer["ms"] is not None else answer.get("error", {}).get("type", "—")
         print(f"  docente {answer['teacher'] + 1}: {answer['status'] or 'sin respuesta'} · {shown}")
@@ -513,12 +581,22 @@ def submit_measured(
         key = f"load-{run_id}-sequence-{number}"
         network_failures = 0
         outcome: dict | None = None  # error del envío si no se aceptó ni se rechazó
+        try:
+            body = planned_body(client, headers, unit_id, key)
+        except PlanRejected as error:
+            refused.append(rejected_answer(key, error))
+            print(f"  secuencia {number + 1}/{SEQUENCES}: plan rechazado ({error.response.status_code})")
+            continue
+        except httpx.HTTPError as error:
+            failed.append({"index": number, "key": key, "error": network_error(error)})
+            print(f"  secuencia {number + 1}/{SEQUENCES}: el plan no se pudo crear ({type(error).__name__})")
+            continue
         while True:
             if time.monotonic() >= deadline:
                 outcome = outcome or {"type": "Timeout", "message": "se agotó --timeout antes de enviarlo"}
                 break
             try:
-                response = post_request(client, headers, key, sequence_body(unit_id))
+                response = post_request(client, headers, key, body)
             except httpx.HTTPError as error:
                 network_failures += 1
                 outcome = network_error(error)
@@ -549,7 +627,7 @@ def run_measurement(
 ) -> dict[str, Any]:
     """Comprobación de concurrencia y medición. Devuelve las partes del informe (sin escribirlo)."""
     print("Comprobación de concurrencia (3 secuencias a la vez)…")
-    concurrency = concurrency_check(api, headers, unit_id, run_id)
+    concurrency = concurrency_check(api, headers, unit_id, run_id, client)
     print(f"  {concurrency['result']}")
     accepted = {a["requestId"]: a["key"] for a in concurrency["answers"] if a.get("requestId")}
     warmup, warmup_errors = wait_final(client, headers, accepted, poll, deadline)

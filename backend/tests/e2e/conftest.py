@@ -42,6 +42,13 @@ def e2e_database_url(tmp_path: Path) -> str:
 
 
 @pytest.fixture
+def legacy_body(monkeypatch: pytest.MonkeyPatch) -> None:
+    """T021: el servidor acepta el cuerpo anterior sin plan (GENERATION_REQUIRE_PLAN=false). Solo para las pruebas cuyo
+    tema es ese cuerpo; se pide antes que `server`."""
+    monkeypatch.setenv("GENERATION_REQUIRE_PLAN", "false")
+
+
+@pytest.fixture
 def server(tmp_path: Path, e2e_database_url: str) -> Iterator[str]:
     """Levanta la API en un puerto libre y devuelve su URL base. Se apaga al terminar."""
     if os.getenv("E2E_DATABASE_URL"):

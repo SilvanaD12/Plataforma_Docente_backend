@@ -146,6 +146,8 @@ def test_private_routes_require_a_session(server: str, route: str):
     assert httpx.get(server + route, headers={"Authorization": "Bearer inventado"}).status_code == 401
 
 
+# T021: valida el cuerpo anterior de GEN-01 (sin plan): el servidor lo acepta con GENERATION_REQUIRE_PLAN=false.
+@pytest.mark.usefixtures("legacy_body")
 def test_server_validation_does_not_save_invalid_data(server: str, e2e_database_url: str):
     with httpx.Client(base_url=server) as api:
         assert api.post("/api/v1/sessions", json={**CREDENTIALS, "password": "incorrecta"}).status_code == 401
@@ -229,6 +231,7 @@ def _saved_generation_requests(database_url: str, teacher_id: str) -> tuple[int,
         (["Multimedia"], "RESOURCE_TYPE_NOT_IN_MODALITY"),  # la guía de exploración es Textual (HU-024)
     ],
 )
+@pytest.mark.usefixtures("legacy_body")  # T021: el cuerpo anterior, con GENERATION_REQUIRE_PLAN=false
 def test_invalid_modalities_are_rejected(server: str, modalities: list[str], code: str):
     # La ruta nueva exige sesión (la retirada aceptaba pedidos anónimos): se valida con la sesión del docente.
     with httpx.Client(base_url=server) as api:

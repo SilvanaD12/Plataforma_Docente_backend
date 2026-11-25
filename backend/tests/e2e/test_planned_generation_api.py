@@ -112,6 +112,7 @@ def test_stale_evidence_answers_409_with_each_document_and_keeps_the_plan_approv
     assert after["status"] == "approved" and listed.json() == []
 
 
+@pytest.mark.usefixtures("legacy_body")  # T021: el cuerpo anterior solo con GENERATION_REQUIRE_PLAN=false
 def test_the_previous_body_generates_from_an_implicit_plan(server: str):
     with httpx.Client(base_url=server, timeout=60) as api:
         headers = _session(api, TEACHER_A)
@@ -181,6 +182,7 @@ def implicit_plan_off(monkeypatch):
     monkeypatch.setenv("GENERATION_IMPLICIT_PLAN", "false")
 
 
+@pytest.mark.usefixtures("legacy_body")
 def test_with_the_implicit_plan_off_the_previous_body_has_no_plan(implicit_plan_off, server: str):
     with httpx.Client(base_url=server, timeout=60) as api:
         headers = _session(api, TEACHER_A)
@@ -254,3 +256,45 @@ def test_cur_p2_catalog_type_generates_from_an_approved_plan(server: str):
         [resource] = [item for item in saved.json() if item["id"] == resource_id]
         assert (resource["type"], resource["format"]) == (resource_type, "text")
         assert resource["citations"], resource
+
+
+# T021 · GENERATION_REQUIRE_PLAN=true por defecto (sin variable en el servidor de la prueba)
+
+
+def test_by_default_the_previous_body_is_rejected_with_plan_required(server: str):
+    with httpx.Client(base_url=server, timeout=60) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        old = _generate(api, headers, {"mode": "sequence", "unitId": unit["id"],
+                                       "resourceTypes": ["pregunta_detonante", "explicacion"]})
+        requests = api.get(REQUESTS, headers=headers, params={"unitId": unit["id"]}).json()
+        plans = api.get(PLANS, headers=headers, params={"unitId": unit["id"]})
+
+    assert old.status_code == 422 and old.json()["error"]["code"] == "PLAN_REQUIRED"
+    assert "5E" not in old.json()["error"]["message"]
+    assert requests == []  # ni pedido ni plan implícito
+    assert plans.status_code == 200 and plans.json() == []
+
+
+def test_by_default_a_resource_from_a_plan_can_still_be_regenerated_from_review(server: str):
+    """La regeneración no es un pedido nuevo del docente: rehace un recurso con sus datos guardados y, si nació de un
+    plan, con el ítem de ese plan (sin escribirlo). No necesita un plan aprobado nuevo."""
+    with httpx.Client(base_url=server, timeout=90) as api:
+        headers = _session(api, TEACHER_A)
+        unit = _unit_with_material(api, headers)
+        plan = _approved_plan(api, headers, unit["id"])
+        started = _generate(api, headers, {"planId": plan["id"], "planVersion": plan["version"]})
+        final = wait_until_final(api, headers, started.json()["id"])
+        resources = {r["id"]: r for r in api.get(f"/api/v1/units/{unit['id']}/resources", headers=headers).json()}
+        previous = resources[final["steps"][-1]["resourceIds"][0]]
+        url = f"/api/v1/units/{unit['id']}/resources/{previous['id']}"
+        regenerated = api.post(f"{url}/regenerations", headers=headers, json={"expectedVersion": previous["version"]})
+        after = {r["id"]: r for r in api.get(f"/api/v1/units/{unit['id']}/resources", headers=headers).json()}
+
+    assert final["status"] == "succeeded", final
+    assert regenerated.status_code == 200, regenerated.text
+    body = regenerated.json()
+    assert body["status"] == "succeeded" and body["previousDiscarded"] is True
+    [new_id] = body["newResourceIds"]
+    assert after[new_id]["regeneratedFrom"] == {"resourceId": previous["id"], "version": previous["version"]}
+    assert after[new_id]["params"]["planId"] == plan["id"]  # el ítem del plan, leído sin escribirlo

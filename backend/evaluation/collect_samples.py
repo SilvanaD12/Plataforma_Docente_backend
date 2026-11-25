@@ -4,9 +4,13 @@ Uso (desde backend/):
     export EVAL_EMAIL=... EVAL_PASSWORD=...
     python evaluation/collect_samples.py --api http://127.0.0.1:8000
 
-Crea (o reutiliza) la cuenta de evaluación, un curso con una unidad, sube y procesa el corpus y, por cada caso, crea un
-pedido de generación individual (POST /api/v1/generation-requests, con la cabecera Idempotency-Key). Después consulta
-GET /api/v1/generation-requests/{id} cada --poll segundos hasta que el pedido termine o pase --timeout.
+Crea (o reutiliza) la cuenta de evaluación, un curso con una unidad, sube y procesa el corpus y, por cada caso, crea
+el plan de generación (POST /api/v1/generation-plans), lo aprueba sin cambios y genera desde él (POST
+/api/v1/generation-requests con {planId, planVersion} y la cabecera Idempotency-Key), como el frontend: desde T021 el
+servidor exige un plan aprobado (GENERATION_REQUIRE_PLAN=true por defecto). Después consulta
+GET /api/v1/generation-requests/{id} cada --poll segundos hasta que el pedido termine o pase --timeout. Un plan que el
+servidor rechaza (por ejemplo, 422 INSUFFICIENT_EVIDENCE) o que no es válido (422 PLAN_INVALID al aprobarlo) queda en
+failures.jsonl como cualquier rechazo del pedido.
 
 Guarda una línea por recurso en evaluation/results/samples.jsonl con la pregunta (user_input), el contexto
 (retrieved_contexts) y la respuesta (response), los campos que lee run_ragas.py. El contexto es todo lo que el pedido
@@ -71,6 +75,9 @@ import httpx
 HERE = Path(__file__).resolve().parent
 COURSE_CODE = 'EVAL-RAG'
 REQUESTS_PATH = '/api/v1/generation-requests'
+PLANS_PATH = '/api/v1/generation-plans'
+# El plan recupera entre 3 y 12 fragmentos (generation_plan.MIN_TOP_K y MAX_TOP_K).
+PLAN_TOP_K = (3, 12)
 FINAL_STATUSES = {'succeeded', 'partially_succeeded', 'failed', 'interrupted'}
 CASE_MODES = ('individual', 'sequence')
 DEFAULT_UNIT_TITLE = 'Protocolos de transporte'
@@ -315,13 +322,13 @@ def is_transient(response: httpx.Response | None) -> bool:
 
 
 def start_request(
-    client: httpx.Client, headers: dict, key: str, body: dict, deadline: float
+    client: httpx.Client, headers: dict, key: str, body: dict, deadline: float, path: str = REQUESTS_PATH
 ) -> httpx.Response | None:
-    """Crea el pedido. Reintenta los 429 (con Retry-After), los 5xx y los fallos de red con la misma clave hasta
-    `deadline`; ninguna espera pasa de lo que queda. Devuelve None si se acaba el tiempo."""
+    """Crea el pedido (o el plan, con `path`). Reintenta los 429 (con Retry-After), los 5xx y los fallos de red con la
+    misma clave hasta `deadline`; ninguna espera pasa de lo que queda. Devuelve None si se acaba el tiempo."""
     while True:
         try:
-            response = request(client, 'POST', REQUESTS_PATH, deadline=deadline,
+            response = request(client, 'POST', path, deadline=deadline,
                                headers={**headers, 'Idempotency-Key': key}, json=body)
         except BudgetExhausted:
             return None
@@ -460,14 +467,41 @@ def unit_documents(cases: list[dict], available: dict[str, Path]) -> dict:
     return {spec: [path for name, path in available.items() if name in names] for spec, names in union.items()}
 
 
-def request_body(case: dict, unit: dict) -> dict:
-    """Cuerpo del pedido del caso. Sin `modalities`: la modalidad (HU-024) no filtra los tipos."""
+def plan_body(case: dict, unit: dict) -> dict:
+    """Cuerpo del plan del caso (T021), con los mismos parámetros que el pedido de antes: la cantidad del caso en cada
+    tipo y `topK` dentro de lo que admite el plan. Sin `modality`: la modalidad no filtra los tipos."""
+    low, high = PLAN_TOP_K
     return {
-        'mode': case_mode(case), 'unitId': unit['id'], 'resourceTypes': case_types(case),
-        'quantity': case.get('quantity', 1), 'outcomeId': None, 'difficulty': case.get('difficulty', 'intermedia'),
-        'optionCount': case.get('optionCount', 4), 'topK': case.get('topK', 8), 'evidenceThreshold': 0.6,
-        'instructions': case['instructions'], 'audience': '', 'competency': case.get('competency', ''),
+        'unitId': unit['id'], 'instructions': case['instructions'], 'audience': '',
+        'competency': case.get('competency', ''), 'outcomeId': None, 'difficulty': case.get('difficulty', 'intermedia'),
+        'optionCount': case.get('optionCount', 4), 'evidenceThreshold': 0.6,
+        'topK': min(max(case.get('topK', 8), low), high),
+        'resourceTypes': [{'type': resource_type, 'quantity': case.get('quantity', 1)}
+                          for resource_type in case_types(case)],
     }
+
+
+def start_planned_request(client: httpx.Client, headers: dict, case: dict, unit: dict, run_id: str, attempt: int,
+                          deadline: float) -> tuple[httpx.Response | None, dict | None]:
+    """Plan del caso, aprobado sin cambios, y el pedido desde él. Devuelve (respuesta del pedido, falla): un rechazo
+    del plan o de su aprobación es la falla del caso, con su código y su mensaje."""
+    created = start_request(client, headers, idempotency_key(run_id, f"{case['id']}-plan", attempt),
+                            plan_body(case, unit), deadline, path=PLANS_PATH)
+    if created is None:
+        return None, None
+    if created.status_code not in (200, 201):
+        return None, server_problem(created)
+    plan = created.json()
+    try:
+        approved = request(client, 'POST', f"{PLANS_PATH}/{plan['id']}/approve", deadline=deadline, headers=headers,
+                           json={'expectedVersion': plan['version']})
+    except (BudgetExhausted, httpx.TransportError):
+        return None, None
+    if approved.status_code != 200 and not (approved.status_code == 409 and plan.get('status') == 'approved'):
+        return None, server_problem(approved)
+    version = approved.json().get('version', plan['version']) if approved.status_code == 200 else plan['version']
+    key = idempotency_key(run_id, case['id'], attempt)
+    return start_request(client, headers, key, {'planId': plan['id'], 'planVersion': version}, deadline), None
 
 
 def retrieval_query(unit: dict, case: dict) -> dict:
@@ -583,11 +617,11 @@ def generator_label(sample: dict) -> str:
 def run_case(client: httpx.Client, headers: dict, unit: dict, case: dict, args: argparse.Namespace,
              attempt: int) -> tuple[dict | None, dict | None, float]:
     """Crea y espera el pedido de un caso. Devuelve (estado final, falla, segundos)."""
-    body = request_body(case, unit)
-    key = idempotency_key(args.run_id, case['id'], attempt)
     started = time.perf_counter()
     deadline = time.monotonic() + args.timeout
-    response = start_request(client, headers, key, body, deadline)
+    response, rejected = start_planned_request(client, headers, case, unit, args.run_id, attempt, deadline)
+    if rejected is not None:
+        return None, rejected, round(time.perf_counter() - started, 2)
     if response is None:
         timeout = {'code': 'TIMEOUT', 'message': f'no se pudo crear el pedido en {args.timeout:g} s'}
         return None, timeout, round(time.perf_counter() - started, 2)

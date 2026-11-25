@@ -285,6 +285,7 @@ class FullBackend(Backend):
         self.courses: list[dict] = []
         self.requests: dict[str, dict] = {}
         self.resources: dict[str, list[dict]] = {}
+        self.plans: dict[str, dict] = {}
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         path, method = request.url.path, request.method
@@ -301,7 +302,14 @@ class FullBackend(Backend):
             ]}
             self.courses.append(course)
             return httpx.Response(201, json=course)
+        if path == "/api/v1/generation-plans" and method == "POST":  # T021: el plan del caso, antes del pedido
+            plan_id = f"gen-plan-{len(self.plans) + 1}"
+            self.plans[plan_id] = body
+            return httpx.Response(201, json={"id": plan_id, "version": 1, "status": "draft"})
+        if path.startswith("/api/v1/generation-plans/") and path.endswith("/approve"):
+            return httpx.Response(200, json={"id": path.split("/")[-2], "version": 1, "status": "approved"})
         if path == "/api/v1/generation-requests" and method == "POST":
+            body = self.plans[body["planId"]]  # se genera desde el plan aprobado
             request_id = f"gen-req-{len(self.requests) + 1}"
             delivers = "con recurso" in body["instructions"]
             resource_ids = [f"rec-{request_id}"] if delivers else []

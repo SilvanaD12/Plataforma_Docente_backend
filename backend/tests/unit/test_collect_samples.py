@@ -28,8 +28,22 @@ def collect(monkeypatch):
     return module
 
 
+PLAN = {"id": "gen-plan-1", "version": 1, "status": "draft"}
+
+
+def plan_answer(request: httpx.Request) -> httpx.Response | None:
+    """T021: el plan del caso y su aprobación, antes del pedido. None si la petición no es del plan."""
+    if request.method == "POST" and request.url.path.endswith("/generation-plans"):
+        return httpx.Response(201, json=PLAN)
+    if request.method == "POST" and request.url.path.endswith("/approve"):
+        return httpx.Response(200, json={**PLAN, "status": "approved"})
+    return None
+
+
 def client_for(handler: Callable[[httpx.Request], httpx.Response]) -> httpx.Client:
-    return httpx.Client(base_url="http://evaluacion.test", transport=httpx.MockTransport(handler))
+    """Cliente con el servidor falso `handler`; el plan y su aprobación los responde `plan_answer`."""
+    return httpx.Client(base_url="http://evaluacion.test",
+                        transport=httpx.MockTransport(lambda request: plan_answer(request) or handler(request)))
 
 
 def args(**overrides) -> argparse.Namespace:
@@ -238,7 +252,12 @@ class SlowServer:
             def do_POST(self) -> None:
                 length = int(self.headers.get("Content-Length") or 0)
                 self.rfile.read(length)
-                self._answer(post_delay, 202, ACCEPTED)
+                if self.path.endswith("/generation-plans"):  # T021: el plan y su aprobación, antes del pedido
+                    self._answer(post_delay, 201, PLAN)
+                elif self.path.endswith("/approve"):
+                    self._answer(post_delay, 200, {**PLAN, "status": "approved"})
+                else:
+                    self._answer(post_delay, 202, ACCEPTED)
 
             def do_GET(self) -> None:
                 self._answer(get_delay, 200, {**ACCEPTED, "status": "running"})

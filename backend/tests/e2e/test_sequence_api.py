@@ -10,8 +10,13 @@ import time
 from uuid import uuid4
 
 import httpx
+import pytest
 
 from tests.e2e.test_accounts_and_review_api import MATERIAL
+
+# T021: estas pruebas son del cuerpo anterior de GEN-01 (sin plan); el servidor lo acepta con
+# GENERATION_REQUIRE_PLAN=false.
+pytestmark = pytest.mark.usefixtures("legacy_body")
 
 ACCOUNT = {"name": "Luis Rojas", "email": "luis.rojas@correo.pe", "password": "clave-segura-2"}
 FINAL_STATUSES = {"succeeded", "partially_succeeded", "failed", "interrupted"}

@@ -361,9 +361,11 @@ def test_with_require_plan_the_previous_body_is_rejected_but_regeneration_is_not
 def test_settings_for_the_implicit_plan_and_the_required_plan():
     from platform5e.infrastructure.settings import generation_implicit_plan, generation_require_plan
 
-    assert generation_implicit_plan({}) is True and generation_require_plan({}) is False
+    # T021: el plan es obligatorio por defecto; el plan implícito sigue siendo solo un interruptor de medición.
+    assert generation_implicit_plan({}) is True and generation_require_plan({}) is True
     assert generation_implicit_plan({"GENERATION_IMPLICIT_PLAN": "false"}) is False
-    assert generation_require_plan({"GENERATION_REQUIRE_PLAN": "true"}) is True
+    assert generation_require_plan({"GENERATION_REQUIRE_PLAN": "false"}) is False
+    assert generation_require_plan({"GENERATION_REQUIRE_PLAN": "otro"}) is True  # un valor no válido deja el defecto
 
 
 def test_without_the_implicit_plan_the_previous_body_is_drafted_as_before_the_plan(requests, plans):

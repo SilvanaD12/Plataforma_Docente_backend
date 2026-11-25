@@ -60,10 +60,14 @@ def test_the_bodies_follow_collect_samples(payloads):
         "unitId": "u1", "outcomeIds": ["ra-1"], "documentType": "Separata o apuntes de clase",
         "suggestedStage": None, "usePermission": True,
     }
-    assert payloads.generation_body("u1", ("explicacion",)) == {
-        "mode": "individual", "unitId": "u1", "resourceTypes": ["explicacion"], "quantity": 1,
+    # T021: el pedido parte de un plan aprobado, con un recurso por tipo como el cuerpo anterior.
+    assert payloads.plan_body("u1", ("explicacion",)) == {
+        "unitId": "u1", "resourceTypes": [{"type": "explicacion", "quantity": 1}],
     }
-    assert payloads.generation_body("u1", ("pregunta_detonante", "explicacion"))["mode"] == "sequence"
+    assert [t["type"] for t in payloads.plan_body("u1", ("pregunta_detonante", "explicacion"))["resourceTypes"]] == [
+        "pregunta_detonante", "explicacion"]
+    assert payloads.planned_generation_body({"id": "gen-plan-1", "version": 1, "status": "approved"}) == {
+        "planId": "gen-plan-1", "planVersion": 1}
     assert payloads.search_params("protocolo TCP", "u1") == {"query": "protocolo TCP", "unitId": "u1", "topK": 8}
 
 

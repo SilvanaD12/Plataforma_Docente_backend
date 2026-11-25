@@ -17,6 +17,11 @@ from sqlalchemy import create_engine, text
 
 from tests.e2e.test_sequence_api import _unit_with_material, _wait_until_final
 
+# T021: estas pruebas son del cuerpo anterior de GEN-01 (sin plan); el servidor lo acepta con
+# GENERATION_REQUIRE_PLAN=false. La regeneración desde Revisión con el valor por defecto está en
+# test_planned_generation_api.py.
+pytestmark = pytest.mark.usefixtures("legacy_body")
+
 TEACHER_A = {"name": "Rosa Quispe", "email": "rosa.quispe@correo.pe", "password": "clave-segura-3"}
 TEACHER_B = {"name": "Mario Salas", "email": "mario.salas@correo.pe", "password": "clave-segura-4"}
 ITEM_REQUEST = {"mode": "individual", "resourceTypes": ["item_opcion_multiple"], "quantity": 1, "optionCount": 4}
