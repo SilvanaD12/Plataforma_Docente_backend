@@ -4267,6 +4267,30 @@
                 "type": "null"
               }
             ]
+          },
+          "relevanceWarning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relevancewarning",
+            "description": "Non-blocking warning when the extracted text has low similarity with the unit context."
+          },
+          "duplicateWarning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicatewarning",
+            "description": "Non-blocking warning when identical normalized content already exists in another unit of the course."
           }
         },
         "additionalProperties": true,

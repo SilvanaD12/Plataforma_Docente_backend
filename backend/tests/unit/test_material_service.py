@@ -1,5 +1,6 @@
 """
-Servicio de ingesta con dobles de prueba: procesar documentos, consultar fragmentos y generar material desde temas.
+Servicio de ingesta con dobles de prueba: procesar documentos, consultar fragmentos,
+generar material desde temas y validar avisos no bloqueantes de relevancia y duplicidad.
 """
 
 from typing import Any
@@ -14,7 +15,6 @@ from platform5e.application.services.materials.material_service import (
     build_article_filename,
 )
 from platform5e.domain.materials.chunking import MaterialError
-from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 
 PAGE_TEXT: str = (
     "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de los datos. "
@@ -25,10 +25,19 @@ PAGE_TEXT: str = (
 class MockConfigRepository(TeacherRepositoryPort):
     def __init__(self) -> None:
         self.docs: dict[str, tuple[dict[str, Any], bytes]] = {}
-        self.unit: dict[str, Any] = {"id": "u1", "title": "Protocolos", "outcomes": []}
+        self.unit: dict[str, Any] = {
+            "id": "u1",
+            "title": "Protocolos de transporte TCP y UDP",
+            "outcomes": [{"id": "out1", "description": "Compara transmisión confiable TCP frente a UDP"}],
+        }
+        self.second_unit: dict[str, Any] = {
+            "id": "u2",
+            "title": "Enrutamiento IP",
+            "outcomes": [],
+        }
 
     def get_courses(self, teacher_id: str) -> list[dict[str, Any]]:
-        return [{"id": "c1", "units": [self.unit]}]
+        return [{"id": "c1", "name": "Redes de Computadoras", "units": [self.unit, self.second_unit]}]
 
     def get_documents(self, teacher_id: str) -> list[dict[str, Any]]:
         return [metadata for metadata, _ in self.docs.values()]
@@ -83,13 +92,21 @@ class MockChunkRepository(ChunkRepositoryPort):
 
 
 class MockExtractor(TextExtractorPort):
-    def __init__(self, pages: list[tuple[str, str]] | None = None, error: Exception | None = None) -> None:
+    def __init__(
+        self,
+        pages: list[tuple[str, str]] | None = None,
+        error: Exception | None = None,
+        pages_by_content: dict[bytes, list[tuple[str, str]]] | None = None,
+    ) -> None:
         self.pages = pages
         self.error = error
+        self.pages_by_content = pages_by_content or {}
 
     def extract(self, file_type: str, content: bytes) -> list[tuple[str, str]]:
         if self.error:
             raise self.error
+        if content in self.pages_by_content:
+            return self.pages_by_content[content]
         return self.pages or []
 
 
@@ -110,6 +127,7 @@ def build_test_environment(
     pages: list[tuple[str, str]] | None = None,
     error: Exception | None = None,
     open_resource: OpenEducationalResourcePort | None = None,
+    pages_by_content: dict[bytes, list[tuple[str, str]]] | None = None,
 ) -> tuple[MaterialService, MockConfigRepository, MockChunkRepository]:
     config_repo = MockConfigRepository()
     chunk_repo = MockChunkRepository(config_repo)
@@ -121,7 +139,7 @@ def build_test_environment(
     service = MaterialService(
         config_repo,
         chunk_repo,
-        MockExtractor(pages if pages is not None else [("p. 1", PAGE_TEXT)], error),
+        MockExtractor(pages if pages is not None else [("p. 1", PAGE_TEXT)], error, pages_by_content),
         open_resource_port=open_resource,
     )
     return service, config_repo, chunk_repo
@@ -132,12 +150,58 @@ def test_processing_saves_chunks_and_marks_processed():
     data = service.process_material("d", "doc1")
     assert data["status"] == "procesado" and data["fragmentCount"] == 1 and data["pageCount"] == 1
     assert data["processedAt"] and data["errorMessage"] is None
+    assert data["relevanceWarning"] is None
+    assert data["duplicateWarning"] is None
     assert config_repo.docs["doc1"][0]["status"] == "procesado"
     assert chunk_repo.chunks_db["doc1"][0]["id"].startswith("frag-")
 
     fragments_view = service.get_document_chunks("d", "doc1")
     assert fragments_view[0]["location"] == "p. 1"
     assert fragments_view[0]["text"].startswith("El protocolo TCP")
+
+
+def test_low_relevance_material_returns_non_blocking_warning():
+    unrelated_text = (
+        "Las ballenas jorobadas migran miles de kilómetros cada invierno hacia aguas tropicales "
+        "para reproducirse y alimentar a sus crías mediante canto submarino."
+    )
+    service, _, _ = build_test_environment(pages=[("p. 1", unrelated_text)])
+    data = service.process_material("d", "doc1")
+
+    assert data["status"] == "procesado"
+    assert data["relevanceWarning"] is not None
+    assert "no tener relación" in data["relevanceWarning"]
+
+
+def test_duplicate_material_across_course_units_sets_duplicate_warning():
+    normalized_variant = (
+        "  EL PROTOCOLO TCP es orientado a la conexión y garantiza una entrega confiable de los datos. "
+        "El protocolo UDP no establece conexión y es más rápido para videollamadas.  "
+    )
+    service, config_repo, _ = build_test_environment(
+        pages_by_content={
+            b"first": [("p. 1", PAGE_TEXT)],
+            b"second": [("p. 1", normalized_variant)],
+        }
+    )
+    config_repo.save_document(
+        "d",
+        {"id": "doc-u1", "unitId": "u1", "kind": "txt", "fileName": "tcp.txt", "status": "registrado"},
+        b"first",
+    )
+    config_repo.save_document(
+        "d",
+        {"id": "doc-u2", "unitId": "u2", "kind": "txt", "fileName": "copia_tcp.txt", "status": "registrado"},
+        b"second",
+    )
+
+    first_processed = service.process_material("d", "doc-u1")
+    assert first_processed["duplicateWarning"] is None
+    assert first_processed["contentHash"]
+
+    second_processed = service.process_material("d", "doc-u2")
+    assert second_processed["status"] == "procesado"
+    assert second_processed["duplicateWarning"] == "Este material ya está en la unidad «Protocolos de transporte TCP y UDP»."
 
 
 def test_processing_without_text_leaves_an_explained_error():
@@ -176,6 +240,7 @@ def test_from_topic_creates_processed_documents_without_duplicates():
 
     assert mock_source.recorded_requests == [("protocolo TCP", 5)]
     assert len(created) == 1 and created[0]["status"] == "procesado"
+    assert created[0]["pageCount"] is None
     assert created[0]["origin"]["url"] == article["url"]
     assert created[0]["documentType"] == "Artículo de fuente abierta"
 
@@ -220,13 +285,13 @@ def test_article_file_name_is_safe():
     assert build_article_filename("TCP/IP \\ redes", "Wikipedia") == "TCP IP   redes.txt"
     assert build_article_filename("", "Wikipedia") == "Artículo.txt"
 
+
 def test_material_service_unit_membership_validation():
     """Valida que el servicio verifique la membresía de la unidad (MAT-C2)."""
     service, config_repo, _ = build_test_environment()
     courses = config_repo.get_courses("d")
     unit_id = courses[0]["units"][0]["id"]
-    
-    # Verificamos que acepte una unidad y outcomes válidos sin error
+
     try:
         service.validate_unit_membership_secure("d", unit_id, [])
     except Exception as e:
