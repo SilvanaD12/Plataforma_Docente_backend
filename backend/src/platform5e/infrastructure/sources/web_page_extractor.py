@@ -1,5 +1,5 @@
 """
-Cliente HTTP seguro para descargar páginas web públicas y extraer su texto limpio (MAT-P1 / Pedido P6).
+Cliente HTTP seguro para descargar páginas web públicas y extraer su texto limpio (MAT-P1 / Pedido P6 / Plan v2-H).
 """
 
 from __future__ import annotations
@@ -25,12 +25,54 @@ MIN_WEB_TEXT_CHARS: int = 120
 MAX_DOWNLOAD_BYTES: int = 2 * 1024 * 1024  # 2 MB máximo para HTML/texto
 MAX_REDIRECTS: int = 5
 
+_NOISE_CLASSES_OR_IDS: frozenset[str] = frozenset(
+    {
+        "mw-editsection",
+        "navbox",
+        "vertical-navbox",
+        "reflist",
+        "references",
+        "toc",
+        "catlinks",
+        "mw-jump-link",
+        "printfooter",
+        "sistersitebox",
+        "infobox",
+    }
+)
+
+_TRAILING_WEB_SECTIONS: re.Pattern[str] = re.compile(
+    r"\n\s*(?:Referencias|Bibliografía|Véase también|Enlaces externos|Notas|Fuentes)\s*\n",
+    re.IGNORECASE,
+)
+
+_TITLE_SUFFIX_REGEX: re.Pattern[str] = re.compile(
+    r"\s+[-|–—]\s+(?:Wikipedia.*|Wikilibros.*|Wikiversidad.*)$",
+    re.IGNORECASE,
+)
+
 
 class _ReadableHTMLParser(HTMLParser):
-    """Extrae el título (<title>) y el texto visible ignorando scripts, estilos y navegación."""
+    """Extrae el título (<title>) y el texto visible ignorando scripts, estilos, navegación y notas."""
 
-    _IGNORED_TAGS = {"script", "style", "noscript", "svg", "nav", "footer", "header", "aside", "iframe"}
-    _BLOCK_TAGS = {"p", "div", "section", "article", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr", "br", "pre", "blockquote"}
+    _IGNORED_TAGS = {"script", "style", "noscript", "svg", "nav", "footer", "header", "aside", "iframe", "sup"}
+    _BLOCK_TAGS = {
+        "p",
+        "div",
+        "section",
+        "article",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "li",
+        "tr",
+        "br",
+        "pre",
+        "blockquote",
+    }
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -39,24 +81,41 @@ class _ReadableHTMLParser(HTMLParser):
         self.title_parts: list[str] = []
         self.text_parts: list[str] = []
 
+    @staticmethod
+    def _has_noise_attribute(attrs: list[tuple[str, str | None]]) -> bool:
+        for attr_name, attr_val in attrs:
+            if not attr_val:
+                continue
+            lower_name = attr_name.lower()
+            if lower_name == "role" and attr_val.lower() in {"navigation", "banner", "contentinfo"}:
+                return True
+            if lower_name in {"id", "class"}:
+                tokens = set(attr_val.lower().split())
+                if tokens & _NOISE_CLASSES_OR_IDS:
+                    return True
+        return False
+
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         lower = tag.lower()
-        if lower in self._IGNORED_TAGS:
+        if self._ignored_depth > 0:
             self._ignored_depth += 1
             return
-        if lower == "title" and self._ignored_depth == 0:
+        if lower in self._IGNORED_TAGS or self._has_noise_attribute(attrs):
+            self._ignored_depth = 1
+            return
+        if lower == "title":
             self._in_title = True
-        if lower in self._BLOCK_TAGS and self._ignored_depth == 0:
+        if lower in self._BLOCK_TAGS:
             self.text_parts.append("\n")
 
     def handle_endtag(self, tag: str) -> None:
         lower = tag.lower()
-        if lower in self._IGNORED_TAGS and self._ignored_depth > 0:
+        if self._ignored_depth > 0:
             self._ignored_depth -= 1
             return
         if lower == "title":
             self._in_title = False
-        if lower in self._BLOCK_TAGS and self._ignored_depth == 0:
+        if lower in self._BLOCK_TAGS:
             self.text_parts.append("\n")
 
     def handle_data(self, data: str) -> None:
@@ -94,7 +153,6 @@ def validate_public_http_url(raw_url: str) -> str:
     if hostname in {"localhost", "127.0.0.1", "0.0.0.0", "::1"} or hostname.endswith(".local"):
         raise MaterialError("FORBIDDEN_URL", "No se permiten direcciones locales o privadas.", 400)
 
-    # Si el hostname ya es una IP literal
     try:
         ipaddress.ip_address(hostname)
         if _is_forbidden_ip(hostname):
@@ -103,7 +161,6 @@ def validate_public_http_url(raw_url: str) -> str:
     except ValueError:
         pass
 
-    # Resolución DNS para evitar SSRF vía dominios que apuntan a IPs privadas
     try:
         addr_infos = socket.getaddrinfo(hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
     except socket.gaierror as exc:
@@ -124,19 +181,33 @@ def validate_public_http_url(raw_url: str) -> str:
     return cleaned
 
 
+def clean_extracted_web_text(text: str) -> str:
+    """Elimina marcas de edición, notas al pie entre corchetes y secciones finales de bibliografía."""
+    cleaned = re.sub(r"\[editar\]", "", text, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\[\s*(?:nota\s*|cita requerida)?\d+\s*\]", "", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\[\s*(?:cita requerida|editar)\s*\]", "", cleaned, flags=re.IGNORECASE)
+
+    trailing_match = _TRAILING_WEB_SECTIONS.search(cleaned)
+    if trailing_match:
+        cleaned = cleaned[: trailing_match.start()]
+
+    lines = [" ".join(line.split()) for line in cleaned.splitlines()]
+    non_empty_lines = [line for line in lines if line]
+    return "\n\n".join(non_empty_lines)[:MAX_WEB_TEXT_CHARS]
+
+
 def extract_readable_text(raw_html: str, fallback_title: str) -> tuple[str, str]:
-    """Convierte HTML en título y texto limpio colapsando espacios en blanco."""
+    """Convierte HTML en título limpio y texto legible sin ruido de navegación ni bibliografía."""
     parser = _ReadableHTMLParser()
     parser.feed(raw_html)
     parser.close()
 
     raw_title = " ".join("".join(parser.title_parts).split()).strip()
-    title = html.unescape(raw_title)[:140] or fallback_title
+    unescaped_title = html.unescape(raw_title)
+    clean_title = _TITLE_SUFFIX_REGEX.sub("", unescaped_title).strip()[:140]
+    title = clean_title or fallback_title
 
-    joined = "".join(parser.text_parts)
-    lines = [" ".join(line.split()) for line in joined.splitlines()]
-    non_empty_lines = [line for line in lines if line]
-    cleaned_text = "\n\n".join(non_empty_lines)[:MAX_WEB_TEXT_CHARS]
+    cleaned_text = clean_extracted_web_text("".join(parser.text_parts))
     return title, cleaned_text
 
 
@@ -150,7 +221,7 @@ class WebPageExtractor(WebContentFetcherPort):
                 "Accept": "text/html,text/plain,application/xhtml+xml;q=0.9,*/*;q=0.8",
             },
             timeout=timeout,
-            follow_redirects=False,  # Validamos manualmente cada redirección para evitar SSRF bypass
+            follow_redirects=False,
         )
 
     def fetch(self, url: str) -> dict[str, Any]:
@@ -206,9 +277,7 @@ class WebPageExtractor(WebContentFetcherPort):
 
         if "text/plain" in content_type and "html" not in content_type:
             title = fallback_title
-            cleaned_text = "\n\n".join(
-                line for line in (" ".join(l.split()) for l in decoded.splitlines()) if line
-            )[:MAX_WEB_TEXT_CHARS]
+            cleaned_text = clean_extracted_web_text(decoded)
         else:
             title, cleaned_text = extract_readable_text(decoded, fallback_title)
 
