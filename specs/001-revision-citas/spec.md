@@ -72,6 +72,7 @@ Como docente, quiero que mis descargas incluyan solo recursos aprobados y verifi
 - **REV-R14.** Proveer un endpoint de vista previa para paquetes SCORM que devuelva las páginas HTML construidas en memoria y el desglose de recursos excluidos, reutilizando el filtro de elegibilidad sin registrar descargas en el historial.
 - **REV-R15.** Implementar la detección de duplicidad y parafraseo entre recursos de una unidad sin dependencias externas ni modelos de lenguaje, reportando pares que superan el umbral configurado (`REVIEW_DUPLICATE_THRESHOLD`) a nivel de recurso y de pregunta con su puntaje de similitud y tasa de duplicidad.
 - **REV-R16.** Cuando se solicite la regeneración de un recurso originado de un plan pedagógico y algún fragmento de su ítem ya no exista en la unidad (se borró o reprocesó un documento), responder con 409 `PLAN_EVIDENCE_STALE` y el detalle estructurado de documentos afectados (`StaleDocument`), manteniendo el recurso y el plan sin modificaciones (T014).
+- **REV-R17 (REV-P4).** Extender de forma aditiva y retrocompatible el reporte de duplicidad (`GET /api/v1/units/{unit_id}/duplication-report`) mediante el parámetro opcional `includeCourse=true` para comparar también cada recurso y pregunta de la unidad actual contra los recursos y preguntas de las restantes unidades del mismo curso del docente (sin comparar unidades ajenas entre sí). Sin el parámetro, la respuesta conserva exactamente el formato y los pares actuales. Con `includeCourse=true`, los pares entre unidades devuelven `crossUnit: true`, `unitIdB` y `unitTitleB`, mientras los internos llevan `crossUnit: false` y `unitIdB`/`unitTitleB` nulos, ordenados por puntaje descendente y recalculando `comparedPairs` y `duplicatePairRate` sobre el total.
 
 ## Cambios solicitados en la asesoría del 21/11
 
@@ -103,9 +104,16 @@ Como docente, cuando pido regenerar un recurso originado de un plan cuya evidenc
 |---|---|---|
 | REV-C18 | El docente pide regenerar desde Revisión un recurso originado de un plan y algún fragmento de su ítem ya no existe en la unidad (se borró o reprocesó un documento) | El sistema responde 409 `PLAN_EVIDENCE_STALE` con el detalle de documentos afectados (`details` con `documentId`, `documentName`, `missingFragmentIds`); el recurso previo no se modifica (conserva versión y contenido) y el plan permanece en su estado previo sin alteraciones. |
 
+### REV-P4 · Control de duplicidad entre unidades del curso
+Como docente, quiero detectar en Revisión si un recurso o pregunta de mi unidad repite o parafrasea contenido ya existente en otras unidades del mismo curso, sin perder la compatibilidad con los reportes por unidad ni bloquear la edición, aprobación o exportación.
+
+| Caso | Dado y cuando | Entonces |
+|---|---|---|
+| REV-C19 | Un curso tiene dos o más unidades con recursos equivalentes o parafraseados y se consulta `GET /api/v1/units/{unit_id}/duplication-report` | Sin `includeCourse=true`, el reporte devuelve solo los pares internos de la unidad actual con los mismos campos de REV-P3. Con `includeCourse=true`, incluye además los pares entre la unidad actual y las demás unidades del curso (`crossUnit: true`, `unitIdB`, `unitTitleB`), ordenados descendentemente y recalculando `comparedPairs` y `duplicatePairRate`; la interfaz los muestra en un bloque informativo separado («Posible contenido repetido en otras unidades») sin bloquear guardado, aprobación ni exportación. Una unidad ajena al docente responde 404. |
+
 ## Criterios de éxito
 
-- Todos los escenarios REV-C1 a REV-C18 pasan en el nivel de prueba que corresponda.
+- Todos los escenarios REV-C1 a REV-C19 pasan en el nivel de prueba que corresponda.
 - La API y el recorrido de interfaz demuestran que un recurso pendiente o insuficiente queda fuera de nuevas exportaciones. El archivo final excluye esos recursos.
 - Las pruebas existentes de multimedia editada, historial de descargas y exportadores siguen pasando con las reglas nuevas, salvo `test_edited_media.py::test_editing_the_script_drops_the_old_audio_everywhere`, que se actualiza para exigir el bloqueo de la aprobación de REV-C8.
 
