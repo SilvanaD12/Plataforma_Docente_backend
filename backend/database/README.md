@@ -30,13 +30,13 @@ Si el puerto 5432 ya está en uso por otro PostgreSQL, cambia `POSTGRES_PORT` (y
 Crea una base temporal, le aplica todas las migraciones, ejecuta `database/verification/verify_vector_store.sql`
 y la elimina al terminar. La base de desarrollo no se modifica. Debe terminar con `VERIFICACIÓN EN-011 SUPERADA`.
 
-| Comprobación | Qué demuestra |
-|---|---|
-| C01 | pgvector instalado (versión), distancia coseno correcta, `vector(768)` rechaza otras dimensiones |
-| C02.1 | Top-k filtrado por unidad: devuelve los 3 fragmentos plantados en orden y excluye uno aún más cercano de otra unidad. Muestra el plan que elige PostgreSQL |
-| C02.2 | Top-k sin filtro: el `EXPLAIN` usa `fragmento_embedding_hnsw` y el resultado es el esperado |
-| C02.3 | Top-k filtrado **por el índice HNSW** (con *iterative scan*): resultado correcto, igual a la búsqueda exacta en el top-3 |
-| HU-012 | «pila» encuentra «pilas» (diccionario español) y el índice GIN responde |
+| Comprobación | Qué demuestra                                                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| C01           | pgvector instalado (versión), distancia coseno correcta, `vector(768)` rechaza otras dimensiones                                                          |
+| C02.1         | Top-k filtrado por unidad: devuelve los 3 fragmentos plantados en orden y excluye uno aún más cercano de otra unidad. Muestra el plan que elige PostgreSQL |
+| C02.2         | Top-k sin filtro: el `EXPLAIN` usa `fragmento_embedding_hnsw` y el resultado es el esperado                                                              |
+| C02.3         | Top-k filtrado **por el índice HNSW** (con *iterative scan*): resultado correcto, igual a la búsqueda exacta en el top-3                           |
+| HU-012        | «pila» encuentra «pilas» (diccionario español) y el índice GIN responde                                                                                |
 
 Sobre los planes de ejecución:
 
@@ -49,15 +49,15 @@ Sobre los planes de ejecución:
 
 ## Comandos habituales
 
-| Comando | Qué hace |
-|---|---|
-| `docker compose run --rm dbmate status` | Lista migraciones aplicadas y pendientes |
-| `docker compose run --rm dbmate up` | Aplica las pendientes y actualiza `database/schema.sql` |
-| `docker compose run --rm dbmate rollback` | Revierte la última migración (sección `migrate:down`) |
-| `docker compose run --rm dbmate new nombre_en_minusculas` | Crea `database/migrations/<fecha>_nombre_en_minusculas.sql` |
-| `docker compose exec db psql -U plataforma5e -d plataforma5e` | Consola SQL (usuario y base según tu `.env`) |
-| `docker compose stop` | Detiene PostgreSQL conservando los datos |
-| `docker compose down -v` | **Borra** el contenedor y los datos locales (empezar de cero) |
+| Comando                                                         | Qué hace                                                           |
+| --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `docker compose run --rm dbmate status`                       | Lista migraciones aplicadas y pendientes                            |
+| `docker compose run --rm dbmate up`                           | Aplica las pendientes y actualiza `database/schema.sql`           |
+| `docker compose run --rm dbmate rollback`                     | Revierte la última migración (sección `migrate:down`)          |
+| `docker compose run --rm dbmate new nombre_en_minusculas`     | Crea `database/migrations/<fecha>_nombre_en_minusculas.sql`       |
+| `docker compose exec db psql -U plataforma5e -d plataforma5e` | Consola SQL (usuario y base según tu `.env`)                     |
+| `docker compose stop`                                         | Detiene PostgreSQL conservando los datos                            |
+| `docker compose down -v`                                      | **Borra** el contenedor y los datos locales (empezar de cero) |
 
 ## Reglas
 
@@ -68,10 +68,13 @@ Sobre los planes de ejecución:
 
 ## Estructura actual
 
-| Migración | Contenido |
-|---|---|
-| `20261005000001_esquema_base.sql` | `curso`, `unidad`, `documento`. **Provisional**: sustituye a EN-002, que aún no existe en el repositorio |
-| `20261005000002_base_vectorial.sql` | Extensión `vector`; tabla `fragmento` (documento, unidad, curso, página, orden, texto, `embedding vector(768)`, `modelo_embedding`, `texto_tsv`); índices HNSW coseno, unidad, GIN y documento |
+| Migración                                   | Contenido                                                                                                                                                                                                   |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `20261005000001_esquema_base.sql`          | `curso`, `unidad`, `documento`. **Provisional**: sustituye a EN-002, que aún no existe en el repositorio                                                                                       |
+| `20261005000002_base_vectorial.sql`        | Extensión `vector`; tabla `fragmento` (documento, unidad, curso, página, orden, texto, `embedding vector(768)`, `modelo_embedding`, `texto_tsv`); índices HNSW coseno, unidad, GIN y documento |
+| `20261125000001_document_content_hash.sql` | Columna `content_hash TEXT` e índice `(docente, content_hash)` en `ep002_documentos` para detección de materiales duplicados entre unidades del mismo curso                                         |
+
+- **Limitación inicial de `content_hash`:** Los documentos procesados antes de aplicar `20261125000001_document_content_hash.sql` conservan `content_hash = NULL` (la huella SHA-256 se calcula sobre el texto completo extraído antes de la fragmentación, por lo que no se reconstruye retroactivamente desde `ep002_fragmentos`). Al reprocesar el documento o volver a subirlo, su huella se calcula y persiste automáticamente.
 
 `embedding` y `modelo_embedding` quedan nulos hasta que EN-013 vectorice los fragmentos (la base exige que ambos
 estén presentes o ambos ausentes). La consulta prevista para el backend es:

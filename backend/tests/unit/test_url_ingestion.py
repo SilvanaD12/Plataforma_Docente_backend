@@ -97,6 +97,32 @@ def test_extract_readable_text_strips_scripts_styles_and_navigation() -> None:
     assert "Inicio | Cursos" not in text
 
 
+def test_extract_readable_text_handles_void_tags_inside_ignored_blocks() -> None:
+    sample_html = """
+    <html>
+      <head><title>Artículo con saltos en navegación</title></head>
+      <body>
+        <nav>
+          Enlace 1<br>
+          Enlace 2<br/>
+          <img src="/logo.png" alt="Logo">
+          <hr>
+        </nav>
+        <article>
+          <h1>Contenido Principal</h1>
+          <p>Este párrafo debe conservarse íntegro después de cerrar la barra de navegación.</p>
+        </article>
+      </body>
+    </html>
+    """
+    title, text = extract_readable_text(sample_html, "fallback")
+    assert title == "Artículo con saltos en navegación"
+    assert "Enlace 1" not in text
+    assert "Enlace 2" not in text
+    assert "Contenido Principal" in text
+    assert "Este párrafo debe conservarse íntegro" in text
+
+
 def test_extract_readable_text_cleans_wikipedia_noise_and_title_suffix() -> None:
     wiki_html = """
     <html>

@@ -56,6 +56,22 @@ class _ReadableHTMLParser(HTMLParser):
     """Extrae el título (<title>) y el texto visible ignorando scripts, estilos, navegación y notas."""
 
     _IGNORED_TAGS = {"script", "style", "noscript", "svg", "nav", "footer", "header", "aside", "iframe", "sup"}
+    _VOID_TAGS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
     _BLOCK_TAGS = {
         "p",
         "div",
@@ -98,10 +114,12 @@ class _ReadableHTMLParser(HTMLParser):
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         lower = tag.lower()
         if self._ignored_depth > 0:
-            self._ignored_depth += 1
+            if lower not in self._VOID_TAGS:
+                self._ignored_depth += 1
             return
         if lower in self._IGNORED_TAGS or self._has_noise_attribute(attrs):
-            self._ignored_depth = 1
+            if lower not in self._VOID_TAGS:
+                self._ignored_depth = 1
             return
         if lower == "title":
             self._in_title = True
@@ -110,6 +128,8 @@ class _ReadableHTMLParser(HTMLParser):
 
     def handle_endtag(self, tag: str) -> None:
         lower = tag.lower()
+        if lower in self._VOID_TAGS:
+            return
         if self._ignored_depth > 0:
             self._ignored_depth -= 1
             return
