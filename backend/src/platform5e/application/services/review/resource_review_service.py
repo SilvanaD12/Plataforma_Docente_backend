@@ -22,7 +22,11 @@ from platform5e.application.services.media.media_attachment import EDITED_NOTES,
 from platform5e.domain.generation.grounding import VERIFICATION_RULE_VERSION
 from platform5e.domain.generation.resource_formats import needs_structure, normalize_structure, structure_problems
 from platform5e.domain.review.content_fingerprint import content_fingerprint
-from platform5e.domain.review.duplication import DEFAULT_DUPLICATE_THRESHOLD, find_duplicates
+from platform5e.domain.review.duplication import (
+    DEFAULT_DUPLICATE_THRESHOLD,
+    find_cross_unit_duplicates,
+    find_duplicates,
+)
 from platform5e.domain.review.media_change import media_source_changed
 from platform5e.application.services.review.legacy_verification import upgrade_resource_verification
 from platform5e.domain.review.resource_verification import (
@@ -175,9 +179,13 @@ class ResourceReviewService:
         return sorted(resources, key=lambda r: r.get("createdAt", ""), reverse=True)
 
     def get_duplication_report(
-        self, teacher_id: str, unit_id: str, threshold: float | None = None
+        self,
+        teacher_id: str,
+        unit_id: str,
+        threshold: float | None = None,
+        include_course: bool = False,
     ) -> dict[str, Any]:
-        """REV-P3: evalúa la duplicidad entre recursos y preguntas de la unidad."""
+        """REV-P3 / REV-P4: evalúa la duplicidad entre recursos de la unidad y opcionalmente de otras unidades del curso."""
         self._verify_unit_access(teacher_id, unit_id)
         applied_threshold = (
             threshold
@@ -185,7 +193,42 @@ class ResourceReviewService:
             else self._default_duplicate_threshold
         )
         resources = self._review_repository.get_resources_by_unit(teacher_id, unit_id)
-        return find_duplicates(resources, applied_threshold)
+        within_report = find_duplicates(resources, applied_threshold)
+        if not include_course:
+            return within_report
+
+        match = find_course_and_unit(self._teacher_repository.get_courses(teacher_id), unit_id)
+        others: list[tuple[str, str, dict[str, Any]]] = []
+        if match is not None:
+            course, _ = match
+            for other_unit in course.get("units", []):
+                other_unit_id = other_unit["id"]
+                if other_unit_id == unit_id:
+                    continue
+                other_unit_title = str(other_unit.get("title") or other_unit.get("name") or other_unit_id)
+                for other_resource in self._review_repository.get_resources_by_unit(teacher_id, other_unit_id):
+                    others.append((other_unit_id, other_unit_title, other_resource))
+
+        cross_report = find_cross_unit_duplicates(resources, others, applied_threshold)
+        within_pairs = [
+            {**pair, "crossUnit": False, "unitIdB": None, "unitTitleB": None}
+            for pair in within_report["flaggedPairs"]
+        ]
+        all_pairs = within_pairs + cross_report["flaggedPairs"]
+        all_pairs.sort(
+            key=lambda p: (p["score"], p["resourceIdA"], p["resourceIdB"]),
+            reverse=True,
+        )
+        total_compared = within_report["comparedPairs"] + cross_report["comparedPairs"]
+        duplicate_pair_rate = (
+            round(len(all_pairs) / total_compared, 3) if total_compared > 0 else 0.0
+        )
+        return {
+            "threshold": applied_threshold,
+            "comparedPairs": total_compared,
+            "flaggedPairs": all_pairs,
+            "duplicatePairRate": duplicate_pair_rate,
+        }
 
     def retry_verification(
         self, teacher_id: str, unit_id: str, resource_id: str, expected_version: int
