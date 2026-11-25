@@ -373,6 +373,27 @@ Acordado con Silvana en la revisión de los PR (2026-11-09). Ninguna bloquea la 
 - [x] T103 [BE] [B6] Pruebas unitarias (`test_generation_requests_regeneration_adapter.py`, `test_review_errors.py`, `test_resource_regeneration.py`) y prueba E2E (`test_review_planned_regeneration_stale_api.py`).
 - [x] T104 [ALL] [B7] Actualizar especificación `spec.md`, contrato OpenAPI `review-export.openapi.yaml` y regenerar `docs/api/openapi.json`.
 
+<<<<<<< Updated upstream
+=======
+### Control de duplicidad entre unidades del curso (REV-P4)
+- [x] T105 [BE] [REV-P4] Agregar `find_cross_unit_duplicates` en `backend/src/platform5e/domain/review/duplication.py` comparando únicamente pares entre la unidad actual y otras unidades del curso, a nivel de recurso y de pregunta, devolviendo `crossUnit: True`, `unitIdB` y `unitTitleB` con deduplicación al mayor puntaje.
+- [x] T106 [BE] [REV-P4] Extender `get_duplication_report` en `backend/src/platform5e/application/services/review/resource_review_service.py` con `include_course: bool = False`, combinando pares de la unidad actual (`crossUnit: False`, `unitIdB`/`unitTitleB` en `null`) con pares entre unidades y recalculando `comparedPairs` y `duplicatePairRate`.
+- [x] T107 [BE] [REV-P4] Agregar query param `includeCourse` en `routers/resources.py` (`response_model_exclude_unset=True`) y campos opcionales `cross_unit`, `unit_id_b`, `unit_title_b` en `FlaggedPair` (`schemas/resources.py`), con ejemplo cURL `?includeCourse=true`.
+- [x] T108 [BE] [REV-P4] Crear pruebas unitarias en `backend/tests/unit/test_duplication.py` y E2E en `backend/tests/e2e/test_duplication_api.py` verificando compatibilidad sin `includeCourse`, pares cruzados con `unitTitleB` y aislamiento 404.
+- [x] T109 [BE] [REV-P4] Documentar `REV-P4` / `REV-R17` / `REV-C19` en `spec.md`, actualizar `contracts/review-export.openapi.yaml`, regenerar `docs/api/openapi.json` y verificar `test_openapi_documentation.py` y `test_api_documentation.py`.
+- [x] T110 [FE] [REV-P4] Extender `FlaggedPair` y `getDuplicationReport(token, unitId, includeCourse = true)` en `Plataforma_Docente_frontend/src/features/review/api/reviewApi.ts`.
+- [x] T111 [FE] [REV-P4] Mostrar el bloque accesible secundario «Posible contenido repetido en otras unidades» en `ReviewPage.tsx` reutilizando `.duplication-warning__*` en `review.css`, sin bloquear guardado, aprobación ni exportación.
+- [x] T112 [FE] [REV-P4] Agregar pruebas en `reviewApi.test.ts`, `ReviewPage.test.tsx` y `e2e/accessibility.spec.ts` (QA-09 axe-core) y validar `npm run lint`, `npm run build`, `npm run check:bundle`, `npm test` y `npm run test:e2e`.
+
+### Secciones por estado, tarjetas plegables y fuentes citadas en Revisión (REV-P5)
+- [x] T113 [FE] [REV-P5] Agregar utilidades puras en `src/features/review/model/resource.ts` (`STAGE_ORDER`, `stageLabel`, `resourceTypeLabel`, `formatApprovalDate`), `src/features/review/model/citations.ts` (`extractCitedFragments` con máscara de dominio y límite de 300 caracteres) y `src/features/review/model/reviewSections.ts` (agrupación, ordenamiento por etapa/fecha, resguardo al cerrar y siguiente foco), con pruebas unitarias.
+- [x] T114 [FE] [REV-P5] Agregar modo compacto sin botones anidados en `VerificationBadge.tsx`, componente plegable `CitationList.tsx` (`Fuentes citadas (n)`) y contenedor `ResourceCard.tsx`, más soporte `embedded`, `onDirtyChange` y sello `Aprobado el {fecha}` en `ResourceEditor.tsx`.
+- [x] T115 [FE] [REV-P5] Reorganizar `ReviewPage.tsx` con resumen superior, tres secciones plegables (`Pendientes de revisión`, `Aprobados`, `Descartados`), controles `Abrir todo` / `Cerrar todo`, aviso `Todo revisado. Ya puedes ir a Exportación.`, navegación desde enlaces `#<resourceId>` de duplicidad y estilos responsivos en `review.css` (hasta 375 px), evitando emisión falsa de cambios al montar `RichTextEditor.tsx`.
+- [x] T116 [FE] [REV-P5] Actualizar título (`SCORM (Moodle, Chamilo o Canvas)`) e instructivo de Moodle en `src/features/export/model/exportView.ts` y sus pruebas (`exportView.test.ts`, `ExportPage.test.tsx`).
+- [x] T117 [FE] [REV-P5] Agregar pruebas unitarias de componentes/páginas (`VerificationBadge.test.tsx`, `CitationList.test.tsx`, `ResourceCard.test.tsx`, `ResourceEditor.test.tsx`, `ReviewPage.test.tsx`) y recorrido interactivo E2E + axe-core (`e2e/review.spec.ts`), validando `lint`, `build`, `check:bundle`, `npm test` y `npm run test:e2e`.
+- [x] T118 [DOC] [REV-P5] Documentar `REV-P5` (`REV-R18`, `REV-C20`) en `Plataforma_Docente_backend/specs/001-revision-citas/spec.md` y tareas `T113`–`T118` en `tasks.md` sin modificar código ni contratos del backend.
+
+>>>>>>> Stashed changes
 ## Historias del Sprint 1 (Cierre de evidencias)
 
 - [x] HU-043 [E2E] **Exportación a Moodle XML.** Comprobada en Moodle 5.3.1 (`sandbox.moodledemo.net`): formulario con XML, «Importing 1 questions from file», categoría y vista previa respondida (UDP incorrecta con retroalimentación y capa de transporte correcta). Evidencia: `docs/evidence/HU-043/`.
