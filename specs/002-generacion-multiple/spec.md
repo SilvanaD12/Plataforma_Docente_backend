@@ -53,6 +53,7 @@ Como docente, quiero describir con mis propias palabras los recursos que necesit
 | Caso | Dado y cuando | Entonces |
 | --- | --- | --- |
 | GEN-C12 | Describo uno o más recursos desde la pestaña Generación | El chat muestra la unidad activa, los tipos reconocidos en orden 5E y sin repetirlos, sus etapas de solo lectura, la cantidad y los demás parámetros interpretados. Señala los valores faltantes, ambiguos o no permitidos. Puedo corregir el borrador en el formulario existente. El pedido solo se crea cuando confirmo con «Generar». |
+| GEN-C13 | Describo los recursos con palabras de uso común y el público sin rotularlo, por ejemplo «una pregunta detonante y un resumen sobre TCP para primer ciclo» | El borrador trae todos los tipos pedidos (hasta 8): las palabras comunes se reconocen con una tabla de sinónimos del catálogo («resumen» → Resumen de ideas clave). Si una palabra sirve para más de un tipo, no se elige uno: se devuelve un problema con las opciones. La audiencia sin rótulo («para primer ciclo», «para estudiantes de 3.er ciclo», «para pregrado») llena `audience` normalizada («primer ciclo»), sin confundirla con el tema («para explicar TCP» no es una audiencia); «audiencia: …» tiene prioridad. Si la audiencia no coincide con el nivel o el ciclo del curso, se devuelve un problema y no se reemplaza la audiencia del formulario. |
 
 ## Requisitos funcionales
 

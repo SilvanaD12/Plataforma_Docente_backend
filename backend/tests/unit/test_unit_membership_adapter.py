@@ -87,3 +87,16 @@ def test_outcomes_keep_their_ids_codes_and_texts_in_order():
 def test_missing_optional_course_fields_become_empty():
     context = adapter().get_unit_context("docente-b", "u9")
     assert (context.course_summary, context.learning_goal, context.unit_number, context.outcomes) == ("", "", None, ())
+
+
+def test_the_course_level_and_cycle_reach_the_unit_context():
+    """GEN-C13: el intérprete compara la audiencia con el nivel y el ciclo del curso."""
+
+    class WithLevel(FakeTeacherRepository):
+        def get_courses(self, teacher_id):
+            return [{**course, "educationLevel": "Pregrado", "academicCycle": "7.º ciclo"}
+                    for course in super().get_courses(teacher_id)]
+
+    context = AccountUnitMembershipAdapter(WithLevel()).get_unit_context("docente-a", "u1")
+    assert (context.education_level, context.academic_cycle) == ("Pregrado", "7.º ciclo")
+    assert (adapter().get_unit_context("docente-a", "u1").education_level) is None

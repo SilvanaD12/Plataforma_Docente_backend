@@ -30,6 +30,10 @@ class UnitContext:
     unit_number: int | None
     unit_title: str
     outcomes: tuple[OutcomeRef, ...]
+    # Nivel educativo y ciclo del curso (texto libre de Cursos): el intérprete de pedidos los compara con la audiencia
+    # que pide el docente (GEN-C13). None si el curso no los indica.
+    education_level: str | None = None
+    academic_cycle: str | None = None
 
 
 class UnitMembershipPort(Protocol):

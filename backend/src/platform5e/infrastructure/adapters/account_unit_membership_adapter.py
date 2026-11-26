@@ -49,4 +49,6 @@ class AccountUnitMembershipAdapter(UnitMembershipPort):
                 for outcome in unit.get("outcomes") or []
                 if isinstance(outcome, dict) and outcome.get("id")
             ),
+            education_level=_text(course.get("educationLevel")) or None,
+            academic_cycle=_text(course.get("academicCycle")) or None,
         )
