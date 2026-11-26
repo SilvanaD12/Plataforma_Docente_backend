@@ -39,6 +39,16 @@ NO_REPEAT_INSTRUCTION: str = (
     "Tu recurso anterior se parecía demasiado a otro de la secuencia: usa otros ejemplos, preguntas y enfoque."
 )
 SEQUENCE_PREVIEW_CHARS: int = 300
+# T027 (a): el motivo público cuando el generador principal no dejó recursos, según el rechazo que más pesa. Son textos
+# fijos (nunca el texto del proveedor), como los de `provider_errors.public_reason`. En un empate gana el primero.
+FALLBACK_REASONS: dict[str, str] = {
+    "structure": "devolvió recursos sin la estructura que pide el tipo",
+    "grounding": "no devolvió recursos con citas válidas del material",
+    "distractor": "devolvió ítems sin distractores fiables según el material",
+    "plan": "devolvió recursos que no respetaban el plan",
+    "repetition": "devolvió recursos que repetían otros de la secuencia",
+}
+NO_RESOURCES_REASON: str = "no devolvió recursos válidos"
 MIN_RETRIEVED_CHUNKS: int = 3
 MAX_RETRIEVED_CHUNKS: int = 12
 DEFAULT_RETRIEVED_CHUNKS: int = 8
@@ -93,6 +103,16 @@ def saved_parameters(request_data: dict[str, Any]) -> dict[str, Any]:
     return saved
 
 
+def fallback_warning(generator_name: str, rejections: list[dict[str, Any]] | None) -> str:
+    """El motivo público de un generador que no dejó recursos: el tipo de rechazo más frecuente (y, si empatan, el
+    primero de `FALLBACK_REASONS`). Sin rechazos, que no devolvió recursos válidos."""
+    kinds = [item.get("kind") for item in rejections or [] if item.get("kind") in FALLBACK_REASONS]
+    if not kinds:
+        return f"{generator_name} {NO_RESOURCES_REASON}."
+    dominant = max(FALLBACK_REASONS, key=lambda kind: (kinds.count(kind), -list(FALLBACK_REASONS).index(kind)))
+    return f"{generator_name} {FALLBACK_REASONS[dominant]}."
+
+
 def draft_resources(
     generation_context: dict[str, Any],
     primary_generator: ResourceGeneratorPort | None,
@@ -110,13 +130,14 @@ def draft_resources(
 
     if primary_generator is not None:
         try:
+            before = len(rejections) if rejections is not None else 0
             raw_response = primary_generator.generate(generation_context)
             resources = normalize_generated_resources(raw_response, generation_context, rejections)
             active_generator = primary_generator
             if not resources:
-                warning_message = (
-                    f"{primary_generator.description} no devolvió recursos con citas válidas del material."
-                )
+                # T027 (a): el motivo dice qué rechazo pesó más en esta llamada (antes siempre decía «citas»).
+                own = rejections[before:] if rejections is not None else None
+                warning_message = fallback_warning(primary_generator.description, own)
         except Exception as exc:
             # Al paso (y a la API) va solo el motivo genérico; el detalle del proveedor, al registro y sin claves.
             logger.warning("%s no respondió: %s", primary_generator.description, redact_secrets(str(exc))[:500])

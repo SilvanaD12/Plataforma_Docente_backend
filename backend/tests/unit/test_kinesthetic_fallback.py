@@ -225,7 +225,8 @@ def test_gemini_with_one_resource_per_step_falls_back_and_keeps_why(setup):
     assert finished.status == RequestStatus.SUCCEEDED and step.resource_ids  # el generador por reglas la redactó
     assert step.generator == {
         "description": RuleBasedGenerator().description, "usesAi": False, "fallback": True,
-        "fallbackReason": "Gemini · gemini-3.5-flash-lite no devolvió recursos con citas válidas del material. "
+        # T027 (a): todos los rechazos fueron de estructura, y el motivo lo dice (antes decía «citas válidas»).
+        "fallbackReason": "Gemini · gemini-3.5-flash-lite devolvió recursos sin la estructura que pide el tipo. "
                           "Se usó el generador por reglas.",
     }
     structure_rejections = [r for r in step.rejections if r["kind"] == "structure"]

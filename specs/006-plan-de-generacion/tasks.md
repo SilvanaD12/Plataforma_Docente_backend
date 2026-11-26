@@ -113,12 +113,62 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - Hecho en el PR del backend (enlace pendiente). `CatalogEntry` suma `length_hint` y `verification` (`strict` o `framed`, [research R6](research.md#verificación-strict-y-framed)); `domain/generation/text_types.py`, `grounding.verify_framed` y el redactor genérico `_catalog_text`. El `lengthHint` llega al prompt también para los tipos actuales que lo tengan. Pruebas en `tests/unit/test_text_type_verification.py` y `tests/unit/test_planned_generation.py`, con entradas falsas de los dos modos.
   - **Pendiente:** los 28 tipos nuevos siguen inactivos hasta que CUR-P2 cablee el catálogo. Mientras tanto, la etiqueta en Revisión y el esquema HTTP de `resourceType` (lista cerrada) no los aceptan todavía.
 
-- [ ] T027 [BE] [GEN-P2] **Depende de T026.** Problemas que encontró la v4 de P4 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
-  - **(a) Opción múltiple:** `item_opcion_multiple` (ítem 8 del plan) fue al respaldo por reglas en las 5 corridas con plan, sobre todo por «sin citas válidas».
-  - **(b) Plan de Gemini:** falló la validación dos veces (con su reintento) en 4 de 5 corridas de la v4: `NOT_ENOUGH_CONCEPTS` ×3 y `CONCEPT_OWNED_TWICE` ×1.
-  - **(c) Fidelidad:** la `faithfulness` de los recursos redactados desde el plan no se midió todavía (meta ≥ 0,90, con `run_ragas.py`).
-  - **(d) Tiempos:** los demás respaldos fueron por el límite de 60 s de Gemini.
-  - **Pendiente:** analizar cada uno, decidir el arreglo y medir de nuevo.
+- [x] T027 [BE] [GEN-P2] **Depende de T026.** Problemas que encontró la v4 de P4 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
+  - [x] **(a) Opción múltiple:** `item_opcion_multiple` (ítem 8 del plan) fue al respaldo por reglas en las 5 corridas con plan, sobre todo por «sin citas válidas».
+    - **Causa:** no era del plan. En `backend/p4.db` también fue al respaldo en las corridas sin plan (4 de 5 por estructura, 1 sin conexión), con el mismo rechazo «structure»: «hace falta 1 correcta y 3 distractores, cada uno con su retroalimentación y su error conceptual».
+      - El esquema de respuesta compartido (`GEMINI_RESPONSE_SCHEMA` en `infrastructure/llm/gemini_language_model.py`) declaraba en cada alternativa solo `texto`, `correcta`, `retroalimentacion` y `fragmentos`, aunque el prompt pide `error_conceptual` (`MISCONCEPTION_INSTRUCTION` y el formato de `build_prompt_instructions`).
+      - Con el esquema impuesto, Gemini devuelve solo los campos declarados. `_validate_alternatives` (`prompt_drafting.py`) descarta los distractores sin error conceptual, así que no quedaba ninguno.
+      - El límite de salida no influía (no se fija `maxOutputTokens`).
+      - Lo único propio del plan era «como este recurso es breve, no los nombres», que podía acortar las alternativas.
+    - **Arreglo:**
+      - El ítem tiene su propio esquema, como la actividad kinestésica (T073): cada alternativa exige `texto`, `correcta`, `retroalimentacion`, `error_conceptual` y `fragmentos`, con tantas alternativas como `optionCount` y `recursos` limitado a la cantidad. El esquema compartido no cambia.
+      - Con plan, el prompt aclara que la brevedad es del enunciado.
+    - **Motivo del respaldo:** decía «no devolvió recursos con citas válidas» aunque todos los rechazos fueran de estructura. Ahora dice el rechazo que más pesó en la llamada (`fallback_warning` en `step_drafting.py`), con textos fijos sin el texto del proveedor: estructura, citas, distractores, plan o repetición. En un empate, gana en ese orden.
+    - **Títulos dañados** («Evaluaci3n», «transmisi3n», «m3nima»): vienen del modelo. Los fragmentos guardados están bien, y nuestro código no cambia los caracteres: se lee el JSON tal cual y solo se normalizan los espacios. Aparecen 14 veces en los 234 recursos de `p4.db`; no se corrigen.
+    - Pruebas en `tests/unit/test_mcq_generation.py`, con `tests/fixtures/gemini_mcq_without_misconception.json` (el patrón de las respuestas rechazadas). Hecho en el PR del backend (enlace pendiente).
+    - **Verificación:** con pruebas y dobles. Con Gemini, en la línea base de la v5 (descartada para P4) los 10 ítems los redactó la IA, sin respaldo. Falta confirmarlo con el modelo de producción.
+  - [x] **(b) Plan de Gemini:** falló la validación dos veces (con su reintento) en 4 de 5 corridas de la v4: `NOT_ENOUGH_CONCEPTS` ×3 y `CONCEPT_OWNED_TWICE` ×1.
+    - **Causa (planificador con Gemini):**
+      - con 8 tipos y cantidad 2, cada ítem necesita al menos 2 conceptos cortos y distintos: 16 en total, ninguno repetido entre ítems, con 12 fragmentos;
+      - el esquema (`plan_response_schema`) solo pedía `covers.minItems` 1 y el prompt decía «al menos tantos conceptos como su cantidad», sin el número exacto por tipo;
+      - `items_from_model` descartaba en silencio los conceptos que no eran frases cortas (T024), así que un ítem con 2 podía quedar con 1;
+      - el reintento solo decía «Hacen falta al menos 2 conceptos», sin nombrar el concepto descartado ni el ítem por su tipo;
+      - con 3 tipos hacen falta 6 conceptos y casi nunca fallaba (`t027a-mcq-check.json`).
+    - **Arreglo (planificador con Gemini):**
+      - El esquema es un objeto con una propiedad por tipo pedido, cada una con su mínimo exacto (`covers.minItems` = la cantidad); la cantidad solo se pide si el docente la dejó libre. La respuesta en lista se sigue aceptando.
+      - El prompt dice el mínimo de cada tipo, el total y que un concepto no se repite con otra forma.
+      - El reintento nombra el ítem por su tipo, sus conceptos válidos, los descartados por largos y qué hacer; y en un concepto repetido, los dos ítems y en cuál dejarlo.
+      - Arreglos seguros sin otra llamada (`repair_items`), registrados en `generator.repairs`:
+        - un concepto que ya tiene un ítem anterior se quita del posterior si a este le siguen alcanzando sus conceptos;
+        - una cantidad que eligió la IA (nunca una pedida por el docente) baja a su número de conceptos.
+    - **Causa (planificador por reglas):**
+      - las frases se armaban con la lista de palabras de cada fragmento, sin mirar los signos («puerto de destino, longitud» → «destino longitud»; «FTP, SFTP» → «ftp sftp»);
+      - entraban los encabezados de página («Ingeniería de redes  Página 1» → «redes página») y pedazos de oración («udp proporciona»);
+      - a cada ítem se le daban los fragmentos en el orden de la evidencia, aunque no mencionaran sus conceptos.
+    - **Arreglo (planificador por reglas):**
+      - Nuevo `application/services/generation/concept_extraction.py`, que usan el planificador y `candidate_concepts` (la medición). Corta el texto en signos, paréntesis, barras, guiones y «Página N», y quita los encabezados repetidos al comienzo de los fragmentos y las líneas de título (una línea de 8 palabras o menos que no termina como oración, como «Unidad 1: Protocolos de transporte»), porque ninguna oración las desarrolla y el recurso por reglas no podía cubrirlas.
+      - Arma frases de términos unidos por «de» («puerto de destino», «bloqueo de cabeza de línea», «saludo de tres vías»), pares seguidos, nombres con mayúscula («Transmission Control Protocol») y un sustantivo con su sigla («modelo OSI»).
+      - Las siglas (TCP, UDP, RTT) van solas; singular y plural son el mismo concepto.
+      - Las frases que aparecen una sola vez sin «de» quedan de último recurso, solo si faltan conceptos para el plan (con poco material).
+      - Cada ítem recibe los fragmentos que mencionan sus conceptos (el término completo), primero los que mencionan más; la evidencia congelada no cambia.
+    - Pruebas en `tests/unit/test_plan_generator_t027b.py`, con Gemini falso y el texto real del corpus de T067 (la petición de P4: 8 tipos × 2). Hecho en el PR del backend (enlace pendiente).
+    - **Verificación:** con pruebas y dobles. Sin confirmar con Gemini: el informe con plan de la v5 no se escribió, y la v5 se descartó.
+  - [x] **(c) Fidelidad:** la `faithfulness` de los recursos redactados desde el plan no se había medido (meta ≥ 0,90).
+    - **Arreglo:** `measure_duplication.py --faithfulness`, en una corrida nueva o con `--recompute`. Usa la `Faithfulness` de Ragas con el juez de `run_ragas.py` (el mismo modelo y la misma configuración; nuevo `faithfulness_evaluator`). Por cada recurso entregado: la respuesta es el recurso sin título, el contexto son los textos que cita (guardados en el informe) y la pregunta, las indicaciones del pedido.
+    - Los recursos sin citas se omiten y se cuentan; un error del juez queda en el recurso y la medición sigue. Las llamadas van con 2 hilos y con progreso.
+    - El informe trae la media, la parte con 0,90 o más y los calificados, omitidos y errores, por corrida y en el resumen, en `aiOnly` y por tipo; `--compare` agrega la diferencia y si el plan mantiene 0,90.
+    - Documentado en [research R7](research.md#r7-medición-de-la-duplicación-p4) («Fidelidad» y «Comparabilidad con la v5») y en [plan](plan.md#medición-de-p4) («Medición final (v5)»).
+    - Pruebas en `tests/unit/test_measure_faithfulness.py`, con un juez falso.
+    - **Verificación:** la herramienta funcionó con el juez real en la línea base de la v5 (75 recursos, sin errores). Mostró que la meta absoluta de 0,90 solo aplica a los tipos de contenido. La fidelidad con plan queda sin verificar (ver abajo).
+    - **Sin pérdidas:** la corrida con plan de la v5 se perdió porque el informe se escribía después de comparar. Ahora `--compare` y `--from` se comprueban antes de generar, se escribe un informe parcial después de cada corrida y el informe se escribe antes de comparar. `--from-requests` rearma un informe con pedidos que ya terminaron (pruebas en `tests/unit/test_measure_duplication_recovery.py`).
+  - [x] **(d) Tiempos:** los demás respaldos de la v4 fueron por el límite de 60 s de cada llamada a Gemini (`LLM_CALL_DEADLINE_SECONDS`, QA-06).
+    - **Decisión:** el límite se mantiene a propósito. Es el tope de Render y lo que se le promete al docente: un paso que no responde a tiempo se redacta con reglas en lugar de dejar el pedido esperando. Sin cambios en el código.
+    - Esos respaldos se leen en `fallbacks` (con su motivo) y no cuentan como recursos de la IA (`aiOnly`).
+    - **Verificación:** decisión de diseño, sin código. En la v5, con `gemini-3.8-flash`, el límite causó 16 de 40 respaldos sin plan y 19 de 40 con plan. Por eso toda medición fija `LLM_MODEL` con el modelo de producción ([plan](plan.md#medición-de-p4)).
+  - **v5 descartada** ([research R7](research.md#r7-medición-de-la-duplicación-p4)): se corrió con el modelo por defecto (`gemini-3.8-flash`) en lugar de `gemini-3.5-flash-lite`, con mucho respaldo en los dos modos, y su informe con plan no se escribió. La línea base queda solo como evidencia de la fidelidad por tipo.
+- [ ] T028 [E2E] [GEN-P2] **Fidelidad de P4 con plan (decisión con el profesor).** La parte de fidelidad de la meta de P4 no está verificada con plan ([research R7](research.md#r7-medición-de-la-duplicación-p4), «Conclusión de P4»).
+  - **Criterio propuesto:** los tipos de contenido mantienen una `faithfulness` ≥ 0,90 y ningún tipo baja más de 0,05 frente a la línea base, comparado por tipo y medido con `gemini-3.5-flash-lite`.
+  - **Pendiente:** acordar el criterio con el profesor y, después, medir la línea base y el plan con `--faithfulness` y `LLM_MODEL` explícito.
 - [x] T026 [BE] [GEN-P2] **Depende de T025.** Correcciones de la medición tras la v3 ([research R7](research.md#r7-medición-de-la-duplicación-p4)):
   - las oraciones sin títulos ni encabezados, y las tres cifras (todos, `crossType` como principal y `variants`), también en la tasa de pares;
   - la tabla por concepto (mencionado, desarrollado, definido);
@@ -162,6 +212,7 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
   - Resultados en `docs/evidence/GEN-P4/`.
   - Meta: duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90.
   - El script ya está (PR del backend, enlace pendiente): `backend/evaluation/measure_duplication.py`, con pruebas en `tests/unit/test_measure_duplication.py` (backend y embeddings falsos). `--similarity auto` usa embeddings si hay modelo y si no la similitud léxica, registrada como provisional; `--compare` agrega la comparación con la meta.
+  - **Estado:** la duplicación está medida y es el resultado principal de P4: con plan, las oraciones casi repetidas entre tipos distintos bajan un 35 % en la v3 y en la v4, y los pares entre tipos distintos quedan en 5 % o menos; la baja de 50 % solo se cumple en la v3. La v5 se descartó. Queda abierta solo por la fidelidad con plan, que depende de la decisión del profesor (T028).
   - **Medición con Gemini hecha** ([resultado en research R7](research.md#r7-medición-de-la-duplicación-p4)): `v3r-gemini-baseline.json`, `v3r-gemini-plan.json` y `v4-gemini-plan.json`.
     - Oraciones casi repetidas entre tipos distintos (principal): 32,4 % → 21,2 % y 21,1 % (−35 % en las dos corridas con plan).
     - Pares entre tipos distintos: 6,0 % → 2,7 % y 4,1 %.

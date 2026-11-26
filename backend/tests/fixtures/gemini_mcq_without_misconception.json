@@ -1,0 +1,14 @@
+{
+  "description": "T027 (a): el patrón de las respuestas de Gemini rechazadas en la medición de P4 (backend/p4.db, rechazos «structure» de item_opcion_multiple, con plan y sin plan). Con el esquema compartido, las alternativas solo podían traer texto, correcta, retroalimentacion y fragmentos: faltaba error_conceptual y ningún distractor contaba. El texto se armó con las oraciones del corpus de T067; el título conserva el daño que trajo el modelo («Evaluaci3n»).",
+  "response": {"recursos": [{
+    "titulo": "Evaluaci3n de protocolos de transporte y transmisi3n",
+    "contenido": "¿Qué mecanismo de TCP evita que el emisor sature al receptor con demasiados segmentos?",
+    "citas": [{"afirmacion": "El control de flujo de TCP evita que el emisor sature al receptor con demasiados segmentos.", "fragmentos": ["F1"]}],
+    "alternativas": [
+      {"texto": "El control de flujo", "correcta": true, "retroalimentacion": "Correcto: el control de flujo regula el envío.", "fragmentos": ["F1"]},
+      {"texto": "La compresión de cabeceras", "correcta": false, "retroalimentacion": "TCP no comprime cabeceras.", "fragmentos": ["F1"]},
+      {"texto": "El cifrado de extremo a extremo", "correcta": false, "retroalimentacion": "El cifrado no regula el envío.", "fragmentos": ["F1"]},
+      {"texto": "La fragmentación en la red", "correcta": false, "retroalimentacion": "La fragmentación es de la capa de red.", "fragmentos": ["F1"]}
+    ]
+  }]}
+}

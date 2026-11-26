@@ -243,7 +243,24 @@ Un plan de la IA con conceptos repetidos entre ítems no se corrige a mano: cuen
 - **Línea base:** sin plan, en el mismo servidor y la misma base, con `GENERATION_IMPLICIT_PLAN=false` (interruptor solo de medición: redacta el cuerpo anterior como antes de GEN-P1; [plan](plan.md#medición-de-p4)).
 - **Con plan:** aprobado sin cambios.
 
-Se registran en `docs/evidence/GEN-P4/` los dos informes, la calibración y la `faithfulness` media (con `run_ragas.py`).
+Se registran en `docs/evidence/GEN-P4/` los dos informes (con su fidelidad) y la calibración.
+
+**Fidelidad (T027 c).** La meta de P4 pide que el plan no baje la `faithfulness` de 0,90. `measure_duplication.py --faithfulness` la calcula en el mismo informe, en una corrida nueva o con `--recompute` sobre un informe guardado:
+- **Métrica y juez:** la `Faithfulness` de Ragas con el juez de `evaluation/run_ragas.py`: el mismo modelo (`RAGAS_JUDGE_MODEL`, `gemini-3.8-flash` por defecto), temperatura 0 y la misma configuración (180 s por llamada, 5 reintentos). `ResponseRelevancy` no se usa.
+- **Por cada recurso entregado:**
+  - la respuesta es el recurso sin su título ni los encabezados de su estructura (el texto de las oraciones);
+  - el contexto son los textos de los fragmentos que cita, la copia que guarda el recurso y muestra Revisión (`evidence`), como `run_ragas.py --contexts cited`;
+  - la pregunta son las indicaciones del pedido (las mismas en los dos modos).
+- **Omitidos:** los recursos sin citas no se califican y se cuentan (`skipped`).
+- **Errores:** si el juez falla con un recurso, el error queda en ese recurso (`errors`) y la medición sigue. Un puntaje vacío (NaN) también cuenta como error.
+- **Informe:** por corrida y en el resumen, la media, la parte de recursos con 0,90 o más (`atLeastTarget`) y cuántos se calificaron, se omitieron o fallaron; lo mismo solo con los recursos de la IA (`aiOnly`) y por tipo (`byType`). El resumen trae además la media de las medias por corrida (`meanPerRun`).
+- **Comparación:** con `--compare`, la diferencia plan − línea base y si el plan mantiene la media en 0,90 o más (`planMeetsTarget`), con todos los recursos y en `aiOnly`.
+- **Textos guardados:** el informe guarda los textos citados de cada recurso, así un recálculo posterior no usa la API. Los informes v4 y anteriores no los guardan: el primer `--recompute --faithfulness` los lee una vez con la misma cuenta.
+- **Llamadas al juez:** van en paralelo con pocos hilos (`--judge-concurrency`, 2 por defecto) y con el progreso en pantalla. Un recálculo solo califica los recursos sin puntaje, salvo con otro juez o con `--rescore-faithfulness`.
+
+**Comparabilidad con la v5.**
+- **Conceptos:** desde T027 (b), los conceptos candidatos de la evidencia (`conceptReexplanationEvidence`) salen de `concept_extraction.py`, la misma extracción del planificador por reglas, sin frases pegadas («ftp sftp») ni encabezados de página. Las cifras de conceptos de la v3 y la v4 no se comparan con las de la v5. Las de oraciones y pares sí.
+- **Opción múltiple:** en la v1 a la v4, `item_opcion_multiple` fue siempre al respaldo por reglas, con plan y sin plan, porque el esquema de Gemini no pedía el error conceptual de cada distractor (T027 a). En esas versiones, sus recursos no son de la IA en ningún modo.
 
 **Cómo leer el resultado.**
 1. **Primero, ¿los dos modos los redactó la IA?** Mira `aiSteps` frente a `fallbackSteps` y `planGenerators`. Si el plan salió de reglas en varias corridas, la comparación no mide el plan de Gemini.
@@ -274,13 +291,45 @@ Se registran en `docs/evidence/GEN-P4/` los dos informes, la calibración y la `
   - La baja de al menos 50 % solo se cumple en la v3.
   - La evidencia principal (oraciones entre tipos distintos) baja un 35 % en las dos.
   - El `meetsTarget` del informe se calcula sobre todos los pares y sale `false`; para P4 vale la cifra entre tipos distintos.
-- **Pendiente:** la `faithfulness` de los recursos redactados desde el plan no se midió (meta ≥ 0,90), y quedan problemas que encontró la v4 (T027 de [tareas](tasks.md)).
+
+**v5 (descartada).** Se corrió con los arreglos de T027 y `--faithfulness`, pero la comparación no es justa y no se usa para P4:
+- **Otro modelo:** el backend arrancó con el `LLM_MODEL` por defecto (`gemini-3.8-flash`), no con `gemini-3.5-flash-lite`, el de Render y el de la v1 a la v4.
+- **Mucho respaldo:** con ese modelo, 16 de 40 pasos de la línea base fueron al respaldo por reglas (10 por el límite de 60 s y 6 por lecturas sin respuesta) y, según la salida de la corrida con plan, 19 de 40. Con tanto respaldo, ninguno de los dos modos mide a la IA.
+- **Sin informe con plan:** la corrida con plan terminó, pero no escribió su informe. Se cayó al leer el `--compare`, que todavía no existía. Ya está corregido: los archivos de `--compare` y `--from` se comprueban antes de generar, y el informe se escribe antes de comparar. Ver [plan](plan.md#medición-de-p4), «Sin perder corridas».
+- **Lo que se conserva:** `docs/evidence/GEN-P4/v5-gemini-baseline.json`, solo como evidencia de la fidelidad por tipo sin plan (75 recursos calificados, juez `gemini-3.8-flash`):
+
+| Tipo | `faithfulness` | Quién redactó |
+| --- | --- | --- |
+| `glosario` | 0,99 | respaldo (8 de 9) |
+| `explicacion` | 0,93 | IA |
+| `sondeo_diagnostico` | 0,92 | respaldo (10 de 10) |
+| `pregunta_detonante` | 0,79 | IA |
+| `caso_indagacion` | 0,38 | IA |
+| `item_opcion_multiple` | 0,30 | IA |
+| `ejercicio_aplicacion` | 0,12 | IA (4) y respaldo (3) |
+| `guia_exploracion` | 0,07 | respaldo (8) e IA (2) |
+
+- **Por qué las actividades salen bajas:**
+  - el juez parte el recurso en afirmaciones y busca cada una en los fragmentos citados;
+  - las consignas al estudiante («Observa…», «Anota…», «Explica por qué…») y los escenarios inventados (un caso, una empresa, unos datos de ejercicio) no están en el material, así que el juez los cuenta como afirmaciones sin respaldo;
+  - pasa con la IA y con el respaldo por reglas (`guia_exploracion` 0,09 con reglas), así que no es un problema de fidelidad del contenido sino de lo que mide la métrica.
+- **La meta absoluta de 0,90 sirve solo para los tipos de contenido** (`explicacion`, `glosario` y similares). Viene de QA-05, que la midió solo con explicaciones (C-01 a C-05, media 0,97). Aplicada a todos los tipos, ninguna generación con actividades la cumpliría, con plan o sin él.
+- La media de todos los recursos (0,57; 0,53 solo con la IA) mezcla tipos y quién redactó, así que no se usa.
+
+**Conclusión de P4.**
+- **Resultado principal: el plan baja la duplicación.** Las oraciones casi repetidas entre recursos de tipos distintos bajan un 35 % en la v3 y en la v4, con planes de Gemini (v3) y de reglas (v4), y la baja se sostiene solo con los recursos de la IA (−39 % y −50 %). Los pares duplicados entre tipos distintos quedan en 5 % o menos en las dos; la baja de 50 % solo se cumple en la v3.
+- **La parte de fidelidad de la meta no está verificada con plan.** La v1 a la v4 no la midieron y la v5 se descartó.
+- **Criterio propuesto (decisión del profesor):**
+  - los tipos de contenido mantienen una `faithfulness` de 0,90 o más con plan;
+  - ningún tipo baja más de 0,05 frente a la línea base;
+  - medido con `gemini-3.5-flash-lite`, el modelo de producción, y comparado por tipo (`summary.faithfulness.byType` y `aiOnly`), no con la media de todos los recursos.
+- **Pendiente:** la decisión del profesor sobre el criterio y, con ella, la medición de la fidelidad con plan ([tareas](tasks.md), T028; T019 queda abierta solo por eso).
 
 **Meta.**
 - **Evidencia principal:** con plan, las oraciones casi repetidas entre recursos de tipos distintos bajan frente a la línea base, con la mayoría de los pasos redactados por la IA en los dos modos; los conceptos explicados otra vez se informan.
 - **Tasa de pares (se conserva la meta de P4):** la de recursos de tipos distintos, con plan, baja al menos un 50 % frente a la línea base y queda en 5 % o menos, con el τ calibrado.
 - **Recursos:** los entregados no bajan.
-- **Fidelidad:** la `faithfulness` media sigue en 0,90 o más.
+- **Fidelidad:** la `faithfulness` media sigue en 0,90 o más. Como meta absoluta solo aplica a los tipos de contenido (ver «v5 (descartada)»); el criterio por tipo queda para decidirlo con el profesor.
 
 Mientras REV-P3 no esté, sin embeddings la medición usa la similitud léxica (Jaccard de `most_similar`, `domain/generation/sequence.py`), registrada como provisional.
 

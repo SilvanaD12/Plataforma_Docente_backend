@@ -194,9 +194,43 @@ _KINESTHETIC_STRUCTURE_SCHEMA: dict[str, Any] = {
 }
 
 
-def response_schema(resource_type: str | None, quantity: int | None = None) -> dict[str, Any]:
-    """Esquema de respuesta de Gemini para el tipo pedido. Solo la actividad kinestésica tiene uno propio: exige su
-    «estructura» y limita «recursos» a la cantidad pedida. Los demás tipos reciben GEMINI_RESPONSE_SCHEMA tal cual."""
+# Ítem de opción múltiple (T027 (a), spec 006). Con el esquema compartido, las alternativas no declaraban
+# `error_conceptual`: Gemini solo devuelve los campos declarados, así que ningún distractor traía su error conceptual y
+# `_validate_alternatives` los descartaba todos (rechazo «structure», con plan y sin plan, en la medición de P4). Aquí
+# cada alternativa exige texto, correcta, retroalimentación, error conceptual y fragmentos, y su número es el pedido.
+_MCQ_OPTION_SCHEMA: dict[str, Any] = {
+    "type": "OBJECT",
+    "properties": {
+        "texto": _STRING_TYPE,
+        "correcta": {"type": "BOOLEAN"},
+        "retroalimentacion": _STRING_TYPE,
+        # En la clave correcta no se usa; se pide igual porque el esquema no distingue la correcta de los distractores.
+        "error_conceptual": _STRING_TYPE,
+        "fragmentos": _TAGS_ARRAY_TYPE,
+    },
+    "required": ["texto", "correcta", "retroalimentacion", "error_conceptual", "fragmentos"],
+}
+MCQ_TYPE: str = "item_opcion_multiple"
+
+
+def _limit_resources(schema: dict[str, Any], quantity: int | None) -> None:
+    if isinstance(quantity, int) and not isinstance(quantity, bool) and quantity > 0:
+        schema["properties"]["recursos"]["maxItems"] = str(quantity)
+
+
+def response_schema(
+    resource_type: str | None, quantity: int | None = None, option_count: int | None = None
+) -> dict[str, Any]:
+    """Esquema de respuesta de Gemini para el tipo pedido. La actividad kinestésica y el ítem de opción múltiple tienen
+    uno propio, que limita «recursos» a la cantidad pedida; los demás tipos reciben GEMINI_RESPONSE_SCHEMA tal cual."""
+    if resource_type == MCQ_TYPE:
+        schema = deepcopy(GEMINI_RESPONSE_SCHEMA)
+        _limit_resources(schema, quantity)
+        options = schema["properties"]["recursos"]["items"]["properties"]["alternativas"]
+        options["items"] = deepcopy(_MCQ_OPTION_SCHEMA)
+        if isinstance(option_count, int) and not isinstance(option_count, bool) and option_count > 1:
+            options["minItems"] = options["maxItems"] = str(option_count)
+        return schema
     if resource_type != "actividad_kinestesica":
         return GEMINI_RESPONSE_SCHEMA
     schema = deepcopy(GEMINI_RESPONSE_SCHEMA)
@@ -279,7 +313,7 @@ class GeminiLanguageModel(ResourceGeneratorPort):
         """Envía el contexto estructurado y extrae el JSON validado."""
         system_instruction, user_prompt = build_prompt_instructions(context)
         request = context.get("solicitud") or {}
-        schema = response_schema(request.get("tipo"), request.get("cantidad"))
+        schema = response_schema(request.get("tipo"), request.get("cantidad"), request.get("alternativas"))
         deadline = time.monotonic() + self.call_deadline_seconds
         try:
             parsed_data = self._complete_json(system_instruction, user_prompt, schema, attempt=1, deadline=deadline)

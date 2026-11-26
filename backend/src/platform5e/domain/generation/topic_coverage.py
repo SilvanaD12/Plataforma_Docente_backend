@@ -94,6 +94,11 @@ def _is_term(word: str) -> bool:
     return len(key) >= 3 or (len(word) == 2 and word.isupper())
 
 
+def is_topic_term(word: str) -> bool:
+    """T027 (b): la misma regla de término, para la extracción de conceptos del plan."""
+    return _is_term(word)
+
+
 @dataclass(frozen=True)
 class TopicPhrase:
     """Dos términos del tema seguidos, o unidos por conectores, tal como los escribió el docente."""

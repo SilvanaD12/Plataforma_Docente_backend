@@ -136,11 +136,14 @@ Con PostgreSQL en Docker, los mismos comandos de la pila local de [QA-17](../005
 - `GENERATION_REQUIRE_PLAN=true` tiene prioridad: el pedido sin plan se rechaza con `422 PLAN_REQUIRED` aunque el interruptor esté en `false`.
 - Un plan aprobado (`{planId, planVersion}`) se genera igual con los dos valores.
 
+**El modelo, siempre explícito.** Toda medición (P4, Ragas, carga) define `LLM_MODEL` con el modelo de producción, el mismo de Render (`gemini-3.5-flash-lite`). Sin `LLM_MODEL`, el backend usa el modelo por defecto del código (`gemini-3.8-flash`): así se corrió la v5, con otros tiempos y mucho más respaldo, y se descartó ([research R7](research.md#r7-medición-de-la-duplicación-p4)).
+
 **Las dos corridas usan el mismo código, el mismo servidor y la misma base**, con Gemini y el corpus de T067; solo cambia `GENERATION_IMPLICIT_PLAN` al arrancar el backend. Así la diferencia medida es la del plan, no la de otras correcciones del código. Desde `backend/`, con la clave local de Gemini en la terminal del backend (nunca en Render):
 
 ```bash
 # Terminal del backend: misma base para las dos corridas
 export DATABASE_URL="sqlite:///$(pwd)/p4.db" LLM_PROVIDER=gemini GENERATION_REQUIRE_PLAN=false
+export LLM_MODEL=gemini-3.5-flash-lite   # el de Render: sin esto se usa el modelo por defecto del código
 read -rs LLM_API_KEY && export LLM_API_KEY   # la clave no queda en el historial
 
 # 1. Línea base: GENERATION_IMPLICIT_PLAN=false (solo para medir)
@@ -167,7 +170,46 @@ export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
 - **Guarda de la línea base:** si un pedido de `--mode baseline` vuelve con un plan, el backend tiene el interruptor encendido. El script se detiene sin escribir el informe.
 - **Qué dice el informe:** cada uno registra el valor del interruptor con que se midió (`server`).
 - **Con reglas:** lo mismo con `LLM_PROVIDER=rules` y sin clave, y `--out …/rules-*.json`.
-- **`faithfulness`:** con `run_ragas.py` sobre las muestras de cada modo.
+- **`faithfulness`:** con `--faithfulness`, en el mismo informe ([research R7](research.md#r7-medición-de-la-duplicación-p4), «Fidelidad»).
+
+**Medición final (v5).** Las dos corridas con los arreglos de T027, 5 corridas por modo, los umbrales de `calibration-v2.json` y la fidelidad. En la terminal de la medición hacen falta Ragas (`pip install -r evaluation/requirements.txt` en el entorno de la medición, como para `run_ragas.py`) y la clave del juez; sin Ragas o sin clave, la medición se detiene antes de generar.
+
+```bash
+export EVAL_EMAIL=duplicacion.p4@correo.pe EVAL_PASSWORD=clave-segura-9
+read -rs GEMINI_API_KEY && export GEMINI_API_KEY   # el juez de run_ragas.py; la clave no queda en el historial
+# Con el backend 1 (línea base, GENERATION_IMPLICIT_PLAN=false)
+.venv/bin/python evaluation/measure_duplication.py --mode baseline --corpus evaluation/corpus_t067 --runs 5 \
+  --quantity 2 --threshold 0.885 --sentence-threshold 0.865 --faithfulness \
+  --out ../docs/evidence/GEN-P4/v5-gemini-baseline.json
+# Con el backend 2 (plan, GENERATION_IMPLICIT_PLAN=true)
+.venv/bin/python evaluation/measure_duplication.py --mode plan --corpus evaluation/corpus_t067 --runs 5 \
+  --quantity 2 --threshold 0.885 --sentence-threshold 0.865 --faithfulness \
+  --out ../docs/evidence/GEN-P4/v5-gemini-plan.json --compare ../docs/evidence/GEN-P4/v5-gemini-baseline.json
+```
+
+- **Juez:** el modelo de `run_ragas.py` (`--judge-model`, o `RAGAS_JUDGE_MODEL`), con 2 llamadas a la vez (`--judge-concurrency`). Si el plan gratuito limita las solicitudes por minuto, `--judge-concurrency 1`.
+- **Errores del juez:** quedan en cada recurso. Para calificar solo esos después, sin generar: `--recompute --from ../docs/evidence/GEN-P4/v5-gemini-plan.json --faithfulness --out ../docs/evidence/GEN-P4/v5-gemini-plan.json` (con los mismos `--threshold` y `--sentence-threshold`).
+- **Informes anteriores:** `--recompute --faithfulness` también califica la v4; la primera vez lee los textos citados de la API con la misma cuenta.
+- **Qué mirar:** `summary.faithfulness` (media, `atLeastTarget`, `aiOnly`, `byType`) y `comparison.faithfulness` (`difference` y `planMeetsTarget`). Las cifras de conceptos de la v5 no se comparan con las de la v3 y la v4 (otra extracción, T027 b).
+
+**Sin perder corridas.**
+- **Al inicio:** el informe de `--compare` y los de `--from` se comprueban antes de iniciar sesión. Si falta uno o no se puede leer, la medición se detiene sin generar. Si la línea base todavía no existe, se mide sin `--compare` y se compara después con `--recompute --from <informe> --compare <línea base>`.
+- **Durante la medición:** después de cada corrida se escribe `<informe>.partial.json` (por ejemplo `v5-gemini-plan.partial.json`, con `"partial": true`). El informe se escribe antes de calificar, otra vez con cada puntaje del juez y antes de comparar; al terminar, el parcial se borra.
+- **Si la comparación falla:** el informe queda escrito con `comparisonError` y la medición termina con el resumen.
+
+**Rearmar un informe con pedidos que ya terminaron** (`--from-requests`). Si una medición se cortó después de generar, sus pedidos siguen en la base del backend. El informe se rearma con ellos desde la API, como lo habría armado la medición: pasos, generadores, plan, recursos, textos, textos citados y conceptos. Después siguen las métricas, `--faithfulness` y `--compare`, sin generar otra vez.
+- Hace falta el mismo backend y la misma base, `--mode` del modo con que se generaron (se comprueba con el plan de cada pedido) y la misma cuenta.
+- La clave de idempotencia de cada corrida (`key`) queda en `null`: la API no la devuelve.
+- Los ids se leen de la base, solo para lectura. La clave empieza con `p4-<modo>-<run-id>-`:
+
+```bash
+sqlite3 -readonly v5.db "SELECT id, idempotency_key, status FROM gen_generation_requests
+  WHERE idempotency_key LIKE 'p4-plan-%' ORDER BY created_at"
+# Con el backend sobre la misma base (v5.db) y la misma cuenta:
+.venv/bin/python evaluation/measure_duplication.py --mode plan --from-requests <id1> <id2> <id3> <id4> <id5> \
+  --threshold 0.885 --sentence-threshold 0.865 --faithfulness \
+  --out ../docs/evidence/GEN-P4/v5-gemini-plan.json --compare ../docs/evidence/GEN-P4/v5-gemini-baseline.json
+```
 
 **Calibrar los umbrales** con los informes guardados. Los informes traen los textos de los recursos; los anteriores, sin textos, se leen de la API con el mismo backend, la misma base y **la misma cuenta que los creó**. Si la API no devuelve un pedido (otra cuenta, otra base), la calibración se detiene con el motivo.
 
@@ -197,9 +239,10 @@ Después se vuelve a correr la medición con `--threshold` y `--sentence-thresho
 Meta (la de P4 se conserva para la tasa de pares entre tipos distintos): duplicación ≤ 5 % y al menos 50 % menos que la línea base, sin perder recursos ni bajar la `faithfulness` de 0,90. La evidencia principal de que no se repite contenido son las oraciones casi repetidas entre recursos de tipos distintos, que deben bajar con plan.
 
 **Resultado con Gemini** (v3 recalculada y v4; detalle en [research R7](research.md#r7-medición-de-la-duplicación-p4)):
-- **Oraciones casi repetidas entre tipos distintos:** −35 % en las dos corridas con plan.
+- **Oraciones casi repetidas entre tipos distintos:** −35 % en las dos corridas con plan. Es el resultado principal de P4.
 - **Meta de P4, cumplida en parte:** pares entre tipos distintos ≤ 5 % en las dos; −50 % solo en la v3.
-- **Pendiente:** la `faithfulness` y los problemas de T027.
+- **v5, descartada:** corrió con el modelo por defecto en lugar del de producción y con mucho respaldo. Su línea base queda solo como evidencia de la fidelidad por tipo.
+- **Fidelidad con plan, sin verificar:** el criterio por tipo (los tipos de contenido ≥ 0,90 y ningún tipo baja más de 0,05 frente a la línea base, con `gemini-3.5-flash-lite`) queda para decidirlo con el profesor.
 
 ## Seguimiento de complejidad
 
