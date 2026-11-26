@@ -345,3 +345,47 @@ def test_openapi_declares_bearer_for_swagger(server: str):
         assert api.get("/api/v1/generations", headers={"Authorization": "Basic incorrecto"}).status_code == 401
         wrong_scheme = {"Authorization": "Basic incorrecto"}
         assert start_generation(api, wrong_scheme, "u2", "guia_exploracion", **GENERATION_PARAMS).status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("second_unit", "code", "details"),
+    [
+        (
+            {"title": "  INTRODUCCION   A REDES "},
+            "DUPLICATE_UNIT_TITLE",
+            [{"field": "title", "unitIndex": 1}],
+        ),
+        (
+            {"title": "Dispositivos", "outcomes": [{"code": "ra1.1", "text": "Identifica un router"}]},
+            "DUPLICATE_OUTCOME",
+            [{"field": "code", "unitIndex": 1, "outcomeIndex": 0}],
+        ),
+        (
+            {"title": "Dispositivos", "outcomes": [{"code": "RA2.1", "text": "  DISTINGUE   TCP Y UDP "}]},
+            "DUPLICATE_OUTCOME",
+            [{"field": "text", "unitIndex": 1, "outcomeIndex": 0}],
+        ),
+    ],
+)
+def test_edit_course_returns_the_field_for_a_duplicate(server, second_unit, code, details):
+    payload = {**COURSE, "code": "CUR-A", "units": [{
+        "title": "Introducci\u00f3n a Redes",
+        "outcomes": [{"code": "RA1.1", "text": "Distingue TCP y UDP"}],
+    }]}
+    with httpx.Client(base_url=server, timeout=30) as api:
+        headers = login(api)
+        created = api.post("/api/v1/courses", headers=headers, json=payload)
+        assert created.status_code == 201, created.text
+        course = created.json()
+        first_unit = {**payload["units"][0], "id": course["units"][0]["id"]}
+        conflict = api.put(
+            f"/api/v1/courses/{course['id']}", headers=headers,
+            json={**payload, "units": [first_unit, second_unit]},
+        )
+        assert conflict.status_code == 409, conflict.text
+        error = conflict.json()["error"]
+        assert (error["code"], error["details"]) == (code, details)
+
+        courses = api.get("/api/v1/courses", headers=headers)
+        assert courses.status_code == 200, courses.text
+        assert next(item for item in courses.json() if item["id"] == course["id"]) == course
