@@ -21,7 +21,8 @@ class AccountConfigurationError(DomainError):
         *,
         details: list[dict[str, Any]] | None = None,
     ) -> None:
-        self.details = details
+        if details is not None:
+            self.details = details
         self.code: str = code
         self.message: str = message
         self.status_code: int = status_code
