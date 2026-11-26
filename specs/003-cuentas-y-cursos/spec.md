@@ -36,6 +36,8 @@ Como docente, quiero organizar mis cursos y unidades para preparar el material y
 | CC-C9 | Confirmo la eliminación de un curso propio | Se eliminan curso, unidades, documentos, fragmentos, vectores, recursos, verificaciones y multimedia asociados. Se conserva el registro de descarga por docente con fecha, formato, archivo, curso y unidad. |
 | CC-C10 | Material o Generación consulta el acceso a una unidad | Cuentas confirma la pertenencia al docente autenticado. Una unidad ajena o inexistente produce un rechazo que omite sus datos. |
 
+**CC-C11.** Al crear o editar un curso, los titulos de unidad y los codigos y textos de los resultados son unicos dentro del curso. La comparacion ignora mayusculas, tildes y espacios extra. La API devuelve `409 DUPLICATE_UNIT_TITLE` o `409 DUPLICATE_OUTCOME` e identifica el primer campo que hay que corregir con `field`, `unitIndex` y, para resultados, `outcomeIndex`. Los indices empiezan en cero. El docente puede corregir los duplicados de un curso existente antes de guardarlo.
+
 ## Requisitos funcionales
 
 - **CC-R1.** Validar los datos de registro, normalizar el correo y hacer cumplir su unicidad.

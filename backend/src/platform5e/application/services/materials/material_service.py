@@ -1,35 +1,42 @@
 """
-Ingesta y procesamiento del material del docente (EN-007, EN-012 y EN-013):
-extrae el texto, genera fragmentos con solapamiento, los vectoriza y actualiza el estado del documento.
+Ingesta y procesamiento del material del docente (EN-007, EN-012, EN-013 y Plan v2-F/G/H):
+extrae el texto, evalúa relevancia y duplicidad entre unidades, genera fragmentos y vectoriza.
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
 from platform5e.application.ports.outbound.chunk_repository_port import ChunkRepositoryPort
-from platform5e.application.ports.outbound.open_educational_resource_port import OpenEducationalResourcePort
-from platform5e.application.ports.outbound.text_extractor_port import TextExtractorPort
-from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
-from platform5e.application.ports.outbound.unit_membership_port import UnitMembershipPort
 from platform5e.application.ports.outbound.evidence_retriever_port import EvidenceRetrieverPort
-from platform5e.application.services.provider_errors import public_reason, redact_secrets
-from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
-from platform5e.domain.accounts.teacher_account import find_course_and_unit
-from platform5e.domain.materials.chunking import MaterialError, chunk_pages
+from platform5e.application.ports.outbound.open_educational_resource_port import OpenEducationalResourcePort
+from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
+from platform5e.application.ports.outbound.text_extractor_port import TextExtractorPort
+from platform5e.application.ports.outbound.unit_membership_port import UnitMembershipPort
 from platform5e.application.ports.outbound.web_content_fetcher_port import WebContentFetcherPort
+from platform5e.application.services.materials.chunk_embedding_service import ChunkEmbeddingService
 from platform5e.application.services.materials.referent_service import ReferentService
+from platform5e.application.services.provider_errors import public_reason, redact_secrets
+from platform5e.domain.accounts.teacher_account import find_course_and_unit
 from platform5e.domain.generation.generation_plan import PlanFragment
+from platform5e.domain.materials.chunking import MaterialError, chunk_pages
+from platform5e.domain.review.duplication import similarity
 
 OPEN_EDUCATIONAL_RESOURCE_TYPE: str = "Artículo de fuente abierta"
 WEB_URL_RESOURCE_TYPE: str = "Página web"
 NO_TEXT_FOUND_MESSAGE: str = (
     "No se encontró texto en el archivo. Si es un PDF escaneado (solo imágenes), "
     "súbelo como PDF con texto seleccionable o copia el contenido en un TXT."
+)
+RELEVANCE_WARNING_THRESHOLD: float = 0.06
+RELEVANCE_WARNING_MESSAGE: str = (
+    "Este material parece no tener relación con tu unidad. ¿Deseas conservarlo?"
 )
 
 logger = logging.getLogger("platform5e.materials")
@@ -41,9 +48,59 @@ def _get_utc_now() -> str:
 
 
 def build_article_filename(title: str, source_label: str = "") -> str:
-    """Genera un nombre de archivo normalizado para artículos de fuentes abiertas."""
+    """Genera un nombre de archivo normalizado para artículos de fuentes abiertas y páginas web."""
     cleaned_title = re.sub(r"[\\/\x00-\x1f]", " ", title).strip()[:140] or "Artículo"
     return f"{cleaned_title}.txt"
+
+
+def compute_normalized_sha256(text: str) -> str:
+    """Calcula la huella SHA-256 sobre el texto normalizado (sin diacríticos, minúsculas y espacios colapsados)."""
+    decomposed = unicodedata.normalize("NFKD", text or "")
+    without_accents = "".join(ch for ch in decomposed if not unicodedata.combining(ch)).lower()
+    collapsed = re.sub(r"\s+", " ", without_accents).strip()
+    return hashlib.sha256(collapsed.encode("utf-8")).hexdigest()
+
+
+def evaluate_unit_relevance(
+    extracted_text: str,
+    course_name: str,
+    unit_title: str,
+    outcomes: list[dict[str, Any]],
+) -> str | None:
+    """Evalúa similitud léxica del material contra el curso, unidad y resultados de aprendizaje (sin IA)."""
+    outcome_texts = " ".join(
+        str(o.get("description") or o.get("text") or "") for o in outcomes if isinstance(o, dict)
+    )
+    reference_context = f"{course_name} {unit_title} {outcome_texts}".strip()
+    if not reference_context or not extracted_text.strip():
+        return None
+
+    sample_text = extracted_text[:3500]
+    score = similarity(reference_context, sample_text)
+    if score < RELEVANCE_WARNING_THRESHOLD:
+        return RELEVANCE_WARNING_MESSAGE
+    return None
+
+
+def _is_web_origin_document(metadata: dict[str, Any]) -> bool:
+    doc_type = str(metadata.get("documentType") or "")
+    origin = metadata.get("origin")
+    if doc_type in {OPEN_EDUCATIONAL_RESOURCE_TYPE, WEB_URL_RESOURCE_TYPE}:
+        return True
+    return isinstance(origin, dict) and bool(origin.get("url"))
+
+
+def _extract_full_text_from_pages(pages: list[Any]) -> str:
+    """Extrae el texto concatenado soportando tuplas `(location, text)` o diccionarios."""
+    parts: list[str] = []
+    for page in pages:
+        if isinstance(page, tuple) and len(page) >= 2:
+            parts.append(str(page[1] or ""))
+        elif isinstance(page, dict):
+            parts.append(str(page.get("text") or page.get("texto") or ""))
+        else:
+            parts.append(str(page or ""))
+    return "\n\n".join(parts)
 
 
 class MaterialService:
@@ -125,7 +182,6 @@ class MaterialService:
                         400,
                     )
         else:
-            # Fallback limpio sin llamadas duplicadas para pruebas unitarias sin puerto
             unit = self._get_unit(teacher_id, unit_id)
             if outcome_ids:
                 valid_ids = {
@@ -140,26 +196,55 @@ class MaterialService:
                         "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.",
                         400,
                     )
-                
-            else:
-                # Fallback para pruebas unitarias donde no se inyecta unit_membership_port
-                unit = self._get_unit(teacher_id, unit_id)
-                if outcome_ids:
-                    valid_ids = {
-                        outcome.get("id")
-                        for outcome in unit.get("outcomes", [])
-                        if isinstance(outcome, dict) and outcome.get("id")
-                    }
-                    invalid_ids = set(outcome_ids) - valid_ids
-                    if invalid_ids:
-                        raise MaterialError(
-                            "INVALID_OUTCOMES",
-                            "Los resultados de aprendizaje proporcionados no pertenecen a la unidad.",
-                            400,
-                        )
+
+    def _evaluate_material_warnings(
+        self,
+        teacher_id: str,
+        document_id: str,
+        unit_id: str,
+        full_text: str,
+    ) -> dict[str, Any]:
+        """Calcula huella SHA-256, detecta duplicidad en el curso y evalúa relevancia frente a la unidad."""
+        content_hash = compute_normalized_sha256(full_text)
+        duplicate_warning: str | None = None
+        relevance_warning: str | None = None
+
+        courses = self._teacher_repository.get_courses(teacher_id)
+        match = find_course_and_unit(courses, unit_id)
+        if match is not None:
+            course, unit = match
+            unit_titles_by_id: dict[str, str] = {
+                str(u["id"]): str(u.get("title") or u["id"])
+                for u in course.get("units", [])
+                if isinstance(u, dict) and u.get("id")
+            }
+
+            for existing_doc in self._teacher_repository.get_documents(teacher_id):
+                if existing_doc.get("id") == document_id:
+                    continue
+                existing_unit_id = str(existing_doc.get("unitId") or "")
+                if existing_unit_id not in unit_titles_by_id:
+                    continue
+                if existing_doc.get("contentHash") == content_hash:
+                    target_unit_title = unit_titles_by_id[existing_unit_id]
+                    duplicate_warning = f"Este material ya está en la unidad «{target_unit_title}»."
+                    break
+
+            relevance_warning = evaluate_unit_relevance(
+                extracted_text=full_text,
+                course_name=str(course.get("name") or ""),
+                unit_title=str(unit.get("title") or ""),
+                outcomes=unit.get("outcomes") if isinstance(unit.get("outcomes"), list) else [],
+            )
+
+        return {
+            "contentHash": content_hash,
+            "duplicateWarning": duplicate_warning,
+            "relevanceWarning": relevance_warning,
+        }
 
     def process_material(self, teacher_id: str, document_id: str) -> dict[str, Any]:
-        """Extrae el texto del documento, lo divide en fragmentos y persiste el resultado."""
+        """Extrae el texto del documento, evalúa advertencias no bloqueantes, fragmenta y persiste."""
         metadata, binary_content = self._get_document(teacher_id, document_id)
         try:
             pages = self._text_extractor.extract(metadata["kind"], binary_content)
@@ -172,18 +257,29 @@ class MaterialService:
                 teacher_id, metadata, NO_TEXT_FOUND_MESSAGE, len(pages) or None
             )
 
+        full_text = _extract_full_text_from_pages(pages)
+        warnings_and_hash = self._evaluate_material_warnings(
+            teacher_id=teacher_id,
+            document_id=document_id,
+            unit_id=metadata["unitId"],
+            full_text=full_text,
+        )
+
         persisted_chunks = [{**chunk, "id": f"frag-{uuid4().hex[:16]}"} for chunk in chunks]
         self._chunk_repository.replace_chunks(
             teacher_id, document_id, metadata["unitId"], persisted_chunks
         )
 
+        page_count: int | None = None if _is_web_origin_document(metadata) else len(pages)
+
         updated_metadata: dict[str, Any] = {
             **metadata,
+            **warnings_and_hash,
             "status": "procesado",
             "currentStep": None,
             "processedAt": _get_utc_now(),
             "fragmentCount": len(chunks),
-            "pageCount": len(pages),
+            "pageCount": page_count,
             "errorMessage": None,
             **self._embed_document_chunks(document_id),
         }
@@ -222,7 +318,6 @@ class MaterialService:
         try:
             run = self._embedding_service.embed_pending(document_id=document_id)
         except Exception as exc:
-            # `embeddingError` se guarda y la API lo devuelve: solo el motivo genérico. El detalle, al registro.
             logger.warning(
                 "No se pudieron generar los embeddings de %s: %s", document_id, redact_secrets(str(exc))[:500]
             )
@@ -278,7 +373,6 @@ class MaterialService:
         if not 3 <= len(cleaned_topic) <= 120:
             raise MaterialError("INVALID_TOPIC", "Escribe un tema de 3 a 120 caracteres.")
 
-        # T007: Validación segura contra unidad ajena o inexistente
         self.validate_unit_membership_secure(teacher_id, unit_id, [])
 
         if self._open_resource_port is None:
@@ -363,7 +457,6 @@ class MaterialService:
         """Descarga una URL pública, extrae su texto limpio, la guarda e indexa como material (MAT-P1)."""
         normalized_outcomes = list(dict.fromkeys(outcome_ids or []))
 
-        # MAT-C2 / MAT-C9: Validación segura de pertenencia a unidad y outcomes antes de hacer requests externos
         self.validate_unit_membership_secure(teacher_id, unit_id, normalized_outcomes)
 
         if self._web_fetcher_port is None:

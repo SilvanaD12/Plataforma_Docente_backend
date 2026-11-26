@@ -24,7 +24,7 @@ from sqlalchemy import (
 )
 
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
-from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine
+from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine, run_with_db_retry
 from platform5e.infrastructure.persistence.error_translation import translate_persistence_errors
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_plan_repository import GenerationPlanORM
@@ -35,8 +35,6 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_re
 )
 
 
-# Cursos y documentos guardados antes del contrato en inglés (octubre de 2026) traen claves en español.
-# Se adaptan al leer, sin migrar la base; el Sprint 2 los migra y quita esta adaptación.
 _LEGACY_COURSE_KEYS = {"sumilla": "summary", "logro": "learningGoal"}
 _LEGACY_ORIGIN_KEYS = {"fuente": "source", "licencia": "license", "tema": "topic"}
 
@@ -95,6 +93,7 @@ class DocumentORM(Base):
     teacher_id = Column("docente", String, nullable=False)
     unit_id = Column("unidad", String, nullable=False)
     file_name = Column("nombre", String, nullable=False)
+    content_hash = Column("content_hash", String, nullable=True, index=True)
     metadata_json = Column("datos", JSON, nullable=False)
     content_bytes = Column("contenido", LargeBinary, nullable=False)
     __table_args__ = (UniqueConstraint("docente", "unidad", "nombre"),)
@@ -112,6 +111,7 @@ class ChunkORM(Base):
     location = Column("ubicacion", String, nullable=False)
     text_content = Column("texto", Text, nullable=False)
 
+
 class TeacherResourceORM(Base):
     """Recursos pedagógicos generados para una unidad y su revisión."""
 
@@ -121,16 +121,9 @@ class TeacherResourceORM(Base):
     unit_id = Column("unidad", String, nullable=False, index=True)
     created_at = Column("creado", String, nullable=False)
     resource_data = Column("datos", JSON, nullable=False)
-    # REV-01 (REV-R12): guardado condicional por versión. Migración 20261108000001_resource_version.sql.
     version = Column(Integer, nullable=False, default=1, server_default="1")
-    # REV-01 (REV-C12): versión desde la que hay un pedido de regeneración reservado; NULL sin pedido en curso.
-    # Migración 20261109000001_regeneration_claim.sql.
     regeneration_claim = Column(Integer, nullable=True)
-    # REV-01 (REV-C12): `attemptId` del intento de regeneración vigente; las escrituras de su resultado lo comparan.
-    # Migración 20261111000001_regeneration_attempt.sql.
     regeneration_attempt = Column(String, nullable=True)
-    # REV-01 (REV-C12): estado del intento vigente (`running`, `succeeded` o `failed`); solo se escribe sobre `running`.
-    # Migración 20261112000001_regeneration_status.sql.
     regeneration_status = Column(String, nullable=True)
 
 
@@ -161,7 +154,6 @@ class TeacherGenerationORM(Base):
     teacher_id = Column("docente", String, nullable=False)
 
 
-# Generaciones guardadas antes del contrato en inglés: su bloque «generator» tenía claves en español.
 _LEGACY_GENERATOR_KEYS = {"descripcion": "description", "usaIA": "usesAi"}
 
 
@@ -275,13 +267,16 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
 
     @translate_persistence_errors
     def get_courses(self, teacher_id: str) -> list[dict[str, Any]]:
-        with SessionLocal() as session:
-            statement = (
-                select(CourseORM)
-                .where(CourseORM.teacher_id == teacher_id)
-                .order_by(CourseORM.id)
-            )
-            return [adapt_legacy_course(course.data) for course in session.scalars(statement)]
+        def _query() -> list[dict[str, Any]]:
+            with SessionLocal() as session:
+                statement = (
+                    select(CourseORM)
+                    .where(CourseORM.teacher_id == teacher_id)
+                    .order_by(CourseORM.id)
+                )
+                return [adapt_legacy_course(course.data) for course in session.scalars(statement)]
+
+        return run_with_db_retry(_query)
 
     @translate_persistence_errors
     def save_course(self, teacher_id: str, course_data: dict[str, Any]) -> None:
@@ -299,7 +294,6 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     @translate_persistence_errors
     def delete_course(self, teacher_id: str, course_id: str, unit_ids: list[str]) -> None:
         with SessionLocal() as session:
-            # GEN-01 (T047): en PostgreSQL, el mismo bloqueo por docente que el alta de pedidos de generación.
             lock_teacher_generation_requests(session, teacher_id)
             resource_ids = select(TeacherResourceORM.id).where(
                 TeacherResourceORM.teacher_id == teacher_id,
@@ -317,8 +311,6 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
                         table.teacher_id == teacher_id, table.unit_id.in_(unit_ids)
                     )
                 )
-            # GEN-01 (T047): pedidos de generación de las unidades del curso. Sus pasos se borran por la clave foránea
-            # con ON DELETE CASCADE; en SQLite, si la cascada no está activa, se borran antes de los pedidos.
             connection = session.connection()
             if inspect(connection).has_table(GenerationRequestORM.__tablename__):
                 request_ids = select(GenerationRequestORM.id).where(
@@ -332,7 +324,6 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
                         GenerationRequestORM.teacher_id == teacher_id, GenerationRequestORM.unit_id.in_(unit_ids)
                     )
                 )
-            # GEN-P1: planes de generación de las unidades del curso.
             if inspect(connection).has_table(GenerationPlanORM.__tablename__):
                 session.execute(
                     delete(GenerationPlanORM).where(
@@ -348,40 +339,59 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
 
     @translate_persistence_errors
     def get_documents(self, teacher_id: str) -> list[dict[str, Any]]:
-        with SessionLocal() as session:
-            statement = (
-                select(DocumentORM)
-                .where(DocumentORM.teacher_id == teacher_id)
-                .order_by(DocumentORM.id.desc())
-            )
-            return [adapt_legacy_document(doc.metadata_json) for doc in session.scalars(statement)]
+        def _query() -> list[dict[str, Any]]:
+            with SessionLocal() as session:
+                statement = (
+                    select(DocumentORM)
+                    .where(DocumentORM.teacher_id == teacher_id)
+                    .order_by(DocumentORM.id.desc())
+                )
+                docs: list[dict[str, Any]] = []
+                for doc in session.scalars(statement):
+                    adapted = adapt_legacy_document(doc.metadata_json)
+                    if doc.content_hash and not adapted.get("contentHash"):
+                        adapted = {**adapted, "contentHash": doc.content_hash}
+                    docs.append(adapted)
+                return docs
+
+        return run_with_db_retry(_query)
 
     @translate_persistence_errors
     def save_document(
         self, teacher_id: str, metadata: dict[str, Any], content: bytes
     ) -> None:
-        with SessionLocal() as session:
-            session.add(
-                DocumentORM(
-                    id=metadata["id"],
-                    teacher_id=teacher_id,
-                    unit_id=metadata["unitId"],
-                    file_name=metadata["fileName"].casefold(),
-                    metadata_json=metadata,
-                    content_bytes=content,
+        def _write() -> None:
+            with SessionLocal() as session:
+                session.add(
+                    DocumentORM(
+                        id=metadata["id"],
+                        teacher_id=teacher_id,
+                        unit_id=metadata["unitId"],
+                        file_name=metadata["fileName"].casefold(),
+                        content_hash=metadata.get("contentHash"),
+                        metadata_json=metadata,
+                        content_bytes=content,
+                    )
                 )
-            )
-            session.commit()
+                session.commit()
+
+        run_with_db_retry(_write)
 
     @translate_persistence_errors
     def get_document(
         self, teacher_id: str, document_id: str
     ) -> tuple[dict[str, Any], bytes] | None:
-        with SessionLocal() as session:
-            doc = session.get(DocumentORM, document_id)
-            if doc is None or doc.teacher_id != teacher_id:
-                return None
-            return adapt_legacy_document(doc.metadata_json), doc.content_bytes
+        def _query() -> tuple[dict[str, Any], bytes] | None:
+            with SessionLocal() as session:
+                doc = session.get(DocumentORM, document_id)
+                if doc is None or doc.teacher_id != teacher_id:
+                    return None
+                adapted = adapt_legacy_document(doc.metadata_json)
+                if doc.content_hash and not adapted.get("contentHash"):
+                    adapted = {**adapted, "contentHash": doc.content_hash}
+                return adapted, doc.content_bytes
+
+        return run_with_db_retry(_query)
 
     @translate_persistence_errors
     def delete_document(self, teacher_id: str, document_id: str) -> None:

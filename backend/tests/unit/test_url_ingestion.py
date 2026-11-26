@@ -1,4 +1,4 @@
-"""Pruebas unitarias para MAT-P1 (Pedido P6): ingesta de material desde URLs públicas y bloqueo anti-SSRF."""
+"""Pruebas unitarias para MAT-P1 (Pedido P6 / Plan v2-H): ingesta desde URLs públicas y bloqueo anti-SSRF."""
 
 from __future__ import annotations
 
@@ -97,6 +97,61 @@ def test_extract_readable_text_strips_scripts_styles_and_navigation() -> None:
     assert "Inicio | Cursos" not in text
 
 
+def test_extract_readable_text_handles_void_tags_inside_ignored_blocks() -> None:
+    sample_html = """
+    <html>
+      <head><title>Artículo con saltos en navegación</title></head>
+      <body>
+        <nav>
+          Enlace 1<br>
+          Enlace 2<br/>
+          <img src="/logo.png" alt="Logo">
+          <hr>
+        </nav>
+        <article>
+          <h1>Contenido Principal</h1>
+          <p>Este párrafo debe conservarse íntegro después de cerrar la barra de navegación.</p>
+        </article>
+      </body>
+    </html>
+    """
+    title, text = extract_readable_text(sample_html, "fallback")
+    assert title == "Artículo con saltos en navegación"
+    assert "Enlace 1" not in text
+    assert "Enlace 2" not in text
+    assert "Contenido Principal" in text
+    assert "Este párrafo debe conservarse íntegro" in text
+
+
+def test_extract_readable_text_cleans_wikipedia_noise_and_title_suffix() -> None:
+    wiki_html = """
+    <html>
+      <head>
+        <title>Modelo OSI - Wikipedia, la enciclopedia libre</title>
+      </head>
+      <body>
+        <div id="toc" class="toc">Índice de contenidos</div>
+        <main>
+          <h1>Modelo OSI <span class="mw-editsection">[editar]</span></h1>
+          <p>El modelo de interconexión de sistemas abiertos<sup class="reference">[1]</sup> define siete capas de red[2].</p>
+          <h2>Referencias</h2>
+          <div class="reflist">Tanenbaum, Redes de computadoras.</div>
+        </main>
+        <div class="navbox">Plantilla de navegación</div>
+      </body>
+    </html>
+    """
+    title, text = extract_readable_text(wiki_html, "fallback")
+    assert title == "Modelo OSI"
+    assert "siete capas de red" in text
+    assert "[editar]" not in text
+    assert "[1]" not in text
+    assert "[2]" not in text
+    assert "Tanenbaum" not in text
+    assert "Índice de contenidos" not in text
+    assert "Plantilla de navegación" not in text
+
+
 def test_web_page_extractor_fetches_public_html_with_mock_transport(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "platform5e.infrastructure.sources.web_page_extractor.validate_public_http_url",
@@ -120,7 +175,13 @@ def test_web_page_extractor_fetches_public_html_with_mock_transport(monkeypatch:
 
 
 def test_material_service_create_from_url_ingests_and_isolates_units() -> None:
-    courses = [{"id": "c-1", "units": [{"id": "u-1", "outcomes": [{"id": "out-1"}]}]}]
+    courses = [
+        {
+            "id": "c-1",
+            "name": "Bases de Datos",
+            "units": [{"id": "u-1", "title": "Modelo Relacional", "outcomes": [{"id": "out-1"}]}],
+        }
+    ]
     teacher_repo = _InMemoryTeacherRepo(courses)
     chunk_repo = _InMemoryChunkRepo(teacher_repo)
 
@@ -128,7 +189,7 @@ def test_material_service_create_from_url_ingests_and_isolates_units() -> None:
         def fetch(self, url: str) -> dict[str, Any]:
             return {
                 "url": url,
-                "title": "Introducción a Bases de Datos",
+                "title": "Introducción a Bases de Datos - Wikipedia, la enciclopedia libre",
                 "text": "Una base de datos relacional organiza la información en tablas normalizadas. " * 10,
             }
 
@@ -147,6 +208,7 @@ def test_material_service_create_from_url_ingests_and_isolates_units() -> None:
     )
     assert created["status"] == "procesado"
     assert created["fragmentCount"] >= 1
+    assert created["pageCount"] is None
     assert created["origin"]["source"] == "Web"
     assert created["origin"]["url"] == "https://ejemplo.org/bd"
 
