@@ -300,6 +300,10 @@ def _plan_lines(plan: dict[str, Any]) -> list[str]:
         else:
             lines.append(f"No desarrolles estos conceptos, que son de otros recursos de la clase: {others}; puedes "
                          "nombrarlos, pero no explicarlos.")
+    if plan.get("unidadesAnteriores"):
+        # R11: lo ya tratado en las unidades anteriores del curso.
+        lines.append(f"Ya se trataron en unidades anteriores: {_quoted(plan['unidadesAnteriores'])}; refiérete a ellos "
+                     "si hace falta, sin volver a explicarlos.")
     if plan.get("parrafoUnico") and plan.get("conAlternativas"):
         # T027 (a): «breve» no debe recortar las alternativas, que tienen campos obligatorios.
         lines.append("La brevedad es del enunciado: cada alternativa lleva igual su retroalimentacion y, en los "

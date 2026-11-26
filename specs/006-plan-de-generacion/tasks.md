@@ -60,6 +60,15 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 - [x] T029 [BE] [GEN-P1] **Depende de T006.** Conceptos anclados al resultado de aprendizaje elegido (spec 002, T076, [research R4](research.md#r4-planificación-con-reglas-y-con-gemini)): el planificador por reglas toma primero las frases y siglas del resultado que aparecen en la evidencia, y el prompt del plan con Gemini nombra el resultado elegido. Sin resultado elegido, el plan no cambia.
   - Evidencia: `outcome_concepts` en `concept_extraction.py`, `RuleBasedPlanner.draft(…, outcome)` y `build_plan_prompt(…, outcome)` en `plan_drafting.py`; `CreateGenerationPlan` pasa «código: texto» del resultado elegido. Pruebas en `backend/tests/unit/test_outcome_alignment.py`: con el corpus de T067, «modelo osi» pasa a ser el primer concepto; sin resultado, el plan es el mismo; el esquema del plan con Gemini no cambia. PR del backend: enlace pendiente.
 
+- [x] T030 [BE] [GEN-P1] [GEN-P2] **Depende de T008 y T012.** Conceptos de unidades anteriores (PLAN-C16, PLAN-R10, [research R11](research.md#r11-conceptos-de-unidades-anteriores)):
+  - `PreviousUnitConceptsPort` y su adaptador sobre los cursos y los planes guardados (el último aprobado o usado de cada unidad anterior, con tope), conectados en `main.py`;
+  - `CreateGenerationPlan` los congela en `sessionContext.previousUnitConcepts` y el API los devuelve de solo lectura;
+  - el planificador por reglas no los asigna, salvo los términos del resultado elegido; el prompt del plan con Gemini los lista sin cambiar el esquema;
+  - en la generación, el prompt de cada recurso los nombra y un recurso que los desarrolla lleva el aviso `previous_unit`.
+  - Pruebas: el plan de la unidad 2 excluye los conceptos de la unidad 1; los términos del resultado siguen permitidos; la primera unidad no cambia; aislamiento entre docentes.
+  - Evidencia: `PreviousUnitConceptsPort`, `CoursePreviousUnitConceptsAdapter` y `latest_settled_for_units` del repositorio de planes; `SessionContext.previous_unit_concepts`; `RuleBasedPlanner.draft(…, previous)` y la línea del prompt en `plan_drafting.py`; `previous_only`, `previous_unit_warning` y `developed_foreign` (`plan_coverage.py`). Pruebas en `backend/tests/unit/test_previous_unit_concepts.py` (19) y en `tests/integration/test_generation_plan_repository.py`. PR del backend: enlace pendiente.
+  - Frontend pendiente: mostrar `sessionContext.previousUnitConcepts` en la pantalla del plan y aceptar `planWarning.kind: previous_unit` en Revisión.
+
 ## 4. Casos de uso y router (GEN-P1)
 
 - [x] T008 [BE] [GEN-P1] **Depende de T004 a T007.** `CreateGenerationPlan`: idempotencia, unidad del docente, material procesado, recuperación una sola vez, comprobación del tema de QA-05 (con `422 INSUFFICIENT_EVIDENCE`), referentes, contexto de sesión, aviso `SAME_TYPOLOGY_AS_LAST_SESSION`, planificador y validación.

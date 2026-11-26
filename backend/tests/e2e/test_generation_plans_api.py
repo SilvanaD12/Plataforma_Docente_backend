@@ -60,7 +60,7 @@ def test_create_returns_a_draft_plan_and_the_same_key_returns_it_again(server: s
         assert item["covers"] and set(item["fragmentIds"]) <= evidence_ids and item["fragmentIds"]
         others = [c for other in plan["items"] if other is not item for c in other["covers"]]
         assert item["doesNotCover"] == others
-    assert plan["referents"] == [] and plan["sessionContext"] == {"previousTypologies": []}
+    assert plan["referents"] == [] and plan["sessionContext"] == {"previousTypologies": [], "previousUnitConcepts": []}
     assert plan["validation"] == {"valid": True, "problems": []} and plan["warnings"] == []
     assert plan["inputs"]["resourceTypes"][1] == {"type": "pregunta_detonante", "quantity": None}
     _no_5e(created)

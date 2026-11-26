@@ -16,6 +16,9 @@ recurso de la IA se entrega con un aviso de solapamiento (`avisoPlan`, que llega
 paso como `planWarnings`) en lugar de reemplazarlo con reglas; el rechazo `kind: plan` queda solo para el camino por
 reglas. Los conceptos de fondo de la unidad (en los fragmentos de la mitad o más de los ítems) no cuentan como ajenos.
 El filtro de repetición de GEN-01 sigue activo como red de seguridad.
+
+R11 (PLAN-C16): los conceptos de las unidades anteriores que el plan no asignó van al prompt («refiérete a ellos sin
+volver a explicarlos») y, si el recurso entregado los desarrolla, lleva el aviso `previous_unit`. No se rechaza.
 """
 
 from __future__ import annotations
@@ -35,7 +38,13 @@ from platform5e.application.services.generation.step_drafting import (
     filter_repeated,
 )
 from platform5e.domain.generation.generation_plan import GenerationPlan, PlanItem
-from platform5e.domain.generation.plan_coverage import PlanCoverage, backbone_concepts, check_plan_coverage
+from platform5e.domain.generation.plan_coverage import (
+    PlanCoverage,
+    backbone_concepts,
+    check_plan_coverage,
+    concept_words,
+    developed_foreign,
+)
 from platform5e.domain.generation.plan_validation import does_not_cover, split_covers
 from platform5e.domain.generation.topic_coverage import concept_key
 
@@ -44,6 +53,7 @@ SHORT_TYPES: frozenset[str] = frozenset({"pregunta_detonante", "item_opcion_mult
 # Un tipo del catálogo cuya extensión máxima no pasa de estas palabras también es breve.
 SHORT_MAX_WORDS: int = 120
 PLAN_FALLBACK_WARNING: str = "{name} no respetó el plan del recurso. Se usó el generador por reglas."
+PREVIOUS_UNIT_KIND: str = "previous_unit"
 
 
 @dataclass(frozen=True)
@@ -54,6 +64,7 @@ class ResourceBlock:
     index: int
     concepts: tuple[str, ...]
     foreign: tuple[str, ...]
+    previous: tuple[str, ...] = ()  # R11: de unidades anteriores, sin asignar a ningún ítem del plan
 
 
 def _unique(concepts: Sequence[str]) -> tuple[str, ...]:
@@ -74,15 +85,24 @@ def item_blocks(plan: GenerationPlan, item: PlanItem) -> list[ResourceBlock]:
     texts = {fragment.id: fragment.text for fragment in plan.evidence.fragments}
     backbone = backbone_concepts(plan.items, texts)  # contexto compartido de la unidad, no de un solo recurso
     others = [concept for concept in does_not_cover(plan.items, item.position) if concept_key(concept) not in backbone]
+    previous = previous_only(plan)
     return [
         ResourceBlock(
             item=item,
             index=index,
             concepts=tuple(block),
             foreign=_unique([*others, *(c for j, other in enumerate(blocks) if j != index for c in other)]),
+            previous=previous,
         )
         for index, block in enumerate(blocks)
     ]
+
+
+def previous_only(plan: GenerationPlan) -> tuple[str, ...]:
+    """R11: los conceptos de las unidades anteriores que el plan no asignó a ningún ítem (un término del resultado
+    que el plan sí asignó es del plan, no de la unidad anterior)."""
+    assigned = {tuple(concept_words(concept)) for item in plan.items for concept in item.covers}
+    return _unique([c for c in plan.session_context.previous_concepts if tuple(concept_words(c)) not in assigned])
 
 
 def is_short(resource_type: str, entry: CatalogEntry | None) -> bool:
@@ -101,6 +121,7 @@ def plan_context(block: ResourceBlock, entry: CatalogEntry | None) -> dict[str, 
         "noDesarrollar": list(block.foreign),
         "parrafoUnico": is_short(block.item.resource_type, entry),
         "conAlternativas": block.item.resource_type == "item_opcion_multiple",
+        **({"unidadesAnteriores": list(block.previous)} if block.previous else {}),
     }
 
 
@@ -157,6 +178,35 @@ def plan_warning(check: PlanCoverage) -> dict[str, Any]:
     }
 
 
+def previous_unit_warning(resource: dict[str, Any], own: Sequence[str], previous: Sequence[str]) -> dict[str, Any] | None:
+    """R11: el aviso de un recurso que vuelve a desarrollar un concepto de una unidad anterior. No se rechaza."""
+    developed = developed_foreign(resource, own, previous)
+    if not developed:
+        return None
+    title = str(resource.get("titulo") or "")
+    shown = ", ".join(f"«{concept}»" for concept in developed)
+    return {
+        "kind": PREVIOUS_UNIT_KIND,
+        "reason": f"«{title}»: vuelve a explicar {shown}, que ya se trató en una unidad anterior. Revisa si basta "
+        "con mencionarlo.",
+        "developedConcepts": developed,
+        "missingOwnConcepts": [],
+    }
+
+
+def _with_previous_warning(resources: list[dict[str, Any]], context: dict[str, Any]) -> list[dict[str, Any]]:
+    """Agrega el aviso de unidad anterior a los recursos que no traen ya otro aviso del plan."""
+    plan = context["plan"]
+    previous = plan.get("unidadesAnteriores") or []
+    if not previous:
+        return resources
+    marked = []
+    for resource in resources:
+        warning = None if resource.get("avisoPlan") else previous_unit_warning(resource, plan["conceptos"], previous)
+        marked.append({**resource, "avisoPlan": warning} if warning else resource)
+    return marked
+
+
 def _follow_plan(
     context: dict[str, Any],
     primary: ResourceGeneratorPort | None,
@@ -210,11 +260,13 @@ def draft_planned_resource(
     draft = _follow_plan(context, primary, fallback, rejections)
     kept, repeated = filter_repeated(draft.kept, accepted)
     if not repeated or draft.generator is None:
-        return StepDraft(kept=kept, repeated=repeated, generator=draft.generator, warning=draft.warning)
+        return StepDraft(kept=_with_previous_warning(kept, context), repeated=repeated, generator=draft.generator,
+                         warning=draft.warning)
     foreign = ", ".join(f"«{concept}»" for concept in context["plan"]["noDesarrollar"])
     instruction = NO_REPEAT_INSTRUCTION + (f" No repitas estos conceptos de otros recursos: {foreign}." if foreign else "")
     retried = _follow_plan(_with_instruction(context, instruction), primary, fallback, rejections)
     kept, repeated = filter_repeated(retried.kept, accepted)
     generator = retried.generator or draft.generator
     warning = retried.warning if retried.generator is not None else draft.warning
-    return StepDraft(kept=kept, repeated=repeated, generator=generator, warning=warning)
+    return StepDraft(kept=_with_previous_warning(kept, context), repeated=repeated, generator=generator,
+                     warning=warning)

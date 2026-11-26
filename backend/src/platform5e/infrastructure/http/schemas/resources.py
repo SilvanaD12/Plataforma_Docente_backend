@@ -145,15 +145,19 @@ class RegeneratedFrom(ApiResponse):
 
 class PlanWarning(ApiResponse):
     """GEN-P2 (specs/006-plan-de-generacion, research R5): aviso de solapamiento con el plan. GEN-C14 (spec 002,
-    research R14): aviso de un recurso de reglas que no menciona el resultado elegido ni la unidad."""
+    research R14): aviso de un recurso de reglas que no menciona el resultado elegido ni la unidad. PLAN-C16 (spec 006,
+    research R11): aviso de un recurso que vuelve a explicar un concepto de una unidad anterior."""
 
-    kind: Literal["overlap", "missing_concepts", "outcome_misaligned"] = Field(
+    kind: Literal["overlap", "missing_concepts", "outcome_misaligned", "previous_unit"] = Field(
         description="`overlap`: it develops a concept of another resource of the plan. `missing_concepts`: it develops "
         "none of its own. `outcome_misaligned`: a rules-drafted resource whose cited sentences mention no term of the "
-        "chosen learning outcome or the unit title; delivered anyway."
+        "chosen learning outcome or the unit title; delivered anyway. `previous_unit`: it develops a concept of an "
+        "earlier unit of the course (plan `sessionContext.previousUnitConcepts`); delivered anyway."
     )
     reason: str = Field(description="In Spanish, shown to the teacher.")
-    developed_concepts: list[str] = Field(default=[], description="Concepts of other resources it develops.")
+    developed_concepts: list[str] = Field(
+        default=[], description="Concepts of other resources (or of earlier units, for `previous_unit`) it develops."
+    )
     missing_own_concepts: list[str] = Field(default=[], description="Its own concepts, when it develops none.")
 
 
@@ -198,7 +202,8 @@ class ResourceResponse(ApiResponse):
         default=None,
         description="GEN-P2: an AI resource delivered although it did not fully follow its plan item (it develops "
         "another item's concept or none of its own). GEN-C14: a rules resource that mentions neither the chosen "
-        "learning outcome nor the unit. Shown in Review; it does not block approval.",
+        "learning outcome nor the unit. PLAN-C16: a resource that develops a concept of an earlier unit. Shown in "
+        "Review; it does not block approval.",
     )
     review_reset: bool | None = Field(
         default=None,
