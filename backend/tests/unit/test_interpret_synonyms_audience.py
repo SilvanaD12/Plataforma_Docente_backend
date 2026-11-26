@@ -165,6 +165,22 @@ def test_the_labeled_audience_wins_over_an_unlabeled_one():
     assert result["draft"]["audience"] == "Tercer ciclo" and result["issues"] == []
 
 
+def test_the_labeled_audience_wins_silently_over_two_different_unlabeled_ones():
+    """PR #81 (Silvana): con «audiencia: …», las menciones sin rótulo no dan el problema de dos audiencias, pero se
+    siguen quitando antes de leer los tipos y la cantidad."""
+    result = interpreter()("Dos glosarios para primer ciclo y dos quices para pregrado; Audiencia: Tercer ciclo")
+    assert result["draft"]["audience"] == "Tercer ciclo" and result["issues"] == []
+    assert result["draft"]["resourceTypes"] == ["glosario", "item_opcion_multiple"]
+    assert result["draft"]["quantity"] == 2
+
+
+def test_the_course_conflict_still_applies_to_the_labeled_audience():
+    result = interpreter(None, "7.º ciclo")("Un glosario para primer ciclo y para pregrado; Audiencia: Tercer ciclo")
+    assert "audience" not in result["draft"]
+    [issue] = result["issues"]
+    assert issue["field"] == "audience" and [o["value"] for o in issue["options"]] == ["Tercer ciclo", "7.º ciclo"]
+
+
 def test_two_different_unlabeled_audiences_are_ambiguous():
     result = interpreter()("Un glosario para primer ciclo y otro para pregrado")
     assert "audience" not in result["draft"]

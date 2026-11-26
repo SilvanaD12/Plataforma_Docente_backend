@@ -282,13 +282,18 @@ def _apply_outcome(
     ))
 
 
-def _read_unlabeled_audience(request: str, issues: list[InterpretationIssue]) -> tuple[str | None, str]:
+def _read_unlabeled_audience(
+    request: str, issues: list[InterpretationIssue], labeled: bool = False,
+) -> tuple[str | None, str]:
     """La audiencia sin rótulo («para primer ciclo») y el texto sin ella, para que no cuente como tipo ni cantidad. Dos
-    audiencias distintas dan un problema con las dos."""
+    audiencias distintas dan un problema con las dos, salvo que el mensaje traiga «audiencia: …» (`labeled`): la
+    rotulada gana sin avisar y las menciones sin rótulo solo se quitan del texto."""
     found = find_audiences(request)
     for audience in reversed(found):
         start, end = audience.span
         request = f"{request[:start]} {request[end:]}"
+    if labeled:
+        return None, request
     texts = list(dict.fromkeys(audience.text for audience in found))
     if len(texts) > 1:
         issues.append(_issue("audience", "ambiguous", "Indica una sola audiencia.",
@@ -347,7 +352,7 @@ class InterpretGenerationRequest:
         request, fields = _parts(command.message)
         request = re.sub(r"\s+", " ", normalize_text(request)).strip()
         issues: list[InterpretationIssue] = []
-        audience, request = _read_unlabeled_audience(request, issues)
+        audience, request = _read_unlabeled_audience(request, issues, labeled="audiencia" in fields)
         request = re.sub(r"\s+", " ", request).strip()
         catalog_text = request.replace("_", " ")
         mentions = list(_TYPE_PATTERN.finditer(catalog_text))
@@ -366,7 +371,7 @@ class InterpretGenerationRequest:
         if "audience" in draft:  # la audiencia rotulada gana a la que no tiene rótulo
             labeled = str(draft.pop("audience"))
             _apply_audience(unit, labeled, draft, issues)
-        elif audience is not None and "audiencia" not in fields:
+        elif audience is not None:
             _apply_audience(unit, audience, draft, issues)
 
         result: GenerationInterpretation = {
