@@ -50,6 +50,7 @@ def _comparison_key(value: str) -> str:
 def _validate_course_unit_uniqueness(units: list[dict[str, Any]]) -> None:
     titles: set[str] = set()
     outcome_codes: set[str] = set()
+    outcome_texts: set[str] = set()
 
     for unit_index, unit in enumerate(units):
         title = _comparison_key(unit["title"])
@@ -64,16 +65,26 @@ def _validate_course_unit_uniqueness(units: list[dict[str, Any]]) -> None:
 
         for outcome_index, outcome in enumerate(unit["outcomes"]):
             code = _comparison_key(outcome.get("code") or "")
-            if not code:
-                continue
-            if code in outcome_codes:
-                raise AccountConfigurationError(
-                    "DUPLICATE_OUTCOME",
-                    f'Ya existe un resultado con el c\u00f3digo "{outcome["code"]}" en este curso.',
-                    409,
-                    details=[{"field": "code", "unitIndex": unit_index, "outcomeIndex": outcome_index}],
-                )
-            outcome_codes.add(code)
+            if code:
+                if code in outcome_codes:
+                    raise AccountConfigurationError(
+                        "DUPLICATE_OUTCOME",
+                        f'Ya existe un resultado con el c\u00f3digo "{outcome["code"]}" en este curso.',
+                        409,
+                        details=[{"field": "code", "unitIndex": unit_index, "outcomeIndex": outcome_index}],
+                    )
+                outcome_codes.add(code)
+
+            text = _comparison_key(outcome["text"])
+            if text:
+                if text in outcome_texts:
+                    raise AccountConfigurationError(
+                        "DUPLICATE_OUTCOME",
+                        "Ya existe un resultado con ese texto en este curso.",
+                        409,
+                        details=[{"field": "text", "unitIndex": unit_index, "outcomeIndex": outcome_index}],
+                    )
+                outcome_texts.add(text)
 
 
 class AccountService:

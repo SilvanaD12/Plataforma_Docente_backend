@@ -47,6 +47,8 @@ def create_courses_router(account_service: AccountService) -> APIRouter:
     def create_course(body: CourseInput, teacher_id: str = Depends(current_teacher)) -> dict[str, Any]:
         """Creates the course with at least one unit. The code is stored in uppercase and must be unique (409).
 
+        Duplicate unit titles return 409 `DUPLICATE_UNIT_TITLE`. Duplicate learning outcome codes or texts return 409 `DUPLICATE_OUTCOME`. The first conflict's `error.details` includes `field` (`title`, `code`, or `text`), zero-based `unitIndex`, and `outcomeIndex` for learning outcomes.
+
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
 
@@ -65,6 +67,8 @@ def create_courses_router(account_service: AccountService) -> APIRouter:
     )
     def update_course(course_id: str, body: CourseInput, teacher_id: str = Depends(current_teacher)) -> dict[str, Any]:
         """Replaces the course data. Existing units must be sent back with their id; new units have none.
+
+        Duplicate unit titles return 409 `DUPLICATE_UNIT_TITLE`. Duplicate learning outcome codes or texts return 409 `DUPLICATE_OUTCOME`. The first conflict's `error.details` includes `field` (`title`, `code`, or `text`), zero-based `unitIndex`, and `outcomeIndex` for learning outcomes.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.

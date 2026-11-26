@@ -172,6 +172,7 @@ def test_course_audience_round_trip():
     cleared = service.save_course("d", body.model_dump(by_alias=True), created["id"])
     assert {key: cleared[key] for key in audience} == empty_audience
 
+
 def test_duplicate_unit_title_ignores_case_accents_and_spaces():
     repo = MockCoursesRepository()
     service = AccountService(repo, "docente@5e.demo", "clave")
