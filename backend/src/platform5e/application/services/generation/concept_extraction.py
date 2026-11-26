@@ -25,6 +25,7 @@ import re
 from collections import Counter
 from collections.abc import Iterable, Sequence
 
+from platform5e.domain.generation.outcome_alignment import split_outcome
 from platform5e.domain.generation.topic_coverage import is_topic_term, normalize
 
 # Cortes de segmento: signos, paréntesis, barras, viñetas, comillas, guiones con espacios, saltos y «Página N».
@@ -204,6 +205,18 @@ def phrase_groups(instructions: str, texts: Sequence[str]) -> tuple[list[list[st
     frequent = [acronym for acronym, count in acronyms.items() if count >= MIN_ACRONYM_COUNT]
     single = [acronym for acronym, count in acronyms.items() if count < MIN_ACRONYM_COUNT]
     return [topic, repeated, frequent, joined], once + single
+
+
+def outcome_concepts(outcome_text: str) -> list[str]:
+    """T029 (spec 006) y GEN-C14 (spec 002, research R14): las frases y siglas del resultado de aprendizaje elegido, sin
+    su código ni su verbo («RA1.1: Reconoce las capas del modelo OSI» → «modelo osi», «capas del modelo»). Una sigla
+    entra sola si ninguna frase del resultado la contiene («Distingue TCP y UDP» → «TCP», «UDP»)."""
+    _, body = split_outcome(outcome_text)
+    # Con punto final: una línea corta sin punto es un título para `without_headings` y no daría frases.
+    phrases = concept_phrases(f"{body}." if body else "")
+    acronyms = [token for token in _TOKEN.findall(body) if _ACRONYM.fullmatch(token)
+                and not any(normalize(token) in normalize(phrase).split() for phrase in phrases)]
+    return list(dict.fromkeys([*phrases, *acronyms]))
 
 
 def evidence_concepts_from(instructions: str, texts: Sequence[str], limit: int) -> list[str]:

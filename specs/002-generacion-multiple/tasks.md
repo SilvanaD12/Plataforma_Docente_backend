@@ -353,6 +353,19 @@ Decisiones en [research R13](research.md#r13-interpretación-de-pedidos-hu-038).
   - Pruebas: la frase de producción da los dos tipos y la audiencia «primer ciclo»; sinónimos por tipo; sinónimo ambiguo con opciones; «para» con el tema no es audiencia; el campo rotulado gana; las pruebas anteriores del intérprete no cambian.
   - Evidencia: `interpretation_synonyms.py` y `interpretation_audience.py` (en `application/use_cases/generation/`); `UnitContext` suma `education_level` y `academic_cycle` del curso. Pruebas en [`test_interpret_synonyms_audience.py`](../../backend/tests/unit/test_interpret_synonyms_audience.py) y `test_unit_membership_adapter.py`; las de `test_interpret_generation_request.py` pasan sin cambios. El frontend ya aplica `draft.audience` al campo Audiencia (`applyInterpretationDraft`). PR del backend: enlace pendiente.
 
+## 10. Anclaje al resultado de aprendizaje
+
+Decisiones en [research R14](research.md#r14-anclaje-al-resultado-de-aprendizaje-gen-c14).
+
+- [x] T076 [BE] Cambio B del «Plan de cambios v2» (Juan, 25/11/2026): generación anclada al resultado de aprendizaje elegido, sin IA. Caso GEN-C14.
+  - El generador por reglas ordena las oraciones candidatas por su parecido con el resultado elegido y el título de la unidad.
+  - El planificador por reglas empieza los conceptos por los términos del resultado (spec 006, T029).
+  - La consigna se adapta al nivel del verbo del resultado con una tabla explícita.
+  - Antes de entregar, un recurso que no menciona ningún término del resultado ni de la unidad pasa a la siguiente oración candidata; si ninguna sirve, se entrega el mejor con el aviso `outcome_misaligned`.
+  - El prompt de Gemini nombra el resultado y su nivel, sin cambiar los esquemas.
+  - Pruebas con el corpus de T067 y un caso como el de producción: resultado «Reconoce…» y un documento distractor de otro tema. Se comprueba que el recurso menciona un término del resultado, que usa el nivel del verbo y que funciona el cambio a la siguiente oración.
+  - Evidencia: las reglas están en `domain/generation/outcome_alignment.py`. Cambian `rule_based_generator.py`, `prompt_drafting.py` (contexto `resultadoElegido`, líneas del prompt y aviso), `concept_extraction.py` (`outcome_concepts`), `plan_drafting.py` y `create_generation_plan.py`. El aviso es `planWarning.kind = outcome_misaligned` (contrato y `docs/api/openapi.json`). Pruebas en [`test_outcome_alignment.py`](../../backend/tests/unit/test_outcome_alignment.py): sin el resultado, el caso de producción cita el Renacimiento en la pregunta detonante, la guía, el caso y el ítem; con «Reconoce…» elegido, cita el modelo OSI y usa la pregunta de recuerdo. PR del backend: enlace pendiente. **Frontend pendiente:** `parsePlanWarning` no reconoce el kind nuevo y el aviso no se ve en el editor de Revisión.
+
 ## Evidencia de los casos y criterios (T049)
 
 Pruebas automáticas en `main` (rutas desde la raíz de cada repositorio; las del frontend están en `Plataforma_Docente_frontend` y se citan con la descripción de `it`), PR donde se implementó cada caso y evidencia manual de los informes de GEN-01 en Notion.

@@ -19,6 +19,12 @@ from typing import Any
 from platform5e.application.ports.outbound.evidence_provider_port import EvidenceFragment
 from platform5e.application.ports.outbound.unit_membership_port import UnitContext
 from platform5e.domain.generation.distractor_reliability import assess_distractor
+from platform5e.domain.generation.outcome_alignment import (
+    LEVEL_INSTRUCTIONS,
+    anchor_terms,
+    misaligned_warning,
+    verb_level,
+)
 from platform5e.domain.generation.grounding import (
     DEFAULT_THRESHOLD,
     link_criterion_sources,
@@ -301,6 +307,28 @@ def _plan_lines(plan: dict[str, Any]) -> list[str]:
     return lines
 
 
+def outcome_anchor(context: dict[str, Any]) -> tuple[list[str], str | None]:
+    """GEN-C14 (research R14): los términos de anclaje (del resultado elegido y del título de la unidad) y el nivel
+    del verbo del resultado (None con un verbo fuera de la tabla). Sin resultado elegido, ([], None): no se ancla."""
+    unit = context.get("unidad") or {}
+    chosen = (unit.get("resultadoElegido") or {}).get("texto") or ""
+    if not chosen:
+        return [], None
+    return anchor_terms(chosen, unit.get("titulo") or ""), verb_level(chosen)
+
+
+def _outcome_lines(chosen: dict[str, Any] | None) -> list[str]:
+    """GEN-C14 (research R14): el resultado elegido y el nivel de su verbo, en dos líneas. Sin resultado, ninguna."""
+    if not chosen or not chosen.get("texto"):
+        return []
+    level = verb_level(chosen["texto"])
+    code = f"{chosen['codigo']}: " if chosen.get("codigo") else ""
+    lines = [f"RESULTADO ELEGIDO: {code}{chosen['texto']}. El recurso debe tratar este resultado."]
+    if level is not None:
+        lines.append(f"NIVEL DEL VERBO: {level}; el recurso {LEVEL_INSTRUCTIONS[level]}")
+    return lines
+
+
 def format_fragment_tag(index: int) -> str:
     """Retorna la etiqueta canónica de citación (F1, F2...)."""
     return f"F{index + 1}"
@@ -319,6 +347,8 @@ def build_generation_context(
         for outcome in unit.get("outcomes", [])
         if not request_data.get("outcomeId") or outcome["id"] == request_data["outcomeId"]
     ]
+    # GEN-C14 (research R14): el resultado que eligió el docente, para anclar la redacción. Sin elegir, ninguno.
+    chosen = next((o for o in matched_outcomes if request_data.get("outcomeId") == o["id"]), None)
     return {
         "curso": {
             "nombre": course.get("name", ""),
@@ -329,6 +359,9 @@ def build_generation_context(
             "numero": unit.get("number"),
             "titulo": unit.get("title", ""),
             "resultados": [f"{o.get('code', '')}: {o.get('text', '')}" for o in matched_outcomes],
+            "resultadoElegido": (
+                {"codigo": chosen.get("code", ""), "texto": chosen.get("text", "")} if chosen is not None else None
+            ),
         },
         "solicitud": {
             "etapa": request_data["stage"],
@@ -411,6 +444,7 @@ def build_prompt_instructions(context: dict[str, Any]) -> tuple[str, str]:
         f"LOGRO DEL CURSO: {course['logro'] or 'no registrado'}",
         f"UNIDAD {unit['numero']}: {unit['titulo']}",
         "RESULTADOS DE APRENDIZAJE: " + ("; ".join(unit["resultados"]) or "no registrados"),
+        *_outcome_lines(unit.get("resultadoElegido")),
         "",
         f"PEDIDO: {req['cantidad']} recurso(s) de tipo «{type_name}». {format_desc}",
         f"Dificultad: {DIFFICULTY_LABELS.get(req['dificultad'], req['dificultad'])}.",
@@ -890,6 +924,9 @@ def normalize_generated_resources(
                 "alternativas": alternatives,
                 "estructura": structure,
                 "verificacion": verification,
+                # GEN-C14: el generador por reglas marca el recurso que no menciona el resultado ni la unidad.
+                **({"avisoPlan": misaligned_warning(outcome_anchor(context)[0])} if raw_item.get("desalineado") is True
+                   else {}),
             }
         )
 

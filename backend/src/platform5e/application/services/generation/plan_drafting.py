@@ -42,7 +42,7 @@ from platform5e.domain.generation.generation_plan import (
     SessionContext,
     order_items,
 )
-from platform5e.application.services.generation.concept_extraction import phrase_groups
+from platform5e.application.services.generation.concept_extraction import outcome_concepts, phrase_groups
 from platform5e.domain.generation.plan_coverage import contains_term
 from platform5e.domain.generation.plan_validation import short_concept_problem, validate_items
 from platform5e.domain.generation.topic_coverage import (
@@ -128,11 +128,13 @@ class RuleBasedPlanner:
     def __init__(self, catalog: Mapping[str, CatalogEntry]) -> None:
         self._catalog = catalog
 
-    def draft(self, inputs: PlanInputs, evidence: PlanEvidence) -> tuple[PlanItem, ...]:
+    def draft(self, inputs: PlanInputs, evidence: PlanEvidence, outcome: str = "") -> tuple[PlanItem, ...]:
+        """`outcome`: el texto del resultado de aprendizaje elegido (T029); sus frases y siglas van primero."""
         token_sets = [_tokens(fragment.text) for fragment in evidence.fragments]
         # Lo mínimo que necesita el plan: un concepto por recurso (1 si la cantidad es libre).
         minimum = sum(requested.quantity or 1 for requested in inputs.resource_types)
-        candidates = self._candidates(inputs.instructions, [f.text for f in evidence.fragments], token_sets, minimum)
+        candidates = self._candidates(inputs.instructions, [f.text for f in evidence.fragments], token_sets, minimum,
+                                      outcome)
         requested = sorted(
             inputs.resource_types,
             key=lambda r: list(PHASES_5E).index(self._stage(r.type)) if self._stage(r.type) in PHASES_5E else 99,
@@ -172,12 +174,13 @@ class RuleBasedPlanner:
 
     @staticmethod
     def _candidates(
-        instructions: str, texts: list[str], token_sets: list[set[str]], minimum: int = 0
+        instructions: str, texts: list[str], token_sets: list[set[str]], minimum: int = 0, outcome: str = ""
     ) -> list[str]:
         """Conceptos candidatos que aparecen en la evidencia (T027 (b), `concept_extraction`): primero las frases del
         tema, después las frases del material que se repiten, las siglas y los términos de varias palabras que aparecen
         una vez; cada grupo por el primer fragmento donde aparece cada concepto, las frases antes que las siglas en el
-        mismo fragmento y, en empate, alfabético. Nunca frases pegadas entre signos ni de los encabezados de página."""
+        mismo fragmento y, en empate, alfabético. Nunca frases pegadas entre signos ni de los encabezados de página.
+        T029: con un resultado de aprendizaje elegido, su grupo (frases y siglas del resultado) va antes que todos."""
 
         def first_index(concept: str) -> int | None:
             return next((i for i, text in enumerate(texts) if contains_term(text, concept)), None)
@@ -185,7 +188,7 @@ class RuleBasedPlanner:
         chosen: list[str] = []
         seen_keys: set[str] = set()
         preferred, last_resort = phrase_groups(instructions, texts)
-        groups = list(preferred)
+        groups = ([outcome_concepts(outcome)] if outcome else []) + list(preferred)
         for group in groups:
             if group is last_resort and len(chosen) >= minimum:
                 break  # los de último recurso solo entran si los preferidos no alcanzan para el plan
@@ -294,6 +297,7 @@ def build_plan_prompt(
     session_context: SessionContext = SessionContext(),
     unit_title: str = "",
     retry_feedback: str | None = None,
+    outcome: str = "",
 ) -> PlanPrompt:
     system = (
         "Eres un asistente pedagógico que planifica los recursos de una clase universitaria antes de redactarlos. "
@@ -305,6 +309,10 @@ def build_plan_prompt(
         f"UNIDAD: {unit_title or 'sin título'}",
         f"TEMA PEDIDO: {inputs.instructions or 'el tema de la unidad'}",
     ]
+    if outcome:
+        # T029: el resultado elegido; sus conceptos van primero en los ítems.
+        lines.append(f"RESULTADO DE APRENDIZAJE ELEGIDO: {outcome}. Los conceptos del plan empiezan por los de este "
+                     "resultado que estén en los fragmentos.")
     if inputs.audience:
         lines.append(f"PÚBLICO: {inputs.audience}")
     if inputs.competency:
@@ -433,9 +441,11 @@ class GenerationPlanner:
         referents: Sequence[Referent] = (),
         session_context: SessionContext = SessionContext(),
         unit_title: str = "",
+        outcome: str = "",
     ) -> tuple[tuple[PlanItem, ...], dict[str, Any]]:
+        """`outcome`: el texto del resultado de aprendizaje elegido, o vacío (T029)."""
         if self._drafter is None:
-            return self._rules.draft(inputs, evidence), self._generator(None, 0)
+            return self._rules.draft(inputs, evidence, outcome), self._generator(None, 0)
         description = self._drafter.description
         known = {entry_id: entry.stage for entry_id, entry in self._catalog.items()}
         feedback: str | None = None
@@ -445,7 +455,7 @@ class GenerationPlanner:
             attempts += 1
             try:
                 prompt = build_plan_prompt(inputs, evidence, self._catalog, referents, session_context, unit_title,
-                                           retry_feedback=feedback)
+                                           retry_feedback=feedback, outcome=outcome)
                 dropped: dict[str, list[str]] = {}
                 items = items_from_model(self._drafter.draft_plan(prompt), inputs, evidence, self._catalog, dropped)
                 items, repairs = repair_items(items, inputs)
@@ -466,7 +476,8 @@ class GenerationPlanner:
                     logger.info("%s: plan arreglado sin otra llamada: %s", description, repairs)
                 return items, {"description": description, "usesAi": True, "fallback": False, "fallbackReason": None,
                                "attempts": attempts, "repairs": repairs}
-        return self._rules.draft(inputs, evidence), self._generator(f"{reason} Se armó el plan con reglas.", attempts)
+        return self._rules.draft(inputs, evidence, outcome), self._generator(f"{reason} Se armó el plan con reglas.",
+                                                                              attempts)
 
     @staticmethod
     def _generator(fallback_reason: str | None, attempts: int) -> dict[str, Any]:

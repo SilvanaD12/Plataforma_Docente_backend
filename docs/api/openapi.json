@@ -7131,10 +7131,11 @@
             "type": "string",
             "enum": [
               "overlap",
-              "missing_concepts"
+              "missing_concepts",
+              "outcome_misaligned"
             ],
             "title": "Kind",
-            "description": "`overlap`: it develops a concept of another resource of the plan. `missing_concepts`: it develops none of its own."
+            "description": "`overlap`: it develops a concept of another resource of the plan. `missing_concepts`: it develops none of its own. `outcome_misaligned`: a rules-drafted resource whose cited sentences mention no term of the chosen learning outcome or the unit title; delivered anyway."
           },
           "reason": {
             "type": "string",
@@ -7167,7 +7168,7 @@
           "reason"
         ],
         "title": "PlanWarning",
-        "description": "GEN-P2 (specs/006-plan-de-generacion, research R5): aviso de solapamiento con el plan."
+        "description": "GEN-P2 (specs/006-plan-de-generacion, research R5): aviso de solapamiento con el plan. GEN-C14 (spec 002,\nresearch R14): aviso de un recurso de reglas que no menciona el resultado elegido ni la unidad."
       },
       "PreviousTypology": {
         "properties": {
@@ -8029,7 +8030,7 @@
                 "type": "null"
               }
             ],
-            "description": "GEN-P2: an AI resource delivered although it did not fully follow its plan item (it develops another item's concept or none of its own). Shown in Review; it does not block approval."
+            "description": "GEN-P2: an AI resource delivered although it did not fully follow its plan item (it develops another item's concept or none of its own). GEN-C14: a rules resource that mentions neither the chosen learning outcome nor the unit. Shown in Review; it does not block approval."
           },
           "reviewReset": {
             "anyOf": [
