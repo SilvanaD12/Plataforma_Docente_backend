@@ -68,6 +68,14 @@ class DocumentResponse(ApiResponse):
         default=None, description="Why the embeddings failed; the document stays processed and BM25 still works."
     )
     origin: DocumentOrigin | None = None
+    relevance_warning: str | None = Field(
+        default=None,
+        description="Non-blocking warning when the extracted text has low similarity with the unit context.",
+    )
+    duplicate_warning: str | None = Field(
+        default=None,
+        description="Non-blocking warning when identical normalized content already exists in another unit of the course.",
+    )
 
     @field_validator("embedding_error", mode="before")
     @classmethod

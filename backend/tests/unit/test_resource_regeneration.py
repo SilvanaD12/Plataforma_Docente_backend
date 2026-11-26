@@ -93,8 +93,21 @@ class Resources:
 class FakeGeneration:
     """Doble del puerto de regeneración: «genera» recursos nuevos guardándolos, como lo hace Generación."""
 
-    def __init__(self, resources: Resources, outcome: str = "succeeded", during=None, failure_code: str | None = None) -> None:
-        self.resources, self.outcome, self.during, self.failure_code = resources, outcome, during, failure_code
+    def __init__(
+        self,
+        resources: Resources,
+        outcome: str = "succeeded",
+        during=None,
+        failure_code: str | None = None,
+        failure_details: tuple[dict[str, Any], ...] = (),
+    ) -> None:
+        self.resources, self.outcome, self.during, self.failure_code, self.failure_details = (
+            resources,
+            outcome,
+            during,
+            failure_code,
+            failure_details,
+        )
         self.calls: list[dict[str, Any]] = []
 
     def request_regeneration(self, teacher_id, resource_id, resource_version, params) -> RegenerationStatus:
@@ -103,7 +116,14 @@ class FakeGeneration:
             self.during()
         request_id = f"req-{len(self.calls)}"
         if self.outcome == "failed":
-            return RegenerationStatus(request_id, "failed", (), "No hay material procesado en la unidad.", self.failure_code)
+            return RegenerationStatus(
+                request_id,
+                "failed",
+                (),
+                "No hay material procesado en la unidad.",
+                self.failure_code,
+                details=self.failure_details,
+            )
         new_id = f"nuevo-{len(self.calls)}"
         self.resources.save_resources(teacher_id, params["unitId"], [{k: v for k, v in explanation(new_id).items() if k != "version"}])
         return RegenerationStatus(request_id, "succeeded", (new_id,), None)
@@ -112,9 +132,15 @@ class FakeGeneration:
         raise AssertionError("el adaptador síncrono no se consulta")
 
 
-def build(outcome: str = "succeeded", during=None, resource: dict[str, Any] | None = None, failure_code: str | None = None):
+def build(
+    outcome: str = "succeeded",
+    during=None,
+    resource: dict[str, Any] | None = None,
+    failure_code: str | None = None,
+    failure_details: tuple[dict[str, Any], ...] = (),
+):
     resources = Resources(resource or explanation("viejo"))
-    generation = FakeGeneration(resources, outcome, during, failure_code)
+    generation = FakeGeneration(resources, outcome, during, failure_code, failure_details)
     return ResourceReviewService(Teachers(), resources, generation), resources, generation
 
 
@@ -220,6 +246,7 @@ def test_without_a_regeneration_port_the_service_says_it_is_not_available():
         # PR #23 de Yan: códigos propios de StartRegeneration en lugar de REGENERATION_UNAVAILABLE.
         ("REGENERATION_TARGET_INVALID", 422),
         ("REGENERATION_ATTEMPTS_EXHAUSTED", 409),
+        ("PLAN_EVIDENCE_STALE", 409),
     ],
 )
 def test_a_rejection_for_the_teachers_data_keeps_the_generation_code(generation_code, http_status):
@@ -233,3 +260,16 @@ def test_a_rejection_for_the_teachers_data_keeps_the_generation_code(generation_
     assert error.value.message == "No hay material procesado en la unidad."
     old = resources.by_id["viejo"]
     assert {k: old[k] for k in ("status", "body", "version")} == {k: before[k] for k in ("status", "body", "version")}
+
+
+def test_plan_evidence_stale_rejection_passes_details_to_error():
+    """T014: cuando Generación rechaza con PLAN_EVIDENCE_STALE y details, Revisión preserva details en la excepción."""
+    stale_docs = [{"documentId": "doc-1", "documentName": "redes.pdf", "missingFragmentIds": ["f1"]}]
+    service, resources, _ = build(
+        outcome="failed", failure_code="PLAN_EVIDENCE_STALE", failure_details=tuple(stale_docs)
+    )
+    with pytest.raises(AccountConfigurationError) as error:
+        service.regenerate_resource("ana", "u1", "viejo", expected_version=3)
+    assert error.value.code == "PLAN_EVIDENCE_STALE"
+    assert error.value.status_code == 409
+    assert getattr(error.value, "details", None) == stale_docs

@@ -87,7 +87,9 @@ class Catalog:
         self.extra = extra
 
     def entries(self):
-        return (*CATALOG.entries(), *self.extra)
+        entries = {entry.id: entry for entry in CATALOG.entries()}
+        entries.update((entry.id, entry) for entry in self.extra)
+        return tuple(entries.values())
 
 
 STORY = CatalogEntry("historia_corta", "Historia corta", "engage", "text",

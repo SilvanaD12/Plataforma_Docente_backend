@@ -121,3 +121,123 @@ def test_duplication_report_configurable_threshold(custom_threshold_server: str)
 
         report = api.get(f"/api/v1/units/{unit_id}/duplication-report", headers=headers).json()
         assert report["threshold"] == 0.9
+
+
+def test_duplication_report_cross_unit_with_include_course(server):
+    """REV-P4: reporte entre unidades del mismo curso con ?includeCourse=true."""
+    with httpx.Client(base_url=server, timeout=60) as api:
+        token_a = api.post(
+            "/api/v1/accounts",
+            json={"name": "Docente Curso", "email": "docente_cross_dup@correo.pe", "password": "clave-segura-1"},
+        ).json()["token"]
+        headers_a = {"Authorization": f"Bearer {token_a}"}
+
+        course = api.post(
+            "/api/v1/courses",
+            headers=headers_a,
+            json={
+                "code": "CROSS-101",
+                "name": "Redes entre unidades",
+                "term": "2026-II",
+                "units": [
+                    {"title": "Unidad 1: Capa de transporte", "outcomes": [{"text": "Distingue TCP y UDP"}]},
+                    {"title": "Unidad 2: Redes avanzadas", "outcomes": [{"text": "Analiza TCP y UDP"}]},
+                ],
+            },
+        ).json()
+        unit_1, unit_2 = course["units"][0], course["units"][1]
+
+        for unit in (unit_1, unit_2):
+            ctx = {
+                "unitId": unit["id"],
+                "outcomeIds": [unit["outcomes"][0]["id"]],
+                "documentType": "Separata o apuntes de clase",
+                "usePermission": True,
+            }
+            doc = api.post(
+                "/api/v1/documents",
+                headers=headers_a,
+                files={"file": ("redes.txt", MATERIAL)},
+                data={"context": json.dumps(ctx)},
+            ).json()
+            api.post(f"/api/v1/documents/{doc['id']}/process", headers=headers_a)
+
+        _, [r1_a] = generate(api, headers_a, unit_1["id"], "explicacion", quantity=1, modalities=["Textual"])
+        _, [r1_b] = generate(api, headers_a, unit_1["id"], "explicacion", quantity=1, modalities=["Textual"])
+        _, [r2_a] = generate(api, headers_a, unit_2["id"], "explicacion", quantity=1, modalities=["Textual"])
+
+        # Ajustar textos casi equivalentes mediante PUT para asegurar similitud alta reproducible
+        for unit_obj, res_obj, body_text in (
+            (
+                unit_1,
+                r1_a,
+                "El protocolo TCP es orientado a la conexión y garantiza una entrega confiable de datos.",
+            ),
+            (
+                unit_1,
+                r1_b,
+                "El protocolo TCP es orientado a la conexión y garantiza la entrega confiable de los datos.",
+            ),
+            (
+                unit_2,
+                r2_a,
+                "TCP es un protocolo orientado a la conexión que garantiza una entrega confiable de datos.",
+            ),
+        ):
+            put_resp = api.put(
+                f"/api/v1/units/{unit_obj['id']}/resources/{res_obj['id']}",
+                headers=headers_a,
+                json={
+                    "expectedVersion": res_obj["version"],
+                    "title": "Protocolo TCP",
+                    "body": body_text,
+                    "status": "pendiente",
+                    "edited": True,
+                },
+            )
+            assert put_resp.status_code == 200, put_resp.text
+
+        # Sin includeCourse: solo compara dentro de la unidad actual y no incluye campos crossUnit
+        without_course = api.get(
+            f"/api/v1/units/{unit_1['id']}/duplication-report", headers=headers_a
+        ).json()
+        assert without_course["comparedPairs"] == 1
+        assert len(without_course["flaggedPairs"]) == 1
+        assert {
+            without_course["flaggedPairs"][0]["resourceIdA"],
+            without_course["flaggedPairs"][0]["resourceIdB"],
+        } == {r1_a["id"], r1_b["id"]}
+        assert "crossUnit" not in without_course["flaggedPairs"][0]
+        assert "unitIdB" not in without_course["flaggedPairs"][0]
+        assert "unitTitleB" not in without_course["flaggedPairs"][0]
+
+        # Con includeCourse=true: incluye pares de la unidad y entre unidades con unitTitleB correcto
+        with_course = api.get(
+            f"/api/v1/units/{unit_1['id']}/duplication-report?includeCourse=true",
+            headers=headers_a,
+        ).json()
+        assert with_course["comparedPairs"] == 3  # 1 interno en u1 + (2 * 1) cruzados u1-u2
+        cross_pairs = [p for p in with_course["flaggedPairs"] if p.get("crossUnit") is True]
+        same_pairs = [p for p in with_course["flaggedPairs"] if p.get("crossUnit") is False]
+        assert len(cross_pairs) == 2
+        assert len(same_pairs) == 1
+        assert same_pairs[0]["unitIdB"] is None
+        assert same_pairs[0]["unitTitleB"] is None
+        for pair in cross_pairs:
+            assert pair["resourceIdB"] == r2_a["id"]
+            assert pair["unitIdB"] == unit_2["id"]
+            assert pair["unitTitleB"] == "Unidad 2: Redes avanzadas"
+            assert pair["score"] >= 0.70
+
+        # Docente B no puede consultar el reporte de una unidad ajena -> 404
+        token_b = api.post(
+            "/api/v1/accounts",
+            json={"name": "Docente Ajeno", "email": "docente_b_cross_dup@correo.pe", "password": "clave-segura-2"},
+        ).json()["token"]
+        headers_b = {"Authorization": f"Bearer {token_b}"}
+        forbidden = api.get(
+            f"/api/v1/units/{unit_1['id']}/duplication-report?includeCourse=true",
+            headers=headers_b,
+        )
+        assert forbidden.status_code == 404
+        assert forbidden.json()["error"]["code"] == "UNIT_NOT_FOUND"

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Query, Response, status
 
 from platform5e.application.services.accounts.account_service import AccountService
 from platform5e.application.services.review.resource_review_service import ResourceReviewService
@@ -76,29 +76,38 @@ def create_resources_router(
     @router.get(
         "/units/{unit_id}/duplication-report",
         response_model=DuplicationReportResponse,
+        response_model_exclude_unset=True,
         summary="Duplication report for unit resources",
         responses=error_responses(401, 404),
     )
     def get_duplication_report(
         unit_id: str,
         threshold: float | None = None,
+        include_course: bool = Query(
+            default=False,
+            alias="includeCourse",
+            description="When true, also compares unit resources against resources from other units in the same course.",
+        ),
         teacher_id: str = Depends(current_teacher),
     ) -> dict[str, Any]:
-        """REV-P3: analyzes content duplication across resources and questions in the unit.
+        """REV-P3 / REV-P4: analyzes content duplication across resources and questions in the unit and optionally across other units of the same course.
 
         Compares resources and questions using character n-grams and word Jaccard similarity.
         Returns pairs with similarity score >= threshold (default from REVIEW_DUPLICATE_THRESHOLD)
-        sorted descending by score.
+        sorted descending by score. Pass `?includeCourse=true` to include cross-unit pairs within
+        the same course (`crossUnit`, `unitIdB`, `unitTitleB`).
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.
 
         ```bash
-        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/units/${UNIT_ID}/duplication-report" -H "Authorization: Bearer $TOKEN"
+        curl --fail-with-body -i -X GET "$BASE_URL/api/v1/units/${UNIT_ID}/duplication-report?includeCourse=true" -H "Authorization: Bearer $TOKEN"
         ```
 
         Expected 200 with the duplication report. 404 if the unit is not owned by the teacher."""
-        return review_service.get_duplication_report(teacher_id, unit_id, threshold)
+        return review_service.get_duplication_report(
+            teacher_id, unit_id, threshold, include_course=include_course
+        )
 
     @router.put(
         "/units/{unit_id}/resources/{resource_id}",
@@ -163,7 +172,18 @@ def create_resources_router(
         summary="Regenerate a resource from review",
         responses={
             **error_responses(401, 404),
-            409: {"model": ErrorResponse, "description": "VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, INSUFFICIENT_EVIDENCE); REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review; or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the resource to ask again). The previous resource is unchanged."},
+            409: {
+                "model": ErrorResponse,
+                "description": (
+                    "VERSION_CONFLICT; Generation rejected the request for the unit material (NO_PROCESSED_MATERIAL, "
+                    "INSUFFICIENT_EVIDENCE); PLAN_EVIDENCE_STALE: a fragment of the plan item no longer exists in the "
+                    "unit (a document was deleted or reprocessed); details lists the affected documents (documentId, "
+                    "documentName, missingFragmentIds). The resource is unchanged; create a new plan; "
+                    "REGENERATED_RESOURCE_NOT_FOUND, when Generation finished but no new resource is still in review; "
+                    "or REGENERATION_ATTEMPTS_EXHAUSTED, when the attempts from this version ran out (edit the "
+                    "resource to ask again). The previous resource is unchanged."
+                ),
+            },
             422: {"model": ErrorResponse, "description": "Invalid body, or Generation rejected the stored parameters (INVALID_OUTCOME, INVALID_SEQUENCE, REGENERATION_PARAMETERS_MISSING, REGENERATION_TARGET_INVALID). The previous resource is unchanged."},
             429: {"model": ErrorResponse, "description": "TOO_MANY_ACTIVE_REQUESTS: the teacher already has the maximum of active generation requests, as in generation-requests. The previous resource is unchanged; try again later."},
             502: {"model": ErrorResponse, "description": "REGENERATION_FAILED: only for provider or unexpected failures. The previous resource is unchanged."},
@@ -183,13 +203,14 @@ def create_resources_router(
         was edited meanwhile, both stay in review (`previousDiscarded: false`). Asking again from the same version
         returns the same result without generating again. On failure the previous resource is unchanged and `message`
         gives the reason: when Generation rejects the request for the teacher's data, its code is kept (409 for the
-        unit material, such as NO_PROCESSED_MATERIAL; 422 for the stored parameters, such as INVALID_OUTCOME). If
-        Generation finished but none of the new resources is still in review, the answer is 409
-        REGENERATED_RESOURCE_NOT_FOUND and the regeneration can be asked again. Rejections when Generation starts the
-        request keep the status of `generation-requests`: 404 UNIT_NOT_FOUND, 429 TOO_MANY_ACTIVE_REQUESTS and 409
-        REGENERATION_ATTEMPTS_EXHAUSTED. 502
-        REGENERATION_FAILED is only for provider or unexpected failures. An outdated `expectedVersion` returns 409
-        VERSION_CONFLICT.
+        unit material, such as NO_PROCESSED_MATERIAL or PLAN_EVIDENCE_STALE: a fragment of the plan item no longer
+        exists in the unit (a document was deleted or reprocessed); details lists the affected documents
+        (documentId, documentName, missingFragmentIds). The resource is unchanged; create a new plan; 422 for the stored
+        parameters, such as INVALID_OUTCOME). If Generation finished but none of the new resources is still in review,
+        the answer is 409 REGENERATED_RESOURCE_NOT_FOUND and the regeneration can be asked again. Rejections when
+        Generation starts the request keep the status of `generation-requests`: 404 UNIT_NOT_FOUND, 429
+        TOO_MANY_ACTIVE_REQUESTS and 409 REGENERATION_ATTEMPTS_EXHAUSTED. 502 REGENERATION_FAILED is only for
+        provider or unexpected failures. An outdated `expectedVersion` returns 409 VERSION_CONFLICT.
 
         Example (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.
         Use your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.

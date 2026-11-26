@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from platform5e.domain.generation.resource_catalog import RESOURCE_TYPES
+from platform5e.domain.generation.resource_catalog import CUR_P2_TEXT_TYPES, RESOURCE_TYPES
 
 TEXT = "text"
 VISUAL = "visual"
@@ -41,6 +41,8 @@ MODALITY_TYPES: dict[str, frozenset[str]] = {
     }),
     "Kinestésico": frozenset({"actividad_kinestesica"}),
 }
+
+MODALITY_TYPES["Textual"] |= frozenset(CUR_P2_TEXT_TYPES)
 
 BLANK = "____"
 MAX_ITEMS = 10

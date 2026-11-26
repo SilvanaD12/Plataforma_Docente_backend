@@ -1,7 +1,9 @@
 """Fuente única de los tipos de recurso, etiquetas y metadatos compartidos con la interfaz."""
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
+from pathlib import Path
 
 
 @dataclass(frozen=True)
@@ -39,4 +41,31 @@ RESOURCE_TYPES: tuple[ResourceTypeDefinition, ...] = (
     ResourceTypeDefinition('item_opcion_multiple', 'Preguntas de opción múltiple', 'Pregunta de opción múltiple', ('pregunta', 'preguntas'), 'evaluate', 'Para evaluar', 'text', has_options=True),
     ResourceTypeDefinition('verdadero_falso', 'Verdadero o falso', 'Verdadero o falso', ('verdadero o falso', 'verdadero o falso'), 'evaluate', 'Para evaluar', 'interactive'),
     ResourceTypeDefinition('completar_espacios', 'Completar espacios', 'Completar espacios', ('completar espacios', 'completar espacios'), 'evaluate', 'Para evaluar', 'interactive'),
+)
+
+_CUR_P2_GROUPS = {
+    "engage": "Para iniciar la clase",
+    "explore": "Para explorar",
+    "explain": "Para explicar",
+    "elaborate": "Para aplicar",
+    "evaluate": "Para evaluar",
+}
+_CUR_P2_DATA = Path(__file__).with_name("cur_p2_text_types.json")
+CUR_P2_TEXT_TYPES = {
+    entry["id"]: entry
+    for entry in json.loads(_CUR_P2_DATA.read_text(encoding="utf-8"))
+    if entry["active"] is True
+}
+RESOURCE_TYPES += tuple(
+    ResourceTypeDefinition(
+        id=entry["id"],
+        name=entry["name"],
+        singular=entry["singular"],
+        count=(entry["singular"].lower(), entry["plural"].lower()),
+        stage=entry["stage"],
+        group=_CUR_P2_GROUPS[entry["stage"]],
+        format=entry["format"],
+        has_options=entry["hasOptions"],
+    )
+    for entry in CUR_P2_TEXT_TYPES.values()
 )

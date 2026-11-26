@@ -19,10 +19,11 @@ class ExportNotEligibleError(AccountConfigurationError):
 
 
 # Rechazos por el estado de la unidad o de sus recursos (409): se resuelven agregando o procesando material, o
-# pidiendo la regeneración otra vez si el recurso nuevo ya no existe (REGENERATED_RESOURCE_NOT_FOUND, PR #17).
+# pidiendo la regeneración otra vez si el recurso nuevo ya no existe (REGENERATED_RESOURCE_NOT_FOUND, PR #17), o
+# creando un plan nuevo si la evidencia del plan ya no existe (PLAN_EVIDENCE_STALE, T014).
 # Cualquier otro código de rechazo viene de los parámetros guardados del recurso (422).
 MATERIAL_STATE_CODES: frozenset[str] = frozenset(
-    {"NO_PROCESSED_MATERIAL", "INSUFFICIENT_EVIDENCE", "REGENERATED_RESOURCE_NOT_FOUND"}
+    {"NO_PROCESSED_MATERIAL", "INSUFFICIENT_EVIDENCE", "REGENERATED_RESOURCE_NOT_FOUND", "PLAN_EVIDENCE_STALE"}
 )
 # Rechazos al iniciar el pedido con el mismo estado con el que los responde `generation-requests` (cierre de REV-01).
 # REGENERATION_ATTEMPTS_EXHAUSTED (PR #23 de Yan): se agotaron los intentos desde esa versión; editar el recurso
@@ -36,17 +37,26 @@ START_REJECTION_STATUS: dict[str, int] = {
 
 
 class RegenerationFailedError(AccountConfigurationError):
-    """REV-C13: la regeneración no terminó bien; el recurso anterior queda como estaba. El mensaje es el motivo.
+    """REV-C13 (y REV-C18): la regeneración no terminó bien; el recurso anterior queda como estaba. El mensaje es el motivo.
 
     Con `code` (Generación rechazó el pedido por los datos del docente) se responde con ese código: 409 por el material
-    de la unidad, porque el recurso nuevo ya no existe o porque se agotaron los intentos desde esa versión, 404 si la
-    unidad no existe, 429 si el docente tiene demasiados pedidos activos, y 422 por los parámetros guardados. Sin código es un fallo del proveedor: 502 REGENERATION_FAILED.
+    de la unidad (incluyendo PLAN_EVIDENCE_STALE con el detalle de documentos afectados), porque el recurso nuevo ya
+    no existe o porque se agotaron los intentos desde esa versión, 404 si la unidad no existe, 429 si el docente tiene
+    demasiados pedidos activos, y 422 por los parámetros guardados. Sin código es un fallo del proveedor: 502
+    REGENERATION_FAILED. `details` se guarda en `self.details` solo si no es None para incluirse en la respuesta HTTP.
     """
 
-    def __init__(self, reason: str, code: str | None = None) -> None:
+    def __init__(
+        self,
+        reason: str,
+        code: str | None = None,
+        details: list[dict[str, Any]] | None = None,
+    ) -> None:
         if code is None:
             super().__init__("REGENERATION_FAILED", reason, 502)
         elif code in START_REJECTION_STATUS:
             super().__init__(code, reason, START_REJECTION_STATUS[code])
         else:
             super().__init__(code, reason, 409 if code in MATERIAL_STATE_CODES else 422)
+        if details is not None:
+            self.details: list[dict[str, Any]] = details
