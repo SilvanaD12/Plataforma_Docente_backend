@@ -1,4 +1,9 @@
-"""Interpretación por reglas de un pedido editable (HU-038)."""
+"""Interpretación por reglas de un pedido editable (HU-038).
+
+GEN-C13 (spec 002, T075): además de los ids, nombres y alias de conteo del catálogo, reconoce las palabras de uso común
+de `interpretation_synonyms` (una palabra de varios tipos da un problema con las opciones) y la audiencia sin rótulo
+(`interpretation_audience`), que no reemplaza la del curso si no coincide con su nivel o su ciclo.
+"""
 
 from __future__ import annotations
 
@@ -8,6 +13,13 @@ from dataclasses import dataclass
 from typing import NotRequired, TypedDict
 
 from platform5e.application.ports.outbound.unit_membership_port import UnitContext, UnitMembershipPort
+from platform5e.application.use_cases.generation.interpretation_audience import (
+    classify,
+    course_conflict,
+    find_audiences,
+    is_audience_phrase,
+)
+from platform5e.application.use_cases.generation.interpretation_synonyms import AMBIGUOUS_SYNONYMS, TYPE_SYNONYMS
 from platform5e.application.use_cases.generation.start_generation_request import UNIT_NOT_FOUND_MESSAGE
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
 from platform5e.domain.generation.resource_catalog import RESOURCE_TYPES
@@ -90,12 +102,19 @@ _FIELD_LABELS = {"audiencia": "audience", "competencia": "competency", "instrucc
 _TYPE_NAMES = {entry.id: entry.name for entry in RESOURCE_TYPES}
 
 
-def _alias_pattern() -> tuple[re.Pattern[str], dict[str, str]]:
-    aliases = {
-        normalize_text(label).replace("_", " "): entry.id
+def _alias_pattern() -> tuple[re.Pattern[str], dict[str, tuple[str, ...]]]:
+    """Todas las palabras que nombran tipos: las del catálogo y los sinónimos (GEN-C13). Cada una da sus tipos: uno, o
+    varios si es ambigua. Un sinónimo nunca reemplaza un alias del catálogo."""
+    aliases: dict[str, tuple[str, ...]] = {}
+    for word, type_id in TYPE_SYNONYMS.items():
+        aliases[normalize_text(word)] = (type_id,)
+    for word, type_ids in AMBIGUOUS_SYNONYMS.items():
+        aliases[normalize_text(word)] = tuple(type_ids)
+    aliases.update({
+        normalize_text(label).replace("_", " "): (entry.id,)
         for entry in RESOURCE_TYPES
         for label in (entry.id, entry.name, entry.singular, *entry.count)
-    }
+    })
     alternatives = sorted(aliases, key=lambda alias: (-len(alias), alias))
     return re.compile(r"\b(?:" + "|".join(map(re.escape, alternatives)) + r")\b"), aliases
 
@@ -123,7 +142,9 @@ def _parts(message: str) -> tuple[str, dict[str, list[str]]]:
         value = message[match.end():end].strip(" \t\r\n;,")
         fields.setdefault(normalize_text(match[1]), []).append(value)
     prefix = _UNIT_PREFIX.match(request)
-    if prefix and normalize_text(prefix[1].strip()) not in _STAGE_NAMES:
+    # «Para primer ciclo, …» es la audiencia, no una unidad (GEN-C13).
+    if (prefix and normalize_text(prefix[1].strip()) not in _STAGE_NAMES
+            and not is_audience_phrase(f"para {prefix[1].strip()}")):
         fields.setdefault("unidad", []).append(prefix[1].strip())
         request = request[prefix.end():]
     for mention in _QUOTED_UNIT.finditer(request):
@@ -175,10 +196,36 @@ def _read_modality(request: str, issues: list[InterpretationIssue]) -> str | Non
     return None
 
 
+def _resolve_mentions(
+    mentions: list[re.Match[str]], modality: str | None, issues: list[InterpretationIssue],
+) -> list[str]:
+    """Los tipos de las palabras reconocidas. Una palabra de varios tipos (GEN-C13) se resuelve si con la modalidad
+    queda uno solo; si quedan varios, no se elige y se devuelve un problema con las opciones."""
+    requested: list[str] = []
+    for mention in mentions:
+        options = _TYPE_ALIASES[mention[0]]
+        if len(options) == 1:
+            requested.append(options[0])
+            continue
+        compatible = [t for t in options if not (modality and types_outside_modality(modality, [t]))]
+        if len(compatible) == 1:
+            requested.append(compatible[0])
+        else:
+            issues.append(_issue(
+                "resourceTypes", "ambiguous" if compatible else "not_allowed",
+                f"«{mention[0]}» puede ser más de un tipo de recurso: elige uno." if compatible
+                else f"«{mention[0]}» no tiene tipos en la modalidad {modality}.",
+                _type_options(compatible or list(options)),
+            ))
+    return list(dict.fromkeys(requested))
+
+
 def _read_types(
     mentions: list[re.Match[str]], request: str, modality: str | None, issues: list[InterpretationIssue],
 ) -> list[str]:
-    requested = list(dict.fromkeys(_TYPE_ALIASES[mention[0]] for mention in mentions))
+    ambiguous = len(issues)
+    requested = _resolve_mentions(mentions, modality, issues)
+    ambiguous = len(issues) > ambiguous
     outside = types_outside_modality(modality, requested) if modality else []
     if outside:
         names = ", ".join(_TYPE_NAMES[type_id] for type_id in outside)
@@ -189,7 +236,7 @@ def _read_types(
             "resourceTypes", "not_allowed", f"Elige hasta {MAX_SEQUENCE_TYPES} tipos.", _type_options(resolved),
         ))
         return []
-    if requested:
+    if requested or ambiguous:
         return order_resource_types(resolved) if resolved else []
     stages = {stage for name, stage in _STAGE_NAMES.items() if re.search(rf"\b{name}\b", request)}
     candidates = [entry.id for entry in RESOURCE_TYPES if entry.stage in stages]
@@ -235,6 +282,37 @@ def _apply_outcome(
     ))
 
 
+def _read_unlabeled_audience(request: str, issues: list[InterpretationIssue]) -> tuple[str | None, str]:
+    """La audiencia sin rótulo («para primer ciclo») y el texto sin ella, para que no cuente como tipo ni cantidad. Dos
+    audiencias distintas dan un problema con las dos."""
+    found = find_audiences(request)
+    for audience in reversed(found):
+        start, end = audience.span
+        request = f"{request[:start]} {request[end:]}"
+    texts = list(dict.fromkeys(audience.text for audience in found))
+    if len(texts) > 1:
+        issues.append(_issue("audience", "ambiguous", "Indica una sola audiencia.",
+                             [{"value": text, "label": text} for text in texts]))
+        return None, request
+    return (texts[0] if texts else None), request
+
+
+def _apply_audience(unit: UnitContext, audience: str, draft: dict[str, object],
+                    issues: list[InterpretationIssue]) -> None:
+    """La audiencia va al borrador salvo que no coincida con el nivel o el ciclo del curso: entonces se devuelve un
+    problema y el formulario conserva la audiencia del curso."""
+    found = classify(audience)
+    course = course_conflict(found, unit.education_level, unit.academic_cycle) if found else None
+    if course is None:
+        draft["audience"] = audience
+        return
+    issues.append(_issue(
+        "audience", "ambiguous",
+        f"La audiencia «{audience}» no coincide con el curso («{course}»). Se mantiene la del curso; elige una.",
+        [{"value": audience, "label": audience}, {"value": course, "label": f"{course} (curso)"}],
+    ))
+
+
 def _apply_text(fields: dict[str, list[str]], draft: dict[str, object], issues: list[InterpretationIssue]) -> None:
     for label, key in _FIELD_LABELS.items():
         values = list(dict.fromkeys(fields.get(label, [])))
@@ -268,9 +346,11 @@ class InterpretGenerationRequest:
 
         request, fields = _parts(command.message)
         request = re.sub(r"\s+", " ", normalize_text(request)).strip()
+        issues: list[InterpretationIssue] = []
+        audience, request = _read_unlabeled_audience(request, issues)
+        request = re.sub(r"\s+", " ", request).strip()
         catalog_text = request.replace("_", " ")
         mentions = list(_TYPE_PATTERN.finditer(catalog_text))
-        issues: list[InterpretationIssue] = []
         modality = _read_modality(request, issues)
         types = _read_types(mentions, request, modality, issues)
         quantity = _read_quantity(catalog_text, mentions, issues)
@@ -283,6 +363,11 @@ class InterpretGenerationRequest:
             draft["quantity"] = quantity
         _apply_outcome(unit, fields, request, draft, issues)
         _apply_text(fields, draft, issues)
+        if "audience" in draft:  # la audiencia rotulada gana a la que no tiene rótulo
+            labeled = str(draft.pop("audience"))
+            _apply_audience(unit, labeled, draft, issues)
+        elif audience is not None and "audiencia" not in fields:
+            _apply_audience(unit, audience, draft, issues)
 
         result: GenerationInterpretation = {
             "draft": draft,
