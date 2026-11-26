@@ -11,6 +11,7 @@ import io
 import re
 import secrets
 import time
+import unicodedata
 import zipfile
 from datetime import datetime, timezone
 from typing import Any
@@ -38,6 +39,41 @@ EMAIL_REGEX: re.Pattern[str] = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 def _hash_password(password: str, salt: bytes) -> bytes:
     """Calcula el hash PBKDF2 de una contraseña usando SHA-256."""
     return hashlib.pbkdf2_hmac("sha256", password.encode(), salt, PBKDF2_ITERATIONS)
+
+
+def _comparison_key(value: str) -> str:
+    decomposed = unicodedata.normalize("NFD", value.casefold())
+    without_accents = "".join(char for char in decomposed if not unicodedata.combining(char))
+    return " ".join(without_accents.split())
+
+
+def _validate_course_unit_uniqueness(units: list[dict[str, Any]]) -> None:
+    titles: set[str] = set()
+    outcome_codes: set[str] = set()
+
+    for unit_index, unit in enumerate(units):
+        title = _comparison_key(unit["title"])
+        if title in titles:
+            raise AccountConfigurationError(
+                "DUPLICATE_UNIT_TITLE",
+                f'Ya existe una unidad con el t\u00edtulo "{unit["title"]}" en este curso.',
+                409,
+                details=[{"field": "title", "unitIndex": unit_index}],
+            )
+        titles.add(title)
+
+        for outcome_index, outcome in enumerate(unit["outcomes"]):
+            code = _comparison_key(outcome.get("code") or "")
+            if not code:
+                continue
+            if code in outcome_codes:
+                raise AccountConfigurationError(
+                    "DUPLICATE_OUTCOME",
+                    f'Ya existe un resultado con el c\u00f3digo "{outcome["code"]}" en este curso.',
+                    409,
+                    details=[{"field": "code", "unitIndex": unit_index, "outcomeIndex": outcome_index}],
+                )
+            outcome_codes.add(code)
 
 
 class AccountService:
@@ -227,6 +263,7 @@ class AccountService:
                 }
             )
 
+        _validate_course_unit_uniqueness(built_units)
         saved_course["units"] = built_units
         self.repository.save_course(teacher_id, saved_course)
         return saved_course

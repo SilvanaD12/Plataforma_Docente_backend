@@ -13,7 +13,15 @@ from platform5e.domain.shared.errors import DomainError
 class AccountConfigurationError(DomainError):
     """Error de validación o configuración de la cuenta del docente."""
 
-    def __init__(self, code: str, message: str, status_code: int = 400) -> None:
+    def __init__(
+        self,
+        code: str,
+        message: str,
+        status_code: int = 400,
+        *,
+        details: list[dict[str, Any]] | None = None,
+    ) -> None:
+        self.details = details
         self.code: str = code
         self.message: str = message
         self.status_code: int = status_code

@@ -6,8 +6,11 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
 from platform5e.application.services.accounts.account_service import AccountService
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 
 
 class MockCoursesRepository(TeacherRepositoryPort):
@@ -168,3 +171,46 @@ def test_course_audience_round_trip():
     body = CourseInput.model_validate({**payload, **empty_audience})
     cleared = service.save_course("d", body.model_dump(by_alias=True), created["id"])
     assert {key: cleared[key] for key in audience} == empty_audience
+
+def test_duplicate_unit_title_ignores_case_accents_and_spaces():
+    repo = MockCoursesRepository()
+    service = AccountService(repo, "docente@5e.demo", "clave")
+    payload = make_course_payload(units=[
+        {"title": "Introducci\u00f3n a Redes"},
+        {"title": "  INTRODUCCION   A REDES  "},
+    ])
+
+    with pytest.raises(AccountConfigurationError) as error:
+        service.save_course("d", payload)
+
+    assert (error.value.code, error.value.status_code) == ("DUPLICATE_UNIT_TITLE", 409)
+    assert error.value.details == [{"field": "title", "unitIndex": 1}]
+    assert not repo.saved_courses
+
+
+def test_edit_rejects_an_outcome_code_already_saved_in_another_unit():
+    repo = MockCoursesRepository()
+    service = AccountService(repo, "docente@5e.demo", "clave")
+    created = service.save_course("d", make_course_payload())
+    [unit] = created["units"]
+    payload = make_course_payload(units=[
+        {"id": unit["id"], "title": unit["title"]},
+        {"title": "Dispositivos", "outcomes": [{"code": " ra-x ", "text": "Identifica un router"}]},
+    ])
+
+    with pytest.raises(AccountConfigurationError) as error:
+        service.save_course("d", payload, created["id"])
+
+    assert (error.value.code, error.value.status_code) == ("DUPLICATE_OUTCOME", 409)
+    assert error.value.details == [{"field": "code", "unitIndex": 1, "outcomeIndex": 0}]
+    assert repo.saved_courses[created["id"]] == created
+
+
+def test_other_courses_can_reuse_unit_titles_and_outcome_codes():
+    service = AccountService(MockCoursesRepository(), "docente@5e.demo", "clave")
+    first = service.save_course("d", make_course_payload())
+    second = service.save_course("d", make_course_payload(code="red-102"))
+
+    assert first["id"] != second["id"]
+    assert first["units"][0]["title"] == second["units"][0]["title"]
+    assert first["units"][0]["outcomes"][0]["code"] == second["units"][0]["outcomes"][0]["code"]
