@@ -383,6 +383,14 @@ Acordado con Silvana en la revisión de los PR (2026-11-09). Ninguna bloquea la 
 - [x] T111 [FE] [REV-P4] Mostrar el bloque accesible secundario «Posible contenido repetido en otras unidades» en `ReviewPage.tsx` reutilizando `.duplication-warning__*` en `review.css`, sin bloquear guardado, aprobación ni exportación.
 - [x] T112 [FE] [REV-P4] Agregar pruebas en `reviewApi.test.ts`, `ReviewPage.test.tsx` y `e2e/accessibility.spec.ts` (QA-09 axe-core) y validar `npm run lint`, `npm run build`, `npm run check:bundle`, `npm test` y `npm run test:e2e`.
 
+### Secciones por estado, tarjetas plegables y fuentes citadas en Revisión (REV-P5)
+- [x] T113 [FE] [REV-P5] Agregar utilidades puras en `src/features/review/model/resource.ts` (`STAGE_ORDER`, `stageLabel`, `resourceTypeLabel`, `formatApprovalDate`), `src/features/review/model/citations.ts` (`extractCitedFragments` con máscara de dominio y límite de 300 caracteres) y `src/features/review/model/reviewSections.ts` (agrupación, ordenamiento por etapa/fecha, resguardo al cerrar y siguiente foco), con pruebas unitarias.
+- [x] T114 [FE] [REV-P5] Agregar modo compacto sin botones anidados en `VerificationBadge.tsx`, componente plegable `CitationList.tsx` (`Fuentes citadas (n)`) y contenedor `ResourceCard.tsx`, más soporte `embedded`, `onDirtyChange` y sello `Aprobado el {fecha}` en `ResourceEditor.tsx`.
+- [x] T115 [FE] [REV-P5] Reorganizar `ReviewPage.tsx` con resumen superior, tres secciones plegables (`Pendientes de revisión`, `Aprobados`, `Descartados`), controles `Abrir todo` / `Cerrar todo`, aviso `Todo revisado. Ya puedes ir a Exportación.`, navegación desde enlaces `#<resourceId>` de duplicidad y estilos responsivos en `review.css` (hasta 375 px), evitando emisión falsa de cambios al montar `RichTextEditor.tsx`.
+- [x] T116 [FE] [REV-P5] Actualizar título (`SCORM (Moodle, Chamilo o Canvas)`) e instructivo de Moodle en `src/features/export/model/exportView.ts` y sus pruebas (`exportView.test.ts`, `ExportPage.test.tsx`).
+- [x] T117 [FE] [REV-P5] Agregar pruebas unitarias de componentes/páginas (`VerificationBadge.test.tsx`, `CitationList.test.tsx`, `ResourceCard.test.tsx`, `ResourceEditor.test.tsx`, `ReviewPage.test.tsx`) y recorrido interactivo E2E + axe-core (`e2e/review.spec.ts`), validando `lint`, `build`, `check:bundle`, `npm test` y `npm run test:e2e`.
+- [x] T118 [DOC] [REV-P5] Documentar `REV-P5` (`REV-R18`, `REV-C20`) en `Plataforma_Docente_backend/specs/001-revision-citas/spec.md` y tareas `T113`–`T118` en `tasks.md` sin modificar código ni contratos del backend.
+
 ## Historias del Sprint 1 (Cierre de evidencias)
 
 - [x] HU-043 [E2E] **Exportación a Moodle XML.** Comprobada en Moodle 5.3.1 (`sandbox.moodledemo.net`): formulario con XML, «Importing 1 questions from file», categoría y vista previa respondida (UDP incorrecta con retroalimentación y capa de transporte correcta). Evidencia: `docs/evidence/HU-043/`.
