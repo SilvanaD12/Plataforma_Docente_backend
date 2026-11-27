@@ -191,7 +191,7 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
 
 ## 6. Frontend (GEN-P3)
 
-- [ ] T016 [FE] [GEN-P3] **Depende de T010.** `src/features/generation`: «Planificar» crea el plan desde el formulario actual (y desde el borrador del chat de HU-038).
+- [x] T016 [FE] [GEN-P3] **Depende de T010.** `src/features/generation`: «Planificar» crea el plan desde el formulario actual (y desde el borrador del chat de HU-038).
   - La pantalla del plan muestra:
     - los ítems por etapa, con el nombre de la etapa, tipo, cantidad y propósito;
     - los conceptos propios editables y los conceptos de otros ítems de solo lectura;
@@ -199,11 +199,14 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
     - los referentes, las tipologías anteriores y el aviso de tipología repetida;
     - el aviso de respaldo por reglas.
   - Pruebas de componentes: muestra el plan y sus problemas junto a cada ítem; «Generar» solo con el plan aprobado; ningún texto dice «5E».
-- [ ] T017 [FE] [GEN-P3] **Depende de T016.** Edición y aprobación: mover conceptos entre ítems, cambiar el propósito, la cantidad y los fragmentos, agregar o quitar ítems, guardar con `expectedVersion`, aprobar y generar con `{planId, planVersion}`.
+  - Hecho en el PR #30 del frontend (pantalla del plan), probado a mano contra el backend local con reglas; capturas en el PR.
+- [x] T017 [FE] [GEN-P3] **Depende de T016.** Edición y aprobación: mover conceptos entre ítems, cambiar el propósito, la cantidad y los fragmentos, agregar o quitar ítems, guardar con `expectedVersion`, aprobar y generar con `{planId, planVersion}`.
   - Recuperar el último plan de la unidad al recargar.
   - Manejar `PLAN_VERSION_CONFLICT` (ofrecer recargar) y `PLAN_INVALID`.
   - Pruebas: PLAN-C12 a PLAN-C14 con el API simulado.
-- [ ] T018 [E2E] [GEN-P3] **Depende de T017.** Recorrido V11 de [quickstart](quickstart.md) con Playwright y el backend local con reglas; captura de cada paso en `docs/evidence/GEN-P3/` del frontend.
+  - Hecho en el PR #30 del frontend (editar, aprobar y generar), probado a mano contra el backend local con reglas; capturas en el PR.
+- [x] T018 [E2E] [GEN-P3] **Depende de T017.** Recorrido V11 de [quickstart](quickstart.md) con Playwright y el backend local con reglas; captura de cada paso en `docs/evidence/GEN-P3/` del frontend.
+  - **Hecho a mano, sin Playwright:** el recorrido V11 se comprobó a mano en el PR #30 del frontend, contra el backend local con reglas, con capturas en el PR. La versión con Playwright queda opcional.
 
 ## 7. Medición y cierre
 
@@ -218,8 +221,20 @@ Dependencias externas, cada una con lo que se usa mientras no esté:
     - Pares entre tipos distintos: 6,0 % → 2,7 % y 4,1 %.
     - Meta de P4 cumplida en parte: ≤ 5 % en las dos; −50 % solo en la v3.
   - **Pendiente:** la medición con reglas, la `faithfulness` (T027) y REV-P3.
-- [ ] T020 [E2E] [GEN-P1] **Depende de T010.** Tiempos de creación del plan, V9 de [quickstart](quickstart.md): p95 < 1 s con reglas y < 30 s con Gemini. Si no se cumple con Gemini, revisar la decisión síncrona de [research R1](research.md#r1-el-plan-como-recurso-propio-creado-de-forma-síncrona).
-- [ ] T021 [BE] [GEN-P2] **Depende de T011 y T018.** Fin de la transición: `GENERATION_REQUIRE_PLAN=true` por defecto, y `collect_samples.py` y `measure_generation_load.py` crean el plan antes de generar. Pruebas de los dos scripts con backend falso.
+- [x] T020 [E2E] [GEN-P1] **Depende de T010.** Tiempos de creación del plan, V9 de [quickstart](quickstart.md): p95 < 1 s con reglas y < 30 s con Gemini. Si no se cumple con Gemini, revisar la decisión síncrona de [research R1](research.md#r1-el-plan-como-recurso-propio-creado-de-forma-síncrona).
+  - **Script hecho (parte de reglas):** `backend/scripts/measure_plan_latency.py` crea 20 planes seguidos de la secuencia de V1 con el corpus de T067 e informa p50, p95, máximo y el planificador de cada plan (`generator.usesAi`, `attempts`). Solo corre contra un backend local. Pruebas en `tests/unit/test_measure_plan_latency.py`, con backend falso. Comando en [quickstart V9](quickstart.md#v9--tiempos).
+  - **Resultado con reglas (hecho, 25/11/2026):** backend local con SQLite y `LLM_PROVIDER=rules`, corpus de T067 y secuencia de V1. 20 de 20 planes creados, 0 fallidos y 0 con problemas de validación. `POST /generation-plans`: p50 34,4 ms, p95 40,8 ms, máximo 49,1 ms. Planificador: reglas 20, IA 0. Meta de V9 con reglas (p95 < 1 s) cumplida. Evidencia en [`docs/evidence/GEN-P1/`](../../docs/evidence/GEN-P1/README.md).
+  - **Gemini:** opcional y sin medir, para no gastar créditos del proveedor. La decisión síncrona de [research R1](research.md#r1-el-plan-como-recurso-propio-creado-de-forma-síncrona) no se revisó con datos de Gemini.
+- [x] T021 [BE] [GEN-P2] **Depende de T011 y T018.** Fin de la transición: `GENERATION_REQUIRE_PLAN=true` por defecto, y `collect_samples.py` y `measure_generation_load.py` crean el plan antes de generar. Pruebas de los dos scripts con backend falso.
+  - **Configuración:** `GENERATION_REQUIRE_PLAN=true` por defecto (`settings.py`, `.env.example`). El cuerpo sin plan responde `422 PLAN_REQUIRED`; `false` queda para las pruebas del cuerpo anterior y las mediciones que lo usan a propósito. `GENERATION_IMPLICIT_PLAN` sigue siendo solo de medición.
+  - **Regeneración desde Revisión:** exenta, sin cambios de código. No es un pedido nuevo del docente: rehace un recurso con sus datos guardados y, si nació de un plan, lee su ítem sin escribir el plan ([research R2](research.md#r2-el-plan-es-obligatorio-compatibilidad-del-pedido-sin-plan)). Exigirle un plan aprobado nuevo obligaría a planificar otra vez algo ya planificado. Un recurso anterior a los planes se regenera como antes.
+  - **Scripts:** `collect_samples.py` y `measure_generation_load.py` crean y aprueban el plan y generan con `{planId, planVersion}`. En `measure_generation_load.py`, los planes se crean antes de los envíos medidos o simultáneos, así que sus tiempos siguen siendo los del POST del pedido.
+  - **Locust (QA-17):** la tarea de generación crea y aprueba el plan antes del pedido; las dos peticiones salen aparte en las estadísticas.
+  - **JMeter (QA-18):** `stress.jmx` sigue enviando el cuerpo anterior; QA-18 se corre con `GENERATION_REQUIRE_PLAN=false`, documentado en [005 QA-18](../005-atributos-calidad/plan.md#qa-18--punto-de-quiebre-con-jmeter).
+  - **Pruebas:**
+    - e2e: `generate()` de `tests/e2e/generation_flow.py` crea y aprueba el plan;
+    - las pruebas cuyo tema es el cuerpo anterior arrancan el servidor con `legacy_body` (`GENERATION_REQUIRE_PLAN=false`);
+    - nuevas: `422 PLAN_REQUIRED` por defecto y regeneración por defecto de un recurso del plan (`test_planned_generation_api.py`).
 - [ ] T022 Preguntas abiertas para el profesor: P8 (referentes en la recuperación) y P10 (editor WYSIWYG). Registrar sus respuestas en [spec](spec.md#preguntas-abiertas-para-el-profesor) y ajustar R10 y GEN-P3 si cambian el alcance.
 
 ## Dependencias y trabajo en paralelo

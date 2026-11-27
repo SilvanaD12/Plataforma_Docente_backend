@@ -9,11 +9,14 @@ sin material procesado, la generación responde 400. Esas peticiones aparecen en
 Después repite, con pesos:
 - GET /api/v1/courses
 - GET /api/v1/documents/search?query=…&unitId=…&topK=8
-- POST /api/v1/generation-requests (con Idempotency-Key) y GET /api/v1/generation-requests/[id] hasta un estado final.
+- POST /api/v1/generation-plans y POST /api/v1/generation-plans/[id]/approve (T021: el servidor exige un plan
+  aprobado), y después POST /api/v1/generation-requests con {planId, planVersion} (con Idempotency-Key) y
+  GET /api/v1/generation-requests/[id] hasta un estado final. Las corridas de QA-17 anteriores a T021 usaban el cuerpo
+  anterior, sin plan: sus cifras del POST del pedido se comparan con estas, las del plan van aparte.
   Cada usuario espera su pedido antes de crear otro, así que nunca tiene más de 1 activo (el límite es 2). Un 429
   TOO_MANY_ACTIVE_REQUESTS es del negocio, no un error: se cuenta aparte, como «POST … [429 pedidos activos]», y se
   reintenta con la misma clave después de `Retry-After`. Cualquier otro 429 (por ejemplo, el límite por IP de QA-16)
-  cuenta como fallo. «[pedido completo] creado→final» mide el pedido de punta a punta.
+  cuenta como fallo. «[pedido completo] creado→final» mide el pedido de punta a punta, desde su POST (sin el plan).
 Las peticiones se nombran por la plantilla de la ruta, no por su id.
 
 El límite de inicio de sesión (QA-08) va por correo e IP: con un correo por usuario no se alcanza; no se toca.
@@ -49,8 +52,9 @@ from payloads import (  # mismo directorio: Locust lo agrega a sys.path
     course_body,
     document_context,
     error_code,
-    generation_body,
     load_settings,
+    plan_body,
+    planned_generation_body,
     retry_after_seconds,
     search_params,
     session_body,
@@ -60,6 +64,7 @@ from payloads import (  # mismo directorio: Locust lo agrega a sys.path
 SETTINGS = load_settings()
 CORPUS_BYTES = SETTINGS.corpus.read_bytes()
 REQUESTS_PATH = "/api/v1/generation-requests"
+PLANS_PATH = "/api/v1/generation-plans"
 
 
 def _wait_time():
@@ -112,8 +117,11 @@ class TeacherUser(HttpUser):
                         params=search_params(SETTINGS.search_query, self.unit["id"]))
 
     def generate(self) -> None:
+        body = self._approved_plan()
+        if body is None:
+            return
         started = time.perf_counter()
-        request_id = self._create_request()
+        request_id = self._create_request(body)
         if request_id is None:
             return
         deadline = time.monotonic() + SETTINGS.request_timeout
@@ -129,10 +137,27 @@ class TeacherUser(HttpUser):
                     return
         self._report_request(started, f"el pedido no terminó en {SETTINGS.request_timeout:g} s")
 
-    def _create_request(self) -> str | None:
+    def _approved_plan(self) -> dict | None:
+        """T021: crea el plan del pedido y lo aprueba sin cambios. Devuelve el cuerpo del pedido o None (fallo)."""
+        with self.client.post(PLANS_PATH, json=plan_body(self.unit["id"], SETTINGS.resource_types),
+                              headers={**self.auth, "Idempotency-Key": f"locust-plan-{uuid4().hex}"},
+                              name=f"POST {PLANS_PATH}", catch_response=True) as response:
+            plan = _json(response)
+            if response.status_code != 201:
+                response.failure(f"HTTP {response.status_code} {error_code(plan) or ''}".strip())
+                return None
+        with self.client.post(f"{PLANS_PATH}/{plan['id']}/approve", json={"expectedVersion": plan["version"]},
+                              headers=self.auth, name=f"POST {PLANS_PATH}/[id]/approve",
+                              catch_response=True) as response:
+            approved = _json(response)
+            if response.status_code != 200:
+                response.failure(f"HTTP {response.status_code} {error_code(approved) or ''}".strip())
+                return None
+        return planned_generation_body(approved)
+
+    def _create_request(self, body: dict) -> str | None:
         """Crea el pedido. Ante un 429 de pedidos activos espera `Retry-After` y reintenta con la misma clave."""
         key = f"locust-{uuid4().hex}"
-        body = generation_body(self.unit["id"], SETTINGS.resource_types)
         for _ in range(SETTINGS.max_retries_429 + 1):
             with self.client.post(REQUESTS_PATH, json=body, headers={**self.auth, "Idempotency-Key": key},
                                   name=f"POST {REQUESTS_PATH}", catch_response=True) as response:

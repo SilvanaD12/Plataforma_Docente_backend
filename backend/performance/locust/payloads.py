@@ -115,10 +115,15 @@ def document_context(unit: dict[str, Any]) -> str:
     })
 
 
-def generation_body(unit_id: str, resource_types: tuple[str, ...]) -> dict[str, Any]:
-    """Pedido individual con un tipo, o secuencia con varios (en orden 5E lo arma el servidor)."""
-    mode = "individual" if len(resource_types) == 1 else "sequence"
-    return {"mode": mode, "unitId": unit_id, "resourceTypes": list(resource_types), "quantity": 1}
+def plan_body(unit_id: str, resource_types: tuple[str, ...]) -> dict[str, Any]:
+    """T021 (spec 006): el plan del pedido, con un recurso por tipo (como el cuerpo anterior, `quantity: 1`). El
+    servidor exige un plan aprobado (GENERATION_REQUIRE_PLAN=true por defecto)."""
+    return {"unitId": unit_id, "resourceTypes": [{"type": t, "quantity": 1} for t in resource_types]}
+
+
+def planned_generation_body(plan: dict[str, Any]) -> dict[str, Any]:
+    """El pedido desde el plan aprobado."""
+    return {"planId": plan["id"], "planVersion": plan["version"]}
 
 
 def search_params(query: str, unit_id: str) -> dict[str, Any]:

@@ -2,8 +2,9 @@
 Adaptador HTTP del pedido de generación en segundo plano (GEN-01): inicio con clave de idempotencia, consulta del
 estado por paso y listado de los pedidos de una unidad. Contrato: specs/002-generacion-multiple/contracts.
 
-GEN-P2 (specs/006-plan-de-generacion/contracts): el inicio acepta `{planId, planVersion}` de un plan aprobado, y el
-cuerpo anterior mientras GENERATION_REQUIRE_PLAN=false. El pedido informa su plan y cada paso su ítem.
+GEN-P2 (specs/006-plan-de-generacion/contracts): el inicio acepta `{planId, planVersion}` de un plan aprobado. Desde
+T021, GENERATION_REQUIRE_PLAN=true por defecto: el cuerpo anterior solo se acepta con false (pruebas y mediciones). El
+pedido informa su plan y cada paso su ítem.
 """
 
 from __future__ import annotations
@@ -284,10 +285,12 @@ def create_generation_requests_router(
         resource drafted from its block of concepts. A draft plan answers 422 PLAN_NOT_APPROVED; another version
         409 PLAN_VERSION_CONFLICT; a used plan 409 PLAN_ALREADY_USED. If a fragment cited by the plan no longer
         exists in the unit (a document was deleted or reprocessed), the answer is 409 PLAN_EVIDENCE_STALE with one
-        `StaleDocument` per document in `details`, and nothing changes. While `GENERATION_REQUIRE_PLAN=false` the
-        previous body below is still accepted: the server builds an implicit approved plan (422 PLAN_INVALID with
-        the problems in `details` if it cannot be approved, 422 INSUFFICIENT_EVIDENCE if the material does not cover
-        the topic); with `true` it answers 422 PLAN_REQUIRED.
+        `StaleDocument` per document in `details`, and nothing changes. The previous body below (without a plan)
+        answers 422 PLAN_REQUIRED by default (`GENERATION_REQUIRE_PLAN=true`). Only a server started with
+        `GENERATION_REQUIRE_PLAN=false` (tests and measurements) still accepts it and builds an implicit approved plan
+        (422 PLAN_INVALID with the problems in `details` if it cannot be approved, 422 INSUFFICIENT_EVIDENCE if the
+        material does not cover the topic). Regenerating a resource from Review is not a new request and keeps
+        working with either value.
 
         The client sends a stable `Idempotency-Key`, unique per teacher. Repeating the same key with the same body
         (mode, unit and parameters) returns the existing request (200) without applying the other rules again;

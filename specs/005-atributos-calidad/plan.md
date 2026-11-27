@@ -293,6 +293,8 @@ locust -f backend/performance/locust/locustfile.py --host http://localhost:8000 
 
 - **Preparación (on_start).** Cada usuario crea su cuenta con un correo único (`POST /api/v1/accounts`), inicia sesión (`POST /api/v1/sessions`) y prepara un curso con una unidad y el material `evaluation/corpus/protocols.txt` procesado, con los mismos cuerpos que `evaluation/collect_samples.py`. Sin material procesado, la generación responde 400. En las estadísticas aparecen como «[preparación] …», aparte de las tareas medidas.
 - **Tareas, con pesos.** `GET /api/v1/courses` (3), `GET /api/v1/documents/search?query=…&unitId=…&topK=8` (3), y `POST /api/v1/generation-requests` con `Idempotency-Key` seguido de `GET /api/v1/generation-requests/[id]` hasta un estado final (1).
+  - **Desde T021** ([spec 006](../006-plan-de-generacion/tasks.md)), el servidor exige un plan aprobado (`GENERATION_REQUIRE_PLAN=true` por defecto). La tarea de generación crea el plan (`POST /api/v1/generation-plans`) y lo aprueba (`POST /api/v1/generation-plans/[id]/approve`) antes del pedido, que se envía con `{planId, planVersion}`.
+  - Esas dos peticiones salen aparte en las estadísticas. El POST del pedido y «[pedido completo]» siguen sin incluir el plan, así que se comparan con las corridas anteriores a T021; las del plan son nuevas.
 - **Límite de 2 pedidos activos.** Cada usuario espera su pedido antes de crear otro, así que nunca tiene más de 1 activo y nunca envía un tercero.
   - Un 429 `TOO_MANY_ACTIVE_REQUESTS` se cuenta aparte, como «POST … [429 pedidos activos]» y sin fallo, y se reintenta con la misma clave después de `Retry-After`.
   - Cualquier otro 429 cuenta como fallo.
@@ -363,6 +365,8 @@ No son resultados de QA-17: solo prueban que el locustfile funciona de punta a p
 **Responsable:** Juan · **Tipo:** Backend · **Atributo:** Eficiencia de desempeño y fiabilidad (PCa-1-G, RRe-1-G)
 
 **Enfoque:** Escalones de 50, 100, 200, 400 y 800 hilos, 2 minutos cada uno con rampa de 30 s; mezcla 40 % `/health`, 30 % cursos, 20 % búsqueda, 10 % creación de pedidos con consulta de su estado; parada automática cuando un escalón tiene errores > 5 % o más del 5 % de muestras sobre 5 s (p95 > 5 s); medición de recuperación de `/health`; corrida 1 sin QA-16 y corrida 2 con QA-16.
+
+**Desde T021** ([spec 006](../006-plan-de-generacion/tasks.md)): `stress.jmx` envía el cuerpo anterior de `POST /api/v1/generation-requests`, sin plan. El servidor lo rechaza con `422 PLAN_REQUIRED` salvo que arranque con `GENERATION_REQUIRE_PLAN=false` (`$env:GENERATION_REQUIRE_PLAN = "false"` antes de `uvicorn`), que es como se mide QA-18 mientras el plan de JMeter no cree planes. Las corridas 1 y 2 ya registradas son anteriores a T021.
 
 Comandos (desde backend/):
 ```powershell

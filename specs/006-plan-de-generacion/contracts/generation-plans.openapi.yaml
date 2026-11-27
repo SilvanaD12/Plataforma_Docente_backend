@@ -153,9 +153,10 @@ paths:
       description: |
         Change to GEN-01. The body is `{planId, planVersion}`; the mode, unit, types, quantities and evidence come
         from the plan, which becomes `used`. One step per plan item; each resource is drafted separately from its
-        item and the summary of what earlier resources covered (GEN-P2). While `GENERATION_REQUIRE_PLAN=false`, the
-        previous body of GEN-01 (`StartGenerationRequest` in specs/002) is still accepted and the server creates an
-        implicit approved plan; with `true` it answers 422 `PLAN_REQUIRED`. Same idempotency rules as GEN-01.
+        item and the summary of what earlier resources covered (GEN-P2). The previous body of GEN-01
+        (`StartGenerationRequest` in specs/002) answers 422 `PLAN_REQUIRED` by default (`GENERATION_REQUIRE_PLAN=true`,
+        T021); only with `false` (tests and measurements) is it still accepted, with an implicit approved plan. Same
+        idempotency rules as GEN-01.
         Before creating the request, every `fragmentId` of the plan items must still exist in the teacher's unit (a
         deleted or reprocessed document gives new ids); otherwise 409 `PLAN_EVIDENCE_STALE` and the teacher creates a
         new plan. Regenerating a resource from Review reads its plan item without writing the plan (no 409
@@ -185,7 +186,7 @@ paths:
         '422':
           description: |
             `PLAN_NOT_APPROVED`: the plan is a draft. `PLAN_REQUIRED`: the body has no plan and
-            `GENERATION_REQUIRE_PLAN=true`.
+            `GENERATION_REQUIRE_PLAN=true` (the default since T021).
           content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
         '429': { description: '`TOO_MANY_ACTIVE_REQUESTS` (2 active requests), as in GEN-01.' }
 

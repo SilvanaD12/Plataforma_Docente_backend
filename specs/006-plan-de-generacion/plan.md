@@ -106,10 +106,11 @@ Backend con SQLite y el generador por reglas, sin ninguna clave de API. Desde `b
 ```bash
 export DATABASE_URL="sqlite:///$(pwd)/plan-local.db"
 export LLM_PROVIDER=rules EMBEDDINGS_ENABLED=false MEDIA_GENERATION_ENABLED=false TOPIC_SEARCH_ENABLED=false
-export GENERATION_REQUIRE_PLAN=false
-unset LLM_API_KEY
+unset LLM_API_KEY   # GENERATION_REQUIRE_PLAN=true por defecto (T021): todo pedido parte de un plan aprobado
 .venv/bin/python -m uvicorn platform5e.main:create_application --factory --app-dir src --host 127.0.0.1 --port 8000
 ```
+
+Solo para probar a mano el cuerpo anterior (V7 a), arrancar con `GENERATION_REQUIRE_PLAN=false`.
 
 Pruebas automáticas, el contrato y los escenarios de [quickstart](quickstart.md) (V1 a V8 y V12 con reglas; V3 con Gemini falso):
 
@@ -119,7 +120,16 @@ Pruebas automáticas, el contrato y los escenarios de [quickstart](quickstart.md
 python scripts/export_openapi.py && git diff --exit-code -- ../docs/api/openapi.json
 ```
 
-Con PostgreSQL en Docker, los mismos comandos de la pila local de [QA-17](../005-atributos-calidad/plan.md#qa-17--concurrencia-y-capacidad-con-locust), agregando `GENERATION_REQUIRE_PLAN=false`.
+Con PostgreSQL en Docker, los mismos comandos de la pila local de [QA-17](../005-atributos-calidad/plan.md#qa-17--concurrencia-y-capacidad-con-locust).
+
+**Tiempo del plan (T020, [quickstart V9](quickstart.md#v9--tiempos)).** Con el backend de arriba (`LLM_PROVIDER=rules`), en otra terminal desde `backend/`:
+
+```bash
+export EVAL_EMAIL=latencia.plan@correo.pe EVAL_PASSWORD=clave-segura-9
+.venv/bin/python scripts/measure_plan_latency.py --api http://127.0.0.1:8000   # 20 planes de la secuencia de V1
+```
+
+Imprime p50, p95 y máximo de `POST /generation-plans` y el planificador de cada plan (`generator.usesAi` y `attempts`), y guarda el informe en `evaluation/results/plan-latency-rules-<fecha>.json`. Solo corre contra `localhost`, `127.0.0.1` o `::1`. Con Gemini (opcional): el mismo comando con el backend en `LLM_PROVIDER=gemini`, `LLM_MODEL=gemini-3.5-flash-lite` y la clave local.
 
 ## Medición de P4
 

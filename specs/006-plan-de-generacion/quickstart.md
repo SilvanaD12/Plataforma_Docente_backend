@@ -5,7 +5,7 @@
 ## Preparación
 
 - **Base de datos:** el backend local de [005 QA-17](../005-atributos-calidad/plan.md#qa-17--concurrencia-y-capacidad-con-locust), con PostgreSQL en Docker, o SQLite.
-- **Variables:** `LLM_PROVIDER=rules`, `EMBEDDINGS_ENABLED=false` y `GENERATION_REQUIRE_PLAN=false`. Gemini solo en V3, V9 y V10, con la clave local y nunca en Render.
+- **Variables:** `LLM_PROVIDER=rules` y `EMBEDDINGS_ENABLED=false`. `GENERATION_REQUIRE_PLAN` es `true` por defecto desde T021; solo V7 (a) arranca con `false`. Gemini solo en V3, V9 y V10, con la clave local y nunca en Render.
 - **Datos:** un docente con una unidad de redes y el corpus de T067 procesado (`backend/evaluation/corpus_t067`), como en `collect_samples.py`. En V10, la cuenta (`EVAL_EMAIL`) es siempre la misma: solo la cuenta que creó los pedidos de un informe puede leerlos después para recalcular o calibrar.
 - **Interfaz:** frontend en `http://localhost:5173` para V11.
 
@@ -30,13 +30,24 @@ python scripts/export_openapi.py && git diff --exit-code -- ../docs/api/openapi.
 | V4 | PLAN-C4 | `PUT` con `expectedVersion: 1`: (a) mover un concepto de un ítem a otro; (b) dejar un concepto repetido en dos ítems y un ítem sin fragmentos. | (a) `version: 2`, `status: draft` y `doesNotCover` de los dos ítems actualizado. (b) Se guarda con `validation.valid: false` y los problemas `CONCEPT_OWNED_TWICE` e `ITEM_WITHOUT_EVIDENCE`, cada uno con su `itemPosition`. |
 | V5 | PLAN-C5 | `approve` con una versión vieja; después con la actual sobre el plan inválido; después corregido. | `409 PLAN_VERSION_CONFLICT`; `422 PLAN_INVALID` con los problemas en `details`; `200` con `status: approved`. |
 | V6 | PLAN-C6, PLAN-C8, PLAN-C9 | `POST /generation-requests` con `{planId, planVersion}`; repetir con el mismo plan y otra clave; pedir con un plan en borrador. | `202` con un paso por ítem; el plan queda `used` con `usedByRequestId`. Cada recurso cita solo fragmentos del plan, y su `params` trae `planId` y `planItemPosition`. Con el mismo plan y otra clave, `409 PLAN_ALREADY_USED`; en borrador, `422 PLAN_NOT_APPROVED`. Un recurso que desarrolla conceptos ajenos se rechaza con `kind: plan`. |
-| V7 | PLAN-R5, PLAN-C10 | (a) Cuerpo anterior de GEN-01 sin plan; (b) lo mismo con `GENERATION_REQUIRE_PLAN=true`; (c) regenerar desde Revisión un recurso del plan. | (a) `202` y un plan implícito `origin: implicit`, `status: used`. (b) `422 PLAN_REQUIRED`. (c) La regeneración lee el ítem del recurso, no crea un plan nuevo y no escribe el plan: sin `PLAN_ALREADY_USED`, y el plan sigue con la misma `version`. |
+| V7 | PLAN-R5, PLAN-C10 | (a) Cuerpo anterior de GEN-01 sin plan, con `GENERATION_REQUIRE_PLAN=false`; (b) lo mismo con el valor por defecto (`true`); (c) regenerar desde Revisión un recurso del plan, con el valor por defecto. | (a) `202` y un plan implícito `origin: implicit`, `status: used`. (b) `422 PLAN_REQUIRED`. (c) La regeneración lee el ítem del recurso, no crea un plan nuevo y no escribe el plan: sin `PLAN_ALREADY_USED`, y el plan sigue con la misma `version`. |
 | V8 | PLAN-C7, PLAN-R9 | Otro docente hace `GET`, `PUT`, `approve` y genera con el plan. | `404 PLAN_NOT_FOUND` en todo, igual que con un plan inexistente. |
 | V12 | PLAN-C15, PLAN-C10 | Aprobar un plan; borrar un documento y volver a procesar otro de los que cita; pedir la generación. Después, con otro plan ya usado, borrar un documento de un recurso y regenerarlo desde Revisión. | Generación: `409 PLAN_EVIDENCE_STALE` con `details` por documento (`documentId`, `documentName`, `missingFragmentIds`); no se crea el pedido y el plan sigue `approved`. Regeneración: 409 con el mismo código, en el formato común `{"error": {"code", "message", "details"}}` y con el mismo `details` de `StaleDocument` (`documentId`, `documentName`, `missingFragmentIds`) que la generación; el recurso se conserva y el plan sigue `used` sin cambios. Con los documentos intactos, la regeneración del plan usado funciona (sin `PLAN_ALREADY_USED`). |
 
 ## V9 · Tiempos
 
 Con 20 planes seguidos de la secuencia de V1, medir el tiempo de `POST /generation-plans`: p95 < 1 s con reglas, y p95 < 30 s con Gemini (nunca más de 60 s más la recuperación). Si el p95 con Gemini pasa de 30 s, revisar la decisión síncrona ([research R1](research.md#r1-el-plan-como-recurso-propio-creado-de-forma-síncrona)).
+
+Script (T020), con el backend local en marcha (`LLM_PROVIDER=rules`), desde `backend/`:
+
+```bash
+export EVAL_EMAIL=latencia.plan@correo.pe EVAL_PASSWORD=clave-segura-9
+.venv/bin/python scripts/measure_plan_latency.py --api http://127.0.0.1:8000   # --plans 20 por defecto
+```
+
+**Resultado con reglas (T020, 25/11/2026):** 20 de 20 planes creados, sin fallos ni problemas de validación; p50 34,4 ms, p95 40,8 ms y máximo 49,1 ms, todos del planificador por reglas. Cumple la meta (p95 < 1 s). Evidencia en [`docs/evidence/GEN-P1/`](../../docs/evidence/GEN-P1/README.md).
+
+Prepara la unidad con `corpus_t067`, crea 20 planes seguidos (sin aprobarlos ni generar), imprime p50, p95 y máximo, cuántos fallaron y qué planificador armó cada plan (`generator.usesAi`, `fallback` y `attempts`), y guarda el informe en `evaluation/results/plan-latency-<planificador>-<fecha>.json`. Solo corre contra un backend local (`localhost`, `127.0.0.1` o `::1`). **Con Gemini (opcional, sin medir para no gastar créditos del proveedor):** el mismo comando con el backend en `LLM_PROVIDER=gemini` y `LLM_MODEL=gemini-3.5-flash-lite`, con la clave local y nunca en Render.
 
 ## V10 · Duplicación (P4)
 

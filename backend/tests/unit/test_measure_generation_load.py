@@ -22,6 +22,13 @@ def load():
     return module
 
 
+@pytest.fixture(autouse=True)
+def approved_plans(load, monkeypatch):
+    """T021: cada secuencia genera desde un plan aprobado. Aquí el plan es falso; `planned_body` se prueba aparte."""
+    monkeypatch.setattr(load, "planned_body",
+                        lambda client, headers, unit_id, key: {"planId": f"plan-{unit_id}", "planVersion": 1})
+
+
 def test_percentile_interpolates_between_ranks(load):
     assert load.percentile([], 50) is None
     assert load.percentile([7.0], 95) == 7.0
@@ -322,7 +329,8 @@ def test_the_posts_of_all_teachers_leave_together_and_each_is_timed(load, monkey
 
     def post_request(client, headers, key, body):
         index = int(key.rsplit("-", 1)[-1])
-        assert headers == {"Authorization": f"Bearer t{index}"} and body["unitId"] == f"u{index}"
+        assert headers == {"Authorization": f"Bearer t{index}"} and body == {"planId": f"plan-u{index}",
+                                                                            "planVersion": 1}
         if index == 4:
             raise httpx.ConnectError("conexión rechazada")
         together.wait(timeout=10)  # amplio: solo se agota si los envíos no salen a la vez
@@ -425,3 +433,60 @@ def test_main_with_teachers_prepares_one_account_each_and_writes_the_report(load
     report = json.loads(written.read_text(encoding="utf-8"))
     assert report["mode"] == "teachers" and report["summary"]["postMs"]["measured"] == 5
     assert "clave-que-no-debe-aparecer" not in written.read_text(encoding="utf-8") + capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------- T021: plan antes de cada secuencia
+
+
+class PlanServer:
+    """Crea y aprueba planes; con `reject`, el plan responde 422 al aprobarlo (PLAN_INVALID)."""
+
+    def __init__(self, reject: bool = False) -> None:
+        self.calls: list[tuple[str, str, dict]] = []
+        self.reject = reject
+
+    def __call__(self, request):
+        import httpx
+
+        body = json.loads(request.content) if request.content else {}
+        self.calls.append((request.method, request.url.path, {**body, "key": request.headers.get("Idempotency-Key")}))
+        if request.url.path == "/api/v1/generation-plans":
+            return httpx.Response(201, json={"id": "gen-plan-1", "version": 1, "status": "draft"})
+        if request.url.path.endswith("/approve"):
+            if self.reject:
+                return httpx.Response(422, json={"error": {"code": "PLAN_INVALID", "message": "x"}})
+            return httpx.Response(200, json={"id": "gen-plan-1", "version": 1, "status": "approved"})
+        return httpx.Response(404)
+
+
+def test_each_sequence_creates_and_approves_its_plan_of_eight_types_by_five(load, monkeypatch):
+    import httpx
+
+    monkeypatch.undo()  # el `planned_body` real
+    server = PlanServer()
+    with httpx.Client(base_url="http://servidor.test", transport=httpx.MockTransport(server)) as client:
+        body = load.planned_body(client, {"Authorization": "x"}, "u1", "load-prueba-sequence-0")
+    assert body == {"planId": "gen-plan-1", "planVersion": 1}
+    (_, created_path, created), (_, approve_path, approve) = server.calls
+    assert created_path == "/api/v1/generation-plans" and created["key"] == "load-prueba-sequence-0-plan"
+    assert created["unitId"] == "u1" and len(created["resourceTypes"]) == 8
+    assert {t["quantity"] for t in created["resourceTypes"]} == {load.QUANTITY}
+    assert approve_path == "/api/v1/generation-plans/gen-plan-1/approve" and approve["expectedVersion"] == 1
+
+
+def test_a_rejected_plan_counts_as_a_refused_send_and_the_run_goes_on(load, monkeypatch):
+    import httpx
+
+    def planned(client, headers, unit_id, key):
+        if key.endswith("-sequence-1"):
+            raise load.PlanRejected(httpx.Response(422, json={"error": {"code": "PLAN_INVALID", "message": "x"}}))
+        return {"planId": f"plan-{key}", "planVersion": 1}
+
+    monkeypatch.setattr(load, "planned_body", planned)
+    monkeypatch.setattr(load, "post_request",
+                        lambda client, headers, key, body: httpx.Response(202, json={"id": f"m{key[-1]}"}))
+    submitted, refused, failed = load.submit_measured(None, {}, "u1", "prueba", 0.01, __import__("time").monotonic() + 1)
+    assert sorted(submitted.values()) == [f"load-prueba-sequence-{i}" for i in (0, 2, 3, 4)]
+    [rejected] = refused
+    assert rejected["key"].endswith("-sequence-1") and rejected["status"] == 422
+    assert rejected["errorCode"] == "PLAN_INVALID" and failed == []

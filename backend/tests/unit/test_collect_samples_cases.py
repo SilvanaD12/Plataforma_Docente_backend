@@ -20,27 +20,33 @@ UNIT = {"id": "unidad-1", "title": "Protocolos de transporte",
 COURSE_CODE_PATTERN = re.compile(r"^EVAL-RAG-[0-9a-f]{12}$")
 
 
-# Cuerpo del pedido
+# Cuerpo del plan (T021: el pedido se genera desde un plan aprobado)
 
 
-def test_an_old_case_sends_the_same_body_as_before_without_modalities(collect):
-    assert collect.request_body(OLD_CASE, UNIT) == {
-        "mode": "individual", "unitId": "unidad-1", "resourceTypes": ["explicacion"], "quantity": 1,
+def test_an_old_case_sends_the_same_parameters_in_its_plan_without_modality(collect):
+    assert collect.plan_body(OLD_CASE, UNIT) == {
+        "unitId": "unidad-1", "resourceTypes": [{"type": "explicacion", "quantity": 1}],
         "outcomeId": None, "difficulty": "intermedia", "optionCount": 4, "topK": 8, "evidenceThreshold": 0.6,
         "instructions": "Explicación de TCP y UDP.", "audience": "", "competency": "",
     }
 
 
 def test_the_competency_of_the_case_is_sent(collect):
-    body = collect.request_body({**OLD_CASE, "competency": "Pensamiento crítico"}, UNIT)
+    body = collect.plan_body({**OLD_CASE, "competency": "Pensamiento crítico"}, UNIT)
     assert body["competency"] == "Pensamiento crítico"
+
+
+def test_top_k_stays_inside_what_the_plan_accepts(collect):
+    assert collect.plan_body({**OLD_CASE, "topK": 20}, UNIT)["topK"] == 12
+    assert collect.plan_body({**OLD_CASE, "topK": 1}, UNIT)["topK"] == 3
 
 
 def test_a_sequence_case_sends_its_types(collect):
     case = {"id": "s01", "mode": "sequence", "resourceTypes": ["pregunta_detonante", "explicacion"],
-            "instructions": "Secuencia sobre TCP."}
-    body = collect.request_body(case, UNIT)
-    assert body["mode"] == "sequence" and body["resourceTypes"] == ["pregunta_detonante", "explicacion"]
+            "instructions": "Secuencia sobre TCP.", "quantity": 2}
+    body = collect.plan_body(case, UNIT)
+    assert body["resourceTypes"] == [{"type": "pregunta_detonante", "quantity": 2},
+                                     {"type": "explicacion", "quantity": 2}]
     assert collect.case_label(case) == "s01 · secuencia · pregunta_detonante, explicacion"
     assert collect.case_label(OLD_CASE) == "c05 · explain · explicacion"
 
@@ -56,7 +62,7 @@ def test_a_sequence_case_sends_its_types(collect):
 )
 def test_a_case_without_valid_types_or_mode_is_reported(collect, case):
     with pytest.raises(ValueError) as invalid:
-        collect.request_body(case, UNIT)
+        collect.plan_body(case, UNIT)
     assert case["id"] in str(invalid.value)
 
 

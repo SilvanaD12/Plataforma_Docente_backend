@@ -6,7 +6,7 @@ import json
 
 import httpx
 
-from tests.e2e.generation_flow import generate, start_generation
+from tests.e2e.generation_flow import generate, plan_body
 
 CREDENTIALS = {"email": "docente@5e.demo", "password": "Demo5E!2026"}
 
@@ -104,7 +104,9 @@ def test_real_material_is_processed_and_generates_cited_resources(server: str):
         assert explanation["status"] == "succeeded" and explained["options"] is None
 
         assert api.delete(f"/api/v1/documents/{uploaded.json()['id']}", headers=h).status_code == 204
-        without_material = start_generation(api, h, unit["id"], "item_opcion_multiple", **params)
+        # T021: sin material, el plan ya no se puede crear (y sin plan no hay pedido).
+        without_material = api.post("/api/v1/generation-plans", headers={**h, "Idempotency-Key": "plan-sin-material"},
+                                    json=plan_body(unit["id"], "item_opcion_multiple", **params))
         assert without_material.status_code == 400 and without_material.json()["error"]["code"] == "NO_PROCESSED_MATERIAL"
 
 

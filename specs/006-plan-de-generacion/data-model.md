@@ -142,7 +142,7 @@ El plan congela su evidencia, pero el docente puede borrar o volver a procesar u
 
 | Dónde | Cambio |
 | --- | --- |
-| `StartGenerationRequest` | Nuevo cuerpo `{planId, planVersion}`. El cuerpo anterior se acepta mientras `GENERATION_REQUIRE_PLAN=false`, con un plan implícito. |
+| `StartGenerationRequest` | Nuevo cuerpo `{planId, planVersion}`. El cuerpo anterior responde `422 PLAN_REQUIRED` por defecto (T021); solo con `GENERATION_REQUIRE_PLAN=false` se acepta, con un plan implícito. |
 | `GenerationRequest` | Columnas `plan_id` y `plan_version`. La evidencia del pedido es la del plan. |
 | `GenerationStep` | Columna `plan_item_position`. Un paso por ítem. |
 | `steps[].rejections[].kind` | Nuevo valor `plan`: el recurso no desarrolló sus conceptos o desarrolló los de otro ítem. |
