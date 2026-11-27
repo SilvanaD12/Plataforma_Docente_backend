@@ -46,6 +46,14 @@ Como docente, quiero elegir la modalidad antes de generar para recibir solo los 
 | GEN-C10 | Elijo una modalidad y pido recursos | Solo se ofrecen los tipos de esa modalidad. Si el pedido incluye un tipo que no pertenece a ella, se rechaza con `RESOURCE_TYPE_NOT_IN_MODALITY` antes de crearse. El pedido y sus recursos guardan la modalidad elegida. |
 | GEN-C11 | Pido una actividad kinestésica | El recurso trae al menos 3 pasos, cada uno con su instrucción, una pregunta opcional y su cita al material, y además materiales, tiempo estimado y espacio. Solo los pasos se verifican contra el material. Si la IA falla, la redacta el generador por reglas. |
 
+## Alineación con el resultado de aprendizaje
+
+Como docente, quiero que el recurso trate el resultado de aprendizaje que elegí y tenga el nivel de su verbo, aunque la búsqueda traiga material de otro tema.
+
+| Caso | Dado y cuando | Entonces |
+| --- | --- | --- |
+| GEN-C14 | Elijo un resultado de aprendizaje (por ejemplo «RA1.1: Reconoce las capas del modelo OSI») y la evidencia recuperada incluye un documento de otro tema | El recurso del generador por reglas usa primero las oraciones del material más parecidas al resultado elegido y al título de la unidad, y menciona al menos un término de ellos. Su consigna sigue el nivel del verbo del resultado: reconocer, identificar o definir piden una idea, un enunciado breve o una pregunta de recuerdo; explicar o describir, una explicación; analizar, comparar o evaluar, una pregunta compleja. Un verbo fuera de esa tabla no cambia la consigna. Si ninguna oración candidata menciona esos términos, se entrega el mejor recurso con un aviso visible en Revisión, sin rechazarlo. Con Gemini, el prompt nombra el resultado elegido y el nivel de su verbo. |
+
 ## Interpretación de pedidos (HU-038)
 
 Como docente, quiero describir con mis propias palabras los recursos que necesito y corregir el pedido interpretado antes de generar.
@@ -69,10 +77,11 @@ Como docente, quiero describir con mis propias palabras los recursos que necesit
 - **GEN-R10.** Agregar el tipo actividad kinestésica a la etapa Explorar: pasos guiados con la misma forma que la exploración guiada (mínimo 3, cada uno con sus fragmentos), más materiales, tiempo estimado y espacio. Solo los pasos se verifican contra el material; materiales, tiempo y espacio forman parte de la huella. Tiene un redactor del generador por reglas.
 
 - **GEN-R11.** Interpretar el mensaje del docente mediante reglas deterministas y devolver un borrador editable para la unidad activa. Comprobar la pertenencia de la unidad antes de interpretar y aplicar las reglas del catálogo. La interpretación funciona con independencia del procesamiento de documentos, la recuperación de evidencia y la generación de recursos.
+- **GEN-R12.** Anclar la redacción al resultado de aprendizaje elegido y al título de la unidad, con reglas léxicas y sin IA: ordenar las oraciones candidatas por su parecido con ellos, empezar los conceptos del plan por reglas con los términos del resultado, adaptar la consigna al nivel del verbo del resultado según una tabla explícita y, antes de entregar, cambiar a la siguiente oración candidata un recurso que no menciona ninguno de sus términos. Si ninguna sirve, entregar el mejor con un aviso, sin rechazarlo.
 
 ## Criterios de éxito
 
-- Verificar los casos GEN-C1 a GEN-C12 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
+- Verificar los casos GEN-C1 a GEN-C14 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
 - Validar el orden de etapas, la recuperación tras una desconexión y la conservación de resultados parciales.
 - Comprobar que repetir un pedido con los mismos datos no duplica recursos y que otro docente no puede consultarlo.
 - Comprobar que los recursos vigentes llegan a revisión con huella, resultado de verificación y copia histórica completa, y que los pendientes pueden llegar con el motivo registrado, pero no pueden aprobarse ni exportarse.

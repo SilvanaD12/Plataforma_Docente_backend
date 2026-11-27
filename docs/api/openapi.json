@@ -7131,10 +7131,12 @@
             "type": "string",
             "enum": [
               "overlap",
-              "missing_concepts"
+              "missing_concepts",
+              "outcome_misaligned",
+              "previous_unit"
             ],
             "title": "Kind",
-            "description": "`overlap`: it develops a concept of another resource of the plan. `missing_concepts`: it develops none of its own."
+            "description": "`overlap`: it develops a concept of another resource of the plan. `missing_concepts`: it develops none of its own. `outcome_misaligned`: a rules-drafted resource whose cited sentences mention no term of the chosen learning outcome or the unit title; delivered anyway. `previous_unit`: it develops a concept of an earlier unit of the course (plan `sessionContext.previousUnitConcepts`); delivered anyway."
           },
           "reason": {
             "type": "string",
@@ -7147,7 +7149,7 @@
             },
             "type": "array",
             "title": "Developedconcepts",
-            "description": "Concepts of other resources it develops.",
+            "description": "Concepts of other resources (or of earlier units, for `previous_unit`) it develops.",
             "default": []
           },
           "missingOwnConcepts": {
@@ -7167,7 +7169,7 @@
           "reason"
         ],
         "title": "PlanWarning",
-        "description": "GEN-P2 (specs/006-plan-de-generacion, research R5): aviso de solapamiento con el plan."
+        "description": "GEN-P2 (specs/006-plan-de-generacion, research R5): aviso de solapamiento con el plan. GEN-C14 (spec 002,\nresearch R14): aviso de un recurso de reglas que no menciona el resultado elegido ni la unidad. PLAN-C16 (spec 006,\nresearch R11): aviso de un recurso que vuelve a explicar un concepto de una unidad anterior."
       },
       "PreviousTypology": {
         "properties": {
@@ -7195,6 +7197,35 @@
           "resourceTypes"
         ],
         "title": "PreviousTypology"
+      },
+      "PreviousUnitConcepts": {
+        "properties": {
+          "unitNumber": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Unitnumber"
+          },
+          "unitTitle": {
+            "type": "string",
+            "title": "Unittitle"
+          },
+          "concepts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Concepts"
+          }
+        },
+        "additionalProperties": true,
+        "type": "object",
+        "required": [
+          "unitNumber",
+          "unitTitle",
+          "concepts"
+        ],
+        "title": "PreviousUnitConcepts"
       },
       "Problem": {
         "properties": {
@@ -8029,7 +8060,7 @@
                 "type": "null"
               }
             ],
-            "description": "GEN-P2: an AI resource delivered although it did not fully follow its plan item (it develops another item's concept or none of its own). Shown in Review; it does not block approval."
+            "description": "GEN-P2: an AI resource delivered although it did not fully follow its plan item (it develops another item's concept or none of its own). GEN-C14: a rules resource that mentions neither the chosen learning outcome nor the unit. PLAN-C16: a resource that develops a concept of an earlier unit. Shown in Review; it does not block approval."
           },
           "reviewReset": {
             "anyOf": [
@@ -8447,6 +8478,15 @@
             "type": "array",
             "maxItems": 3,
             "title": "Previoustypologies"
+          },
+          "previousUnitConcepts": {
+            "items": {
+              "$ref": "#/components/schemas/PreviousUnitConcepts"
+            },
+            "type": "array",
+            "title": "Previousunitconcepts",
+            "description": "Read-only (PLAN-C16, research R11). Own concepts of the latest approved or used plan of each earlier unit of the same course, oldest unit first, up to 12 per unit and 30 in total. Frozen when the plan is created. The planners do not assign them again, except terms of the chosen learning outcome; a resource that develops one is delivered with `planWarning.kind: previous_unit`. Empty for the first unit.",
+            "default": []
           }
         },
         "additionalProperties": true,

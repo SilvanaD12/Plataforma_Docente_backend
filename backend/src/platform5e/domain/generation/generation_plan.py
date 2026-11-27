@@ -168,18 +168,47 @@ class PreviousTypology:
 
 
 @dataclass(frozen=True)
-class SessionContext:
-    previous_typologies: tuple[PreviousTypology, ...] = ()
+class PreviousUnitConcepts:
+    """Los conceptos propios del último plan aprobado o usado de una unidad anterior del curso (PLAN-C16, R11)."""
+
+    unit_number: int
+    unit_title: str
+    concepts: tuple[str, ...]
 
     def to_payload(self) -> dict[str, Any]:
-        return {"previousTypologies": [typology.to_payload() for typology in self.previous_typologies]}
+        return {"unitNumber": self.unit_number, "unitTitle": self.unit_title, "concepts": list(self.concepts)}
+
+    @classmethod
+    def from_payload(cls, data: dict[str, Any]) -> PreviousUnitConcepts:
+        return cls(int(data.get("unitNumber", 0)), data.get("unitTitle", ""), tuple(data.get("concepts", [])))
+
+
+@dataclass(frozen=True)
+class SessionContext:
+    """El contexto del curso que el plan congela al crearse: tipologías anteriores (CUR-P3) y conceptos de las
+    unidades anteriores (R11)."""
+
+    previous_typologies: tuple[PreviousTypology, ...] = ()
+    previous_unit_concepts: tuple[PreviousUnitConcepts, ...] = ()
+
+    @property
+    def previous_concepts(self) -> tuple[str, ...]:
+        """Todos los conceptos de las unidades anteriores, en orden."""
+        return tuple(concept for unit in self.previous_unit_concepts for concept in unit.concepts)
+
+    def to_payload(self) -> dict[str, Any]:
+        return {"previousTypologies": [typology.to_payload() for typology in self.previous_typologies],
+                "previousUnitConcepts": [unit.to_payload() for unit in self.previous_unit_concepts]}
 
     @classmethod
     def from_payload(cls, data: dict[str, Any]) -> SessionContext:
-        return cls(tuple(
-            PreviousTypology(t.get("sessionLabel", ""), t.get("usedAt", ""), tuple(t.get("resourceTypes", [])))
-            for t in data.get("previousTypologies", [])
-        ))
+        return cls(
+            tuple(
+                PreviousTypology(t.get("sessionLabel", ""), t.get("usedAt", ""), tuple(t.get("resourceTypes", [])))
+                for t in data.get("previousTypologies", [])
+            ),
+            tuple(PreviousUnitConcepts.from_payload(u) for u in data.get("previousUnitConcepts", [])),
+        )
 
 
 @dataclass(frozen=True)

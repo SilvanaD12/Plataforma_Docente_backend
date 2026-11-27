@@ -42,7 +42,7 @@ from platform5e.domain.generation.generation_plan import (
     SessionContext,
     order_items,
 )
-from platform5e.application.services.generation.concept_extraction import phrase_groups
+from platform5e.application.services.generation.concept_extraction import outcome_concepts, phrase_groups
 from platform5e.domain.generation.plan_coverage import contains_term
 from platform5e.domain.generation.plan_validation import short_concept_problem, validate_items
 from platform5e.domain.generation.topic_coverage import (
@@ -128,11 +128,16 @@ class RuleBasedPlanner:
     def __init__(self, catalog: Mapping[str, CatalogEntry]) -> None:
         self._catalog = catalog
 
-    def draft(self, inputs: PlanInputs, evidence: PlanEvidence) -> tuple[PlanItem, ...]:
+    def draft(
+        self, inputs: PlanInputs, evidence: PlanEvidence, outcome: str = "", previous: Sequence[str] = ()
+    ) -> tuple[PlanItem, ...]:
+        """`outcome`: el texto del resultado de aprendizaje elegido (T029); sus frases y siglas van primero.
+        `previous`: los conceptos de las unidades anteriores (R11), que no se asignan salvo los del resultado."""
         token_sets = [_tokens(fragment.text) for fragment in evidence.fragments]
         # Lo mínimo que necesita el plan: un concepto por recurso (1 si la cantidad es libre).
         minimum = sum(requested.quantity or 1 for requested in inputs.resource_types)
-        candidates = self._candidates(inputs.instructions, [f.text for f in evidence.fragments], token_sets, minimum)
+        candidates = self._candidates(inputs.instructions, [f.text for f in evidence.fragments], token_sets, minimum,
+                                      outcome, previous)
         requested = sorted(
             inputs.resource_types,
             key=lambda r: list(PHASES_5E).index(self._stage(r.type)) if self._stage(r.type) in PHASES_5E else 99,
@@ -172,20 +177,31 @@ class RuleBasedPlanner:
 
     @staticmethod
     def _candidates(
-        instructions: str, texts: list[str], token_sets: list[set[str]], minimum: int = 0
+        instructions: str, texts: list[str], token_sets: list[set[str]], minimum: int = 0, outcome: str = "",
+        previous: Sequence[str] = (),
     ) -> list[str]:
         """Conceptos candidatos que aparecen en la evidencia (T027 (b), `concept_extraction`): primero las frases del
         tema, después las frases del material que se repiten, las siglas y los términos de varias palabras que aparecen
         una vez; cada grupo por el primer fragmento donde aparece cada concepto, las frases antes que las siglas en el
-        mismo fragmento y, en empate, alfabético. Nunca frases pegadas entre signos ni de los encabezados de página."""
+        mismo fragmento y, en empate, alfabético. Nunca frases pegadas entre signos ni de los encabezados de página.
+        T029: con un resultado de aprendizaje elegido, su grupo (frases y siglas del resultado) va antes que todos.
+        R11: un concepto de unidades anteriores (`previous`) se deja para el final, salvo que sea un término del
+        resultado (de su grupo o completo en su texto); solo entra si sin él no alcanza el mínimo del plan."""
 
         def first_index(concept: str) -> int | None:
             return next((i for i, text in enumerate(texts) if contains_term(text, concept)), None)
 
         chosen: list[str] = []
         seen_keys: set[str] = set()
+        previous_keys = {concept_key(concept) for concept in previous} - {""}
+        deferred: list[str] = []
+        outcome_group = outcome_concepts(outcome) if outcome else []
         preferred, last_resort = phrase_groups(instructions, texts)
-        groups = list(preferred)
+        groups = ([outcome_group] if outcome else []) + list(preferred)
+
+        def seen_before(key: str) -> bool:
+            return any(key == old or _same_concept(key, old) for old in previous_keys)
+
         for group in groups:
             if group is last_resort and len(chosen) >= minimum:
                 break  # los de último recurso solo entran si los preferidos no alcanzan para el plan
@@ -202,9 +218,15 @@ class RuleBasedPlanner:
                 if key in seen_keys or any(_same_concept(key, seen) for seen in seen_keys):
                     continue
                 seen_keys.add(key)
+                if (previous_keys and group is not outcome_group and not contains_term(outcome, concept)
+                        and seen_before(key)):
+                    deferred.append(concept[:MAX_CONCEPT_CHARS])  # ya tratado en una unidad anterior
+                    continue
                 chosen.append(concept[:MAX_CONCEPT_CHARS])
             if group is groups[-1] and group is not last_resort and len(chosen) < minimum:
                 groups.append(last_resort)
+        # Válvula (R11): sin los de unidades anteriores el plan quedaría con menos conceptos que recursos.
+        chosen += deferred[:max(0, minimum - len(chosen))]
         return chosen[:MAX_CANDIDATES]
 
     @staticmethod
@@ -294,6 +316,7 @@ def build_plan_prompt(
     session_context: SessionContext = SessionContext(),
     unit_title: str = "",
     retry_feedback: str | None = None,
+    outcome: str = "",
 ) -> PlanPrompt:
     system = (
         "Eres un asistente pedagógico que planifica los recursos de una clase universitaria antes de redactarlos. "
@@ -305,6 +328,10 @@ def build_plan_prompt(
         f"UNIDAD: {unit_title or 'sin título'}",
         f"TEMA PEDIDO: {inputs.instructions or 'el tema de la unidad'}",
     ]
+    if outcome:
+        # T029: el resultado elegido; sus conceptos van primero en los ítems.
+        lines.append(f"RESULTADO DE APRENDIZAJE ELEGIDO: {outcome}. Los conceptos del plan empiezan por los de este "
+                     "resultado que estén en los fragmentos.")
     if inputs.audience:
         lines.append(f"PÚBLICO: {inputs.audience}")
     if inputs.competency:
@@ -327,6 +354,12 @@ def build_plan_prompt(
     if session_context.previous_typologies:
         previous = session_context.previous_typologies[0]
         lines += ["", "TIPOS USADOS EN LA SESIÓN ANTERIOR (varía los enfoques): " + ", ".join(previous.resource_types)]
+    if session_context.previous_unit_concepts:
+        # R11: lo ya tratado en las unidades anteriores del curso; el esquema de respuesta no cambia.
+        lines += ["", "YA TRATADOS EN UNIDADES ANTERIORES (refiérete a ellos, no los vuelvas a explicar ni los pongas "
+                  "como conceptos de los ítems, salvo los del resultado elegido): " + "; ".join(
+                      f"Unidad {unit.unit_number} ({unit.unit_title}): {', '.join(unit.concepts)}"
+                      for unit in session_context.previous_unit_concepts)]
     lines += [
         "",
         "FORMATO DE RESPUESTA (JSON):",
@@ -433,9 +466,12 @@ class GenerationPlanner:
         referents: Sequence[Referent] = (),
         session_context: SessionContext = SessionContext(),
         unit_title: str = "",
+        outcome: str = "",
     ) -> tuple[tuple[PlanItem, ...], dict[str, Any]]:
+        """`outcome`: el texto del resultado de aprendizaje elegido, o vacío (T029)."""
+        previous = session_context.previous_concepts
         if self._drafter is None:
-            return self._rules.draft(inputs, evidence), self._generator(None, 0)
+            return self._rules.draft(inputs, evidence, outcome, previous), self._generator(None, 0)
         description = self._drafter.description
         known = {entry_id: entry.stage for entry_id, entry in self._catalog.items()}
         feedback: str | None = None
@@ -445,7 +481,7 @@ class GenerationPlanner:
             attempts += 1
             try:
                 prompt = build_plan_prompt(inputs, evidence, self._catalog, referents, session_context, unit_title,
-                                           retry_feedback=feedback)
+                                           retry_feedback=feedback, outcome=outcome)
                 dropped: dict[str, list[str]] = {}
                 items = items_from_model(self._drafter.draft_plan(prompt), inputs, evidence, self._catalog, dropped)
                 items, repairs = repair_items(items, inputs)
@@ -466,7 +502,8 @@ class GenerationPlanner:
                     logger.info("%s: plan arreglado sin otra llamada: %s", description, repairs)
                 return items, {"description": description, "usesAi": True, "fallback": False, "fallbackReason": None,
                                "attempts": attempts, "repairs": repairs}
-        return self._rules.draft(inputs, evidence), self._generator(f"{reason} Se armó el plan con reglas.", attempts)
+        return self._rules.draft(inputs, evidence, outcome, previous), self._generator(
+            f"{reason} Se armó el plan con reglas.", attempts)
 
     @staticmethod
     def _generator(fallback_reason: str | None, attempts: int) -> dict[str, Any]:

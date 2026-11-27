@@ -12,6 +12,8 @@ corregidas tras la medición de P4 con Gemini:
   aparece en al menos dos oraciones, o en una oración que lo define («El protocolo UDP es…», «Datagrama: …»). Nombrarlo
   una vez no cuenta, tampoco en un recurso corto. Si solo aparece dentro de un concepto propio («capas» dentro de
   «capa de transporte»), no cuenta. La retroalimentación de las opciones no se cuenta.
+- **Conceptos de unidades anteriores (R11).** Los que el plan congeló de las unidades anteriores del curso y no asignó a
+  ningún ítem se comprueban con la misma regla que los ajenos (`developed_foreign`), pero solo dan un aviso.
 - **Conceptos de fondo.** Un concepto del plan que está en los fragmentos de la mitad o más de los ítems es contexto
   compartido de la unidad, no de un solo recurso (`backbone_concepts`): quien llama no lo pasa como ajeno.
 
@@ -198,18 +200,28 @@ def check_plan_coverage(
     ):
         return PlanCoverage(False, own_tuple, foreign_tuple, title, missing_own=True)
 
+    developed = developed_foreign(resource, own_tuple, foreign_tuple)
+    if developed:
+        return PlanCoverage(False, own_tuple, foreign_tuple, title, developed=developed)
+    return PlanCoverage(True, own_tuple, foreign_tuple, title)
+
+
+def developed_foreign(resource: dict[str, Any], own: Sequence[str], concepts: Sequence[str]) -> list[str]:
+    """Los `concepts` que el recurso desarrolla con la regla de los conceptos ajenos (dos oraciones o una que lo
+    define), sin contar las apariciones dentro de un concepto propio. La usan los conceptos de otros ítems y los de
+    unidades anteriores (R11)."""
+    body = str(resource.get("contenido") or "")
+    blocks = [*_paragraphs(body), *_structure_texts(resource.get("estructura")), *_option_texts(resource)]
     sentences = [sentence for block in blocks for sentence in extract_sentences(block)]
     # Un concepto ajeno que solo aparece dentro de uno propio («capas» en «capa de transporte») no cuenta.
-    masked = [_without(list(text_words(sentence)), own_tuple) for sentence in sentences]
+    masked = [_without(list(text_words(sentence)), tuple(own)) for sentence in sentences]
     developed: list[str] = []
-    for concept in foreign_tuple:
+    for concept in concepts:
         words = concept_words(concept)
         appearances = [i for i, tokens in enumerate(masked) if _contains_words(tokens, words)]
         if len(appearances) >= MIN_FOREIGN_SENTENCES or any(defines(sentences[i], concept) for i in appearances):
             developed.append(concept)
-    if developed:
-        return PlanCoverage(False, own_tuple, foreign_tuple, title, developed=developed)
-    return PlanCoverage(True, own_tuple, foreign_tuple, title)
+    return developed
 
 
 def develops_concept(text: str, concept: str) -> bool:

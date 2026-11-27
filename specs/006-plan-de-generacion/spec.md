@@ -41,6 +41,7 @@ Como docente, quiero ver y ajustar un plan de los recursos antes de generarlos p
 | PLAN-C6 | Pido generar con un plan aprobado | Se crea el pedido de generación con el plan y su versión, y el plan pasa a usado. Un plan en borrador, con otra versión o ya usado no genera. |
 | PLAN-C7 | Otro docente consulta, edita o usa mi plan | Responde `404 PLAN_NOT_FOUND`, igual que un plan inexistente. |
 | PLAN-C15 | Entre la aprobación y la generación borro o vuelvo a procesar un documento del plan | La generación responde `409 PLAN_EVIDENCE_STALE` con los documentos afectados y no crea el pedido. Creo un plan nuevo. |
+| PLAN-C16 | Pido el plan de la unidad 2 de un curso cuya unidad 1 ya tiene un plan aprobado o usado | El plan muestra, de solo lectura, los conceptos propios de las unidades anteriores (`sessionContext.previousUnitConcepts`, con número y título de cada unidad) y no los asigna como conceptos propios de sus ítems, salvo los términos del resultado de aprendizaje elegido. Un recurso que vuelve a desarrollar uno de esos conceptos se entrega con un aviso, no se rechaza. En la primera unidad, el plan no cambia. ([research R11](research.md#r11-conceptos-de-unidades-anteriores)) |
 
 ## Historia de generación desde el plan
 
@@ -74,10 +75,11 @@ Como docente, quiero revisar el plan en la pantalla de Generación, corregirlo y
 - **PLAN-R7.** Los tipos de texto nuevos del catálogo (CUR-P2) se redactan con una instrucción genérica a partir de su descripción, con el generador por reglas como respaldo.
 - **PLAN-R8.** La interfaz nunca menciona la metodología 5E (ni «5E», ni «modelo 5E», ni «metodología 5E»). Los nombres de las etapas (Enganchar, Explorar, Explicar, Elaborar, Evaluar) sí se muestran. Los mensajes que devuelve la API al docente siguen la misma regla.
 - **PLAN-R9.** Aislamiento por docente (Constitución IV): un plan ajeno responde igual que uno inexistente.
+- **PLAN-R10.** Al crear el plan, se congelan los conceptos propios del último plan aprobado o usado de cada unidad anterior del mismo curso y del mismo docente, con un tope ([research R11](research.md#r11-conceptos-de-unidades-anteriores)). El plan los muestra de solo lectura, los planificadores no los vuelven a asignar (salvo los del resultado elegido) y la comprobación del plan avisa si un recurso los vuelve a desarrollar.
 
 ## Criterios de éxito
 
-- Verificar PLAN-C1 a PLAN-C15 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
+- Verificar PLAN-C1 a PLAN-C16 con resultados observables en API e interfaz y enlazar su evidencia en las tareas.
 - **P4.** Con el corpus y los casos de T067 (`backend/evaluation/corpus_t067`), una secuencia de 8 tipos × 2 recursos, la tasa de pares duplicados de una misma generación ([research R7](research.md#r7-medición-de-la-duplicación-p4)) baja al menos a la mitad frente a la generación sin plan y queda en 5 % o menos, sin bajar la cantidad de recursos entregados ni la `faithfulness` media (≥ 0,90).
 - Crear un plan con Gemini responde en p95 < 30 s y nunca pasa de 60 s más la recuperación; con reglas, en p95 < 1 s.
 
@@ -90,6 +92,7 @@ Como docente, quiero revisar el plan en la pantalla de Generación, corregirlo y
 
 - Material (MAT-P2) entrega los referentes por un puerto; mientras no exista, la lista queda vacía.
 - Cursos (CUR-P3) lee y guarda las tipologías por sesión; mientras no exista, el contexto de sesión queda vacío. Una sesión se cuenta cuando un plan pasa a `used`, y el plan muestra las últimas 3 del mismo curso ([research R9](research.md#r9-contexto-de-sesión-cur-p3)).
+- Los conceptos de unidades anteriores salen de los planes ya guardados de Generación y del orden de las unidades de Cursos (`number`), por un puerto propio como el de CUR-P3; no hace falta otro dato de Cursos ([research R11](research.md#r11-conceptos-de-unidades-anteriores)).
 - Cursos (CUR-P2) mantiene el catálogo de tipos; Generación lo lee por un puerto ([research R6](research.md#r6-catálogo-configurable-cur-p2)).
 - Revisión (REV-P3) entrega el indicador de duplicación por embeddings.
 - QA-16 agrega `POST /api/v1/generation-plans` a sus rutas costosas con límite por IP.

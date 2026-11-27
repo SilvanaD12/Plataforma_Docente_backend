@@ -50,6 +50,9 @@ from platform5e.infrastructure.adapters.database_probe_adapter import DatabasePr
 from platform5e.infrastructure.adapters.gemini_probe_adapter import GeminiProbeAdapter
 from platform5e.infrastructure.adapters.generation_regeneration_adapter import GenerationRegenerationAdapter
 from platform5e.infrastructure.adapters.material_evidence_adapter import MaterialEvidenceAdapter
+from platform5e.infrastructure.adapters.course_previous_unit_concepts_adapter import (
+    CoursePreviousUnitConceptsAdapter,
+)
 from platform5e.infrastructure.adapters.course_session_typology_adapter import CourseSessionTypologyAdapter
 from platform5e.infrastructure.adapters.plan_context_adapters import NoReferentsAdapter
 from platform5e.infrastructure.adapters.resource_catalog_adapter import StaticResourceCatalogAdapter
@@ -312,6 +315,8 @@ def create_application() -> FastAPI:
     generation_plan_repository = SQLAlchemyGenerationPlanRepository()
     # CUR-P3: las tipologías de las últimas sesiones del curso, para el plan y para el pedido.
     session_typologies = CourseSessionTypologyAdapter(account_repository, generation_plan_repository)
+    # PLAN-C16 (R11): los conceptos de las unidades anteriores del curso, para no volver a explicarlos.
+    previous_unit_concepts = CoursePreviousUnitConceptsAdapter(account_repository, generation_plan_repository)
     plan_drafter = primary_generator if hasattr(primary_generator, "draft_plan") else None
     create_plan = CreateGenerationPlan(
         unit_membership,
@@ -322,6 +327,7 @@ def create_application() -> FastAPI:
         GenerationPlanner(plan_drafter, {entry.id: entry for entry in resource_catalog.entries()}),
         generation_plan_repository,
         topic_coverage_threshold=topic_coverage_threshold(),
+        previous_units=previous_unit_concepts,
     )
     run_generation = RunGenerationRequest(
         generation_request_repository,

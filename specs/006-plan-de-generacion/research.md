@@ -74,6 +74,7 @@ Entre la aprobación y la generación, el docente puede borrar un documento o vo
 **Con reglas (`LLM_PROVIDER=rules`, o como respaldo).** El resultado es determinista: las mismas entradas y la misma evidencia dan el mismo plan.
 
 1. **Conceptos candidatos.** Primero las frases y los términos del tema que aparecen en la evidencia (`topic_phrases` y `topic_terms` de QA-05), después los términos clave de la evidencia (`extract_key_terms` de `domain/materials/text_analysis.py`). Cada grupo se ordena por el primer fragmento donde aparece cada concepto (el orden de relevancia de la búsqueda); en el mismo fragmento, las frases antes que las palabras sueltas, y en empate, por orden alfabético. Una palabra suelta que ya está dentro de un concepto elegido («modelo» en «modelo OSI») no se agrega. **Corrección tras P4:** solo entran frases nominales cortas (2 a 4 palabras útiles del material) y siglas que aparecen al menos dos veces («UDP», «TCP»); las palabras sueltas comunes («decide», «camino», «conexión») ya no son conceptos.
+   **Anclaje al resultado (T029, spec 002 R14).** Si el docente eligió un resultado de aprendizaje, el primer grupo son las frases y siglas del resultado que aparecen en la evidencia (`concept_phrases`, sin el verbo del resultado: «Reconoce las capas del modelo OSI» da «modelo OSI» y «capas del modelo»). Después vienen las del tema y los demás grupos. El prompt del plan con Gemini agrega una línea con el resultado elegido; el esquema no cambia.
 2. **Ítems.** Uno por tipo pedido, ordenados por etapa; los tipos con cantidad N reciben N bloques de conceptos.
    - **Cantidad vacía (`null`).** Con C conceptos candidatos y T tipos pedidos, la cantidad es `min(3, max(1, C // (2 × T)))`: un recurso por cada dos conceptos que le tocarían al tipo, al menos 1.
    - **Por qué hasta 3 y no hasta 5.** El tope automático es más bajo que el máximo que puede pedir el docente (5): si el docente no lo pidió, el planificador no multiplica los recursos, y cada bloque conserva por lo menos dos conceptos. Para tener 4 o 5, el docente escribe la cantidad.
@@ -373,3 +374,22 @@ Como el `PUT` no edita los referentes, la regla solo hace falta al crear el plan
 - La interfaz los muestra.
 
 **Lo que no cambia.** La búsqueda no cambia hasta que el profesor responda P8 ([spec](spec.md#preguntas-abiertas-para-el-profesor)). Un referente sin fragmentos de la evidencia del plan (`fragmentIds: []`) se muestra, pero no se cita.
+
+## R11. Conceptos de unidades anteriores
+
+**Problema.** Cada plan se arma solo con la evidencia de su unidad. Si el material de la unidad 2 vuelve a nombrar lo que ya se trató en la unidad 1, el plan lo asigna otra vez como concepto propio y los recursos lo vuelven a explicar.
+
+**Decisión.** Mismo patrón que CUR-P3 (R9): un puerto, `PreviousUnitConceptsPort.previous_unit_concepts(teacher_id, unit_id, limit)`, con un adaptador sobre los cursos del docente y los planes guardados.
+
+- **Unidades anteriores.** Las del mismo curso con `number` menor que el de la unidad del plan. Una unidad sin `number` toma su posición en el curso (1, 2, 3…).
+- **Qué plan cuenta.** El último plan `approved` o `used` de cada unidad (por `updatedAt`); los borradores no cuentan. Sus conceptos son los `covers` de todos sus ítems, sin repetir (singular y plural, con o sin tildes son el mismo concepto).
+- **Tope.** Hasta 12 conceptos por unidad y 30 en total, empezando por la unidad más cercana. Un concepto ya tomado de una unidad más cercana no se repite.
+- **Aislamiento.** Solo los cursos y los planes del mismo docente.
+- **Congelado.** Se guardan al crear el plan en `sessionContext.previousUnitConcepts` (`[{unitNumber, unitTitle, concepts}]`, de la unidad más antigua a la más reciente), como `previousTypologies`: editar o aprobar el plan no los recalcula. No forman parte de `inputs` ni del hash de la clave, porque no los pide el docente. Si el puerto falla, el plan se arma sin ellos.
+
+**Uso en el plan.**
+- **Reglas.** Un candidato que es el mismo concepto que uno de unidades anteriores no se asigna a un ítem, salvo que sea un término del resultado de aprendizaje elegido (sus frases y siglas, o un concepto que aparece completo en su texto). Válvula: si sin ellos no alcanzan los conceptos mínimos del plan, se usan al final, para que el plan no quede inválido por esto.
+- **Gemini.** El prompt del plan los lista como «YA TRATADOS EN UNIDADES ANTERIORES: refiérete a ellos, no los vuelvas a explicar ni los pongas como conceptos de los ítems, salvo los del resultado elegido». El esquema de respuesta no cambia.
+- **Interfaz.** La pantalla del plan los muestra de solo lectura, por unidad (pendiente en el frontend).
+
+**Uso en la generación (GEN-P2).** Los conceptos de unidades anteriores que el plan no asignó a ningún ítem van al prompt de cada recurso («refiérete a ellos sin volver a explicarlos») y a la comprobación del plan: un recurso que desarrolla uno de ellos, con la misma regla que un concepto ajeno (R5), se entrega con el aviso `planWarning.kind: previous_unit`, tanto de la IA como de reglas. No se rechaza ni se pide otra vez: el material de la unidad puede necesitar recordarlo.

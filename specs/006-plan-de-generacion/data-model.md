@@ -60,6 +60,7 @@ Mismas convenciones que el [data-model de GEN-01](../002-generacion-multiple/dat
 | `…sessionLabel` | `str` | Nombre de la sesión para el docente, lo define Cursos. |
 | `…usedAt` | ISO 8601 UTC | Cuándo el plan de esa sesión pasó a `used`. |
 | `…resourceTypes` | `list[str]` | Los tipos de los ítems de ese plan. |
+| `previousUnitConcepts` | `list[{unitNumber, unitTitle, concepts}]` | Solo lectura. Los conceptos propios del último plan aprobado o usado de cada unidad anterior del mismo curso, de la más antigua a la más reciente, hasta 12 por unidad y 30 en total. Se congelan al crear el plan. Vacía en la primera unidad o si no hay planes ([research R11](research.md#r11-conceptos-de-unidades-anteriores)). |
 
 ### CatalogEntry (CUR-P2)
 

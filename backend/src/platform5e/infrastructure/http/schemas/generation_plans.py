@@ -165,8 +165,21 @@ class PreviousTypology(ApiResponse):
     resource_types: list[str]
 
 
+class PreviousUnitConcepts(ApiResponse):
+    unit_number: int = Field(ge=0)
+    unit_title: str
+    concepts: list[str] = Field(max_length=12)
+
+
 class SessionContext(ApiResponse):
     previous_typologies: list[PreviousTypology] = Field(max_length=3)
+    previous_unit_concepts: list[PreviousUnitConcepts] = Field(
+        default=[],
+        description="Read-only (PLAN-C16, research R11). Own concepts of the latest approved or used plan of each "
+        "earlier unit of the same course, oldest unit first, up to 12 per unit and 30 in total. Frozen when the plan "
+        "is created. The planners do not assign them again, except terms of the chosen learning outcome; a resource "
+        "that develops one is delivered with `planWarning.kind: previous_unit`. Empty for the first unit.",
+    )
 
 
 class PlanItem(ApiResponse):

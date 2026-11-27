@@ -111,3 +111,28 @@ def test_used_plans_are_limited_to_the_teacher_and_course_units(repository):
     ]
     assert history[0].resource_types == tuple(dict.fromkeys(item.resource_type for item in VALID.items))
     assert adapter.previous_typologies("docente-a", "missing") == ()
+
+
+def test_the_latest_approved_or_used_plan_of_each_unit_only_of_the_teacher(repository):
+    """R11 (PLAN-C16): un plan por unidad, el último aprobado o usado por `updatedAt`; los borradores no cuentan."""
+    for number, (teacher, unit, status) in enumerate([
+        ("docente-a", "u1", "approved"),
+        ("docente-a", "u1", "used"),
+        ("docente-a", "u1", "draft"),
+        ("docente-a", "u2", "draft"),
+        ("docente-a", "u3", "approved"),
+        ("docente-b", "u1", "approved"),
+    ]):
+        timestamp = f"2026-11-22T10:0{number}:00.000000+00:00"
+        plan = replace(VALID, id=f"gen-plan-{number}", idempotency_key=f"key-{number}", teacher_id=teacher,
+                       unit_id=unit, updated_at=timestamp)
+        if status != "draft":
+            plan = approve_plan(plan, 1, [], timestamp)
+        if status == "used":
+            plan = mark_plan_used(plan, 1, f"gen-req-{number}", timestamp)
+        repository.create(plan)
+
+    latest = repository.latest_settled_for_units("docente-a", ["u1", "u2"])
+    assert [(plan.unit_id, plan.id) for plan in latest] == [("u1", "gen-plan-1")]
+    assert repository.latest_settled_for_units("docente-b", ["u1", "u2", "u3"])[0].id == "gen-plan-5"
+    assert repository.latest_settled_for_units("docente-a", []) == []

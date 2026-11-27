@@ -179,6 +179,9 @@ paths:
             own) is delivered with `planWarning` (`kind` `overlap` or `missing_concepts`, `reason`, `developedConcepts`,
             `missingOwnConcepts`), and its step lists it in `planWarnings` (`title`, `reason`, `resourceId`). The
             rule-based path rejects it with `kind: plan` instead (research R5).
+            A resource (AI or rules) that develops a concept of an earlier unit (`sessionContext.previousUnitConcepts`, not
+            assigned to any item) is delivered with `planWarning.kind: previous_unit`; it is never rejected for it
+            (research R11).
         '200': { description: The same key and body were already used; the existing request is returned. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/PlanNotFound' }
@@ -418,6 +421,20 @@ components:
               description: |
                 The last 3 sessions of the same course, newest first. `SAME_TYPOLOGY_AS_LAST_SESSION` compares the
                 requested types with the first one. Empty if Courses does not answer or there are no sessions.
+            previousUnitConcepts:
+              type: array
+              readOnly: true
+              items:
+                type: object
+                required: [unitNumber, unitTitle, concepts]
+                properties:
+                  unitNumber: { type: integer, minimum: 1 }
+                  unitTitle: { type: string }
+                  concepts: { type: array, items: { type: string }, maxItems: 12 }
+              description: |
+                PLAN-C16 (research R11): own concepts of the latest approved or used plan of each earlier unit of the same
+                course, oldest unit first, up to 12 per unit and 30 in total. Frozen when the plan is created. The
+                planners do not assign them again (except terms of the chosen outcome). Empty for the first unit.
         items: { type: array, items: { $ref: '#/components/schemas/PlanItem' } }
         validation:
           type: object

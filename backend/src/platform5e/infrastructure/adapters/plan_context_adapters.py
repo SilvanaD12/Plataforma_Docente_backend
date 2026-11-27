@@ -9,9 +9,15 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from platform5e.application.ports.outbound.previous_unit_concepts_port import PreviousUnitConceptsPort
 from platform5e.application.ports.outbound.referents_port import ReferentsPort
 from platform5e.application.ports.outbound.session_typology_port import SessionTypologyPort
-from platform5e.domain.generation.generation_plan import PlanFragment, PreviousTypology, Referent
+from platform5e.domain.generation.generation_plan import (
+    PlanFragment,
+    PreviousTypology,
+    PreviousUnitConcepts,
+    Referent,
+)
 
 
 class NoReferentsAdapter(ReferentsPort):
@@ -29,3 +35,12 @@ class NoSessionTypologyAdapter(SessionTypologyPort):
         self, teacher_id: str, unit_id: str, plan_id: str, resource_types: Sequence[str], used_at: str
     ) -> None:
         return None
+
+
+class NoPreviousUnitConceptsAdapter(PreviousUnitConceptsPort):
+    """Sin unidades anteriores: el plan no cambia (R11)."""
+
+    def previous_unit_concepts(
+        self, teacher_id: str, unit_id: str, limit: int = 30
+    ) -> Sequence[PreviousUnitConcepts]:
+        return ()

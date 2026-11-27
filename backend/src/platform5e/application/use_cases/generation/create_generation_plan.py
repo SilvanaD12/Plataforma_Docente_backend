@@ -4,7 +4,7 @@ Caso de uso GEN-P1 (T008): crea el plan de generación de una unidad, de forma s
 
 Valida la clave y la unidad; si la clave ya tiene un plan, lo devuelve (o informa el conflicto) sin aplicar las demás
 reglas, como GEN-01. Si no, valida los tipos pedidos, recupera la evidencia una sola vez y la congela, comprueba que
-trate el tema de las indicaciones (QA-05), pide los referentes y las tipologías anteriores, arma el plan con la IA o
+trate el tema de las indicaciones (QA-05), pide los referentes, las tipologías anteriores y los conceptos de las unidades anteriores (R11), arma el plan con la IA o
 con reglas y lo guarda en borrador, aunque tenga problemas. Solo depende de puertos y del dominio.
 
 GEN-P2 (research R2): `create_implicit` arma con las mismas reglas el plan de un pedido con el cuerpo anterior, sin
@@ -30,6 +30,7 @@ from platform5e.application.ports.outbound.generation_plan_repository_port impor
     GenerationPlanRepositoryPort,
     PlanKeyTaken,
 )
+from platform5e.application.ports.outbound.previous_unit_concepts_port import PreviousUnitConceptsPort
 from platform5e.application.ports.outbound.referents_port import ReferentsPort
 from platform5e.application.ports.outbound.resource_catalog_port import ResourceCatalogPort
 from platform5e.application.ports.outbound.session_typology_port import SessionTypologyPort
@@ -64,6 +65,7 @@ ORIGIN_TEACHER: str = "teacher"
 ORIGIN_IMPLICIT: str = "implicit"
 SAME_TYPOLOGY_WARNING: str = "SAME_TYPOLOGY_AS_LAST_SESSION"
 MAX_PREVIOUS_TYPOLOGIES: int = 3
+MAX_PREVIOUS_UNIT_CONCEPTS: int = 30
 UNIT_NOT_FOUND_MESSAGE: str = "La unidad no existe o no pertenece a tus cursos."
 INVALID_OUTCOME_MESSAGE: str = "El resultado de aprendizaje no pertenece a la unidad."
 KEY_REUSED_MESSAGE: str = (
@@ -126,6 +128,7 @@ class CreateGenerationPlan:
         clock: Callable[[], str] = utc_now,
         new_id: Callable[[], str] = lambda: f"gen-plan-{uuid4()}",
         topic_coverage_threshold: float = DEFAULT_COVERAGE_THRESHOLD,
+        previous_units: PreviousUnitConceptsPort | None = None,
     ) -> None:
         self._membership = membership
         self._evidence = evidence
@@ -137,6 +140,7 @@ class CreateGenerationPlan:
         self._clock = clock
         self._new_id = new_id
         self._topic_coverage_threshold = topic_coverage_threshold
+        self._previous_units = previous_units
 
     def execute(self, command: CreatePlanCommand) -> CreatePlanResult:
         return self._create(command, ORIGIN_TEACHER)
@@ -208,10 +212,19 @@ class CreateGenerationPlan:
                 command.teacher_id, command.unit_id, MAX_PREVIOUS_TYPOLOGIES))[:MAX_PREVIOUS_TYPOLOGIES],
             "las tipologías anteriores",
         )
-        session_context = SessionContext(previous)
+        # R11 (PLAN-C16): los conceptos de las unidades anteriores del curso, congelados como las tipologías.
+        previous_units = self._optional(
+            lambda: self._previous_unit_concepts(command.teacher_id, command.unit_id),
+            "los conceptos de las unidades anteriores",
+        )
+        session_context = SessionContext(previous, previous_units)
 
         # 9. El plan, con la IA o con reglas, y sus avisos.
-        items, generator = self._planner.draft(inputs, evidence, referents, session_context, unit.unit_title)
+        # T029: el resultado elegido ancla los conceptos del plan (sin elegir, ninguno).
+        chosen = next(
+            (f"{o.code}: {o.text}" for o in unit.outcomes if inputs.outcome_id and o.id == inputs.outcome_id), ""
+        )
+        items, generator = self._planner.draft(inputs, evidence, referents, session_context, unit.unit_title, chosen)
         requested = {requested.type for requested in inputs.resource_types}
         warnings = (SAME_TYPOLOGY_WARNING,) if previous and set(previous[0].resource_types) == requested else ()
 
@@ -258,6 +271,21 @@ class CreateGenerationPlan:
                     GenerationErrorCode.RESOURCE_TYPE_NOT_IN_MODALITY,
                     OUTSIDE_MODALITY_MESSAGE.format(modality=inputs.modality, names=names),
                 )
+
+    def _previous_unit_concepts(self, teacher_id: str, unit_id: str) -> tuple:
+        if self._previous_units is None:
+            return ()
+        units = tuple(self._previous_units.previous_unit_concepts(teacher_id, unit_id, MAX_PREVIOUS_UNIT_CONCEPTS))
+        # El tope vale aunque el adaptador devuelva más.
+        kept, total = [], 0
+        for unit in units:
+            room = MAX_PREVIOUS_UNIT_CONCEPTS - total
+            if room <= 0:
+                break
+            if unit.concepts[:room]:
+                kept.append(replace(unit, concepts=unit.concepts[:room]))
+                total += len(unit.concepts[:room])
+        return tuple(kept)
 
     @staticmethod
     def _optional(read: Callable[[], tuple], what: str) -> tuple:

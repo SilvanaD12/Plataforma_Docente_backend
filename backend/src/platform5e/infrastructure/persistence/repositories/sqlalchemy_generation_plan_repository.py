@@ -185,6 +185,27 @@ class SQLAlchemyGenerationPlanRepository(GenerationPlanRepositoryPort):
             return [_from_orm(row) for row in session.scalars(query).all()]
 
     @translate_persistence_errors
+    def latest_settled_for_units(self, teacher_id: str, unit_ids: Sequence[str]) -> Sequence[GenerationPlan]:
+        """R11: el último plan aprobado o usado de cada unidad del docente, por `updatedAt`."""
+        if not unit_ids:
+            return []
+        query = (
+            select(GenerationPlanORM)
+            .where(
+                GenerationPlanORM.teacher_id == teacher_id,
+                GenerationPlanORM.unit_id.in_(list(unit_ids)),
+                GenerationPlanORM.status.in_((PlanStatus.APPROVED.value, PlanStatus.USED.value)),
+            )
+            .order_by(GenerationPlanORM.updated_at.desc(), GenerationPlanORM.id)
+        )
+        latest: dict[str, GenerationPlan] = {}
+        with self._sessions() as session:
+            for row in session.scalars(query):
+                if row.unit_id not in latest:
+                    latest[row.unit_id] = _from_orm(row)
+        return list(latest.values())
+
+    @translate_persistence_errors
     def create(self, plan: GenerationPlan) -> GenerationPlan:
         with self._sessions() as session:
             session.add(_to_orm(plan))
