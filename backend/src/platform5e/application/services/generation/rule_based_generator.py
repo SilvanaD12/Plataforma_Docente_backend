@@ -7,6 +7,12 @@ oraciones de sus conceptos y deja fuera las que desarrollan conceptos de otros r
 solo las de sus conceptos si las hay. Los tipos de texto nuevos del catálogo (CUR-P2) tienen un redactor genérico:
 `strict`, párrafos citados con las oraciones de sus conceptos; `framed`, una oración de ambientación, las oraciones
 citadas de sus conceptos y una pregunta.
+
+GEN-C14 (spec 002, T076, research R14): la redacción se ancla al resultado de aprendizaje elegido y al título de la
+unidad. Las oraciones y los términos que los mencionan van primero (orden estable), la consigna sigue el nivel del verbo
+del resultado (`_level_question`) y un recurso cuyas citas no mencionan ninguno de sus términos se rehace sin esas
+oraciones; si ninguna candidata sirve, se entrega el primero marcado `desalineado` (llega con el aviso
+`outcome_misaligned`).
 """
 
 from __future__ import annotations
@@ -15,6 +21,8 @@ import re
 from collections import Counter
 from typing import Any
 
+from platform5e.application.services.generation.prompt_drafting import outcome_anchor
+from platform5e.domain.generation.outcome_alignment import ANALYZE, RECALL, UNDERSTAND, anchor_score, is_aligned
 from platform5e.domain.generation.plan_coverage import contains_term, mentions
 from platform5e.domain.generation.text_types import (
     EVIDENCE_REQUIREMENTS,
@@ -138,6 +146,40 @@ _BUILDERS_BY_TYPE: dict[str, str] = {
 
 # GEN-P2: oraciones por recurso del redactor genérico de los tipos de texto del catálogo.
 MAX_CATALOG_SENTENCES: int = 4
+# GEN-C14: con un resultado de nivel «recordar», una idea: a lo sumo estas oraciones en la explicación y el genérico.
+RECALL_SENTENCES: int = 2
+# GEN-C14: redacciones de un recurso antes de entregarlo con el aviso de desalineación (la primera y dos más).
+MAX_ALIGNMENT_ATTEMPTS: int = 3
+# GEN-C14: tipos cuya secuencia es parte del recurso; conservan el orden del material.
+_MATERIAL_ORDER_TYPES: frozenset[str] = frozenset({"ordenar_pasos", "diagrama_proceso"})
+
+
+def _level(context: dict[str, Any]) -> str | None:
+    return outcome_anchor(context)[1]
+
+
+def _sentence_budget(context: dict[str, Any], default: int) -> int:
+    return min(default, RECALL_SENTENCES) if _level(context) == RECALL else default
+
+
+def _level_question(level: str | None, term: str, other: str) -> str | None:
+    """GEN-C14: la pregunta según el nivel del verbo del resultado elegido; None si no hay nivel (la de siempre)."""
+    if level == RECALL:
+        return f"¿Qué es {term} según el material? Escríbelo en una oración breve."
+    if level == UNDERSTAND:
+        return f"Explica con tus palabras qué es {term} y para qué sirve, con una idea del material."
+    if level == ANALYZE:
+        return (f"Analiza la relación entre {term} y {other}: ¿en qué se parecen, en qué se diferencian y qué pasaría "
+                "si faltara uno de ellos?")
+    return None
+
+
+def _other_term(terms: list[str], term: str, context: dict[str, Any]) -> str:
+    return next((other for other in terms if not _are_related_terms(other, term)), context["unidad"]["titulo"])
+
+
+def _cited_texts(resource: dict[str, Any]) -> list[str]:
+    return [str(c.get("afirmacion") or "") for c in resource.get("citas") or []] or [str(resource.get("contenido"))]
 
 
 def _plan_focus(
@@ -245,6 +287,11 @@ class RuleBasedGenerator:
             if normalize_text(term) not in {"fuente", "licencia", "wikipedia"}
         ]
         key_terms = _extract_domain_terms(sentence_pairs, frequent_terms)
+        anchors, _ = outcome_anchor(context)
+        if anchors and context["solicitud"]["tipo"] not in _MATERIAL_ORDER_TYPES:
+            # GEN-C14: primero las oraciones y los términos que mencionan el resultado elegido o la unidad.
+            sentence_pairs = sorted(sentence_pairs, key=lambda pair: -anchor_score(pair[1], anchors))
+            key_terms = sorted(key_terms, key=lambda term: not any(mentions(term, anchor) for anchor in anchors))
         if context.get("plan"):
             sentence_pairs, key_terms = _plan_focus(sentence_pairs, key_terms, context["plan"])
 
@@ -258,7 +305,7 @@ class RuleBasedGenerator:
 
         built_resources: list[dict[str, Any]] = []
         for index in range(request_info["cantidad"]):
-            resource = builder_method(index, sentence_pairs, key_terms, context)
+            resource = self._aligned(builder_method, index, sentence_pairs, key_terms, context, anchors)
             if resource and all(
                 (resource["contenido"], resource.get("estructura")) != (item["contenido"], item.get("estructura"))
                 for item in built_resources
@@ -266,6 +313,35 @@ class RuleBasedGenerator:
                 built_resources.append(resource)
 
         return {"recursos": built_resources}
+
+    @staticmethod
+    def _aligned(
+        build: Any,
+        index: int,
+        sentence_pairs: list[tuple[str, str]],
+        terms: list[str],
+        context: dict[str, Any],
+        anchors: list[str],
+    ) -> dict[str, Any] | None:
+        """GEN-C14: si las citas del recurso no mencionan ningún término de anclaje, lo rehace sin esas oraciones (la
+        siguiente candidata), hasta `MAX_ALIGNMENT_ATTEMPTS` redacciones. Si ninguna sirve, entrega la primera marcada
+        `desalineado`, sin rechazarla. Con un plan, sus conceptos propios también anclan: el plan aprobado ya partió
+        del resultado, y la comprobación no debe cambiarlos por oraciones de otros conceptos."""
+        first = build(index, sentence_pairs, terms, context)
+        if anchors:
+            anchors = [*anchors, *((context.get("plan") or {}).get("conceptos") or [])]
+        if first is None or is_aligned(_cited_texts(first), anchors):
+            return first
+        remaining, resource = sentence_pairs, first
+        for _ in range(MAX_ALIGNMENT_ATTEMPTS - 1):
+            cited = set(_cited_texts(resource))
+            remaining = [pair for pair in remaining if pair[1] not in cited]
+            resource = build(index, remaining, terms, context) if remaining else None
+            if resource is None:
+                break
+            if is_aligned(_cited_texts(resource), anchors):
+                return resource
+        return {**first, "desalineado": True}
 
     @staticmethod
     def _find_matching_pair(
@@ -367,11 +443,14 @@ class RuleBasedGenerator:
         if not matched:
             return None
         tag, sentence, term = matched
+        question = _level_question(_level(context), term, _other_term(terms, term, context)) or (
+            f"¿Dónde has visto {term} en tu vida diaria y qué pasaría si no existiera?"
+        )
         return {
             "titulo": f"¿Qué sabes sobre {term}?",
             "contenido": (
                 f"Situación para iniciar la clase:\n«{sentence}»\n\n"
-                f"Pregunta detonante: ¿Dónde has visto {term} en tu vida diaria y qué pasaría si no existiera? "
+                f"Pregunta detonante: {question} "
                 "Comparte una respuesta breve antes de revisar el tema."
             ),
             "citas": [{"afirmacion": sentence, "fragmentos": [tag]}],
@@ -449,13 +528,20 @@ class RuleBasedGenerator:
         tag_1, sent_1 = sentence_pairs[(index * 2) % len(sentence_pairs)]
         tag_2, sent_2 = sentence_pairs[(index * 2 + 1) % len(sentence_pairs)]
         term_1, term_2 = terms[index % len(terms)], terms[(index + 1) % len(terms)]
+        level = _level(context)
+        if level == RECALL:
+            step_4 = f"4. Identifica qué dice cada fragmento sobre {term_1} y anótalo en una oración.\n"
+        elif level == UNDERSTAND:
+            step_4 = f"4. Explica con tus palabras cómo se relacionan {term_1} y {term_2} según los fragmentos.\n"
+        else:
+            step_4 = f"4. Compara ambos fragmentos: ¿qué tienen en común {term_1} y {term_2}? Anótalo en una tabla.\n"
 
         content = (
             f"Objetivo: explorar {term_1} y su relación con {term_2}.\n\nPasos:\n"
             f"1. Lee este fragmento del material: «{sent_1}»\n"
             f"2. Subraya las palabras clave y escribe con tus palabras qué es {term_1}.\n"
             f"3. Lee este otro fragmento: «{sent_2}»\n"
-            f"4. Compara ambos fragmentos: ¿qué tienen en común {term_1} y {term_2}? Anótalo en una tabla.\n"
+            f"{step_4}"
             "5. Escribe una pregunta que te gustaría investigar sobre el tema.\n\n"
             "Registro: anota tus observaciones y compártelas con tu grupo."
         )
@@ -483,12 +569,18 @@ class RuleBasedGenerator:
         term_1 = terms[index % len(terms)]
         term_2 = terms[(index + 1) % len(terms)] if len(terms) > 1 else term_1
 
-        content = (
-            f"Caso: {sent_1} {sent_2}\n\nPreguntas de indagación:\n"
-            f"1. ¿Qué papel cumple {term_1} en este caso?\n"
-            f"2. ¿Qué pasaría si cambiara {term_2}?\n"
-            "3. ¿Qué evidencia del material respalda tu respuesta?\n"
-            "4. ¿En qué otra situación de tu entorno ocurre algo parecido?"
+        level = _level(context)
+        first = _level_question(level, term_1, term_2)
+        if first is None:
+            questions = [f"¿Qué papel cumple {term_1} en este caso?", f"¿Qué pasaría si cambiara {term_2}?",
+                         "¿Qué evidencia del material respalda tu respuesta?",
+                         "¿En qué otra situación de tu entorno ocurre algo parecido?"]
+        else:  # GEN-C14: la primera pregunta sigue el nivel del resultado; con «recordar», sin preguntas de análisis
+            questions = [first, "¿Qué evidencia del material respalda tu respuesta?"]
+            if level != RECALL:
+                questions.append("¿En qué otra situación de tu entorno ocurre algo parecido?")
+        content = f"Caso: {sent_1} {sent_2}\n\nPreguntas de indagación:\n" + "\n".join(
+            f"{number}. {question}" for number, question in enumerate(questions, start=1)
         )
         return {
             "titulo": f"Caso para indagar: {term_1}",
@@ -514,8 +606,9 @@ class RuleBasedGenerator:
         scored_pairs = own or sorted(
             sentence_pairs, key=lambda pair: -sum(_contains_word(pair[1], term) for term in terms[:10])
         )
+        size = _sentence_budget(context, 4)
         selected = sorted(
-            scored_pairs[index * 4 : index * 4 + 4] or scored_pairs[:4],
+            scored_pairs[index * size : index * size + size] or scored_pairs[:size],
             key=lambda item: order_index.get(item, 0),
         )
         if not selected:
@@ -544,8 +637,9 @@ class RuleBasedGenerator:
         if EVIDENCE_REQUIREMENTS.get(request["tipo"]) == LITERAL_QUOTE:
             quoted = [pair for pair in sentence_pairs if literal_quotes(pair[1])]
             candidates = quoted[:1] + [pair for pair in candidates if pair not in quoted[:1]]
-        start = index * MAX_CATALOG_SENTENCES
-        selected = candidates[start:start + MAX_CATALOG_SENTENCES] or candidates[:MAX_CATALOG_SENTENCES]
+        size = _sentence_budget(context, MAX_CATALOG_SENTENCES)
+        start = index * size
+        selected = candidates[start:start + size] or candidates[:size]
         if not selected:
             return None
         concepts = (context.get("plan") or {}).get("conceptos") or terms[:1] or [context["unidad"]["titulo"]]
@@ -553,7 +647,9 @@ class RuleBasedGenerator:
         citations = [{"afirmacion": sentence, "fragmentos": [tag]} for tag, sentence in selected]
         if catalog.get("verificacion") == VERIFICATION_FRAMED:
             setting = f"Imagina esta situación en una clase de {context['unidad']['titulo']}."
-            question = f"¿Qué papel cumple {concepts[0]} en lo que acabas de leer?"
+            question = _level_question(_level(context), concepts[0], _other_term(terms, concepts[0], context)) or (
+                f"¿Qué papel cumple {concepts[0]} en lo que acabas de leer?"
+            )
             body = " ".join([setting, *(sentence for _, sentence in selected), question])
         else:
             body = "\n\n".join(sentence for _, sentence in selected)

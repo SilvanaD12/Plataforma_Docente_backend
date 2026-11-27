@@ -211,7 +211,11 @@ class CreateGenerationPlan:
         session_context = SessionContext(previous)
 
         # 9. El plan, con la IA o con reglas, y sus avisos.
-        items, generator = self._planner.draft(inputs, evidence, referents, session_context, unit.unit_title)
+        # T029: el resultado elegido ancla los conceptos del plan (sin elegir, ninguno).
+        chosen = next(
+            (f"{o.code}: {o.text}" for o in unit.outcomes if inputs.outcome_id and o.id == inputs.outcome_id), ""
+        )
+        items, generator = self._planner.draft(inputs, evidence, referents, session_context, unit.unit_title, chosen)
         requested = {requested.type for requested in inputs.resource_types}
         warnings = (SAME_TYPOLOGY_WARNING,) if previous and set(previous[0].resource_types) == requested else ()
 
