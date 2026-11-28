@@ -26,7 +26,11 @@ from platform5e.application.services.materials.referent_service import ReferentS
 from platform5e.application.use_cases.export.export_unit_resources import ExportUnitResourcesUseCase
 from platform5e.application.services.generation.plan_drafting import GenerationPlanner
 from platform5e.application.use_cases.generation.approve_generation_plan import ApproveGenerationPlan
-from platform5e.application.use_cases.generation.create_generation_plan import CreateGenerationPlan
+from platform5e.application.use_cases.generation.create_generation_plan import (
+    INVALID_OUTCOME_MESSAGE,
+    UNIT_NOT_FOUND_MESSAGE,
+    CreateGenerationPlan,
+)
 from platform5e.application.use_cases.generation.get_generation_evidence import GetGenerationEvidence
 from platform5e.application.use_cases.generation.get_generation_plan import GetGenerationPlan
 from platform5e.application.use_cases.generation.update_generation_plan import UpdateGenerationPlan
@@ -41,7 +45,8 @@ from platform5e.application.use_cases.generation.start_regeneration import Start
 from platform5e.application.use_cases.media.get_resource_media import GetResourceMediaUseCase
 from platform5e.application.use_cases.media.regenerate_resource_media import RegenerateResourceMediaUseCase
 from platform5e.domain.accounts.teacher_account import AccountConfigurationError
-from platform5e.domain.generation.errors import GenerationError
+from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
+from platform5e.domain.generation.generation_plan import GenerationPlan
 from platform5e.domain.materials.chunking import MaterialError
 from platform5e.domain.shared.errors import DuplicateRecordError, EntityNotFoundError, PersistenceUnavailableError
 from platform5e.application.use_cases.health.check_dependencies import CheckDependencies
@@ -309,7 +314,15 @@ def create_application() -> FastAPI:
     # GEN-P1 y GEN-P2: el plan de generación, del que parte todo pedido. La IA arma el plan si el generador activo
     # sabe hacerlo (Gemini); si no, reglas.
     resource_catalog = StaticResourceCatalogAdapter()
-    generation_plan_repository = SQLAlchemyGenerationPlanRepository()
+    def validate_plan_reference(plan: GenerationPlan) -> None:
+        unit = unit_membership.get_unit_context(plan.teacher_id, plan.unit_id)
+        if unit is None:
+            raise GenerationError(GenerationErrorCode.UNIT_NOT_FOUND, UNIT_NOT_FOUND_MESSAGE)
+        outcome_id = plan.inputs.outcome_id
+        if outcome_id and outcome_id not in {outcome.id for outcome in unit.outcomes}:
+            raise GenerationError(GenerationErrorCode.INVALID_OUTCOME, INVALID_OUTCOME_MESSAGE)
+
+    generation_plan_repository = SQLAlchemyGenerationPlanRepository(validate_reference=validate_plan_reference)
     # CUR-P3: las tipologías de las últimas sesiones del curso, para el plan y para el pedido.
     session_typologies = CourseSessionTypologyAdapter(account_repository, generation_plan_repository)
     plan_drafter = primary_generator if hasattr(primary_generator, "draft_plan") else None

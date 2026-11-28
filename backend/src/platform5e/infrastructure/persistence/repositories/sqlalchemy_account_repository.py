@@ -26,7 +26,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Session
 
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
-from platform5e.domain.accounts.teacher_account import AccountConfigurationError
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine, run_with_db_retry
 from platform5e.infrastructure.persistence.error_translation import translate_persistence_errors
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
@@ -34,6 +34,7 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_pl
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     GenerationRequestORM,
     GenerationStepORM,
+    lock_teacher_course_writes,
     lock_teacher_generation_requests,
 )
 
@@ -284,10 +285,7 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     @translate_persistence_errors
     def save_course(self, teacher_id: str, course_data: dict[str, Any]) -> None:
         with SessionLocal() as session:
-            lock_teacher_generation_requests(session, teacher_id)
-            if session.get_bind().dialect.name == "sqlite":
-                session.connection().exec_driver_sql("BEGIN IMMEDIATE")
-
+            lock_teacher_course_writes(session, teacher_id)
             course = session.get(CourseORM, (teacher_id, course_data["id"]), with_for_update=True)
             if course is not None:
                 self._check_course_removals(session, teacher_id, course.data, course_data)
@@ -435,6 +433,18 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     ) -> None:
         def _write() -> None:
             with SessionLocal() as session:
+                lock_teacher_course_writes(session, teacher_id)
+                courses = session.scalars(select(CourseORM.data).where(CourseORM.teacher_id == teacher_id))
+                match = find_course_and_unit(courses, metadata["unitId"])
+                if match is None:
+                    raise AccountConfigurationError(
+                        "UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404
+                    )
+                valid_ids = {outcome["id"] for outcome in match[1]["outcomes"]}
+                if not set(metadata.get("outcomeIds", [])).issubset(valid_ids):
+                    raise AccountConfigurationError(
+                        "INVALID_OUTCOMES", "Los resultados de aprendizaje no pertenecen a la unidad."
+                    )
                 session.add(
                     DocumentORM(
                         id=metadata["id"],

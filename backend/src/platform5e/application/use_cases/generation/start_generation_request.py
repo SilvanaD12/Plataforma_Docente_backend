@@ -260,7 +260,7 @@ class StartGenerationRequest:
         )
         try:
             created = self._repository.create_within_limit(
-                request, MAX_ACTIVE_REQUESTS, unit_still_owned=lambda: self._unit_still_owned(command)
+                request, MAX_ACTIVE_REQUESTS, unit_still_owned=lambda: self._reference_still_owned(request)
             )
         except IdempotencyKeyTaken as taken:
             return self._replay(taken.existing, content_hash)
@@ -341,7 +341,7 @@ class StartGenerationRequest:
             steps=planned_steps(plan.items),
             plan=PlanReference(plan.id, plan.version),
         )
-        result = self._create(request, teacher_id, plan.unit_id, PlanClaim(used, plan_version), plan)
+        result = self._create(request, teacher_id, PlanClaim(used, plan_version), plan)
         if result.created:
             self._record_typology(used)
         return result
@@ -384,13 +384,12 @@ class StartGenerationRequest:
             regeneration=command.regeneration,
             plan=PlanReference(plan.id, plan.version),
         )
-        return self._create(request, command.teacher_id, command.unit_id, None, None)
+        return self._create(request, command.teacher_id, None, None)
 
     def _create(
         self,
         request: GenerationRequest,
         teacher_id: str,
-        unit_id: str,
         claim: PlanClaim | None,
         plan: GenerationPlan | None,
     ) -> StartGenerationResult:
@@ -399,7 +398,7 @@ class StartGenerationRequest:
             created = self._repository.create_within_limit(
                 request,
                 MAX_ACTIVE_REQUESTS,
-                unit_still_owned=lambda: self._membership.get_unit_context(teacher_id, unit_id) is not None,
+                unit_still_owned=lambda: self._reference_still_owned(request),
                 plan_claim=claim,
             )
         except IdempotencyKeyTaken as taken:
@@ -455,8 +454,14 @@ class StartGenerationRequest:
             modality=inputs.modality,
         )
 
-    def _unit_still_owned(self, command: StartGenerationCommand) -> bool:
-        return self._membership.get_unit_context(command.teacher_id, command.unit_id) is not None
+    def _reference_still_owned(self, request: GenerationRequest) -> bool:
+        unit = self._membership.get_unit_context(request.teacher_id, request.unit_id)
+        if unit is None:
+            return False
+        outcome_id = request.parameters.outcome_id
+        if outcome_id and outcome_id not in {outcome.id for outcome in unit.outcomes}:
+            raise GenerationError(GenerationErrorCode.INVALID_OUTCOME, INVALID_OUTCOME_MESSAGE)
+        return True
 
     @staticmethod
     def _replay(existing: GenerationRequest, content_hash: str) -> StartGenerationResult:

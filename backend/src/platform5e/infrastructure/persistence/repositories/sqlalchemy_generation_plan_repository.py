@@ -8,12 +8,12 @@ orden alfabético coincide con el temporal. `validation` y `doesNotCover` no se 
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from sqlalchemy import JSON, CheckConstraint, Column, Integer, String, UniqueConstraint, select, update
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 
 from platform5e.application.ports.outbound.generation_plan_repository_port import (
     GenerationPlanRepositoryPort,
@@ -30,7 +30,10 @@ from platform5e.domain.generation.generation_plan import (
 )
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine
 from platform5e.infrastructure.persistence.error_translation import translate_persistence_errors
-from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import utc_text
+from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
+    lock_teacher_course_writes,
+    utc_text,
+)
 
 _STATUS_VALUES = ", ".join(f"'{status.value}'" for status in PlanStatus)
 
@@ -130,7 +133,10 @@ class SQLAlchemyGenerationPlanRepository(GenerationPlanRepositoryPort):
     """Adaptador de infraestructura de los planes. `bind` permite otra base (pruebas)."""
 
     @translate_persistence_errors
-    def __init__(self, bind: Engine | None = None) -> None:
+    def __init__(
+        self, bind: Engine | None = None, *, validate_reference: Callable[[GenerationPlan], None] | None = None
+    ) -> None:
+        self._validate_reference = validate_reference
         self._engine = bind if bind is not None else engine
         self._sessions = sessionmaker(bind=bind, autoflush=False) if bind is not None else SessionLocal
         if self._engine.dialect.name == "sqlite":
@@ -139,10 +145,14 @@ class SQLAlchemyGenerationPlanRepository(GenerationPlanRepositoryPort):
     @translate_persistence_errors
     def find_by_key(self, teacher_id: str, idempotency_key: str) -> GenerationPlan | None:
         with self._sessions() as session:
-            row = session.scalars(select(GenerationPlanORM).where(
-                GenerationPlanORM.teacher_id == teacher_id, GenerationPlanORM.idempotency_key == idempotency_key,
-            )).first()
-            return _from_orm(row) if row is not None else None
+            return self._find_by_key(session, teacher_id, idempotency_key)
+
+    @staticmethod
+    def _find_by_key(session: Session, teacher_id: str, idempotency_key: str) -> GenerationPlan | None:
+        row = session.scalars(select(GenerationPlanORM).where(
+            GenerationPlanORM.teacher_id == teacher_id, GenerationPlanORM.idempotency_key == idempotency_key,
+        )).first()
+        return _from_orm(row) if row is not None else None
 
     @translate_persistence_errors
     def get(self, teacher_id: str, plan_id: str) -> GenerationPlan | None:
@@ -187,12 +197,18 @@ class SQLAlchemyGenerationPlanRepository(GenerationPlanRepositoryPort):
     @translate_persistence_errors
     def create(self, plan: GenerationPlan) -> GenerationPlan:
         with self._sessions() as session:
+            if self._validate_reference is not None:
+                lock_teacher_course_writes(session, plan.teacher_id)
+                existing = self._find_by_key(session, plan.teacher_id, plan.idempotency_key)
+                if existing is not None:
+                    raise PlanKeyTaken(existing)
+                self._validate_reference(plan)
             session.add(_to_orm(plan))
             try:
                 session.commit()
             except IntegrityError:
                 session.rollback()
-                existing = self.find_by_key(plan.teacher_id, plan.idempotency_key)
+                existing = self._find_by_key(session, plan.teacher_id, plan.idempotency_key)
                 if existing is None:
                     raise
                 raise PlanKeyTaken(existing) from None
