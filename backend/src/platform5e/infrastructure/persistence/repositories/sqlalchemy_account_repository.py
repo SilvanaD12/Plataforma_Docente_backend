@@ -23,7 +23,10 @@ from sqlalchemy import (
     text,
 )
 
+from sqlalchemy.orm import Session
+
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError, find_course_and_unit
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine, run_with_db_retry
 from platform5e.infrastructure.persistence.error_translation import translate_persistence_errors
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
@@ -31,6 +34,7 @@ from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_pl
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_generation_request_repository import (
     GenerationRequestORM,
     GenerationStepORM,
+    lock_teacher_course_writes,
     lock_teacher_generation_requests,
 )
 
@@ -281,15 +285,82 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     @translate_persistence_errors
     def save_course(self, teacher_id: str, course_data: dict[str, Any]) -> None:
         with SessionLocal() as session:
-            session.merge(
-                CourseORM(
+            lock_teacher_course_writes(session, teacher_id)
+            course = session.get(CourseORM, (teacher_id, course_data["id"]), with_for_update=True)
+            if course is not None:
+                self._check_course_removals(session, teacher_id, course.data, course_data)
+                course.code = course_data["code"]
+                course.data = course_data
+            else:
+                session.add(CourseORM(
                     teacher_id=teacher_id,
                     id=course_data["id"],
                     code=course_data["code"],
                     data=course_data,
-                )
-            )
+                ))
             session.commit()
+
+    @staticmethod
+    def _check_course_removals(
+        session: Session, teacher_id: str, previous_course: dict[str, Any], updated_course: dict[str, Any]
+    ) -> None:
+        updated_units = {unit["id"]: unit for unit in updated_course["units"]}
+        removals: dict[str, set[str] | None] = {}
+        for unit in previous_course["units"]:
+            unit_id = unit["id"]
+            if unit_id not in updated_units:
+                removals[unit_id] = None
+                continue
+            kept_outcomes = {outcome["id"] for outcome in updated_units[unit_id]["outcomes"]}
+            removed_outcomes = {outcome["id"] for outcome in unit["outcomes"]} - kept_outcomes
+            if removed_outcomes:
+                removals[unit_id] = removed_outcomes
+        if not removals:
+            return
+
+        links: dict[tuple[str, str | None], set[str]] = {}
+        inspector = inspect(session.connection())
+        sources = (
+            (DocumentORM, DocumentORM.metadata_json, "outcomeIds", "materials"),
+            (ChunkORM, None, None, "materials"),
+            (GenerationPlanORM, GenerationPlanORM.inputs, "outcomeId", "plans"),
+            (GenerationRequestORM, GenerationRequestORM.parameters, "outcomeId", "requests"),
+            (TeacherResourceORM, TeacherResourceORM.resource_data, "outcomeId", "resources"),
+        )
+        for model, payload, outcome_key, link_type in sources:
+            if not inspector.has_table(model.__tablename__):
+                continue
+            columns = (model.unit_id, payload) if payload is not None else (model.unit_id,)
+            rows = session.execute(select(*columns).where(
+                model.teacher_id == teacher_id, model.unit_id.in_(removals),
+            ))
+            for row in rows:
+                unit_id = row[0]
+                removed_outcomes = removals[unit_id]
+                if removed_outcomes is None:
+                    links.setdefault((unit_id, None), set()).add(link_type)
+                elif outcome_key is not None:
+                    linked = row[1].get(outcome_key)
+                    linked_ids = linked if isinstance(linked, list) else [linked]
+                    for outcome_id in removed_outcomes.intersection(linked_ids):
+                        links.setdefault((unit_id, outcome_id), set()).add(link_type)
+
+        if links:
+            raise AccountConfigurationError(
+                "COURSE_REMOVAL_BLOCKED",
+                "No se pueden quitar unidades o resultados con datos vinculados.",
+                409,
+                details=[
+                    {
+                        "unitId": unit_id,
+                        **({"outcomeId": outcome_id} if outcome_id is not None else {}),
+                        "links": sorted(link_types),
+                    }
+                    for (unit_id, outcome_id), link_types in sorted(
+                        links.items(), key=lambda item: (item[0][0], item[0][1] or "")
+                    )
+                ],
+            )
 
     @translate_persistence_errors
     def delete_course(self, teacher_id: str, course_id: str, unit_ids: list[str]) -> None:
@@ -362,6 +433,18 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     ) -> None:
         def _write() -> None:
             with SessionLocal() as session:
+                lock_teacher_course_writes(session, teacher_id)
+                courses = session.scalars(select(CourseORM.data).where(CourseORM.teacher_id == teacher_id))
+                match = find_course_and_unit(courses, metadata["unitId"])
+                if match is None:
+                    raise AccountConfigurationError(
+                        "UNIT_NOT_FOUND", "La unidad no existe o no pertenece a tus cursos.", 404
+                    )
+                valid_ids = {outcome["id"] for outcome in match[1]["outcomes"]}
+                if not set(metadata.get("outcomeIds", [])).issubset(valid_ids):
+                    raise AccountConfigurationError(
+                        "INVALID_OUTCOMES", "Los resultados de aprendizaje no pertenecen a la unidad."
+                    )
                 session.add(
                     DocumentORM(
                         id=metadata["id"],

@@ -233,12 +233,17 @@ class AccountService:
             )
 
         previous_units = previous_course["units"] if previous_course else []
-        incoming_unit_ids = [u.get("id") for u in course_data["units"] if u.get("id")]
-        if len(set(incoming_unit_ids)) != len(incoming_unit_ids) or set(incoming_unit_ids) != {
-            u["id"] for u in previous_units
-        }:
+        previous_unit_ids = {unit["id"] for unit in previous_units}
+        incoming_unit_ids = [unit["id"] for unit in course_data["units"] if unit.get("id")]
+        removed_unit_ids = course_data.get("removedUnitIds", [])
+        if (
+            len(set(incoming_unit_ids)) != len(incoming_unit_ids)
+            or len(set(removed_unit_ids)) != len(removed_unit_ids)
+            or set(incoming_unit_ids) & set(removed_unit_ids)
+            or set(incoming_unit_ids) | set(removed_unit_ids) != previous_unit_ids
+        ):
             raise AccountConfigurationError(
-                "INVALID_UNITS", "Conserva las unidades existentes y sus identificadores."
+                "INVALID_UNITS", "Conserva los identificadores de las unidades que no vas a quitar."
             )
 
         saved_course: dict[str, Any] = {

@@ -323,6 +323,15 @@ def lock_teacher_generation_requests(session: Session, teacher_id: str) -> None:
             {"key": f"gen_generation_requests:{teacher_id}"},
         )
 
+
+def lock_teacher_course_writes(session: Session, teacher_id: str) -> None:
+    """Serializa cambios del catálogo y altas de vínculos del docente."""
+    if session.get_bind().dialect.name == "sqlite":
+        session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+    else:
+        lock_teacher_generation_requests(session, teacher_id)
+
+
 class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
     """Adaptador de infraestructura del pedido de generación.
 
@@ -429,7 +438,7 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
         with self._sessions() as session:
             # Mientras dura la transacción, ningún otro envío del docente cuenta ni registra pedidos, y el borrado de
             # un curso del docente espera (T047).
-            self._lock_teacher(session, request.teacher_id)
+            lock_teacher_course_writes(session, request.teacher_id)
             existing = self._find_by_key(session, request.teacher_id, request.idempotency_key)
             if existing is not None:
                 session.rollback()
@@ -483,16 +492,6 @@ class SQLAlchemyGenerationRequestRepository(GenerationRequestRepositoryPort):
             .values(**plan_update_values(plan))
         )
         return result.rowcount == 1
-
-    @staticmethod
-    def _lock_teacher(session: Session, teacher_id: str) -> None:
-        """Bloqueo por docente hasta el final de la transacción (research R4)."""
-        dialect = session.get_bind().dialect.name
-        if dialect == "postgresql":
-            lock_teacher_generation_requests(session, teacher_id)
-        elif dialect == "sqlite":
-            # Toma el bloqueo de escritura antes de contar: otro envío espera (busy timeout) en vez de leer lo mismo.
-            session.connection().exec_driver_sql("BEGIN IMMEDIATE")
 
     @staticmethod
     def _exists(session: Session, request_id: str) -> bool:

@@ -16,6 +16,7 @@ from sqlalchemy import URL, create_engine, event, func, select, text
 from sqlalchemy.orm import sessionmaker
 
 from platform5e.application.services.accounts.account_service import AccountService
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.domain.generation.generation_request import (
     GenerationMode,
     GenerationParameters,
@@ -45,11 +46,12 @@ OTHER_TEACHER = "otra.docente@example.com"
 TYPES = ("pregunta_detonante", "explicacion")
 
 
-def _plan(repository: SQLAlchemyGenerationPlanRepository, teacher_id: str, unit_id: str) -> str:
+def _plan(repository: SQLAlchemyGenerationPlanRepository, teacher_id: str, unit_id: str, outcome_id: str | None = None) -> str:
     """Guarda un plan en borrador de la unidad (GEN-P1)."""
     plan_id = f"gen-plan-{uuid4()}"
     repository.create(replace(VALID, id=plan_id, teacher_id=teacher_id, unit_id=unit_id,
-                              idempotency_key=f"clave-{uuid4().hex}"))
+                              idempotency_key=f"clave-{uuid4().hex}",
+                              inputs=replace(VALID.inputs, outcome_id=outcome_id)))
     return plan_id
 
 
@@ -57,9 +59,9 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def _finished_request(repository: SQLAlchemyGenerationRequestRepository, teacher_id: str, unit_id: str) -> str:
+def _finished_request(repository: SQLAlchemyGenerationRequestRepository, teacher_id: str, unit_id: str, outcome_id: str | None = None) -> str:
     """Guarda un pedido de dos pasos y lo deja terminado, como lo deja el ejecutor."""
-    parameters = GenerationParameters(resource_types=TYPES)
+    parameters = GenerationParameters(resource_types=TYPES, outcome_id=outcome_id)
     request = repository.create(
         GenerationRequest(
             id=f"gen-req-{uuid4()}",
@@ -164,3 +166,44 @@ def test_deleting_a_course_removes_its_generation_requests_and_keeps_its_downloa
     assert generation_plans.get(TEACHER, deleted_plan) is None
     assert generation_plans.get(TEACHER, kept_plan) is not None
     assert generation_plans.get(OTHER_TEACHER, same_unit_plan) is not None
+
+
+@pytest.mark.parametrize("remove_unit", [False, True])
+def test_edit_course_reports_generation_links(tmp_path, monkeypatch, request, remove_unit):
+    engine = create_engine(URL.create("sqlite", database=str(tmp_path / "removal.db")))
+    request.addfinalizer(engine.dispose)
+    sessions = sessionmaker(bind=engine)
+    monkeypatch.setattr(accounts, "engine", engine)
+    monkeypatch.setattr(accounts, "SessionLocal", sessions)
+    monkeypatch.setattr(resources, "SessionLocal", sessions)
+
+    service = AccountService(accounts.SQLAlchemyAccountRepository(), "", "")
+    plans = SQLAlchemyGenerationPlanRepository(engine)
+    requests = SQLAlchemyGenerationRequestRepository(engine)
+    review = resources.SQLAlchemyResourceRepository()
+    payload = {"code": "RED-REM", "name": "Redes", "term": "2026-II", "units": [
+        {"title": "Protocolos", "outcomes": [{"text": "Distingue TCP y UDP"}]},
+        {"title": "Dispositivos"},
+    ]}
+    course = service.save_course(TEACHER, payload)
+    unit, kept_unit = course["units"]
+    outcome_id = unit["outcomes"][0]["id"]
+    plan_id = _plan(plans, TEACHER, unit["id"], outcome_id)
+    request_id = _finished_request(requests, TEACHER, unit["id"], outcome_id)
+    review.save_resources(TEACHER, unit["id"], [{"id": "resource-linked", "outcomeId": outcome_id}])
+
+    if remove_unit:
+        change = {**payload, "units": [kept_unit], "removedUnitIds": [unit["id"]]}
+        affected = {"unitId": unit["id"]}
+    else:
+        change = {**payload, "units": [{**unit, "outcomes": []}, kept_unit]}
+        affected = {"unitId": unit["id"], "outcomeId": outcome_id}
+
+    with pytest.raises(AccountConfigurationError) as conflict:
+        service.save_course(TEACHER, change, course["id"])
+    assert conflict.value.code == "COURSE_REMOVAL_BLOCKED"
+    assert conflict.value.details == [{**affected, "links": ["plans", "requests", "resources"]}]
+    assert service.list_courses(TEACHER) == [course]
+    assert plans.get(TEACHER, plan_id) is not None
+    assert requests.get(TEACHER, request_id) is not None
+    assert review.get_resource_by_id(TEACHER, "resource-linked") is not None

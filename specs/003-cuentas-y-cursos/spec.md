@@ -38,6 +38,8 @@ Como docente, quiero organizar mis cursos y unidades para preparar el material y
 
 **CC-C11.** Al crear o editar un curso, los titulos de unidad y los codigos y textos de los resultados son unicos dentro del curso. La comparacion ignora mayusculas, tildes y espacios extra. La API devuelve `409 DUPLICATE_UNIT_TITLE` o `409 DUPLICATE_OUTCOME` e identifica el primer campo que hay que corregir con `field`, `unitIndex` y, para resultados, `outcomeIndex`. Los indices empiezan en cero. El docente puede corregir los duplicados de un curso existente antes de guardarlo.
 
+**CC-C12.** Al editar un curso, el docente puede quitar unidades y resultados guardados sin datos vinculados. El curso conserva al menos una unidad. Las unidades que se quitan se indican explícitamente en `removedUnitIds`. Si un material, plan, pedido o recurso usa una unidad o resultado afectado, el guardado completo se rechaza con `409 COURSE_REMOVAL_BLOCKED`. Cada entrada en `error.details` identifica la unidad, el resultado cuando corresponde y los tipos de vínculos encontrados.
+
 ## Requisitos funcionales
 
 - **CC-R1.** Validar los datos de registro, normalizar el correo y hacer cumplir su unicidad.

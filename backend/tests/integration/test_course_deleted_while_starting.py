@@ -13,6 +13,7 @@ from __future__ import annotations
 import threading
 import time
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +26,7 @@ from platform5e.application.use_cases.generation.start_generation_request import
     StartGenerationCommand,
     StartGenerationRequest,
 )
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.domain.generation.errors import GenerationError, GenerationErrorCode
 from platform5e.domain.generation.generation_request import GenerationMode, GenerationParameters
 from platform5e.infrastructure.adapters.account_unit_membership_adapter import AccountUnitMembershipAdapter
@@ -176,3 +178,70 @@ def test_deleting_the_course_waits_for_a_request_being_saved_and_then_removes_it
     deleting.join(10)
     assert deleted.is_set() and results["start"].created
     assert setup.stored() == (0, 0)
+
+
+
+@pytest.mark.parametrize("remove_unit", [False, True], ids=["outcome", "unit"])
+@pytest.mark.parametrize("removal_first", [False, True], ids=["material-first", "removal-first"])
+def test_removing_course_rows_serializes_material_links(engine, monkeypatch, remove_unit, removal_first):
+    repository = accounts.SQLAlchemyAccountRepository()
+    service = AccountService(repository, "", "")
+    payload = {"code": "CUR-A", "name": "Redes", "term": "2026-II", "units": [
+        {"title": "Protocolos", "outcomes": [{"text": "Distingue TCP y UDP"}]},
+        {"title": "Dispositivos"},
+    ]}
+    course = service.save_course(TEACHER, payload)
+    unit, other = course["units"]
+    outcome_id = unit["outcomes"][0]["id"]
+    change = (
+        {**payload, "units": [other], "removedUnitIds": [unit["id"]]}
+        if remove_unit else {**payload, "units": [{**unit, "outcomes": []}, other]}
+    )
+    document = {
+        "id": "material-concurrente", "unitId": unit["id"],
+        "outcomeIds": [outcome_id], "fileName": "protocolos.txt",
+    }
+
+    lock = accounts.lock_teacher_course_writes
+    first_has_lock, second_attempted, resume_first = (
+        threading.Event(), threading.Event(), threading.Event()
+    )
+    lock_attempts = iter((True, False))
+
+    def ordered_lock(session, teacher_id):
+        if next(lock_attempts):
+            lock(session, teacher_id)
+            first_has_lock.set()
+            assert resume_first.wait(10)
+        else:
+            second_attempted.set()
+            lock(session, teacher_id)
+
+    monkeypatch.setattr(accounts, "lock_teacher_course_writes", ordered_lock)
+
+    def remove():
+        return service.save_course(TEACHER, change, course["id"])
+
+    def upload():
+        repository.save_document(TEACHER, document, b"Material concurrente")
+
+    first, second = (remove, upload) if removal_first else (upload, remove)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        accepted = pool.submit(first)
+        try:
+            assert first_has_lock.wait(10)
+            rejected = pool.submit(second)
+            assert second_attempted.wait(10)
+        finally:
+            resume_first.set()
+        accepted.result(timeout=10)
+        with pytest.raises(AccountConfigurationError) as conflict:
+            rejected.result(timeout=10)
+
+    if removal_first:
+        assert conflict.value.code == ("UNIT_NOT_FOUND" if remove_unit else "INVALID_OUTCOMES")
+        assert repository.get_document(TEACHER, document["id"]) is None
+    else:
+        assert conflict.value.code == "COURSE_REMOVAL_BLOCKED"
+        assert repository.get_document(TEACHER, document["id"]) is not None
+        assert service.list_courses(TEACHER) == [course]

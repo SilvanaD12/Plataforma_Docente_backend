@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Response, status
 from platform5e.application.services.accounts.account_service import AccountService
 from platform5e.infrastructure.http.dependencies import current_teacher_dependency
 from platform5e.infrastructure.http.schemas.common import error_responses
-from platform5e.infrastructure.http.schemas.courses import CourseInput, CourseResponse
+from platform5e.infrastructure.http.schemas.courses import CourseInput, CourseResponse, CourseUpdateInput
 
 
 def _to_service(body: CourseInput) -> dict[str, Any]:
@@ -65,8 +65,10 @@ def create_courses_router(account_service: AccountService) -> APIRouter:
         summary="Update a course",
         responses=error_responses(400, 401, 404, 409, 422),
     )
-    def update_course(course_id: str, body: CourseInput, teacher_id: str = Depends(current_teacher)) -> dict[str, Any]:
-        """Replaces the course data. Existing units must be sent back with their id; new units have none.
+    def update_course(course_id: str, body: CourseUpdateInput, teacher_id: str = Depends(current_teacher)) -> dict[str, Any]:
+        """Updates the course data. Send retained units with their IDs, new units without IDs, and IDs of units to remove in `removedUnitIds`.
+
+        When a unit is sent with an outcomes list, saved outcomes absent from the list are removed. Omit outcomes to keep the saved list. If a removed unit or outcome has linked data, the update returns 409 `COURSE_REMOVAL_BLOCKED` with the affected IDs and link types in `error.details`.
 
         Duplicate unit titles return 409 `DUPLICATE_UNIT_TITLE`. Duplicate learning outcome codes or texts return 409 `DUPLICATE_OUTCOME`. The first conflict's `error.details` includes `field` (`title`, `code`, or `text`), zero-based `unitIndex`, and `outcomeIndex` for learning outcomes.
 
