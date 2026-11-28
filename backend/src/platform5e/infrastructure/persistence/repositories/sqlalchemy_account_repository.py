@@ -23,7 +23,10 @@ from sqlalchemy import (
     text,
 )
 
+from sqlalchemy.orm import Session
+
 from platform5e.application.ports.outbound.teacher_repository_port import TeacherRepositoryPort
+from platform5e.domain.accounts.teacher_account import AccountConfigurationError
 from platform5e.infrastructure.persistence.database import Base, SessionLocal, engine, run_with_db_retry
 from platform5e.infrastructure.persistence.error_translation import translate_persistence_errors
 from platform5e.infrastructure.persistence.repositories.sqlalchemy_media_repository import MediaAssetORM
@@ -281,15 +284,85 @@ class SQLAlchemyAccountRepository(TeacherRepositoryPort):
     @translate_persistence_errors
     def save_course(self, teacher_id: str, course_data: dict[str, Any]) -> None:
         with SessionLocal() as session:
-            session.merge(
-                CourseORM(
+            lock_teacher_generation_requests(session, teacher_id)
+            if session.get_bind().dialect.name == "sqlite":
+                session.connection().exec_driver_sql("BEGIN IMMEDIATE")
+
+            course = session.get(CourseORM, (teacher_id, course_data["id"]), with_for_update=True)
+            if course is not None:
+                self._check_course_removals(session, teacher_id, course.data, course_data)
+                course.code = course_data["code"]
+                course.data = course_data
+            else:
+                session.add(CourseORM(
                     teacher_id=teacher_id,
                     id=course_data["id"],
                     code=course_data["code"],
                     data=course_data,
-                )
-            )
+                ))
             session.commit()
+
+    @staticmethod
+    def _check_course_removals(
+        session: Session, teacher_id: str, previous_course: dict[str, Any], updated_course: dict[str, Any]
+    ) -> None:
+        updated_units = {unit["id"]: unit for unit in updated_course["units"]}
+        removals: dict[str, set[str] | None] = {}
+        for unit in previous_course["units"]:
+            unit_id = unit["id"]
+            if unit_id not in updated_units:
+                removals[unit_id] = None
+                continue
+            kept_outcomes = {outcome["id"] for outcome in updated_units[unit_id]["outcomes"]}
+            removed_outcomes = {outcome["id"] for outcome in unit["outcomes"]} - kept_outcomes
+            if removed_outcomes:
+                removals[unit_id] = removed_outcomes
+        if not removals:
+            return
+
+        links: dict[tuple[str, str | None], set[str]] = {}
+        inspector = inspect(session.connection())
+        sources = (
+            (DocumentORM, DocumentORM.metadata_json, "outcomeIds", "materials"),
+            (ChunkORM, None, None, "materials"),
+            (GenerationPlanORM, GenerationPlanORM.inputs, "outcomeId", "plans"),
+            (GenerationRequestORM, GenerationRequestORM.parameters, "outcomeId", "requests"),
+            (TeacherResourceORM, TeacherResourceORM.resource_data, "outcomeId", "resources"),
+        )
+        for model, payload, outcome_key, link_type in sources:
+            if not inspector.has_table(model.__tablename__):
+                continue
+            columns = (model.unit_id, payload) if payload is not None else (model.unit_id,)
+            rows = session.execute(select(*columns).where(
+                model.teacher_id == teacher_id, model.unit_id.in_(removals),
+            ))
+            for row in rows:
+                unit_id = row[0]
+                removed_outcomes = removals[unit_id]
+                if removed_outcomes is None:
+                    links.setdefault((unit_id, None), set()).add(link_type)
+                elif outcome_key is not None:
+                    linked = row[1].get(outcome_key)
+                    linked_ids = linked if isinstance(linked, list) else [linked]
+                    for outcome_id in removed_outcomes.intersection(linked_ids):
+                        links.setdefault((unit_id, outcome_id), set()).add(link_type)
+
+        if links:
+            raise AccountConfigurationError(
+                "COURSE_REMOVAL_BLOCKED",
+                "No se pueden quitar unidades o resultados con datos vinculados.",
+                409,
+                details=[
+                    {
+                        "unitId": unit_id,
+                        **({"outcomeId": outcome_id} if outcome_id is not None else {}),
+                        "links": sorted(link_types),
+                    }
+                    for (unit_id, outcome_id), link_types in sorted(
+                        links.items(), key=lambda item: (item[0][0], item[0][1] or "")
+                    )
+                ],
+            )
 
     @translate_persistence_errors
     def delete_course(self, teacher_id: str, course_id: str, unit_ids: list[str]) -> None:

@@ -19,3 +19,8 @@
   - Validación (8 de noviembre de 2026). En navegador, la URL de la unidad pidió iniciar sesión tras el cierre. Al volver a entrar con la misma cuenta, esa URL abrió «Protocolos TCP/IP» con `RA1.1`. Las comprobaciones de API y persistencia en SQLite cubrieron CC-C1 a CC-C8 y confirmaron que el curso, la unidad y el resultado conservaron sus IDs en el JSON después de la edición.
 - [x] T011 [E2E] Eliminar un curso de prueba con datos asociados y comprobar que el registro de descarga sigue disponible para su docente. Depende de T008 y T009. Caso CC-C9.
 - [x] T012 [BE/FE] Validar la unicidad de titulos de unidad y de codigos y textos de resultados en el mismo curso. Comprobar el contrato HTTP 409 y mostrar el aviso junto al campo correspondiente. Caso CC-C11.
+
+## Retiro de unidades y resultados
+
+- [ ] T013 [BE] Permitir retiros sin vínculos, comprobar las dependencias en el guardado y verificar el contrato HTTP 409. Caso CC-C12.
+- [ ] T014 [FE] Agregar «Quitar» a unidades y resultados guardados y mostrar los vínculos reportados por el backend. Caso CC-C12.

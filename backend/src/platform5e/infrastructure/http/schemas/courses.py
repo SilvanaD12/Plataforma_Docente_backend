@@ -38,6 +38,12 @@ class CourseInput(ApiRequest):
     )
 
 
+class CourseUpdateInput(CourseInput):
+    removed_unit_ids: list[str] = Field(
+        default_factory=list, max_length=50, description="IDs of saved units explicitly removed from the course."
+    )
+
+
 class LearningOutcomeResponse(ApiResponse):
     id: str
     code: str | None = None

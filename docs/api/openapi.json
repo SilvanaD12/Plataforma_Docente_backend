@@ -343,7 +343,7 @@
           "courses"
         ],
         "summary": "Update a course",
-        "description": "Replaces the course data. Existing units must be sent back with their id; new units have none.\n\nDuplicate unit titles return 409 `DUPLICATE_UNIT_TITLE`. Duplicate learning outcome codes or texts return 409 `DUPLICATE_OUTCOME`. The first conflict's `error.details` includes `field` (`title`, `code`, or `text`), zero-based `unitIndex`, and `outcomeIndex` for learning outcomes.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X PUT \"$BASE_URL/api/v1/courses/${COURSE_ID}\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"code\":\"RED-301\",\"name\":\"Redes de computadoras\",\"term\":\"2026-II\",\"units\":[{\"title\":\"Capa de transporte\",\"outcomes\":[{\"code\":\"RA1\",\"text\":\"Distingue los protocolos TCP y UDP.\"}],\"id\":\"unidad-1\"}]}'\n```\n\nReplace unidad-1 with an existing unit id. Copy existing unit and outcome ids from GET /courses before editing to preserve them. Expected 200.",
+        "description": "Updates the course data. Send retained units with their IDs, new units without IDs, and IDs of units to remove in `removedUnitIds`.\n\nWhen a unit is sent with an outcomes list, saved outcomes absent from the list are removed. Omit outcomes to keep the saved list. If a removed unit or outcome has linked data, the update returns 409 `COURSE_REMOVAL_BLOCKED` with the affected IDs and link types in `error.details`.\n\nDuplicate unit titles return 409 `DUPLICATE_UNIT_TITLE`. Duplicate learning outcome codes or texts return 409 `DUPLICATE_OUTCOME`. The first conflict's `error.details` includes `field` (`title`, `code`, or `text`), zero-based `unitIndex`, and `outcomeIndex` for learning outcomes.\n\nExample (Bash/cURL). Set BASE_URL to the API URL and TOKEN to a valid bearer token.\nUse your own ids for path variables and replace sample ids such as unidad-1 in JSON bodies.\n\n```bash\ncurl --fail-with-body -i -X PUT \"$BASE_URL/api/v1/courses/${COURSE_ID}\" -H \"Authorization: Bearer $TOKEN\" -H 'Content-Type: application/json' --data '{\"code\":\"RED-301\",\"name\":\"Redes de computadoras\",\"term\":\"2026-II\",\"units\":[{\"title\":\"Capa de transporte\",\"outcomes\":[{\"code\":\"RA1\",\"text\":\"Distingue los protocolos TCP y UDP.\"}],\"id\":\"unidad-1\"}]}'\n```\n\nReplace unidad-1 with an existing unit id. Copy existing unit and outcome ids from GET /courses before editing to preserve them. Expected 200.",
         "operationId": "update_course_api_v1_courses__course_id__put",
         "security": [
           {
@@ -366,7 +366,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CourseInput"
+                "$ref": "#/components/schemas/CourseUpdateInput"
               }
             }
           }
@@ -3862,6 +3862,133 @@
           "title"
         ],
         "title": "CourseUnitInput"
+      },
+      "CourseUpdateInput": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Code",
+            "description": "Unique per teacher.",
+            "examples": [
+              "RED-301"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 150,
+            "minLength": 1,
+            "title": "Name",
+            "examples": [
+              "Redes de computadoras"
+            ]
+          },
+          "term": {
+            "type": "string",
+            "maxLength": 30,
+            "minLength": 1,
+            "title": "Term",
+            "examples": [
+              "2026-II"
+            ]
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 3000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary",
+            "description": "Official course summary (sumilla)."
+          },
+          "learningGoal": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Learninggoal",
+            "description": "Course learning goal (logro)."
+          },
+          "educationLevel": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Educationlevel"
+          },
+          "academicCycle": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Academiccycle"
+          },
+          "activityType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "course",
+                  "workshop",
+                  "conference",
+                  ""
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Activitytype"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/CourseUnitInput"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Units",
+            "description": "Existing units must be sent back with their id."
+          },
+          "removedUnitIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Removedunitids",
+            "description": "IDs of saved units explicitly removed from the course."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "name",
+          "term",
+          "units"
+        ],
+        "title": "CourseUpdateInput"
       },
       "CreateGenerationPlan": {
         "properties": {

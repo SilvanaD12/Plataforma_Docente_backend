@@ -389,3 +389,51 @@ def test_edit_course_returns_the_field_for_a_duplicate(server, second_unit, code
         courses = api.get("/api/v1/courses", headers=headers)
         assert courses.status_code == 200, courses.text
         assert next(item for item in courses.json() if item["id"] == course["id"]) == course
+
+
+@pytest.mark.parametrize("remove_unit", [False, True])
+def test_course_removal_keeps_linked_data_and_allows_unlinked_removal(server, remove_unit):
+    payload = {**COURSE, "code": "CUR-REMOVE", "units": [
+        {"title": "Transporte", "outcomes": [{"text": "Compara TCP y UDP"}]},
+        {"title": "Dispositivos", "outcomes": [{"text": "Identifica un router"}]},
+    ]}
+    with httpx.Client(base_url=server, timeout=30) as api:
+        headers = login(api)
+        response = api.post("/api/v1/courses", headers=headers, json=payload)
+        assert response.status_code == 201, response.text
+        course = response.json()
+        first_unit, second_unit = course["units"]
+        outcome = first_unit["outcomes"][0]
+        response = upload(api, headers, data=context(first_unit["id"], [outcome["id"]]))
+        assert response.status_code == 201, response.text
+        material_id = response.json()["id"]
+
+        url = f"/api/v1/courses/{course['id']}"
+        retained_first = {"id": first_unit["id"], "title": first_unit["title"]}
+        retained_second = {"id": second_unit["id"], "title": second_unit["title"]}
+        if remove_unit:
+            blocked = {**payload, "units": [retained_second], "removedUnitIds": [first_unit["id"]]}
+            allowed = {**payload, "units": [retained_first], "removedUnitIds": [second_unit["id"]]}
+            affected = {"unitId": first_unit["id"]}
+        else:
+            blocked = {**payload, "units": [{**retained_first, "outcomes": []}, retained_second]}
+            allowed = {**payload, "units": [retained_first, {**retained_second, "outcomes": []}]}
+            affected = {"unitId": first_unit["id"], "outcomeId": outcome["id"]}
+
+        response = api.put(url, headers=headers, json=blocked)
+        assert response.status_code == 409, response.text
+        error = response.json()["error"]
+        assert error["code"] == "COURSE_REMOVAL_BLOCKED"
+        assert error["details"] == [{**affected, "links": ["materials"]}]
+        courses = api.get("/api/v1/courses", headers=headers).json()
+        assert next(item for item in courses if item["id"] == course["id"]) == course
+
+        response = api.put(url, headers=headers, json=allowed)
+        assert response.status_code == 200, response.text
+        expected = [first_unit] if remove_unit else [first_unit, {**second_unit, "outcomes": []}]
+        assert response.json()["units"] == expected
+        documents = api.get(
+            "/api/v1/documents", headers=headers, params={"unitId": first_unit["id"]}
+        )
+        assert documents.status_code == 200, documents.text
+        assert any(document["id"] == material_id for document in documents.json())
